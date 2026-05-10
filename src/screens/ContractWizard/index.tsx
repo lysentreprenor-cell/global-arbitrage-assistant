@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Platform, StatusBar as RNStatusBar } from 'react-native';
+import { View, StyleSheet, SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native';
 import { ContractData, INITIAL_CONTRACT_DATA } from '../../types/contract';
 import { calculateTotal } from '../../utils/pricing';
 import { C } from '../../theme';
