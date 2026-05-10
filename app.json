@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "ItemPrise",
+    "slug": "item-prise",
+    "version": "2.8.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D0F"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.itemprise.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0D0D0F"
+      },
+      "package": "com.itemprise.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
