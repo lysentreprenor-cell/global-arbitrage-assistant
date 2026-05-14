@@ -1,0 +1,55 @@
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body.browser-parity-ready {
+  min-height: calc(var(--app-vh, 1vh) * 100);
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* browser ma wyglądać bardziej jak app/standalone */
+body[data-runtime="browser"] #root {
+  min-height: calc(var(--app-vh, 1vh) * 100);
+}
+
+/* ukrycie konsoli admina dla zwykłych userów */
+body[data-role="user"] .admin-console,
+body[data-role="user"] .admin-panel,
+body[data-role="user"] .admin-link,
+body[data-role="user"] .admin-only,
+body[data-role="user"] [data-admin-only="true"],
+body[data-role="user"] [data-role-guard="admin"],
+body[data-role="user"] [data-open-admin="true"],
+body[data-role="user"] a[href="/admin"],
+body[data-role="user"] a[href*="/admin"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* jeśli UI ma shell mobile / card layout, niech będzie pełniejszy w browserze */
+body.browser-parity-ready .mobile-shell,
+body.browser-parity-ready .app-shell,
+body.browser-parity-ready .screen-root,
+body.browser-parity-ready .main-shell {
+  min-height: calc(var(--app-vh, 1vh) * 100);
+}
+
+/* lekka normalizacja safe area */
+body.browser-parity-ready {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* gdy app używa centered cards, browser też dostaje ten sam feeling */
+body[data-runtime="browser"] .app-card,
+body[data-runtime="browser"] .screen-card,
+body[data-runtime="browser"] .page-card {
+  max-width: 100%;
+}
