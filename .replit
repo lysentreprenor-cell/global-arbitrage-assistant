@@ -1,12 +1,14 @@
 run = "npm install --legacy-peer-deps && npx expo start --web"
 entrypoint = "App.tsx"
-modules = ["nodejs-20", "bun"]
+modules = ["bun", "nodejs-22"]
 
 [nix]
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "npm install --legacy-peer-deps && npx expo start --web"]
+run = ["node", "dist/index.cjs"]
+deploymentTarget = "autoscale"
+build = ["npm", "run", "build"]
 
 [[ports]]
 localPort = 3000
@@ -44,10 +46,15 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
 
-[workflows.workflow.metadata]
-outputType = "webview"
+[userenv]
+
+[userenv.production]
+PORT = "3000"
