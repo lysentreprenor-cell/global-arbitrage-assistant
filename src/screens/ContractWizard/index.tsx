@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { ContractData, INITIAL_CONTRACT_DATA } from '../../types/contract';
+import { ContractData, INITIAL_CONTRACT_DATA, RENOVATION_TYPES } from '../../types/contract';
 import { calculateTotal } from '../../utils/pricing';
 import { C } from '../../theme';
 import ProgressBar from './components/ProgressBar';
 import WizardNavigation from './components/WizardNavigation';
 import Step1Basics from './steps/Step1Basics';
-import Step2Scope from './steps/Step2Scope';
-import Step3Pricing from './steps/Step3Pricing';
+import StepStages from './steps/StepStages';
+import StepRenovationPricing from './steps/StepRenovationPricing';
 import Step4Payment from './steps/Step4Payment';
-import Step5Conditions from './steps/Step5Conditions';
+import StepSimpleDetails from './steps/StepSimpleDetails';
 import Step6Summary from './steps/Step6Summary';
 
-const TOTAL_STEPS = 6;
+const RENOVATION_LABELS = ['Podstawy', 'Etapy', 'Wycena', 'Płatność', 'Gotowe'];
+const SIMPLE_LABELS = ['Podstawy', 'Szczegóły', 'Gotowe'];
 
 export default function ContractWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -21,33 +22,47 @@ export default function ContractWizard() {
 
   const updateData = (updates: Partial<ContractData>) => setData(prev => ({ ...prev, ...updates }));
   const totalAmount = calculateTotal(data);
-  const goNext = () => { if (currentStep < TOTAL_STEPS) setCurrentStep(s => s + 1); };
+
+  const isRenovation = RENOVATION_TYPES.includes(data.contractType as any);
+  const stepLabels = isRenovation ? RENOVATION_LABELS : SIMPLE_LABELS;
+  const totalSteps = stepLabels.length;
+
+  const goNext = () => { if (currentStep < totalSteps) setCurrentStep(s => s + 1); };
   const goBack = () => { if (currentStep > 1) setCurrentStep(s => s - 1); };
-  const goToStep = (step: number) => { if (step >= 1 && step <= TOTAL_STEPS) setCurrentStep(step); };
+  const goToStep = (step: number) => { if (step >= 1 && step <= totalSteps) setCurrentStep(step); };
   const saveDraft = () => console.log('[ContractWizard] Draft saved', JSON.stringify(data, null, 2));
   const createContract = () => console.log('[ContractWizard] Creating contract', JSON.stringify(data, null, 2));
 
   const stepProps = { data, updateData, totalAmount };
 
   const renderStep = () => {
-    switch (currentStep) {
-      case 1: return <Step1Basics {...stepProps} />;
-      case 2: return <Step2Scope {...stepProps} />;
-      case 3: return <Step3Pricing {...stepProps} />;
-      case 4: return <Step4Payment {...stepProps} />;
-      case 5: return <Step5Conditions {...stepProps} />;
-      case 6: return <Step6Summary {...stepProps} goToStep={goToStep} onCreateContract={createContract} />;
-      default: return null;
+    if (isRenovation) {
+      switch (currentStep) {
+        case 1: return <Step1Basics {...stepProps} />;
+        case 2: return <StepStages {...stepProps} />;
+        case 3: return <StepRenovationPricing {...stepProps} />;
+        case 4: return <Step4Payment {...stepProps} />;
+        case 5: return <Step6Summary {...stepProps} goToStep={goToStep} onCreateContract={createContract} />;
+      }
+    } else {
+      switch (currentStep) {
+        case 1: return <Step1Basics {...stepProps} />;
+        case 2: return <StepSimpleDetails {...stepProps} />;
+        case 3: return <Step6Summary {...stepProps} goToStep={goToStep} onCreateContract={createContract} />;
+      }
     }
+    return null;
   };
+
+  const isLastStep = currentStep === totalSteps;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" backgroundColor={C.bg} />
       <View style={styles.container}>
-        <ProgressBar currentStep={currentStep} totalSteps={TOTAL_STEPS} onStepPress={goToStep} />
+        <ProgressBar currentStep={currentStep} totalSteps={totalSteps} stepLabels={stepLabels} onStepPress={goToStep} />
         <View style={styles.content}>{renderStep()}</View>
-        <WizardNavigation currentStep={currentStep} totalSteps={TOTAL_STEPS} onBack={goBack} onNext={goNext} onSaveDraft={saveDraft} onCreateContract={createContract} />
+        <WizardNavigation currentStep={currentStep} totalSteps={totalSteps} onBack={goBack} onNext={goNext} onSaveDraft={saveDraft} onCreateContract={createContract} />
       </View>
     </SafeAreaView>
   );
