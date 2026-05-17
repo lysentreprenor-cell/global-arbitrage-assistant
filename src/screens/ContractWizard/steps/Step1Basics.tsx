@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ContractData, ContractType, ContractCategory, RENOVATION_TYPES } from '../../../types/contract';
 import { Field, Input } from '../components/FormField';
+import { useSettings, Currency, CURRENCY_SYMBOLS } from '../../../context/SettingsContext';
 import { C } from '../../../theme';
 
 interface Props { data: ContractData; updateData: (updates: Partial<ContractData>) => void; }
@@ -20,8 +21,12 @@ const CATEGORIES: { value: ContractCategory; label: string; icon: string }[] = [
   { value: 'przemyslowy', label: 'Obiekt przemysłowy', icon: '🏭' },
 ];
 
+const CURRENCIES: Currency[] = ['PLN', 'EUR', 'USD', 'GBP', 'CZK'];
+
 export default function Step1Basics({ data, updateData }: Props) {
+  const { currency, setCurrency } = useSettings();
   const isRenovation = RENOVATION_TYPES.includes(data.contractType as any);
+
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
@@ -73,13 +78,28 @@ export default function Step1Basics({ data, updateData }: Props) {
           <Input value={data.deadline} onChangeText={v => updateData({ deadline: v })} placeholder="np. 2025-08-31" />
         </Field>
       </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Waluta rozliczeń</Text>
+        <View style={styles.currencyRow}>
+          {CURRENCIES.map(c => {
+            const isActive = currency === c;
+            return (
+              <TouchableOpacity key={c} style={[styles.currencyChip, isActive && styles.currencyChipActive]} onPress={() => setCurrency(c)} activeOpacity={0.75}>
+                <Text style={[styles.currencyCode, isActive && styles.currencyCodeActive]}>{c}</Text>
+                <Text style={[styles.currencySymbol, isActive && styles.currencySymbolActive]}>{CURRENCY_SYMBOLS[c]}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 16, paddingBottom: 24 },
+  content: { padding: 16, paddingBottom: 32 },
   header: { marginBottom: 20 },
   stepTitle: { color: C.white, fontSize: 22, fontWeight: '800', marginBottom: 4 },
   stepDesc: { color: C.textSec, fontSize: 14, lineHeight: 20 },
@@ -100,4 +120,11 @@ const styles = StyleSheet.create({
   catIcon: { fontSize: 18 },
   catLabel: { color: C.textSec, fontSize: 14, fontWeight: '500' },
   catLabelActive: { color: C.purpleLight, fontWeight: '700' },
+  currencyRow: { flexDirection: 'row', gap: 8 },
+  currencyChip: { flex: 1, alignItems: 'center', paddingVertical: 10, backgroundColor: C.cardAlt, borderRadius: C.radiusSm, borderWidth: 1.5, borderColor: C.border },
+  currencyChipActive: { backgroundColor: C.purpleDim, borderColor: C.purple },
+  currencyCode: { color: C.textSec, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  currencyCodeActive: { color: C.purpleLight },
+  currencySymbol: { color: C.textMuted, fontSize: 11, marginTop: 2 },
+  currencySymbolActive: { color: C.purple },
 });

@@ -39,8 +39,8 @@ export function calculatePaymentBreakdown(data: ContractData): PaymentBreakdown 
   }
 }
 
-export function formatCurrency(amount: number): string {
-  return amount.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN', maximumFractionDigits: 0 });
+export function formatCurrency(amount: number, currency = 'PLN', locale = 'pl-PL'): string {
+  return amount.toLocaleString(locale, { style: 'currency', currency, maximumFractionDigits: 0 });
 }
 
 export interface SmartHint {

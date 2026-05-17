@@ -2,7 +2,8 @@ import React from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ContractData, CONTRACT_TYPE_LABELS, CATEGORY_LABELS, PAYMENT_SPLIT_LABELS, RENOVATION_TYPES } from '../../../types/contract';
 import { HintBox } from '../components/FormField';
-import { calculatePaymentBreakdown, formatCurrency, getSmartHints } from '../../../utils/pricing';
+import { calculatePaymentBreakdown, getSmartHints } from '../../../utils/pricing';
+import { useSettings } from '../../../context/SettingsContext';
 import { C } from '../../../theme';
 
 interface Props { data: ContractData; updateData: (updates: Partial<ContractData>) => void; totalAmount: number; goToStep: (step: number) => void; onCreateContract: () => void; }
@@ -31,6 +32,7 @@ function SummarySection({ title, onEdit, children }: { title: string; onEdit: ()
 }
 
 export default function Step6Summary({ data, totalAmount, goToStep, onCreateContract }: Props) {
+  const { formatAmount } = useSettings();
   const hints = getSmartHints(data);
   const bd = calculatePaymentBreakdown(data);
   const isRenovation = RENOVATION_TYPES.includes(data.contractType as any);
@@ -68,7 +70,7 @@ export default function Step6Summary({ data, totalAmount, goToStep, onCreateCont
       {isRenovation && data.stages.length > 0 && (
         <SummarySection title={`Etapy (${data.stages.length})`} onEdit={() => goToStep(2)}>
           {data.stages.map((s, i) => (
-            <SummaryRow key={s.id} label={`Etap ${i + 1}: ${s.icon} ${s.name}`} value={s.amount > 0 ? formatCurrency(s.amount) : s.deadline || '—'} />
+            <SummaryRow key={s.id} label={`Etap ${i + 1}: ${s.icon} ${s.name}`} value={s.amount > 0 ? formatAmount(s.amount) : s.deadline || '—'} />
           ))}
         </SummarySection>
       )}
@@ -76,29 +78,29 @@ export default function Step6Summary({ data, totalAmount, goToStep, onCreateCont
       {isRenovation && data.rooms.length > 0 && (
         <SummarySection title={`Wycena (${data.rooms.length} pom.)`} onEdit={() => goToStep(3)}>
           {data.rooms.map(r => (
-            <SummaryRow key={r.id} label={r.name} value={r.area > 0 && r.pricePerM2 > 0 ? formatCurrency(r.area * r.pricePerM2) : r.area > 0 ? `${r.area} m²` : '—'} />
+            <SummaryRow key={r.id} label={r.name} value={r.area > 0 && r.pricePerM2 > 0 ? formatAmount(r.area * r.pricePerM2) : r.area > 0 ? `${r.area} m²` : '—'} />
           ))}
-          {data.materialsValue > 0 && <SummaryRow label="Materiały" value={formatCurrency(data.materialsValue)} />}
+          {data.materialsValue > 0 && <SummaryRow label="Materiały" value={formatAmount(data.materialsValue)} />}
         </SummarySection>
       )}
 
       {!isRenovation && (
         <SummarySection title="Kwota" onEdit={() => goToStep(2)}>
-          <SummaryRow label="Wartość zlecenia" value={data.lumpSumPrice > 0 ? formatCurrency(data.lumpSumPrice) : '—'} warning={data.lumpSumPrice === 0} />
+          <SummaryRow label="Wartość zlecenia" value={data.lumpSumPrice > 0 ? formatAmount(data.lumpSumPrice) : '—'} warning={data.lumpSumPrice === 0} />
         </SummarySection>
       )}
 
       <SummarySection title="Płatność" onEdit={() => goToStep(isRenovation ? 4 : 2)}>
         <SummaryRow label="Model" value={data.paymentSplit ? PAYMENT_SPLIT_LABELS[data.paymentSplit] : '—'} warning={!data.paymentSplit} />
-        {bd.total > 0 && <SummaryRow label="Depozyt" value={formatCurrency(bd.deposit)} />}
+        {bd.total > 0 && <SummaryRow label="Depozyt" value={formatAmount(bd.deposit)} />}
         {data.hasAcceptanceProtocol && <SummaryRow label="Protokół odbioru" value="Wymagany ✓" />}
         {data.correctionDays > 0 && <SummaryRow label="Poprawki" value={`${data.correctionDays} dni`} />}
       </SummarySection>
 
       <View style={styles.finalCard}>
         <Text style={styles.finalLabel}>ŁĄCZNA KWOTA UMOWY</Text>
-        <Text style={styles.finalValue}>{formatCurrency(totalAmount)}</Text>
-        {bd.deposit > 0 && <Text style={styles.finalDeposit}>w tym {formatCurrency(bd.deposit)} w depozycie</Text>}
+        <Text style={styles.finalValue}>{formatAmount(totalAmount)}</Text>
+        {bd.deposit > 0 && <Text style={styles.finalDeposit}>w tym {formatAmount(bd.deposit)} w depozycie</Text>}
       </View>
 
       <TouchableOpacity style={[styles.createBtn, warnings.length > 0 && styles.createBtnWarning]} onPress={onCreateContract} activeOpacity={0.85}>

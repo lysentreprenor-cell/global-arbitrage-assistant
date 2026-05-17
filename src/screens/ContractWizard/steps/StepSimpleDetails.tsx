@@ -2,7 +2,8 @@ import React from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ContractData, PaymentSplit } from '../../../types/contract';
 import { Field, Input, HintBox } from '../components/FormField';
-import { formatCurrency, calculatePaymentBreakdown } from '../../../utils/pricing';
+import { calculatePaymentBreakdown } from '../../../utils/pricing';
+import { useSettings } from '../../../context/SettingsContext';
 import { C } from '../../../theme';
 
 interface Props { data: ContractData; updateData: (updates: Partial<ContractData>) => void; totalAmount: number; }
@@ -14,6 +15,7 @@ const PAYMENT_OPTIONS: { value: PaymentSplit; label: string; icon: string; desc:
 ];
 
 export default function StepSimpleDetails({ data, updateData, totalAmount }: Props) {
+  const { formatAmount } = useSettings();
   const bd = calculatePaymentBreakdown(data);
   const customTotal = data.upfrontPercent + data.depositPercent + data.afterPercent;
 
@@ -31,7 +33,7 @@ export default function StepSimpleDetails({ data, updateData, totalAmount }: Pro
         </Field>
         {data.lumpSumPrice > 0 && (
           <View style={styles.priceTag}>
-            <Text style={styles.priceTagText}>{formatCurrency(data.lumpSumPrice)}</Text>
+            <Text style={styles.priceTagText}>{formatAmount(data.lumpSumPrice)}</Text>
           </View>
         )}
       </View>
@@ -74,13 +76,13 @@ export default function StepSimpleDetails({ data, updateData, totalAmount }: Pro
       {bd.total > 0 && (
         <View style={styles.breakdownCard}>
           <Text style={styles.breakdownTitle}>Podział kwoty</Text>
-          {bd.upfront > 0 && <View style={styles.bdRow}><Text style={styles.bdLabel}>Płatne z góry</Text><Text style={styles.bdValue}>{formatCurrency(bd.upfront)}</Text></View>}
+          {bd.upfront > 0 && <View style={styles.bdRow}><Text style={styles.bdLabel}>Płatne z góry</Text><Text style={styles.bdValue}>{formatAmount(bd.upfront)}</Text></View>}
           <View style={styles.bdRow}>
             <View style={styles.bdDot} />
             <Text style={styles.bdLabel}>W depozycie</Text>
-            <Text style={[styles.bdValue, styles.bdValuePurple]}>{formatCurrency(bd.deposit)}</Text>
+            <Text style={[styles.bdValue, styles.bdValuePurple]}>{formatAmount(bd.deposit)}</Text>
           </View>
-          {bd.afterCompletion > 0 && <View style={styles.bdRow}><Text style={styles.bdLabel}>Po wykonaniu</Text><Text style={[styles.bdValue, { color: C.success }]}>{formatCurrency(bd.afterCompletion)}</Text></View>}
+          {bd.afterCompletion > 0 && <View style={styles.bdRow}><Text style={styles.bdLabel}>Po wykonaniu</Text><Text style={[styles.bdValue, { color: C.success }]}>{formatAmount(bd.afterCompletion)}</Text></View>}
         </View>
       )}
 

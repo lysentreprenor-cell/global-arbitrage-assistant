@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { ContractData, Stage } from '../../../types/contract';
-import { formatCurrency } from '../../../utils/pricing';
+import { useSettings } from '../../../context/SettingsContext';
 import { C } from '../../../theme';
 
 interface Props { data: ContractData; updateData: (updates: Partial<ContractData>) => void; totalAmount: number; }
@@ -21,7 +21,7 @@ const STAGE_PRESETS: { name: string; icon: string; scope: string[] }[] = [
 
 const SCOPE_OPTIONS = ['Wyburzenia', 'Wywóz gruzu', 'Okablowanie', 'Rozdzielnia', 'Punkty świetlne', 'Gniazdka', 'Rury wod-kan', 'Grzejniki', 'Tynki wewnętrzne', 'Wylewki', 'Szpachlowanie', 'Płytki ścienne', 'Terakota', 'Fugowanie', 'Malowanie ścian', 'Malowanie sufitów', 'Panele', 'Parkiet', 'Listwy', 'Kabina/wanna', 'WC', 'Umywalka', 'Meble kuchenne', 'Blat', 'Sprzątanie', 'Protokół odbioru'];
 
-function StageCard({ stage, index, onUpdate, onRemove }: { stage: Stage; index: number; onUpdate: (s: Stage) => void; onRemove: () => void }) {
+function StageCard({ stage, index, onUpdate, onRemove, currencySymbol, formatAmount }: { stage: Stage; index: number; onUpdate: (s: Stage) => void; onRemove: () => void; currencySymbol: string; formatAmount: (n: number) => string }) {
   const [expanded, setExpanded] = useState(true);
   const toggleScope = (item: string) => onUpdate({ ...stage, scope: stage.scope.includes(item) ? stage.scope.filter(s => s !== item) : [...stage.scope, item] });
 
@@ -33,7 +33,7 @@ function StageCard({ stage, index, onUpdate, onRemove }: { stage: Stage; index: 
           <Text style={sStyles.stageName}>{stage.icon} {stage.name}</Text>
         </View>
         <View style={sStyles.headerRight}>
-          {stage.amount > 0 && <Text style={sStyles.stageAmount}>{formatCurrency(stage.amount)}</Text>}
+          {stage.amount > 0 && <Text style={sStyles.stageAmount}>{formatAmount(stage.amount)}</Text>}
           <Text style={sStyles.chevron}>{expanded ? '▲' : '▼'}</Text>
         </View>
       </TouchableOpacity>
@@ -51,7 +51,7 @@ function StageCard({ stage, index, onUpdate, onRemove }: { stage: Stage; index: 
 
           <View style={sStyles.row}>
             <View style={sStyles.halfField}>
-              <Text style={sStyles.fieldLabel}>Kwota etapu (PLN)</Text>
+              <Text style={sStyles.fieldLabel}>Kwota etapu ({currencySymbol})</Text>
               <TextInput
                 style={sStyles.input}
                 value={stage.amount > 0 ? String(stage.amount) : ''}
@@ -83,6 +83,7 @@ function StageCard({ stage, index, onUpdate, onRemove }: { stage: Stage; index: 
 }
 
 export default function StepStages({ data, updateData, totalAmount }: Props) {
+  const { currencySymbol, formatAmount } = useSettings();
   const addStage = (preset: typeof STAGE_PRESETS[0]) => {
     const stage: Stage = { id: Date.now().toString(), name: preset.name, icon: preset.icon, scope: preset.scope, deadline: '', amount: 0 };
     updateData({ stages: [...data.stages, stage] });
@@ -110,7 +111,7 @@ export default function StepStages({ data, updateData, totalAmount }: Props) {
       )}
 
       {data.stages.map((stage, index) => (
-        <StageCard key={stage.id} stage={stage} index={index} onUpdate={updateStage} onRemove={() => removeStage(stage.id)} />
+        <StageCard key={stage.id} stage={stage} index={index} onUpdate={updateStage} onRemove={() => removeStage(stage.id)} currencySymbol={currencySymbol} formatAmount={formatAmount} />
       ))}
 
       <Text style={styles.presetsTitle}>Dodaj etap</Text>
@@ -133,7 +134,7 @@ export default function StepStages({ data, updateData, totalAmount }: Props) {
             <Text style={styles.totalBarLabel}>Suma etapów</Text>
             <Text style={styles.totalBarSub}>{data.stages.length} {data.stages.length === 1 ? 'etap' : data.stages.length < 5 ? 'etapy' : 'etapów'}</Text>
           </View>
-          <Text style={styles.totalBarValue}>{formatCurrency(stagesTotal)}</Text>
+          <Text style={styles.totalBarValue}>{formatAmount(stagesTotal)}</Text>
         </View>
       )}
     </ScrollView>

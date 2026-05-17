@@ -1,6 +1,11 @@
 import React from 'react';
+import { SettingsProvider } from './src/context/SettingsContext';
 import ContractWizard from './src/screens/ContractWizard';
 
 export default function App() {
-  return <ContractWizard />;
+  return (
+    <SettingsProvider>
+      <ContractWizard />
+    </SettingsProvider>
+  );
 }
