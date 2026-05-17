@@ -6,8 +6,8 @@ export function Section({ title, children }: { title: string; children: React.Re
   return <View style={sStyles.section}><Text style={sStyles.title}>{title}</Text>{children}</View>;
 }
 
-export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
-  return <View style={fStyles.field}><Text style={fStyles.label}>{label}</Text>{children}{hint && <Text style={fStyles.hint}>{hint}</Text>}</View>;
+export function Field({ label, children, hint }: { label?: string; children: React.ReactNode; hint?: string }) {
+  return <View style={fStyles.field}>{label && <Text style={fStyles.label}>{label}</Text>}{children}{hint && <Text style={fStyles.hint}>{hint}</Text>}</View>;
 }
 
 export function Input({ value, onChangeText, placeholder, keyboardType = 'default', multiline }: { value: string; onChangeText: (v: string) => void; placeholder?: string; keyboardType?: 'default' | 'numeric' | 'decimal-pad'; multiline?: boolean }) {

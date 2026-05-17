@@ -1,38 +1,41 @@
 export type ContractType = 'remont' | 'budowa' | 'instalacja' | 'wykonczenie' | 'inne';
 export type ContractCategory = 'mieszkaniowy' | 'komercyjny' | 'przemyslowy';
 export type PricingMethod = 'per_m2' | 'ryczalt' | 'godzinowy';
-export type PaymentSplit = 'full_deposit' | 'selected_items' | 'materials_upfront' | 'custom';
+export type PaymentSplit = 'full_deposit' | 'per_stage' | 'materials_upfront' | 'custom';
+
+export const RENOVATION_TYPES: ContractType[] = ['remont', 'budowa', 'instalacja', 'wykonczenie'];
 
 export interface Room {
   id: string;
   name: string;
   area: number;
+  pricePerM2: number;
   scope: string[];
+}
+
+export interface Stage {
+  id: string;
+  name: string;
+  icon: string;
+  scope: string[];
+  deadline: string;
+  amount: number;
 }
 
 export interface ContractData {
   contractType: ContractType | '';
   category: ContractCategory | '';
-  pricingMethod: PricingMethod | '';
   deadline: string;
+  title: string;
   rooms: Room[];
-  hasElectrical: boolean;
-  hasPlumbing: boolean;
-  hasMaterials: boolean;
-  additionalItems: string[];
-  totalArea: number;
-  pricePerM2: number;
+  stages: Stage[];
   materialsValue: number;
   additionalCosts: number;
   lumpSumPrice: number;
-  hourlyRate: number;
-  estimatedHours: number;
   paymentSplit: PaymentSplit | '';
   upfrontPercent: number;
   depositPercent: number;
   afterPercent: number;
-  requiredProofs: string[];
-  executionConditions: string[];
   hasAcceptanceProtocol: boolean;
   correctionDays: number;
   paymentDeadlineDays: number;
@@ -41,26 +44,17 @@ export interface ContractData {
 export const INITIAL_CONTRACT_DATA: ContractData = {
   contractType: '',
   category: '',
-  pricingMethod: '',
   deadline: '',
+  title: '',
   rooms: [],
-  hasElectrical: false,
-  hasPlumbing: false,
-  hasMaterials: false,
-  additionalItems: [],
-  totalArea: 0,
-  pricePerM2: 0,
+  stages: [],
   materialsValue: 0,
   additionalCosts: 0,
   lumpSumPrice: 0,
-  hourlyRate: 0,
-  estimatedHours: 0,
   paymentSplit: '',
   upfrontPercent: 0,
   depositPercent: 100,
   afterPercent: 0,
-  requiredProofs: [],
-  executionConditions: [],
   hasAcceptanceProtocol: false,
   correctionDays: 7,
   paymentDeadlineDays: 14,
@@ -80,15 +74,9 @@ export const CATEGORY_LABELS: Record<ContractCategory, string> = {
   przemyslowy: 'Przemysłowy',
 };
 
-export const PRICING_METHOD_LABELS: Record<PricingMethod, string> = {
-  per_m2: 'Za m²',
-  ryczalt: 'Ryczałt',
-  godzinowy: 'Godzinowy',
-};
-
 export const PAYMENT_SPLIT_LABELS: Record<PaymentSplit, string> = {
   full_deposit: 'Całość w depozycie',
-  selected_items: 'Tylko wybrane pozycje',
+  per_stage: 'Płatność po każdym etapie',
   materials_upfront: 'Materiały z góry, reszta w depozycie',
   custom: 'Własny podział płatności',
 };
