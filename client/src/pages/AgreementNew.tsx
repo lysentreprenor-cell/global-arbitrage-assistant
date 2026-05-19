@@ -318,6 +318,10 @@ const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset
     id: "lending", icon: "🔑", label: "Wypożyczenie", desc: "Sprzęt, pojazd, narzędzia",
     preset: { category: "wypozyczenie", subcategory: "Narzędzia/sprzęt", pricingMethod: "price", loanDeposit: 500, loanDamageLiability: true, rentalProtocol: true },
   },
+  {
+    id: "wlasna", icon: "📝", label: "Własna umowa", desc: "Dowolne warunki i treść",
+    preset: { category: "wlasna", pricingMethod: "value" },
+  },
 ];
 
 const PHASE_LABELS: Record<string, string> = {
@@ -745,7 +749,7 @@ function SectionLabel({ children, style }: { children: React.ReactNode; style?: 
 }
 
 const SUBCATEGORIES: Record<string, string[]> = {
-  usluga: ["Naprawa", "Montaż", "Transport", "Sprzątanie", "Pomoc/opieka", "Usługa techniczna", "Inna"],
+  usluga: ["Programowanie / IT", "Grafika / Design", "Marketing / SEO", "Fotografia", "Copywriting", "Tłumaczenie", "Naprawa", "Montaż", "Transport", "Sprzątanie", "Pomoc/opieka", "Inna"],
   remont: ["Malowanie", "Szpachlowanie", "Podłogi", "Łazienka", "Kuchnia", "Elektryka", "Hydraulika", "Cały remont"],
   sprzedaz: ["Auto/pojazd", "Elektronika", "Meble", "Narzędzia", "Sprzęt domowy", "Towar firmowy", "Inna rzecz"],
   wynajem: ["Mieszkanie", "Pokój", "Lokal", "Garaż/parking", "Auto/pojazd", "Sprzęt", "Inny wynajem"],
@@ -3462,10 +3466,18 @@ function InvitationScreen({ data, contractId, totalPrice, onContinue }: {
       <div style={{ marginBottom: 20 }}>
         <button
           onClick={handleShare}
-          style={{ ...btnPrimary, width: "100%", padding: "15px", fontSize: 16, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          style={{ ...btnPrimary, width: "100%", padding: "15px", fontSize: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
         >
           📤 Udostępnij umowę
         </button>
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(`Zaproszenie do umowy #${contractId}\n📋 ${data.category ? ((CATEGORY_LABELS as Record<string,string>)[data.category] ?? "") : ""}${data.subcategory ? ` › ${data.subcategory}` : ""}\n\nKliknij, żeby przejrzeć i podpisać:\n${url}`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", borderRadius: 12, border: "1.5px solid #25d366", background: "rgba(37,211,102,0.08)", color: "#16a34a", fontSize: 15, fontWeight: 700, textDecoration: "none", boxSizing: "border-box", width: "100%", marginBottom: 8 }}
+        >
+          💬 Wyślij przez WhatsApp
+        </a>
         <button
           onClick={handleCopy}
           style={{ ...btnSecondary, width: "100%", padding: "12px", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
@@ -3673,12 +3685,22 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
         </div>
 
         {/* Share from document */}
-        <button
-          onClick={() => shareContract(contractId, data, totalPrice)}
-          style={{ ...btnPrimary, width: "100%", padding: "13px", fontSize: 15, marginTop: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-        >
-          📤 Udostępnij dokument
-        </button>
+        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+          <button
+            onClick={() => shareContract(contractId, data, totalPrice)}
+            style={{ ...btnPrimary, flex: 1, padding: "12px", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+          >
+            📤 Udostępnij
+          </button>
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(`Umowa #${contractId} — przejrzyj i podpisz:\n${window.location.origin}/kontrakt/${contractId}`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #25d366", background: "rgba(37,211,102,0.08)", color: "#16a34a", fontSize: 14, fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxSizing: "border-box" }}
+          >
+            💬 WhatsApp
+          </a>
+        </div>
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button
             onClick={() => window.print()}
@@ -3848,6 +3870,7 @@ function ContractLifecycle({
   const [disputeConfirm, setDisputeConfirm] = useState<"fixes" | "mediation" | "cancel" | null>(null);
   const [disputeNote, setDisputeNote] = useState("");
   const [showProtocol, setShowProtocol] = useState(false);
+  const [quickNote, setQuickNote] = useState("");
   const [protocolStatus, setProtocolStatus] = useState<"" | "accepted" | "with_notes" | "needs_fixes" | "rejected">("");
   const [protocolDesc, setProtocolDesc] = useState("");
   const [protocolPhotos, setProtocolPhotos] = useState(false);
@@ -4125,6 +4148,25 @@ function ContractLifecycle({
           <span style={{ color: "var(--color-muted-foreground)", fontSize: 13, lineHeight: 1.6 }}>{currentTip}</span>
         </div>
       )}
+
+      {/* Calendar link — shown when there's a deadline and contract is not completed */}
+      {phase !== "completed" && (() => {
+        const deadlineDate = data.category === "wypozyczenie" ? data.loanReturnDate : (data.deadlineSingle || data.deadlineTo);
+        if (!deadlineDate) return null;
+        const title = encodeURIComponent(data.customTitle || `Umowa #${contractId}`);
+        const d = deadlineDate.replace(/-/g, "");
+        const gcalUrl = `https://calendar.google.com/calendar/r/eventedit?text=${title}&dates=${d}/${d}&details=${encodeURIComponent(`Termin umowy #${contractId}`)}`;
+        return (
+          <a
+            href={gcalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 10, border: "1px solid var(--color-border)", background: "var(--color-card)", color: "var(--color-primary)", fontSize: 13, fontWeight: 600, textDecoration: "none", marginBottom: 16 }}
+          >
+            📅 Dodaj termin do kalendarza ({deadlineDate})
+          </a>
+        );
+      })()}
 
       {/* Awaiting counterparty: re-share option */}
       {phase === "awaiting_counterparty" && (
@@ -4438,6 +4480,30 @@ function ContractLifecycle({
         >
           ⚠ Zgłoś problem
         </button>
+      )}
+
+      {/* Quick note */}
+      {!isFinished && (
+        <div style={{ ...sectionCard, marginBottom: 12 }}>
+          <div style={{ color: "var(--color-foreground)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📝 Dodaj notatkę</div>
+          <textarea
+            value={quickNote}
+            onChange={e => setQuickNote(e.target.value)}
+            placeholder="Notatka do umowy..."
+            style={{ ...textareaStyle, minHeight: 60, marginBottom: 8 }}
+          />
+          <button
+            onClick={() => {
+              if (!quickNote.trim()) return;
+              addContractEvent(contractId, { type: "note", icon: "📝", label: quickNote.trim() });
+              setQuickNote("");
+            }}
+            disabled={!quickNote.trim()}
+            style={{ ...btnSecondary, width: "100%", padding: "10px", fontSize: 13, opacity: quickNote.trim() ? 1 : 0.5, cursor: quickNote.trim() ? "pointer" : "not-allowed" }}
+          >
+            Zapisz notatkę
+          </button>
+        </div>
       )}
 
       {/* Activity log */}
