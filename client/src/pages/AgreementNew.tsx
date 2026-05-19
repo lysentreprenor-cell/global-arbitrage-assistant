@@ -700,6 +700,12 @@ const PRICING_OPTIONS: Record<string, { value: string; label: string }[]> = {
     { value: "per_week", label: "Za tydzień" },
     { value: "per_month", label: "Za miesiąc" },
   ],
+  wypozyczenie: [
+    { value: "per_day", label: "Opłata dzienna" },
+    { value: "per_week", label: "Opłata tygodniowa" },
+    { value: "fixed", label: "Stała opłata za użytkowanie" },
+    { value: "price", label: "Bezpłatne (bez opłaty)" },
+  ],
   wlasna: [
     { value: "price", label: "Cena" },
     { value: "value", label: "Wartość umowy" },
@@ -802,7 +808,7 @@ function calcTotal(data: WizardData): number {
   else if (data.pricingMethod === "per_month") base = data.basePrice * (data.rentalMonths || 0);
   else base = data.basePrice; // fixed, m2, materials_labor, wlasna
   const additional = data.additionalItems.reduce((s, i) => s + i.qty * i.price, 0);
-  const deposit = (data.category === "wynajem") ? (data.rentalDeposit || 0) : 0;
+  const deposit = data.category === "wynajem" ? (data.rentalDeposit || 0) : 0;
   return base + additional + deposit;
 }
 
@@ -1415,8 +1421,8 @@ function StepPodkategoria({ data, update, goNext }: { data: WizardData; update: 
 
 // ——— STEP 3: Strony
 function StepStrony({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
-  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca";
-  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca";
+  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca";
+  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca";
   const myLabel = data.myRole === "client" ? clientLabel : contractorLabel;
   const otherLabel = data.myRole === "client" ? contractorLabel : clientLabel;
 
@@ -2042,6 +2048,25 @@ function StepZakres({ data, update }: { data: WizardData; update: (p: Partial<Wi
       </div>
       <div style={sectionCard}>
         <Toggle on={data.rentalProtocol} onChange={v => update({ rentalProtocol: v })} label="Protokół wydania i zwrotu" />
+      </div>
+    </div>
+  );
+
+  if (data.category === "wypozyczenie") return (
+    <div>
+      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Warunki wypożyczenia</h2>
+      <div style={{ marginBottom: 12 }}>
+        <SectionLabel>Gdzie może być używany przedmiot?</SectionLabel>
+        <input value={data.scopeLocation} onChange={e => update({ scopeLocation: e.target.value })} placeholder="np. Tylko na terenie kraju / bez ograniczeń" style={inputStyle} />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <SectionLabel>Warunki i ograniczenia użycia</SectionLabel>
+        <textarea value={data.scopeDescription} onChange={e => update({ scopeDescription: e.target.value })} placeholder="np. Zakaz podnajmu, obowiązek ubezpieczenia, zakaz modyfikacji..." style={{ ...textareaStyle, minHeight: 90 }} />
+      </div>
+      <div style={sectionCard}>
+        <Toggle on={data.rentalDamageLiability} onChange={v => update({ rentalDamageLiability: v })} label="Pożyczający odpowiada za uszkodzenia" />
+        <div style={{ marginTop: 10 }} />
+        <Toggle on={data.rentalProtocol} onChange={v => update({ rentalProtocol: v })} label="Protokół wydania i zwrotu wymagany" />
       </div>
     </div>
   );
@@ -3334,14 +3359,16 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
   const [copiedDoc, setCopiedDoc] = useState(false);
   const totalPrice = calcTotal(data);
   const category = (CATEGORY_LABELS as Record<string, string>)[data.category] ?? data.category;
-  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca";
-  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca";
+  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca";
+  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca";
   const today = new Date().toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" });
 
   const pricingLabel = ({
     fixed: "Cena ryczałtowa", hourly: "Stawka godzinowa", unit: "Za sztukę",
     stages: "Płatność etapami", per_day: "Za dzień", per_week: "Za tydzień", per_month: "Za miesiąc",
-    m2: "Za m²", materials_labor: "Materiały + robocizna",
+    m2: "Za m²", materials_labor: "Materiały + robocizna", price: "Bezpłatne",
+    negotiated: "Cena negocjowana", deposit_pickup: "Z depozytem do odbioru",
+    total: "Cena za całość", per_point: "Za punkt", value: "Wartość umowy",
   } as Record<string, string>)[data.pricingMethod] ?? data.pricingMethod;
 
   return (
@@ -3722,8 +3749,8 @@ function ContractLifecycle({
   const isClient = data.myRole === "client";
   const myParty = isClient ? data.client : data.contractor;
   const otherParty = isClient ? data.contractor : data.client;
-  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca";
-  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca";
+  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca";
+  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca";
   const otherLabel = isClient ? contractorLabel : clientLabel;
   const invited = data.inviteContact || otherParty.email || otherParty.phone || otherLabel;
 
