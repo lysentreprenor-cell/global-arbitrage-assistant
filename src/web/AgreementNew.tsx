@@ -312,6 +312,10 @@ const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset
     id: "remont", icon: "🛠", label: "Remont", desc: "Malowanie, instalacje",
     preset: { category: "remont", subcategory: "Generalny remont", pricingMethod: "stages", scopeBeforePhotos: true, warranty: true, warrantyDays: 365, latePenalty: true, latePenaltyAmount: 200 },
   },
+  {
+    id: "lending", icon: "🔑", label: "Wypożyczenie", desc: "Sprzęt, pojazd, narzędzia",
+    preset: { category: "wypozyczenie", subcategory: "Narzędzia/sprzęt", pricingMethod: "price", loanDeposit: 500, loanDamageLiability: true, rentalProtocol: true },
+  },
 ];
 
 const PHASE_LABELS: Record<string, string> = {
@@ -344,13 +348,17 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "done" | "action">("all");
+  const [catFilter, setCatFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "deadline" | "value">("newest");
 
   // Stats
   const active = contracts.filter(c => c.phase && c.phase !== "completed");
+  const completed = contracts.filter(c => c.phase === "completed");
   const activeValue = active.reduce((s, c) => s + (c.totalPrice || 0), 0);
+  const completedValue = completed.reduce((s, c) => s + (c.totalPrice || 0), 0);
   const needAction = contracts.filter(c => c.phase === "awaiting_release").length;
   const currency = contracts[0]?.data.currency || "PLN";
+  const usedCategories = Array.from(new Set(contracts.map(c => c.data.category)));
 
   // Deadline helpers
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -375,6 +383,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
       (c.data.customTitle || "").toLowerCase().includes(q) ||
       (c.data.scopeDescription || "").toLowerCase().includes(q) ||
       (c.data.saleItems || []).some(i => (i.name || "").toLowerCase().includes(q)) ||
+      (c.data.loanItemName || "").toLowerCase().includes(q) ||
       (c.data.client.name || "").toLowerCase().includes(q) ||
       (c.data.contractor.name || "").toLowerCase().includes(q) ||
       (c.data.paymentStages || []).some(s => (s.name || "").toLowerCase().includes(q)) ||
@@ -384,12 +393,13 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
       filter === "active" ? (c.phase !== "completed") :
       filter === "done" ? (c.phase === "completed") :
       filter === "action" ? (c.phase === "awaiting_release") : true;
-    return matchSearch && matchFilter;
+    const matchCat = catFilter === "all" || c.data.category === catFilter;
+    return matchSearch && matchFilter && matchCat;
   }).sort((a, b) => {
     if (sortBy === "oldest") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     if (sortBy === "deadline") {
-      const da = a.data.deadlineSingle || "9999-99-99";
-      const db = b.data.deadlineSingle || "9999-99-99";
+      const da = a.data.category === "wypozyczenie" ? (a.data.loanReturnDate || "9999-99-99") : (a.data.deadlineSingle || "9999-99-99");
+      const db = b.data.category === "wypozyczenie" ? (b.data.loanReturnDate || "9999-99-99") : (b.data.deadlineSingle || "9999-99-99");
       return da.localeCompare(db);
     }
     if (sortBy === "value") return (b.totalPrice || 0) - (a.totalPrice || 0);
@@ -400,7 +410,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
     { key: "all", label: "Wszystkie" },
     { key: "active", label: "Aktywne" },
     { key: "done", label: "Zakończone" },
-    { key: "action", label: "Moje działanie" },
+    { key: "action", label: "Do zrobienia" },
   ];
 
   return (
@@ -421,9 +431,13 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
             <div style={{ color: "var(--color-primary)", fontSize: 18, fontWeight: 900 }}>{active.length}</div>
             <div style={{ color: "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600 }}>Aktywne</div>
           </div>
-          <div style={{ flex: 2, textAlign: "center", borderRight: needAction > 0 ? "1px solid var(--color-border)" : undefined, padding: "0 8px" }}>
+          <div style={{ flex: 2, textAlign: "center", borderRight: "1px solid var(--color-border)", padding: "0 8px" }}>
             <div style={{ color: "var(--color-foreground)", fontSize: 18, fontWeight: 900 }}>{activeValue > 0 ? `${activeValue.toLocaleString("pl-PL")} ${currency}` : "—"}</div>
-            <div style={{ color: "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600 }}>Łączna wartość</div>
+            <div style={{ color: "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600 }}>W realizacji</div>
+          </div>
+          <div style={{ flex: 1, textAlign: "center", paddingLeft: 8, borderRight: needAction > 0 ? "1px solid var(--color-border)" : undefined, paddingRight: needAction > 0 ? 8 : undefined }}>
+            <div style={{ color: "#22c55e", fontSize: 18, fontWeight: 900 }}>{completed.length}</div>
+            <div style={{ color: "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600 }}>{completedValue > 0 ? `${completedValue.toLocaleString("pl-PL")} ${currency}` : "Zakończone"}</div>
           </div>
           {needAction > 0 && (
             <div style={{ flex: 1, textAlign: "center", paddingLeft: 8 }}>
@@ -473,7 +487,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
             placeholder="🔍  Szukaj po stronie, kategorii..."
             style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--color-border)", background: "var(--color-card)", color: "var(--color-foreground)", fontSize: 14, boxSizing: "border-box", marginBottom: 10 }}
           />
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, marginBottom: 6 }}>
             {filterOpts.map(f => (
               <button
                 key={f.key}
@@ -484,6 +498,16 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
               </button>
             ))}
           </div>
+          {usedCategories.length > 1 && (
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+              <button onClick={() => setCatFilter("all")} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 20, border: `1px solid ${catFilter === "all" ? "var(--color-primary)" : "var(--color-border)"}`, background: catFilter === "all" ? "color-mix(in srgb, var(--color-primary) 10%, transparent)" : "transparent", color: catFilter === "all" ? "var(--color-primary)" : "var(--color-muted-foreground)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Wszystkie kategorie</button>
+              {usedCategories.map(cat => (
+                <button key={cat} onClick={() => setCatFilter(cat === catFilter ? "all" : cat)} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 20, border: `1px solid ${catFilter === cat ? "var(--color-primary)" : "var(--color-border)"}`, background: catFilter === cat ? "color-mix(in srgb, var(--color-primary) 10%, transparent)" : "transparent", color: catFilter === cat ? "var(--color-primary)" : "var(--color-muted-foreground)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  {CAT_LABELS[cat] || cat}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -509,14 +533,35 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
 
       {/* Contracts list */}
       {contracts.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--color-muted-foreground)" }}>
-          <div style={{ fontSize: 44, marginBottom: 10 }}>📄</div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Brak umów</div>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>Wybierz szablon lub kliknij "+ Nowa".</div>
+        <div style={{ padding: "20px 0" }}>
+          <div style={{ textAlign: "center", padding: "24px 20px 20px", color: "var(--color-muted-foreground)" }}>
+            <div style={{ fontSize: 44, marginBottom: 10 }}>📋</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-foreground)", marginBottom: 6 }}>Zacznij od szablonu powyżej</div>
+            <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+              Twórz umowy z klientami, wykonawcami i kontrahentami.<br/>
+              Podpisz elektronicznie, śledź postęp i odblokuj środki po odbiorze.
+            </div>
+          </div>
+          <div style={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "14px 16px", marginTop: 12 }}>
+            <div style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Jak to działa?</div>
+            {[
+              { icon: "1️⃣", text: "Wybierz typ umowy i uzupełnij szczegóły" },
+              { icon: "2️⃣", text: "Podpisz i zaproś drugą stronę (link/SMS/e-mail)" },
+              { icon: "3️⃣", text: "Śledź postęp — od wpłaty do odbioru" },
+              { icon: "4️⃣", text: "Zatwierdź odbiór → środki odblokowane" },
+            ].map(step => (
+              <div key={step.icon} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 8 }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{step.icon}</span>
+                <span style={{ color: "var(--color-foreground)", fontSize: 13, lineHeight: 1.5 }}>{step.text}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : visible.length === 0 ? (
         <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--color-muted-foreground)" }}>
-          <div style={{ fontSize: 13 }}>Brak wyników dla podanych kryteriów.</div>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Brak wyników</div>
+          <div style={{ fontSize: 12, lineHeight: 1.6 }}>Zmień kryteria wyszukiwania lub filtr kategorii.</div>
         </div>
       ) : (
         <>
@@ -527,8 +572,8 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
             const badge = deadlineBadge(c);
             const catIcon: Record<string,string> = { usluga:"🛠️", remont:"🔨", sprzedaz:"🛍️", wynajem:"🏠", wlasna:"📝", wypozyczenie:"🔑" };
             const otherRole = c.data.myRole === "client"
-              ? (c.data.category === "wynajem" ? "Wynajmujący" : c.data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca")
-              : (c.data.category === "wynajem" ? "Najemca" : c.data.category === "sprzedaz" ? "Kupujący" : "Zamawiający");
+              ? (c.data.category === "wynajem" ? "Wynajmujący" : c.data.category === "sprzedaz" ? "Sprzedający" : c.data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca")
+              : (c.data.category === "wynajem" ? "Najemca" : c.data.category === "sprzedaz" ? "Kupujący" : c.data.category === "wypozyczenie" ? "Pożyczający" : "Zamawiający");
             const otherName = c.data.myRole === "client"
               ? (c.data.contractor.name || c.data.inviteContact || "")
               : (c.data.client.name || c.data.inviteContact || "");
@@ -826,6 +871,7 @@ function calcTickerLabel(data: WizardData): string {
     return `${data.rentalWeeks} tydz. × ${data.basePrice.toLocaleString("pl-PL")} ${c}`;
   if (data.pricingMethod === "per_month" && data.rentalMonths > 0)
     return `${data.rentalMonths} mies. × ${data.basePrice.toLocaleString("pl-PL")} ${c}`;
+  if (data.pricingMethod === "price") return "Bezpłatne";
   if (data.basePrice > 0) return "Cena za całość";
   return "";
 }
