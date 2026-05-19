@@ -2687,6 +2687,28 @@ function StepPlatnosc({ data, update, totalPrice }: { data: WizardData; update: 
     data.contractor.name || data.client.name || "",
   ].filter(Boolean).join(" — ").slice(0, 60);
 
+  if (data.category === "wypozyczenie" && data.pricingMethod === "price") return (
+    <div>
+      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Płatność</h2>
+      <div style={{ ...sectionCard, background: "color-mix(in srgb, var(--color-primary) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)", marginBottom: 16 }}>
+        <div style={{ fontSize: 22, marginBottom: 6 }}>🤝</div>
+        <div style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Wypożyczenie bezpłatne</div>
+        <div style={{ color: "var(--color-muted-foreground)", fontSize: 13, lineHeight: 1.6 }}>
+          Przedmiot jest udostępniany bez opłaty. Kaucja (jeśli pobrana) ustala się w szczegółach przedmiotu.
+        </div>
+      </div>
+      {data.loanDeposit > 0 && (
+        <div style={sectionCard}>
+          <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Dane do wpłaty kaucji</div>
+          <SectionLabel>Numer konta (IBAN)</SectionLabel>
+          <input value={data.bankAccount} onChange={e => update({ bankAccount: formatIBAN(e.target.value) })} placeholder="PL61 1090 1014 0000 0712 1981 2874" style={{ ...inputStyle, fontFamily: "monospace", letterSpacing: "0.04em" }} maxLength={34} />
+          <SectionLabel style={{ marginTop: 12 }}>BLIK / telefon</SectionLabel>
+          <input value={data.bankBlik} onChange={e => update({ bankBlik: e.target.value })} placeholder="+48 500 000 000" style={inputStyle} />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div>
       <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Płatność</h2>
@@ -2777,11 +2799,12 @@ function StepPlatnosc({ data, update, totalPrice }: { data: WizardData; update: 
 function StepWarunki({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
   const isSale = data.category === "sprzedaz";
   const isRental = data.category === "wynajem";
+  const isLoan = data.category === "wypozyczenie";
   return (
     <div>
       <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Warunki</h2>
 
-      {!isSale && !isRental && (
+      {!isSale && !isRental && !isLoan && (
         <div style={sectionCard}>
           <SectionLabel>Kto kupuje materiały?</SectionLabel>
           <div style={{ display: "flex", gap: 8 }}>
@@ -2793,11 +2816,14 @@ function StepWarunki({ data, update }: { data: WizardData; update: (p: Partial<W
         </div>
       )}
 
-      {isSale && (
+      {(isSale || isLoan) && (
         <div style={sectionCard}>
-          <SectionLabel>Kto organizuje transport?</SectionLabel>
+          <SectionLabel>Kto organizuje odbiór/transport?</SectionLabel>
           <div style={{ display: "flex", gap: 8 }}>
-            {[{ v: "client", l: "Kupujący" }, { v: "contractor", l: "Sprzedający" }].map(o => {
+            {(isSale
+              ? [{ v: "client", l: "Kupujący" }, { v: "contractor", l: "Sprzedający" }]
+              : [{ v: "client", l: "Pożyczający" }, { v: "contractor", l: "Wypożyczający" }]
+            ).map(o => {
               const active = data.transportBy === o.v;
               return <div key={o.v} onClick={() => update({ transportBy: o.v as "client" | "contractor" })} style={{ flex: 1, textAlign: "center", padding: "10px 4px", borderRadius: 10, border: active ? "1.5px solid var(--color-primary)" : "1px solid var(--color-border)", background: active ? "color-mix(in srgb, var(--color-primary) 12%, transparent)" : "var(--color-card)", cursor: "pointer", fontSize: 12, color: active ? "var(--color-primary)" : "var(--color-muted-foreground)", fontWeight: active ? 700 : 400 }}>{o.l}</div>;
             })}
@@ -2805,7 +2831,7 @@ function StepWarunki({ data, update }: { data: WizardData; update: (p: Partial<W
         </div>
       )}
 
-      {!isSale && !isRental && (
+      {!isSale && !isRental && !isLoan && (
         <div style={sectionCard}>
           <SectionLabel>Kto odpowiada za transport?</SectionLabel>
           <div style={{ display: "flex", gap: 8 }}>
@@ -2819,8 +2845,8 @@ function StepWarunki({ data, update }: { data: WizardData; update: (p: Partial<W
 
       <div style={sectionCard}>
         <SectionLabel>Zasady współpracy</SectionLabel>
-        {!isSale && !isRental && <Toggle on={data.weekendWork} onChange={v => update({ weekendWork: v })} label="Praca w weekend" />}
-        {!isSale && <Toggle on={data.requireApproval} onChange={v => update({ requireApproval: v })} label="Dodatkowe prace wymagają akceptacji" />}
+        {!isSale && !isRental && !isLoan && <Toggle on={data.weekendWork} onChange={v => update({ weekendWork: v })} label="Praca w weekend" />}
+        {!isSale && !isLoan && <Toggle on={data.requireApproval} onChange={v => update({ requireApproval: v })} label="Dodatkowe prace wymagają akceptacji" />}
         <Toggle on={data.priceChangeApproval} onChange={v => update({ priceChangeApproval: v })} label="Zmiany ceny wymagają akceptacji obu stron" />
       </div>
       <div style={sectionCard}>
