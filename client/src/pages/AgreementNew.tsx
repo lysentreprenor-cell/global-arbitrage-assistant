@@ -355,7 +355,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
   // Deadline helpers
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const deadlineBadge = (c: SavedContract): "overdue" | "soon" | null => {
-    const d = c.data.deadlineSingle;
+    const d = c.data.category === "wypozyczenie" ? c.data.loanReturnDate : c.data.deadlineSingle;
     if (!d || c.phase === "completed") return null;
     const dl = new Date(d); dl.setHours(0, 0, 0, 0);
     const diff = Math.round((dl.getTime() - today.getTime()) / 86400000);
@@ -538,8 +538,8 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
                   <div style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{catIcon[c.data.category] || "📄"}</span>
                     <div style={{ minWidth: 0 }}>
-                      <div title={c.data.customTitle || (c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")} style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {c.data.customTitle || (c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")}
+                      <div title={c.data.customTitle || (c.data.category === "wypozyczenie" && c.data.loanItemName ? `🔑 ${c.data.loanItemName}` : c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")} style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.data.customTitle || (c.data.category === "wypozyczenie" && c.data.loanItemName ? `🔑 ${c.data.loanItemName}` : c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")}
                       </div>
                       {otherName && (
                         <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1010,14 +1010,20 @@ export default function AgreementNew() {
   const warnings = useMemo(() => {
     const w: string[] = [];
     if (data.category === "remont" && !data.scopeBeforePhotos) w.push("Brakuje zdjęć przed pracą");
-    if (data.category !== "wlasna" && !data.scopeMaterials && data.category !== "sprzedaz" && data.category !== "wynajem")
+    if (!["wlasna","sprzedaz","wynajem","wypozyczenie"].includes(data.category) && !data.scopeMaterials)
       w.push("Nie ustalono kto kupuje materiały");
     if (data.paymentMethod === "deposit" && data.depositCovers.length === 0)
       w.push("Depozyt nie jest przypisany do konkretnych etapów");
-    if (data.pricingMethod && totalPrice === 0)
+    if (data.pricingMethod && data.pricingMethod !== "price" && totalPrice === 0)
       w.push("Kwota umowy wynosi 0 — uzupełnij wycenę");
     if (data.category === "wynajem" && !data.rentalDeposit)
       w.push("Brak kaucji — ryzyko przy zniszczeniu mienia");
+    if (data.category === "wypozyczenie" && !data.loanItemName)
+      w.push("Podaj nazwę wypożyczanego przedmiotu");
+    if (data.category === "wypozyczenie" && !data.loanReturnDate)
+      w.push("Brak terminu zwrotu — dodaj datę");
+    if (data.category === "wypozyczenie" && data.loanDeposit === 0)
+      w.push("Brak kaucji — rozważ zabezpieczenie przy wypożyczeniu");
     if (data.latePenalty && !data.latePenaltyAmount)
       w.push("Włączona kara za opóźnienie, ale kwota wynosi 0");
     if (data.warranty && !data.warrantyDays)
@@ -1025,6 +1031,7 @@ export default function AgreementNew() {
     return w;
   }, [data.category, data.scopeBeforePhotos, data.scopeMaterials, data.paymentMethod,
       data.depositCovers, data.pricingMethod, totalPrice, data.rentalDeposit,
+      data.loanItemName, data.loanReturnDate, data.loanDeposit,
       data.latePenalty, data.latePenaltyAmount, data.warranty, data.warrantyDays]);
 
   const getNextBlockReason = (): string | null => {
@@ -1038,7 +1045,7 @@ export default function AgreementNew() {
       if (!data.pricingMethod) return "Wybierz sposób wyceny";
       if (data.pricingMethod === "stages" && data.paymentStages.length === 0) return "Dodaj co najmniej jeden etap płatności";
       if (data.pricingMethod === "unit" && data.unitItems.length === 0) return "Dodaj co najmniej jedną pozycję";
-      if (data.pricingMethod !== "stages" && data.pricingMethod !== "unit" && data.basePrice <= 0) return "Wpisz kwotę";
+      if (!["stages","unit","price"].includes(data.pricingMethod) && data.basePrice <= 0) return "Wpisz kwotę";
     }
     if (currentStep === "termin") {
       if (data.deadlineType === "single" && !data.deadlineSingle) return "Wybierz datę realizacji";
