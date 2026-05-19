@@ -2,6 +2,7 @@ import { useLocation } from "wouter";
 import {
   Sparkles, ArrowDownLeft, MoreHorizontal,
   ArrowUpRight, Eye, EyeOff, ArrowLeftRight, Loader2,
+  Send, FileText, Plus, ChevronRight,
 } from "lucide-react";
 import { useAppStore, CurrencyCode, CURRENCY_SYMBOLS, WALLET_FLAGS, formatMoney, formatMoneyCompact, getCurrencyName, CORE_WALLET_CURRENCIES } from "@/lib/store";
 import { luxuryTheme, luxuryGradients } from "@/theme/luxuryTheme";
@@ -90,6 +91,19 @@ export default function Dashboard() {
         setCardStats({ total: cards.length, active });
       })
       .catch(() => {});
+  }, []);
+
+  const [contractCount, setContractCount] = useState<{ active: number; total: number }>({ active: 0, total: 0 });
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("itemprise_contracts");
+      if (stored) {
+        const ags = JSON.parse(stored) as Array<{ phase?: string }>;
+        const total = ags.length;
+        const active = ags.filter(a => a.phase && a.phase !== "completed").length;
+        setContractCount({ active, total });
+      }
+    } catch {}
   }, []);
 
   const activeBalance = wallets[activeWallet] ?? 0;
@@ -326,6 +340,182 @@ export default function Dashboard() {
                 }}
               >
                 {t.transfer}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Przelewy ── */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
+            Przelewy
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div
+              data-testid="btn-hero-send"
+              onClick={() => setLocation("/transfer")}
+              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              style={{
+                borderRadius: r.md, padding: "18px 16px", cursor: "pointer",
+                background: "linear-gradient(150deg, rgba(140,10,55,0.85) 0%, rgba(70,4,26,0.96) 100%)",
+                border: "1px solid rgba(220,30,110,0.30)",
+                boxShadow: "0 8px 24px rgba(180,10,80,0.30), inset 0 1.5px 0 rgba(255,150,200,0.18), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
+                position: "relative", overflow: "hidden",
+                transition: "transform 0.15s ease",
+              }}
+            >
+              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
+                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                background: "rgba(255,255,255,0.10)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#ff5fa0",
+                boxShadow: "0 0 14px rgba(255,95,160,0.35)",
+              }}>
+                <Send size={18} />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: 0.2 }}>Wyślij</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2, lineHeight: 1.3 }}>Przelej pieniądze</div>
+              </div>
+            </div>
+
+            <div
+              data-testid="btn-hero-request"
+              onClick={() => setLocation("/transfer?mode=request")}
+              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              style={{
+                borderRadius: r.md, padding: "18px 16px", cursor: "pointer",
+                background: "linear-gradient(150deg, rgba(10,80,44,0.85) 0%, rgba(4,34,18,0.96) 100%)",
+                border: "1px solid rgba(36,212,135,0.25)",
+                boxShadow: "0 8px 24px rgba(20,180,90,0.22), inset 0 1.5px 0 rgba(100,255,180,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
+                position: "relative", overflow: "hidden",
+                transition: "transform 0.15s ease",
+              }}
+            >
+              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
+                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                background: "rgba(255,255,255,0.10)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#24d487",
+                boxShadow: "0 0 14px rgba(36,212,135,0.30)",
+              }}>
+                <ArrowDownLeft size={18} />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: 0.2 }}>Poproś</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2, lineHeight: 1.3 }}>Żądanie przelewu</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Umowy ── */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
+            Umowy
+          </div>
+          <div style={{
+            borderRadius: r.lg, padding: "18px 20px",
+            background: "linear-gradient(150deg, rgba(18,42,100,0.80) 0%, rgba(8,20,52,0.95) 100%)",
+            border: "1px solid rgba(100,150,255,0.22)",
+            boxShadow: "0 8px 28px rgba(40,80,220,0.20), inset 0 1.5px 0 rgba(160,200,255,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+            position: "relative", overflow: "hidden",
+          }}>
+            <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "30%",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%)",
+              borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 14,
+                  background: "rgba(100,150,255,0.15)",
+                  border: "1px solid rgba(100,150,255,0.25)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#a0bcff",
+                  boxShadow: "0 0 16px rgba(100,150,255,0.25)",
+                }}>
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>
+                    {contractCount.active > 0
+                      ? `${contractCount.active} aktywn${contractCount.active === 1 ? "a" : contractCount.active < 5 ? "e" : "ych"}`
+                      : "Brak aktywnych"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 1 }}>
+                    {contractCount.total > 0 ? `${contractCount.total} umów łącznie` : "Stwórz pierwszą umowę"}
+                  </div>
+                </div>
+              </div>
+
+              {contractCount.active > 0 && (
+                <div style={{
+                  padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
+                  color: "#7df0ba",
+                  background: "rgba(35,183,118,0.18)",
+                  border: "1px solid rgba(80,225,155,0.28)",
+                  letterSpacing: 0.6,
+                }}>
+                  AKTYWNE
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, position: "relative" }}>
+              <button
+                data-testid="btn-new-agreement"
+                onClick={() => setLocation("/agreements/new")}
+                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                style={{
+                  height: 42, borderRadius: 999, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
+                  background: th.primaryGradient,
+                  boxShadow: th.primaryBtnShadow,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  transition: "transform 0.15s ease",
+                }}
+              >
+                <Plus size={14} /> Nowa umowa
+              </button>
+              <button
+                data-testid="btn-all-agreements"
+                onClick={() => setLocation("/agreements")}
+                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                style={{
+                  height: 42, borderRadius: 999, cursor: "pointer",
+                  fontSize: 13, fontWeight: 700,
+                  color: th.secondaryBtnColor,
+                  background: th.secondaryBtnBg,
+                  border: `1px solid ${th.secondaryBtnBorder}`,
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.20)",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  transition: "transform 0.15s ease",
+                }}
+              >
+                Przeglądaj <ChevronRight size={14} />
               </button>
             </div>
           </div>
