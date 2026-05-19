@@ -38,26 +38,26 @@ const TILE: Record<TileKey, { bg: string; iconColor: string; shadow: string; bor
   FORECAST: {
     bg:        "linear-gradient(160deg, rgba(140,10,55,0.72) 0%, rgba(70,4,26,0.90) 100%)",
     iconColor: "#ff5fa0",
-    border:    "rgba(220,30,110,0.28)",
-    shadow:    "0 10px 28px rgba(180,10,80,0.35), inset 0 1.5px 0 rgba(255,150,200,0.18), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+    border:    "rgba(220,30,110,0.22)",
+    shadow:    "0 6px 18px rgba(180,10,80,0.22), inset 0 1.5px 0 rgba(255,150,200,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   REQUEST: {
     bg:        "linear-gradient(160deg, rgba(140,10,55,0.72) 0%, rgba(70,4,26,0.90) 100%)",
     iconColor: "#ff5fa0",
-    border:    "rgba(220,30,110,0.28)",
-    shadow:    "0 10px 28px rgba(180,10,80,0.35), inset 0 1.5px 0 rgba(255,150,200,0.18), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+    border:    "rgba(220,30,110,0.22)",
+    shadow:    "0 6px 18px rgba(180,10,80,0.22), inset 0 1.5px 0 rgba(255,150,200,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   INVEST: {
     bg:        "linear-gradient(160deg, rgba(10,80,44,0.80) 0%, rgba(4,34,18,0.95) 100%)",
     iconColor: "#24d487",
-    border:    "rgba(36,212,135,0.28)",
-    shadow:    "0 10px 28px rgba(20,180,90,0.30), inset 0 1.5px 0 rgba(100,255,180,0.16), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+    border:    "rgba(36,212,135,0.22)",
+    shadow:    "0 6px 18px rgba(20,180,90,0.18), inset 0 1.5px 0 rgba(100,255,180,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   CARDS: {
     bg:        "linear-gradient(160deg, rgba(18,42,100,0.72) 0%, rgba(8,20,52,0.90) 100%)",
     iconColor: "#a0bcff",
-    border:    "rgba(100,150,255,0.26)",
-    shadow:    "0 10px 28px rgba(60,100,255,0.24), inset 0 1.5px 0 rgba(160,200,255,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+    border:    "rgba(100,150,255,0.20)",
+    shadow:    "0 6px 18px rgba(60,100,255,0.15), inset 0 1.5px 0 rgba(160,200,255,0.10), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
 };
 
@@ -136,18 +136,22 @@ export default function Dashboard() {
   const recentInflow     = transactions.filter(tx => tx.amount > 0).slice(0, 8)
     .reduce((sum, tx) => sum + tx.amount, 0);
 
-  const { trendLabel, trendColor, barWidth } = useMemo(() => {
+  const { trendLabel, trendColor, barWidth, monthIn, monthOut, monthBalance } = useMemo(() => {
     const now = Date.now();
     const d30 = now - 30 * 86400000;
     const d60 = now - 60 * 86400000;
     const thisMonthIn  = transactions.filter(tx => tx.amount > 0 && new Date(tx.date).getTime() >= d30).reduce((s, tx) => s + tx.amount, 0);
     const lastMonthIn  = transactions.filter(tx => tx.amount > 0 && new Date(tx.date).getTime() >= d60 && new Date(tx.date).getTime() < d30).reduce((s, tx) => s + tx.amount, 0);
+    const thisMonthOut = transactions.filter(tx => tx.amount < 0 && new Date(tx.date).getTime() >= d30).reduce((s, tx) => s + Math.abs(tx.amount), 0);
     const totalOut     = transactions.filter(tx => tx.amount < 0).reduce((s, tx) => s + Math.abs(tx.amount), 0);
     const pct = lastMonthIn > 0 ? ((thisMonthIn - lastMonthIn) / lastMonthIn * 100) : (thisMonthIn > 0 ? 100 : 0);
     return {
       trendLabel: pct >= 0 ? `↑ ${pct.toFixed(1)}%` : `↓ ${Math.abs(pct).toFixed(1)}%`,
       trendColor: pct >= 0 ? "positive" : "negative",
       barWidth: recentInflow > 0 ? `${Math.min(totalOut / recentInflow * 100, 100).toFixed(0)}%` : "0%",
+      monthIn: thisMonthIn,
+      monthOut: thisMonthOut,
+      monthBalance: thisMonthIn - thisMonthOut,
     };
   }, [transactions, recentInflow]);
 
@@ -273,6 +277,11 @@ export default function Dashboard() {
               >
                 {balanceVisible ? formattedBalance : maskedBalance}
               </div>
+              {ratesUpdatedLabel && !ratesUnavailable && (
+                <div style={{ marginTop: 5, fontSize: 11, color: "rgba(255,255,255,0.28)", letterSpacing: 0.8 }}>
+                  Kursy: {ratesUpdatedLabel}
+                </div>
+              )}
               <div style={{ position: "absolute", bottom: -10, left: 0, width: "55%", height: 1,
                 background: `linear-gradient(90deg, ${th.glow}, transparent)` }} />
             </div>
@@ -331,52 +340,58 @@ export default function Dashboard() {
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10,
           }}>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 3, color: th.textMuted }}>
-                {t.currencies}
-              </div>
+            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 3, color: th.textMuted }}>
+              {t.currencies}
             </div>
           </div>
 
-          {/* Wallet scroll */}
-          <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-            {enabledCurrencies.map(cur => {
-              const active = activeWallet === cur;
-              const curRate = fxRates[cur];
-              const tileValue = curRate && curRate > 0 ? parseFloat((totalUSD * curRate).toFixed(2)) : 0;
-              return (
-                <button
-                  key={cur}
-                  data-testid={`wallet-card-${cur}`}
-                  onClick={() => setActiveWallet(cur)}
-                  style={{
-                    flexShrink: 0, width: 148, borderRadius: r.md, padding: "14px 16px",
-                    display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6,
-                    textAlign: "left", cursor: "pointer",
-                    border: `1.5px solid ${active ? th.activeTileBorder : "rgba(255,255,255,0.08)"}`,
-                    background: active ? th.activeTileBg : "rgba(255,255,255,0.03)",
-                    boxShadow: active ? th.activeTileGlow : "0 4px 12px rgba(0,0,0,0.28)",
-                    transition: "all 0.22s ease",
-                  }}
-                >
-                  <span style={{ fontSize: 28, lineHeight: 1 }}>{WALLET_FLAGS[cur]}</span>
-                  <span style={{
-                    fontSize: 18, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1,
-                    color: active ? th.activeTileColor : th.textPrimary,
-                    whiteSpace: "nowrap",
-                  }}>
-                    {balanceVisible ? formatMoneyCompact(tileValue, cur) : "•••"}
-                  </span>
-                  <span style={{
-                    fontSize: 11, letterSpacing: 0.3, lineHeight: 1.2,
-                    color: th.textMuted, whiteSpace: "nowrap",
-                    overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
-                  }}>
-                    {getCurrencyName(cur, lang)}
-                  </span>
-                </button>
-              );
-            })}
+          {/* Wallet scroll with right fade */}
+          <div style={{ position: "relative" }}>
+            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
+              {enabledCurrencies.map(cur => {
+                const active = activeWallet === cur;
+                const curRate = fxRates[cur];
+                const tileValue = curRate && curRate > 0 ? parseFloat((totalUSD * curRate).toFixed(2)) : 0;
+                return (
+                  <button
+                    key={cur}
+                    data-testid={`wallet-card-${cur}`}
+                    onClick={() => setActiveWallet(cur)}
+                    style={{
+                      flexShrink: 0, width: 148, borderRadius: r.md, padding: "14px 16px",
+                      display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6,
+                      textAlign: "left", cursor: "pointer",
+                      border: `1.5px solid ${active ? th.activeTileBorder : "rgba(255,255,255,0.08)"}`,
+                      background: active ? th.activeTileBg : "rgba(255,255,255,0.03)",
+                      boxShadow: active ? th.activeTileGlow : "0 4px 12px rgba(0,0,0,0.28)",
+                      transition: "all 0.22s ease",
+                    }}
+                  >
+                    <span style={{ fontSize: 28, lineHeight: 1 }}>{WALLET_FLAGS[cur]}</span>
+                    <span style={{
+                      fontSize: 18, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1,
+                      color: active ? th.activeTileColor : th.textPrimary,
+                      whiteSpace: "nowrap",
+                    }}>
+                      {balanceVisible ? formatMoneyCompact(tileValue, cur) : "•••"}
+                    </span>
+                    <span style={{
+                      fontSize: 11, letterSpacing: 0.3, lineHeight: 1.2,
+                      color: th.textMuted, whiteSpace: "nowrap",
+                      overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
+                    }}>
+                      {getCurrencyName(cur, lang)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Right fade overlay to hint at more cards */}
+            <div style={{
+              position: "absolute", top: 0, right: 0, bottom: 4, width: 56,
+              background: `linear-gradient(90deg, transparent, ${th.pageBg})`,
+              pointerEvents: "none",
+            }} />
           </div>
 
           {/* Exchange panel */}
@@ -535,51 +550,56 @@ export default function Dashboard() {
         </div>
 
         {/* ── Quick Actions ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 14 }}>
-          {quickActions.map(action => {
-            const tile = tileConfig[action.label];
-            return (
-              <div
-                key={action.label}
-                data-testid={action.testId}
-                onClick={action.onClick}
-                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                style={{
-                  aspectRatio: "1 / 1", borderRadius: r.md, cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: tile.bg, border: `1px solid ${tile.border}`,
-                  boxShadow: tile.shadow, color: tile.iconColor,
-                  position: "relative", overflow: "hidden",
-                  transition: "transform 0.15s ease, background 0.4s ease",
-                }}
-              >
-                {/* sheen overlays */}
-                <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
-                  background: "rgba(255,255,255,0.20)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "42%",
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
-                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                {/* icon — stays centered */}
-                <div style={{ display: "flex", filter: `drop-shadow(0 2px 5px rgba(0,0,0,0.50)) drop-shadow(0 0 6px ${tile.iconColor}66)` }}>
-                  {action.icon}
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
+            Szybkie akcje
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+            {quickActions.map(action => {
+              const tile = tileConfig[action.label];
+              return (
+                <div
+                  key={action.label}
+                  data-testid={action.testId}
+                  onClick={action.onClick}
+                  onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
+                  onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                  onTouchStart={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
+                  onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                  style={{
+                    aspectRatio: "1 / 1", borderRadius: r.md, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: tile.bg, border: `1px solid ${tile.border}`,
+                    boxShadow: tile.shadow, color: tile.iconColor,
+                    position: "relative", overflow: "hidden",
+                    transition: "transform 0.15s ease, background 0.4s ease",
+                  }}
+                >
+                  {/* sheen overlays */}
+                  <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
+                    background: "rgba(255,255,255,0.20)", pointerEvents: "none" }} />
+                  <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "42%",
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
+                    borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+                  {/* icon — stays centered */}
+                  <div style={{ display: "flex", filter: `drop-shadow(0 2px 5px rgba(0,0,0,0.50)) drop-shadow(0 0 4px ${tile.iconColor}44)` }}>
+                    {action.icon}
+                  </div>
+                  {/* label pinned to bottom of tile */}
+                  <div style={{
+                    position: "absolute", bottom: 8, left: 2, right: 2,
+                    fontSize: 10, letterSpacing: 1.5, fontWeight: 800,
+                    color: "rgba(255,255,255,0.85)", textAlign: "center",
+                    textShadow: "0 1px 2px rgba(0,0,0,0.70)",
+                    lineHeight: 1.1,
+                  }}>
+                    {t[action.labelKey]}
+                  </div>
                 </div>
-                {/* label pinned to bottom of tile */}
-                <div style={{
-                  position: "absolute", bottom: 8, left: 2, right: 2,
-                  fontSize: 10, letterSpacing: 1.5, fontWeight: 800,
-                  color: "rgba(255,255,255,0.85)", textAlign: "center",
-                  textShadow: "0 1px 2px rgba(0,0,0,0.70)",
-                  lineHeight: 1.1,
-                }}>
-                  {t[action.labelKey]}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {/* ── Cash Flow Card ── */}
@@ -596,31 +616,54 @@ export default function Dashboard() {
             {t.cashFlow}
           </div>
 
-          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", position: "relative" }}>
+          {/* Three-row breakdown: Wpływy / Wydatki / Bilans */}
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, position: "relative" }}>
+            {[
+              { label: "Wpływy", value: monthIn, color: "#24d487", sign: "+" },
+              { label: "Wydatki", value: monthOut, color: "#ff8080", sign: "−" },
+              { label: "Bilans miesiąca", value: monthBalance, color: monthBalance >= 0 ? "#24d487" : "#ff8080", sign: monthBalance >= 0 ? "+" : "" },
+            ].map(({ label, value, color, sign }) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 13, color: th.textMuted, fontWeight: 600 }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color }}>
+                  {sign}{Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Separator */}
+          <div style={{ marginTop: 12, height: 1, background: "rgba(255,255,255,0.06)" }} />
+
+          {/* Trend badge + history link */}
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
             <div style={{
-              fontSize: 26, fontWeight: 800, lineHeight: 1,
-              background: "linear-gradient(180deg, #a0ffcc 0%, #24d487 40%, #13a05a 100%)",
-              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-              filter: "drop-shadow(0 0 14px rgba(36,212,135,0.50))",
-            }}>
-              +${recentInflow.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div style={{
-              padding: "4px 10px", borderRadius: 999,
-              fontSize: 13, fontWeight: 800,
+              padding: "3px 9px", borderRadius: 999,
+              fontSize: 12, fontWeight: 700,
               color: trendColor === "positive" ? "#7df0ba" : "#ff8080",
               background: trendColor === "positive" ? "rgba(35,183,118,0.16)" : "rgba(200,30,80,0.18)",
               border: `1px solid ${trendColor === "positive" ? "rgba(80,225,155,0.24)" : "rgba(200,30,80,0.30)"}`,
             }}>
-              {trendLabel}
+              vs. poprzedni miesiąc {trendLabel}
             </div>
+            <button
+              onClick={() => setLocation("/history")}
+              style={{
+                fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
+                color: th.primary, background: "none", border: "none",
+                cursor: "pointer", textTransform: "uppercase", padding: 0,
+              }}
+            >
+              HISTORIA →
+            </button>
           </div>
 
-          <div style={{ marginTop: 12, height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
+          {/* Progress bar */}
+          <div style={{ marginTop: 10, height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
             <div style={{
               height: "100%", width: barWidth, borderRadius: 99,
               background: "linear-gradient(90deg, rgba(36,212,135,0.5), rgba(36,212,135,0.9))",
-              boxShadow: "0 0 10px rgba(36,212,135,0.65)",
+              boxShadow: "0 0 8px rgba(36,212,135,0.50)",
               transition: "width 0.6s ease",
             }} />
           </div>
