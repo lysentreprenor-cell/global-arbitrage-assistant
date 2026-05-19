@@ -723,7 +723,7 @@ const DEPOSIT_COVERS_OPTIONS = [
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  usluga: "Usługa", remont: "Remont", sprzedaz: "Sprzedaż", wynajem: "Wynajem", wlasna: "Własna",
+  usluga: "Usługa", remont: "Remont", sprzedaz: "Sprzedaż", wynajem: "Wynajem", wlasna: "Własna", wypozyczenie: "Wypożyczenie",
 };
 
 // Module-level presets — defined once, not re-created on every render
@@ -1050,6 +1050,9 @@ export default function AgreementNew() {
     if (currentStep === "termin") {
       if (data.deadlineType === "single" && !data.deadlineSingle) return "Wybierz datę realizacji";
       if ((data.deadlineType === "range" || data.deadlineType === "cyclic") && (!data.deadlineFrom || !data.deadlineTo)) return "Podaj datę od i datę do";
+    }
+    if (currentStep === "szczegoly_wypozyczenia") {
+      if (!data.loanItemName) return "Podaj nazwę wypożyczanego przedmiotu";
     }
     return null;
   };
@@ -3142,8 +3145,8 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
         {data.rentalTo && <Row label="Zwrot" value={data.rentalTo} />}
       </Section>
       <Section id="warunki" title="Warunki" stepId="warunki">
-        {data.category !== "sprzedaz" && data.category !== "wynajem" && <Row label="Materiały" value={data.materialsBy === "client" ? "Zamawiający" : data.materialsBy === "contractor" ? "Wykonawca" : "Podział"} />}
-        <Row label="Transport" value={data.transportBy === "client" ? (data.category === "sprzedaz" ? "Kupujący" : "Zamawiający") : (data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca")} />
+        {data.category !== "sprzedaz" && data.category !== "wynajem" && data.category !== "wypozyczenie" && <Row label="Materiały" value={data.materialsBy === "client" ? "Zamawiający" : data.materialsBy === "contractor" ? "Wykonawca" : "Podział"} />}
+        {data.category !== "wypozyczenie" && <Row label="Transport" value={data.transportBy === "client" ? (data.category === "sprzedaz" ? "Kupujący" : "Zamawiający") : (data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca")} />}
         <Row label="Gwarancja" value={data.warranty ? `${data.warrantyDays} dni` : "Brak"} />
         <Row label="Kara za opóźnienie" value={data.latePenalty ? `${data.latePenaltyAmount} ${data.currency}/dzień` : "Brak"} />
         {data.requireApproval && <Row label="Zatwierdzanie zmian" value="Wymagana zgoda obu stron" />}
@@ -3151,7 +3154,9 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
         {data.scopeDescription ? <Row label="Opis zakresu" value={data.scopeDescription.slice(0, 80) + (data.scopeDescription.length > 80 ? "…" : "")} /> : null}
       </Section>
       <Section id="platnosc" title="Płatność" stepId="platnosc">
-        <Row label="Model płatności" value={({ upfront: "Z góry", after: "Po wykonaniu", stages: "Etapami", deposit: "Depozyt", partial_deposit: "Częściowy depozyt" } as Record<string,string>)[data.paymentMethod] ?? data.paymentMethod} />
+        {data.pricingMethod === "price"
+          ? <Row label="Rozliczenie" value="Bezpłatne wypożyczenie" />
+          : <Row label="Model płatności" value={({ upfront: "Z góry", after: "Po wykonaniu", stages: "Etapami", deposit: "Depozyt", partial_deposit: "Częściowy depozyt" } as Record<string,string>)[data.paymentMethod] ?? data.paymentMethod} />}
         {data.depositCovers.length > 0 && <Row label="Depozyt obejmuje" value={data.depositCovers.join(", ")} />}
       </Section>
 
