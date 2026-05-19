@@ -368,9 +368,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
       (c.data.scopeDescription || "").toLowerCase().includes(q) ||
       (c.data.saleItems || []).some(i => (i.name || "").toLowerCase().includes(q)) ||
       (c.data.client.name || "").toLowerCase().includes(q) ||
-      (c.data.contractor.name || "").toLowerCase().includes(q) ||
-      (c.data.paymentStages || []).some(s => (s.name || "").toLowerCase().includes(q)) ||
-      (c.data.paymentMethod || "").toLowerCase().includes(q);
+      (c.data.contractor.name || "").toLowerCase().includes(q);
     const matchFilter =
       filter === "all" ? true :
       filter === "active" ? (c.phase !== "completed") :
@@ -530,7 +528,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
                   <div style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{catIcon[c.data.category] || "📄"}</span>
                     <div style={{ minWidth: 0 }}>
-                      <div title={c.data.customTitle || (c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")} style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {c.data.customTitle || (c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")}
                       </div>
                       {otherName && (
@@ -1270,13 +1268,13 @@ function StepRola({ data, update, goNext }: { data: WizardData; update: (p: Part
 
 // ——— STEP 1: Kategoria
 function StepKategoria({ data, update, goNext }: { data: WizardData; update: (p: Partial<WizardData>) => void; goNext: () => void }) {
+  const [showLoanInfo, setShowLoanInfo] = useState(false);
   const categories: { value: Category; label: string; icon: string }[] = [
     { value: "usluga", label: "Usługa", icon: "🛠️" },
     { value: "remont", label: "Remont", icon: "🔨" },
     { value: "sprzedaz", label: "Sprzedaż", icon: "🛍️" },
     { value: "wynajem", label: "Wynajem", icon: "🏠" },
     { value: "wlasna", label: "Stwórz własną", icon: "📝" },
-    { value: "pozyczka", label: "Pożyczka", icon: "💰" },
   ];
   return (
     <div>
@@ -1293,7 +1291,22 @@ function StepKategoria({ data, update, goNext }: { data: WizardData; update: (p:
             <span style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</span>
           </div>
         ))}
+        {/* Pożyczka — coming soon */}
+        <div
+          onClick={() => setShowLoanInfo(v => !v)}
+          style={{ ...cardStyle(false), cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", minWidth: 0, opacity: 0.6, position: "relative", overflow: "hidden" }}
+        >
+          <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}>💰</span>
+          <span style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700 }}>Pożyczka</span>
+          <span style={{ position: "absolute", top: 4, right: 6, fontSize: 9, fontWeight: 800, color: "#fff", background: "#f59e0b", borderRadius: 6, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Wkrótce</span>
+        </div>
       </div>
+      {showLoanInfo && (
+        <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 12, background: "color-mix(in srgb, #f59e0b 10%, transparent)", border: "1px solid #f59e0b" }}>
+          <div style={{ color: "#d97706", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>💰 Umowa pożyczki — wkrótce</div>
+          <div style={{ color: "var(--color-muted-foreground)", fontSize: 13, lineHeight: 1.6 }}>Kategoria "Pożyczka" z harmonogramem spłat i odsetkami jest w przygotowaniu. Na razie możesz skorzystać z kategorii "Własna".</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2911,22 +2924,6 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
       </div>
       <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 16 }}>Sprawdź wszystkie dane przed podpisaniem.</p>
 
-      {(() => {
-        const score = [data.customTitle, data.scopeDescription, data.warranty, data.latePenalty,
-          data.category === "remont" && (data.scopeDemolition || data.scopeCleaning),
-          data.category === "wynajem" && data.rentalFurnitured,
-          data.category === "sprzedaz" && data.vehicle?.fuel,
-          data.category === "sprzedaz" && data.electronics?.imei,
-          data.paymentStages.length > 0 && data.paymentStages.some(s => s.description),
-        ].filter(Boolean).length;
-        const [label, color] = score >= 5 ? ["Kompletna ✓", "#16a34a"] : score >= 3 ? ["Dobra", "var(--color-primary)"] : ["Podstawowa", "var(--color-muted-foreground)"];
-        return (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: `color-mix(in srgb, ${color} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`, marginBottom: 16 }}>
-            <span style={{ color, fontSize: 12, fontWeight: 700 }}>Jakość umowy: {label}</span>
-          </div>
-        );
-      })()}
-
       {warnings.length > 0 && (
         <div style={{ background: "rgba(245,158,11,0.1)", borderRadius: 10, border: "1px solid #f59e0b", padding: 12, marginBottom: 14 }}>
           <div style={{ color: "#f59e0b", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>⚠️ Uwagi ({warnings.length})</div>
@@ -3309,9 +3306,6 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 <p><b>Kategoria:</b> {category}{data.subcategory ? ` › ${data.subcategory}` : ""}{data.customTitle ? ` — ${data.customTitle}` : ""}</p>
                 {data.scopeDescription && <p><b>Opis:</b> {data.scopeDescription}</p>}
                 {data.customDesc && <p>{data.customDesc}</p>}
-                {data.category === "remont" && (data.scopeDemolition || data.scopeCleaning) && (
-                  <p><b>Zakres dodatkowy:</b> {[data.scopeDemolition && "demontaż", data.scopeCleaning && "sprzątanie po pracach"].filter(Boolean).join(", ")}</p>
-                )}
                 {data.saleItems.length > 0 && data.saleItems.map((i, idx) => (
                   <p key={i.id}>{idx + 1}. {i.name}{i.condition ? ` — ${i.condition}` : ""}{i.serial ? ` (nr: ${i.serial})` : ""}</p>
                 ))}
@@ -3352,17 +3346,6 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 <p><b>Kwota łączna:</b> {totalPrice.toLocaleString("pl-PL")} {data.currency}</p>
                 {data.paymentMethod && <p><b>Metoda płatności:</b> {({ upfront: "Z góry", after: "Po wykonaniu", stages: "Etapami", deposit: "Depozyt escrow", partial_deposit: "Częściowy depozyt" } as Record<string,string>)[data.paymentMethod] ?? data.paymentMethod}</p>}
                 {data.rentalDeposit > 0 && <p><b>Kaucja:</b> {data.rentalDeposit.toLocaleString("pl-PL")} {data.currency}</p>}
-                {data.pricingMethod === "stages" && data.paymentStages.length > 0 && (
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--color-border)" }}>
-                    {data.paymentStages.map((s, i) => (
-                      <p key={s.id} style={{ margin: "2px 0" }}>
-                        <b>Etap {i + 1}{s.name && s.name !== `Etap ${i + 1}` ? ` — ${s.name}` : ""}:</b>
-                        {s.description ? ` ${s.description} —` : ""} {(s.amount * (s.quantity || 1)).toLocaleString("pl-PL")} {data.currency}
-                        {s.deadline ? ` (do ${s.deadline})` : ""}
-                      </p>
-                    ))}
-                  </div>
-                )}
               </div>
             )},
             { par: "§4. TERMIN", content: (
@@ -3381,14 +3364,11 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 ) : null)}
               </div>
             )},
-            { par: "§5. WARUNKI SZCZEGÓŁOWE", content: (
+            { par: "§5. WARUNKI", content: (
               <div style={{ fontSize: 13 }}>
-                {data.warranty && <p><b>Gwarancja:</b> {data.warrantyDays} dni od odbioru</p>}
+                {data.warranty && <p><b>Gwarancja:</b> {data.warrantyDays} dni</p>}
                 {data.latePenalty && <p><b>Kara za opóźnienie:</b> {data.latePenaltyAmount} {data.currency}/dzień</p>}
-                {data.requireApproval && <p><b>Wymagane potwierdzenie odbioru</b> przez zleceniodawcę przed wypłatą.</p>}
-                {data.category === "wynajem" && data.rentalDepositReturnDays > 0 && <p><b>Zwrot kaucji:</b> do {data.rentalDepositReturnDays} dni od zdania lokalu</p>}
-                {data.category === "wynajem" && <p><b>Podnajem:</b> {data.rentalSubletting ? "Dozwolony za zgodą wynajmującego" : "Niedozwolony"}</p>}
-                {!data.warranty && !data.latePenalty && !data.requireApproval && <p>Bez dodatkowych warunków szczególnych.</p>}
+                {!data.warranty && !data.latePenalty && <p>Bez dodatkowych warunków.</p>}
               </div>
             )},
             { par: "§6. PROTOKÓŁ ODBIORU", content: (
