@@ -663,6 +663,7 @@ const SUBCATEGORIES: Record<string, string[]> = {
   remont: ["Malowanie", "Szpachlowanie", "Podłogi", "Łazienka", "Kuchnia", "Elektryka", "Hydraulika", "Cały remont"],
   sprzedaz: ["Auto/pojazd", "Elektronika", "Meble", "Narzędzia", "Sprzęt domowy", "Towar firmowy", "Inna rzecz"],
   wynajem: ["Mieszkanie", "Pokój", "Lokal", "Garaż/parking", "Auto/pojazd", "Sprzęt", "Inny wynajem"],
+  wypozyczenie: ["Auto/pojazd", "Motocykl/skuter", "Elektronika", "Narzędzia/sprzęt", "Meble/wyposażenie", "Sprzęt sportowy", "Inne"],
 };
 
 const PRICING_OPTIONS: Record<string, { value: string; label: string }[]> = {
