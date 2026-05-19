@@ -180,6 +180,9 @@ interface WizardData {
   loanDeposit: number;
   loanReturnDate: string;
   loanDamageLiability: boolean;
+  ipTransfer: boolean;
+  confidentiality: boolean;
+  revisionRounds: number;
 }
 
 const INITIAL: WizardData = {
@@ -211,6 +214,7 @@ const INITIAL: WizardData = {
   rentalDays: 0, rentalWeeks: 0, rentalMonths: 0,
   signed: false,
   bankAccount: "", bankBlik: "", paymentTitle: "",
+  ipTransfer: true, confidentiality: false, revisionRounds: 2,
 };
 
 // ——— Style helpers
@@ -845,10 +849,13 @@ const STEP_HINTS: Record<string, { icon: string; text: string }> = {
   przeglad: { icon: "👁️", text: "Ostatnia szansa na sprawdzenie. Każdy błąd teraz = problem po podpisaniu." },
 };
 
+const IT_CREATIVE_SUBS = ["Programowanie / IT", "Grafika / Design", "Marketing / SEO", "Fotografia", "Copywriting", "Tłumaczenie"];
+
 function getContextualNudge(data: WizardData): { icon: string; text: string; color: string } | null {
   if (data.category === "remont" && !data.paymentMethod) return { icon: "🛡️", text: "Przy remontach 9 na 10 sporów dotyczy wypłaty — depozyt eliminuje ten problem.", color: "#7c3aed" };
   if (data.category === "sprzedaz" && data.subcategory === "Elektronika") return { icon: "📱", text: "IMEI i numer seryjny to jedyny dowód tożsamości urządzenia. Bez nich nie masz ochrony.", color: "#0369a1" };
   if (data.category === "wynajem" && !data.rentalDeposit) return { icon: "⚠️", text: "Brak kaucji = brak ochrony przy zniszczeniu. Nawet symboliczna kwota ma znaczenie prawne.", color: "#b45309" };
+  if (data.category === "usluga" && IT_CREATIVE_SUBS.some(s => data.subcategory?.startsWith(s.split(" ")[0]))) return { icon: "⚖️", text: "Pamiętaj o klauzuli praw autorskich i NDA — to standard w usługach IT i kreatywnych.", color: "#0369a1" };
   if (data.basePrice > 5000 && data.paymentMethod !== "deposit") return { icon: "💡", text: `Umowa na ${data.basePrice.toLocaleString("pl-PL")} ${data.currency} — rozważ depozyt. Przy tej kwocie to kluczowe zabezpieczenie.`, color: "#7c3aed" };
   return null;
 }
@@ -2908,6 +2915,7 @@ function StepWarunki({ data, update }: { data: WizardData; update: (p: Partial<W
   const isSale = data.category === "sprzedaz";
   const isRental = data.category === "wynajem";
   const isLoan = data.category === "wypozyczenie";
+  const isCreative = data.category === "usluga" && IT_CREATIVE_SUBS.some(s => data.subcategory?.startsWith(s.split(" ")[0]));
   return (
     <div>
       <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Warunki</h2>
@@ -2984,6 +2992,24 @@ function StepWarunki({ data, update }: { data: WizardData; update: (p: Partial<W
           </div>
         )}
       </div>
+
+      {isCreative && (
+        <div style={sectionCard}>
+          <SectionLabel>Prawa i poufność (IT / Kreatywne)</SectionLabel>
+          <Toggle on={data.ipTransfer} onChange={v => update({ ipTransfer: v })} label="Prawa autorskie przechodzą na zamawiającego po pełnej zapłacie" />
+          <Toggle on={data.confidentiality} onChange={v => update({ confidentiality: v })} label="Klauzula poufności (NDA) — obie strony zachowują tajemnicę" />
+          <div style={{ paddingTop: 10 }}>
+            <SectionLabel>Liczba rund poprawek w cenie</SectionLabel>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[0, 1, 2, 3, 5].map(n => (
+                <div key={n} onClick={() => update({ revisionRounds: n })} style={pillStyle(data.revisionRounds === n)}>
+                  {n === 0 ? "Bez poprawek" : `${n} ${n === 1 ? "runda" : n < 5 ? "rundy" : "rund"}`}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3662,7 +3688,11 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 {data.category === "wynajem" && <p><b>Podnajem:</b> {data.rentalSubletting ? "Dozwolony za zgodą wynajmującego" : "Niedozwolony"}</p>}
                 {data.category === "wypozyczenie" && data.loanDamageLiability && <p><b>Odpowiedzialność:</b> Pożyczający odpowiada za wszelkie szkody w przedmiocie wypożyczenia.</p>}
                 {data.category === "wypozyczenie" && data.rentalProtocol && <p><b>Protokół:</b> Wymagany protokół wydania i zwrotu.</p>}
-                {!data.warranty && !data.latePenalty && !data.requireApproval && data.category !== "wynajem" && data.category !== "wypozyczenie" && <p>Bez dodatkowych warunków szczególnych.</p>}
+                {data.category === "usluga" && data.ipTransfer && <p><b>Prawa autorskie:</b> Prawa autorskie majątkowe do rezultatów pracy przechodzą na Zamawiającego z chwilą pełnej zapłaty wynagrodzenia.</p>}
+                {data.category === "usluga" && data.confidentiality && <p><b>Poufność:</b> Strony zobowiązują się do zachowania w tajemnicy wszelkich informacji poufnych uzyskanych w związku z realizacją niniejszej umowy.</p>}
+                {data.category === "usluga" && data.revisionRounds > 0 && <p><b>Poprawki:</b> Cena obejmuje {data.revisionRounds} {data.revisionRounds === 1 ? "rundę" : data.revisionRounds < 5 ? "rundy" : "rund"} poprawek. Kolejne poprawki rozliczane są dodatkowo.</p>}
+                {data.category === "usluga" && data.revisionRounds === 0 && <p><b>Poprawki:</b> Dodatkowe poprawki rozliczane są odrębnie.</p>}
+                {!data.warranty && !data.latePenalty && !data.requireApproval && data.category !== "wynajem" && data.category !== "wypozyczenie" && data.category !== "usluga" && <p>Bez dodatkowych warunków szczególnych.</p>}
               </div>
             )},
             { par: "§6. PROTOKÓŁ ODBIORU", content: (
@@ -3743,6 +3773,9 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 `§5. WARUNKI`,
                 data.warranty ? `Gwarancja: ${data.warrantyDays} dni` : "",
                 data.latePenalty ? `Kara za opóźnienie: ${data.latePenaltyAmount} ${data.currency}/dzień` : "",
+                data.category === "usluga" && data.ipTransfer ? "Prawa autorskie przechodzą na Zamawiającego po pełnej zapłacie." : "",
+                data.category === "usluga" && data.confidentiality ? "Klauzula poufności (NDA) obowiązuje obie strony." : "",
+                data.category === "usluga" && data.revisionRounds > 0 ? `Liczba rund poprawek w cenie: ${data.revisionRounds}` : "",
                 "",
                 `§6. PROTOKÓŁ ODBIORU`,
                 "Wymagany protokół odbioru przed zwolnieniem środków z depozytu.",
