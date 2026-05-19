@@ -2647,7 +2647,9 @@ function StepWycenaKoncowa({ data, totalPrice, additionalTotal, goBack }: { data
         <div style={{ height: 1, background: "var(--color-border)", margin: "12px 0" }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ color: "var(--color-foreground)", fontSize: 16, fontWeight: 800 }}>RAZEM</span>
-          <span style={{ color: "var(--color-primary)", fontSize: 28, fontWeight: 800 }}>{totalPrice.toLocaleString("pl-PL")} {data.currency}</span>
+          {data.pricingMethod === "price"
+            ? <span style={{ color: "var(--color-primary)", fontSize: 20, fontWeight: 800 }}>BEZPŁATNE</span>
+            : <span style={{ color: "var(--color-primary)", fontSize: 28, fontWeight: 800 }}>{totalPrice.toLocaleString("pl-PL")} {data.currency}</span>}
         </div>
       </div>
       <button onClick={goBack} style={{ ...btnSecondary, width: "100%", marginTop: 8 }}>
@@ -2685,8 +2687,8 @@ function StepPlatnosc({ data, update, totalPrice }: { data: WizardData; update: 
 
   // Auto-generate payment title from contract data
   const autoTitle = [
-    data.category === "sprzedaz" ? "Sprzedaż" : data.category === "wynajem" ? "Wynajem" : "Umowa",
-    data.subcategory || "",
+    data.category === "sprzedaz" ? "Sprzedaż" : data.category === "wynajem" ? "Wynajem" : data.category === "wypozyczenie" ? "Wypożyczenie" : "Umowa",
+    data.category === "wypozyczenie" && data.loanItemName ? data.loanItemName : data.subcategory || "",
     data.contractor.name || data.client.name || "",
   ].filter(Boolean).join(" — ").slice(0, 60);
 
@@ -3291,11 +3293,15 @@ function StepPodpis({ data, update, onSign }: { data: WizardData; update: (p: Pa
 // ——— SHARE HELPER
 async function shareContract(contractId: string, data: WizardData, totalPrice: number) {
   const category = (CATEGORY_LABELS as Record<string, string>)[data.category] ?? data.category;
-  const sub = data.subcategory ? ` › ${data.subcategory}` : "";
+  const sub = data.category === "wypozyczenie" && data.loanItemName ? ` — ${data.loanItemName}` : data.subcategory ? ` › ${data.subcategory}` : "";
   const invited = data.inviteContact || "uczestnik";
-  const amount = totalPrice > 0 ? `${totalPrice.toLocaleString("pl-PL")} ${data.currency}` : "do ustalenia";
+  const amountLine = data.pricingMethod === "price"
+    ? "💰 Bezpłatne wypożyczenie"
+    : data.category === "wypozyczenie" && data.loanDeposit > 0
+    ? `💰 Kaucja: ${data.loanDeposit.toLocaleString("pl-PL")} ${data.currency}`
+    : totalPrice > 0 ? `💰 Kwota: ${totalPrice.toLocaleString("pl-PL")} ${data.currency}` : "💰 Kwota: do ustalenia";
   const url = `${window.location.origin}/kontrakt/${contractId}`;
-  const text = `Zaproszenie do umowy #${contractId}\n\n📋 ${category}${sub}\n💰 Kwota: ${amount}\n👤 Wysłał/a: ${invited}\n\nKliknij, żeby przejrzeć i podpisać umowę:`;
+  const text = `Zaproszenie do umowy #${contractId}\n\n📋 ${category}${sub}\n${amountLine}\n👤 Wysłał/a: ${invited}\n\nKliknij, żeby przejrzeć i podpisać umowę:`;
   if (navigator.share) {
     try { await navigator.share({ title: `Umowa #${contractId}`, text, url }); } catch {}
   } else {
