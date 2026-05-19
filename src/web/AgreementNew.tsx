@@ -355,7 +355,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
   // Deadline helpers
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const deadlineBadge = (c: SavedContract): "overdue" | "soon" | null => {
-    const d = c.data.deadlineSingle;
+    const d = c.data.category === "wypozyczenie" ? c.data.loanReturnDate : c.data.deadlineSingle;
     if (!d || c.phase === "completed") return null;
     const dl = new Date(d); dl.setHours(0, 0, 0, 0);
     const diff = Math.round((dl.getTime() - today.getTime()) / 86400000);
@@ -538,8 +538,8 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
                   <div style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{catIcon[c.data.category] || "📄"}</span>
                     <div style={{ minWidth: 0 }}>
-                      <div title={c.data.customTitle || (c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")} style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {c.data.customTitle || (c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")}
+                      <div title={c.data.customTitle || (c.data.category === "wypozyczenie" && c.data.loanItemName ? `🔑 ${c.data.loanItemName}` : c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")} style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.data.customTitle || (c.data.category === "wypozyczenie" && c.data.loanItemName ? `🔑 ${c.data.loanItemName}` : c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")}
                       </div>
                       {otherName && (
                         <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -700,6 +700,12 @@ const PRICING_OPTIONS: Record<string, { value: string; label: string }[]> = {
     { value: "per_week", label: "Za tydzień" },
     { value: "per_month", label: "Za miesiąc" },
   ],
+  wypozyczenie: [
+    { value: "per_day", label: "Opłata dzienna" },
+    { value: "per_week", label: "Opłata tygodniowa" },
+    { value: "fixed", label: "Stała opłata za użytkowanie" },
+    { value: "price", label: "Bezpłatne (bez opłaty)" },
+  ],
   wlasna: [
     { value: "price", label: "Cena" },
     { value: "value", label: "Wartość umowy" },
@@ -802,7 +808,7 @@ function calcTotal(data: WizardData): number {
   else if (data.pricingMethod === "per_month") base = data.basePrice * (data.rentalMonths || 0);
   else base = data.basePrice; // fixed, m2, materials_labor, wlasna
   const additional = data.additionalItems.reduce((s, i) => s + i.qty * i.price, 0);
-  const deposit = (data.category === "wynajem") ? (data.rentalDeposit || 0) : 0;
+  const deposit = data.category === "wynajem" ? (data.rentalDeposit || 0) : 0;
   return base + additional + deposit;
 }
 
@@ -1004,14 +1010,20 @@ export default function AgreementNew() {
   const warnings = useMemo(() => {
     const w: string[] = [];
     if (data.category === "remont" && !data.scopeBeforePhotos) w.push("Brakuje zdjęć przed pracą");
-    if (data.category !== "wlasna" && !data.scopeMaterials && data.category !== "sprzedaz" && data.category !== "wynajem")
+    if (!["wlasna","sprzedaz","wynajem","wypozyczenie"].includes(data.category) && !data.scopeMaterials)
       w.push("Nie ustalono kto kupuje materiały");
     if (data.paymentMethod === "deposit" && data.depositCovers.length === 0)
       w.push("Depozyt nie jest przypisany do konkretnych etapów");
-    if (data.pricingMethod && totalPrice === 0)
+    if (data.pricingMethod && data.pricingMethod !== "price" && totalPrice === 0)
       w.push("Kwota umowy wynosi 0 — uzupełnij wycenę");
     if (data.category === "wynajem" && !data.rentalDeposit)
       w.push("Brak kaucji — ryzyko przy zniszczeniu mienia");
+    if (data.category === "wypozyczenie" && !data.loanItemName)
+      w.push("Podaj nazwę wypożyczanego przedmiotu");
+    if (data.category === "wypozyczenie" && !data.loanReturnDate)
+      w.push("Brak terminu zwrotu — dodaj datę");
+    if (data.category === "wypozyczenie" && data.loanDeposit === 0)
+      w.push("Brak kaucji — rozważ zabezpieczenie przy wypożyczeniu");
     if (data.latePenalty && !data.latePenaltyAmount)
       w.push("Włączona kara za opóźnienie, ale kwota wynosi 0");
     if (data.warranty && !data.warrantyDays)
@@ -1019,6 +1031,7 @@ export default function AgreementNew() {
     return w;
   }, [data.category, data.scopeBeforePhotos, data.scopeMaterials, data.paymentMethod,
       data.depositCovers, data.pricingMethod, totalPrice, data.rentalDeposit,
+      data.loanItemName, data.loanReturnDate, data.loanDeposit,
       data.latePenalty, data.latePenaltyAmount, data.warranty, data.warrantyDays]);
 
   const getNextBlockReason = (): string | null => {
@@ -1032,7 +1045,7 @@ export default function AgreementNew() {
       if (!data.pricingMethod) return "Wybierz sposób wyceny";
       if (data.pricingMethod === "stages" && data.paymentStages.length === 0) return "Dodaj co najmniej jeden etap płatności";
       if (data.pricingMethod === "unit" && data.unitItems.length === 0) return "Dodaj co najmniej jedną pozycję";
-      if (data.pricingMethod !== "stages" && data.pricingMethod !== "unit" && data.basePrice <= 0) return "Wpisz kwotę";
+      if (!["stages","unit","price"].includes(data.pricingMethod) && data.basePrice <= 0) return "Wpisz kwotę";
     }
     if (currentStep === "termin") {
       if (data.deadlineType === "single" && !data.deadlineSingle) return "Wybierz datę realizacji";
@@ -1415,8 +1428,8 @@ function StepPodkategoria({ data, update, goNext }: { data: WizardData; update: 
 
 // ——— STEP 3: Strony
 function StepStrony({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
-  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca";
-  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca";
+  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca";
+  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca";
   const myLabel = data.myRole === "client" ? clientLabel : contractorLabel;
   const otherLabel = data.myRole === "client" ? contractorLabel : clientLabel;
 
@@ -2042,6 +2055,25 @@ function StepZakres({ data, update }: { data: WizardData; update: (p: Partial<Wi
       </div>
       <div style={sectionCard}>
         <Toggle on={data.rentalProtocol} onChange={v => update({ rentalProtocol: v })} label="Protokół wydania i zwrotu" />
+      </div>
+    </div>
+  );
+
+  if (data.category === "wypozyczenie") return (
+    <div>
+      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Warunki wypożyczenia</h2>
+      <div style={{ marginBottom: 12 }}>
+        <SectionLabel>Gdzie może być używany przedmiot?</SectionLabel>
+        <input value={data.scopeLocation} onChange={e => update({ scopeLocation: e.target.value })} placeholder="np. Tylko na terenie kraju / bez ograniczeń" style={inputStyle} />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <SectionLabel>Warunki i ograniczenia użycia</SectionLabel>
+        <textarea value={data.scopeDescription} onChange={e => update({ scopeDescription: e.target.value })} placeholder="np. Zakaz podnajmu, obowiązek ubezpieczenia, zakaz modyfikacji..." style={{ ...textareaStyle, minHeight: 90 }} />
+      </div>
+      <div style={sectionCard}>
+        <Toggle on={data.rentalDamageLiability} onChange={v => update({ rentalDamageLiability: v })} label="Pożyczający odpowiada za uszkodzenia" />
+        <div style={{ marginTop: 10 }} />
+        <Toggle on={data.rentalProtocol} onChange={v => update({ rentalProtocol: v })} label="Protokół wydania i zwrotu wymagany" />
       </div>
     </div>
   );
@@ -3334,14 +3366,16 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
   const [copiedDoc, setCopiedDoc] = useState(false);
   const totalPrice = calcTotal(data);
   const category = (CATEGORY_LABELS as Record<string, string>)[data.category] ?? data.category;
-  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca";
-  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca";
+  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca";
+  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca";
   const today = new Date().toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" });
 
   const pricingLabel = ({
     fixed: "Cena ryczałtowa", hourly: "Stawka godzinowa", unit: "Za sztukę",
     stages: "Płatność etapami", per_day: "Za dzień", per_week: "Za tydzień", per_month: "Za miesiąc",
-    m2: "Za m²", materials_labor: "Materiały + robocizna",
+    m2: "Za m²", materials_labor: "Materiały + robocizna", price: "Bezpłatne",
+    negotiated: "Cena negocjowana", deposit_pickup: "Z depozytem do odbioru",
+    total: "Cena za całość", per_point: "Za punkt", value: "Wartość umowy",
   } as Record<string, string>)[data.pricingMethod] ?? data.pricingMethod;
 
   return (
@@ -3722,8 +3756,8 @@ function ContractLifecycle({
   const isClient = data.myRole === "client";
   const myParty = isClient ? data.client : data.contractor;
   const otherParty = isClient ? data.contractor : data.client;
-  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca";
-  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca";
+  const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca";
+  const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca";
   const otherLabel = isClient ? contractorLabel : clientLabel;
   const invited = data.inviteContact || otherParty.email || otherParty.phone || otherLabel;
 
