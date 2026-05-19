@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, UserPlus } from "lucide-react";
+import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, UserPlus, FilePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import { motion } from "framer-motion";
@@ -133,6 +133,58 @@ export default function ContactSelection() {
               </span>
             </div>
           ))}
+
+          {/* Featured tile — create contract, full width */}
+          <div
+            data-testid="tile-create-contract"
+            onClick={() => setLocation("/agreements/new")}
+            style={{
+              gridColumn: "1 / -1",
+              height: 76,
+              borderRadius: 20,
+              background: "linear-gradient(135deg, rgba(147,51,234,0.18) 0%, rgba(79,70,229,0.12) 100%)",
+              border: "1.5px solid rgba(147,51,234,0.35)",
+              boxShadow: "0 4px 20px rgba(147,51,234,0.18), 0 1px 0 rgba(255,255,255,0.06) inset",
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              padding: "0 22px",
+              cursor: "pointer",
+              position: "relative",
+              overflow: "hidden",
+              transition: "all 0.18s ease",
+            }}
+            onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+            onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
+            onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            {/* glow blob */}
+            <div style={{ position: "absolute", right: -20, top: "50%", transform: "translateY(-50%)", width: 100, height: 100, borderRadius: "50%", background: "rgba(147,51,234,0.22)", filter: "blur(28px)", pointerEvents: "none" }} />
+            {/* top shimmer line */}
+            <div style={{ position: "absolute", top: 0, left: "8%", right: "8%", height: 1, background: "rgba(180,140,255,0.22)", pointerEvents: "none" }} />
+
+            <div style={{
+              width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+              background: "rgba(147,51,234,0.22)",
+              border: "1px solid rgba(147,51,234,0.45)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <FilePlus style={{ width: 20, height: 20, color: "#c084fc", filter: "drop-shadow(0 0 6px rgba(192,132,252,0.7))" }} />
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.90)", marginBottom: 3 }}>
+                {pl ? "UTWÓRZ UMOWĘ" : "CREATE CONTRACT"}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(192,132,252,0.75)", fontWeight: 500, letterSpacing: 0.2 }}>
+                {pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}
+              </div>
+            </div>
+
+            <ArrowUpRight style={{ width: 16, height: 16, color: "rgba(192,132,252,0.60)", flexShrink: 0 }} />
+          </div>
         </motion.div>}
 
         {/* Contacts List */}
