@@ -94,12 +94,10 @@ export default function Dashboard() {
 
   const activeBalance = wallets[activeWallet] ?? 0;
 
-  // Sync activeWallet when primaryCurrency loads from Firebase after login
   useEffect(() => {
     setActiveWallet(primaryCurrency);
   }, [primaryCurrency]);
 
-  // Smart default: set exFrom to the currency with the highest non-zero balance
   useEffect(() => {
     const best = CORE_WALLET_CURRENCIES
       .filter(c => (wallets[c] ?? 0) > 0)
@@ -195,7 +193,7 @@ export default function Dashboard() {
     <div style={{
       minHeight: "100vh",
       background: th.pageBg,
-      position: "relative", paddingBottom: "calc(120px + env(safe-area-inset-bottom))", overflowX: "hidden",
+      position: "relative", paddingBottom: "calc(180px + env(safe-area-inset-bottom))", overflowX: "hidden",
       transition: "background 0.5s ease",
     }}>
 
@@ -231,7 +229,6 @@ export default function Dashboard() {
                 {t.totalWealth}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {/* Active wallet badge — clickable to open currency picker */}
                 <button
                   data-testid="btn-currency-pill"
                   onClick={() => { setShowCurrencyPicker(true); setShowAddCurrency(false); }}
@@ -247,7 +244,6 @@ export default function Dashboard() {
                 >
                   {WALLET_FLAGS[activeWallet]} {activeWallet}
                 </button>
-                {/* Eye toggle */}
                 <button
                   data-testid="btn-toggle-balance"
                   onClick={() => setBalanceVisible(v => !v)}
@@ -345,7 +341,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Wallet scroll with right fade */}
           <div style={{ position: "relative" }}>
             <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
               {enabledCurrencies.map(cur => {
@@ -386,7 +381,6 @@ export default function Dashboard() {
                 );
               })}
             </div>
-            {/* Right fade overlay to hint at more cards */}
             <div style={{
               position: "absolute", top: 0, right: 0, bottom: 4, width: 56,
               background: `linear-gradient(90deg, transparent, ${th.pageBg})`,
@@ -394,7 +388,6 @@ export default function Dashboard() {
             }} />
           </div>
 
-          {/* Exchange panel */}
           {showExchange && (
             <div style={{
               marginTop: 12, borderRadius: r.md, padding: "16px",
@@ -406,7 +399,6 @@ export default function Dashboard() {
                 {t.currencyExchange}
               </div>
 
-              {/* From / To row */}
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>Z waluty</div>
@@ -457,7 +449,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Rate info + updated label */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontSize: 14, color: th.textMuted, letterSpacing: 0.5 }}>
                   {ratesUnavailable
@@ -472,7 +463,6 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Amount input + button */}
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   data-testid="exchange-amount"
@@ -505,21 +495,16 @@ export default function Dashboard() {
                     transition: "opacity 0.2s",
                   }}
                 >
-                  {exLoading
-                    ? <Loader2 size={14} className="animate-spin" />
-                    : t.convert
-                  }
+                  {exLoading ? <Loader2 size={14} className="animate-spin" /> : t.convert}
                 </button>
               </div>
 
-              {/* Result or error */}
               {exResult && (
                 <div style={{
                   marginTop: 10, borderRadius: 10, padding: "10px 14px",
                   background: "rgba(36,212,135,0.10)",
                   border: "1px solid rgba(36,212,135,0.25)",
-                  fontSize: 14, fontWeight: 700,
-                  color: "#70f0aa",
+                  fontSize: 14, fontWeight: 700, color: "#70f0aa",
                 }}>
                   ✓ Wymiana zakończona — {formatMoney(exResult.fromAmount, exResult.from)} → {formatMoney(exResult.received, exResult.currency)}
                 </div>
@@ -529,8 +514,7 @@ export default function Dashboard() {
                   marginTop: 10, borderRadius: 10, padding: "10px 14px",
                   background: "rgba(255,80,80,0.10)",
                   border: "1px solid rgba(255,80,80,0.25)",
-                  fontSize: 14, fontWeight: 700,
-                  color: "#ff8080",
+                  fontSize: 14, fontWeight: 700, color: "#ff8080",
                 }}>
                   <div>{exError}</div>
                   {exError === "Brak wystarczających środków" && exAmount && parseFloat(exAmount) > 0 && (
@@ -576,23 +560,19 @@ export default function Dashboard() {
                     transition: "transform 0.15s ease, background 0.4s ease",
                   }}
                 >
-                  {/* sheen overlays */}
                   <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
                     background: "rgba(255,255,255,0.20)", pointerEvents: "none" }} />
                   <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "42%",
                     background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
                     borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                  {/* icon — stays centered */}
                   <div style={{ display: "flex", filter: `drop-shadow(0 2px 5px rgba(0,0,0,0.50)) drop-shadow(0 0 4px ${tile.iconColor}44)` }}>
                     {action.icon}
                   </div>
-                  {/* label pinned to bottom of tile */}
                   <div style={{
                     position: "absolute", bottom: 8, left: 2, right: 2,
                     fontSize: 10, letterSpacing: 1.5, fontWeight: 800,
                     color: "rgba(255,255,255,0.85)", textAlign: "center",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.70)",
-                    lineHeight: 1.1,
+                    textShadow: "0 1px 2px rgba(0,0,0,0.70)", lineHeight: 1.1,
                   }}>
                     {t[action.labelKey]}
                   </div>
@@ -616,7 +596,6 @@ export default function Dashboard() {
             {t.cashFlow}
           </div>
 
-          {/* Three-row breakdown: Wpływy / Wydatki / Bilans */}
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, position: "relative" }}>
             {[
               { label: "Wpływy", value: monthIn, color: "#24d487", sign: "+" },
@@ -632,10 +611,8 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Separator */}
           <div style={{ marginTop: 12, height: 1, background: "rgba(255,255,255,0.06)" }} />
 
-          {/* Trend badge + history link */}
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
             <div style={{
               padding: "3px 9px", borderRadius: 999,
@@ -658,7 +635,6 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Progress bar */}
           <div style={{ marginTop: 10, height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
             <div style={{
               height: "100%", width: barWidth, borderRadius: 99,
@@ -766,10 +742,7 @@ export default function Dashboard() {
                   </div>
 
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{
-                      fontSize: 13, fontWeight: 700,
-                      color: isIn ? "#24d487" : th.textPrimary,
-                    }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: isIn ? "#24d487" : th.textPrimary }}>
                       {isIn ? "+" : ""}{tx.amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
                     </div>
                     <div style={{ fontSize: 13, color: th.textMuted, marginTop: 2, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -806,12 +779,10 @@ export default function Dashboard() {
               padding: "0 0 40px",
             }}
           >
-            {/* Drag handle */}
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 0" }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)" }} />
             </div>
 
-            {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 8px" }}>
               <div>
                 {showAddCurrency ? (
@@ -840,17 +811,13 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {/* Currency list */}
             <div style={{ padding: "4px 16px 8px" }}>
               {!showAddCurrency ? (
                 <>
                   {enabledCurrencies.map(cur => {
                     const isPrimary = cur === primaryCurrency;
                     return (
-                      <div
-                        key={cur}
-                        style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}
-                      >
+                      <div key={cur} style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
                         <div
                           data-testid={`currency-pick-${cur}`}
                           role="button"
@@ -891,8 +858,7 @@ export default function Dashboard() {
                             }}
                             style={{
                               width: 32, height: 32, borderRadius: "50%", border: "none", cursor: "pointer",
-                              background: "rgba(255,80,80,0.15)",
-                              color: "#ff8080",
+                              background: "rgba(255,80,80,0.15)", color: "#ff8080",
                               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0,
                             }}
                           >
@@ -903,7 +869,6 @@ export default function Dashboard() {
                     );
                   })}
 
-                  {/* Add currency button */}
                   <button
                     data-testid="btn-add-currency"
                     onClick={() => setShowAddCurrency(true)}
@@ -912,15 +877,13 @@ export default function Dashboard() {
                       border: "1.5px dashed rgba(255,255,255,0.12)",
                       background: "transparent", cursor: "pointer",
                       display: "flex", alignItems: "center", gap: 10,
-                      color: "rgba(255,255,255,0.65)",
-                      fontSize: 14, fontWeight: 700,
+                      color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 700,
                     }}
                   >
                     <span style={{ fontSize: 20 }}>+</span> {t.addCurrency}
                   </button>
                 </>
               ) : (
-                /* Add currency view */
                 (() => {
                   const allCurrencies: CurrencyCode[] = ["NOK","USD","EUR","GBP","CHF","PLN","SEK","DKK","CAD","AUD","JPY"];
                   const available = allCurrencies.filter(c => !enabledCurrencies.includes(c));
@@ -952,8 +915,7 @@ export default function Dashboard() {
                       </div>
                       <div style={{
                         fontSize: 13, fontWeight: 700, color: th.textMuted,
-                        background: "rgba(255,255,255,0.07)",
-                        padding: "3px 8px", borderRadius: 99,
+                        background: "rgba(255,255,255,0.07)", padding: "3px 8px", borderRadius: 99,
                       }}>
                         {CURRENCY_SYMBOLS[cur]}
                       </div>
