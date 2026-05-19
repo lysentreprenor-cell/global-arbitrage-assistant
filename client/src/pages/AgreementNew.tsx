@@ -3122,6 +3122,16 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
           <Row label="Protokół" value={data.rentalProtocol ? "Wymagany" : "Brak"} />
         </Section>
       )}
+      {data.category === "wypozyczenie" && (
+        <Section id="szczegoly_wypozyczenia" title="Przedmiot wypożyczenia" stepId="szczegoly_wypozyczenia">
+          {data.loanItemName && <Row label="Przedmiot" value={data.loanItemName} />}
+          {data.loanItemCondition && <Row label="Stan" value={data.loanItemCondition} />}
+          {data.loanItemValue > 0 && <Row label="Wartość" value={`${data.loanItemValue.toLocaleString("pl-PL")} ${data.currency}`} />}
+          {data.loanDeposit > 0 && <Row label="Kaucja" value={`${data.loanDeposit.toLocaleString("pl-PL")} ${data.currency}`} />}
+          {data.loanReturnDate && <Row label="Termin zwrotu" value={data.loanReturnDate} />}
+          <Row label="Odpowiedzialność za szkody" value={data.loanDamageLiability ? "Pożyczający odpowiada" : "Ustalona indywidualnie"} />
+        </Section>
+      )}
       <Section id="termin" title="Termin" stepId="termin">
         <Row label="Typ terminu" value={{ single: "Jedna data", range: "Od–do", stages: "Etapy", cyclic: "Cyklicznie", tbd: "Do uzgodnienia" }[data.deadlineType] ?? data.deadlineType} />
         {data.deadlineType === "cyclic" && data.cyclicInterval > 0 && <Row label="Cykl" value={`co ${data.cyclicInterval} ${({ days: "dni", weeks: "tygodnie", months: "miesiące" } as Record<string,string>)[data.cyclicUnit]}`} />}
@@ -3149,9 +3159,10 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
       {(() => {
         const missing: string[] = [];
         if (!data.inviteContact) missing.push("Kontakt drugiej strony");
-        if (!data.pricingMethod || totalPrice === 0) missing.push("Kwota umowy");
-        if (!data.paymentMethod) missing.push("Metoda płatności");
+        if (!data.pricingMethod || (data.pricingMethod !== "price" && totalPrice === 0)) missing.push("Kwota umowy");
+        if (!data.paymentMethod && data.pricingMethod !== "price") missing.push("Metoda płatności");
         if (data.category === "wynajem" && !data.rentalDeposit) missing.push("Kaucja");
+        if (data.category === "wypozyczenie" && !data.loanItemName) missing.push("Nazwa przedmiotu");
         return missing.length > 0 ? (
           <div style={{ background: "rgba(220,38,38,0.07)", borderRadius: 10, border: "1px solid rgba(220,38,38,0.3)", padding: 12, marginBottom: 12 }}>
             <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>❗ Uzupełnij przed podpisaniem:</div>
@@ -3179,8 +3190,8 @@ function StepPodpis({ data, update, onSign }: { data: WizardData; update: (p: Pa
   const myParty = data.myRole === "contractor" ? data.contractor : data.client;
   const otherParty = data.myRole === "contractor" ? data.client : data.contractor;
   const myLabel = data.myRole === "contractor"
-    ? (data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca")
-    : (data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca");
+    ? (data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca")
+    : (data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca");
   const otherLabel = data.myRole === "contractor"
     ? (data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca")
     : (data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca");
