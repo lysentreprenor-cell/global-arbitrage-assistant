@@ -14,6 +14,8 @@ interface Party {
   name: string;
   phone: string;
   email: string;
+  nip?: string;
+  address?: string;
 }
 
 interface AdditionalItem {
@@ -183,8 +185,8 @@ interface WizardData {
 const INITIAL: WizardData = {
   myRole: "", inviteContact: "",
   category: "", subcategory: "",
-  client: { name: "", phone: "", email: "" },
-  contractor: { name: "", phone: "", email: "" },
+  client: { name: "", phone: "", email: "", nip: "", address: "" },
+  contractor: { name: "", phone: "", email: "", nip: "", address: "" },
   pricingMethod: "", basePrice: 0, currency: "PLN",
   deadlineType: "single", deadlineSingle: "", deadlineFrom: "", deadlineTo: "", deadlineTbd: false,
   scopeDescription: "", scopeLocation: "", scopeMaterials: false, scopeWarranty: false, scopeAcceptance: false,
@@ -359,6 +361,13 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
   const needAction = contracts.filter(c => c.phase === "awaiting_release").length;
   const currency = contracts[0]?.data.currency || "PLN";
   const usedCategories = Array.from(new Set(contracts.map(c => c.data.category)));
+  const overdueContracts = contracts.filter(c => {
+    if (c.phase === "completed") return false;
+    const d = c.data.category === "wypozyczenie" ? c.data.loanReturnDate : c.data.deadlineSingle;
+    if (!d) return false;
+    const dl = new Date(d); dl.setHours(0, 0, 0, 0);
+    return dl < today;
+  });
 
   // Deadline helpers
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -423,6 +432,23 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
         </div>
         <button onClick={onNew} style={{ background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: 12, padding: "10px 18px", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>+ Nowa</button>
       </div>
+
+      {/* Overdue alert */}
+      {overdueContracts.length > 0 && (
+        <div
+          onClick={() => { setFilter("active"); setSortBy("deadline"); }}
+          style={{ background: "rgba(220,38,38,0.08)", border: "1.5px solid rgba(220,38,38,0.35)", borderRadius: 12, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+        >
+          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 800 }}>
+              {overdueContracts.length === 1 ? "1 umowa po terminie" : `${overdueContracts.length} umowy po terminie`}
+            </div>
+            <div style={{ color: "#dc2626", fontSize: 11, opacity: 0.8 }}>Dotknij, aby zobaczyć → posortuj po terminie</div>
+          </div>
+          <span style={{ color: "#dc2626", fontSize: 18 }}>→</span>
+        </div>
+      )}
 
       {/* Stats bar */}
       {contracts.length > 0 && (
@@ -618,6 +644,11 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
                   {badge === "soon" && (
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 20, background: "color-mix(in srgb, #f59e0b 12%, transparent)", border: "1px solid color-mix(in srgb, #f59e0b 30%, transparent)" }}>
                       <span style={{ color: "#f59e0b", fontSize: 11, fontWeight: 700 }}>⏰ Termin wkrótce</span>
+                    </div>
+                  )}
+                  {c.phase === "awaiting_release" && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 20, background: "color-mix(in srgb, #16a34a 12%, transparent)", border: "1px solid color-mix(in srgb, #16a34a 35%, transparent)" }}>
+                      <span style={{ color: "#16a34a", fontSize: 11, fontWeight: 800 }}>✓ Zatwierdź odbiór →</span>
                     </div>
                   )}
                   {badge === "overdue" && otherName && (
@@ -1501,6 +1532,24 @@ function StepStrony({ data, update }: { data: WizardData; update: (p: Partial<Wi
         <div style={{ color: "var(--color-muted-foreground)", fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>
           Druga strona dostanie link do przeglądu i podpisania umowy.
         </div>
+      </div>
+
+      <div style={sectionCard}>
+        <SectionLabel>Twoje dane (opcjonalnie)</SectionLabel>
+        {(() => {
+          const myParty = data.myRole === "contractor" ? data.contractor : data.client;
+          const updateMyParty = (patch: Partial<Party>) => {
+            if (data.myRole === "contractor") update({ contractor: { ...data.contractor, ...patch } });
+            else update({ client: { ...data.client, ...patch } });
+          };
+          return (
+            <>
+              <input value={myParty.name} onChange={e => updateMyParty({ name: e.target.value })} placeholder="Imię i nazwisko / Nazwa firmy" style={{ ...inputStyle, marginBottom: 8 }} />
+              <input value={myParty.nip || ""} onChange={e => updateMyParty({ nip: e.target.value })} placeholder="NIP (opcjonalnie, dla firm)" style={{ ...inputStyle, marginBottom: 8 }} maxLength={13} />
+              <input value={myParty.address || ""} onChange={e => updateMyParty({ address: e.target.value })} placeholder="Adres (opcjonalnie)" style={inputStyle} />
+            </>
+          );
+        })()}
       </div>
 
       <div style={{ padding: "12px 14px", borderRadius: 10, background: "color-mix(in srgb, #16a34a 7%, transparent)", border: "1px solid color-mix(in srgb, #16a34a 25%, transparent)", marginTop: 4 }}>
@@ -3494,8 +3543,10 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
           {[
             { par: "§1. STRONY UMOWY", content: (
               <div style={{ fontSize: 13 }}>
-                <p><b>{clientLabel}:</b> {data.client.name || data.inviteContact || "—"}</p>
-                <p><b>{contractorLabel}:</b> {data.contractor.name || "—"}</p>
+                <p><b>{clientLabel}:</b> {data.client.name || data.inviteContact || "—"}{data.client.nip ? ` (NIP: ${data.client.nip})` : ""}</p>
+                {data.client.address && <p style={{ margin: "2px 0 6px 0", color: "var(--color-muted-foreground)" }}>Adres: {data.client.address}</p>}
+                <p><b>{contractorLabel}:</b> {data.contractor.name || "—"}{data.contractor.nip ? ` (NIP: ${data.contractor.nip})` : ""}</p>
+                {data.contractor.address && <p style={{ margin: "2px 0 0 0", color: "var(--color-muted-foreground)" }}>Adres: {data.contractor.address}</p>}
               </div>
             )},
             { par: "§2. PRZEDMIOT UMOWY", content: (
