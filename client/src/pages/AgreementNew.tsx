@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, type CurrencyCode } from "@/lib/store";
+import { useSearch } from "wouter";
 
 // ——— Types
 type Category = "usluga" | "remont" | "sprzedaz" | "wynajem" | "wlasna" | "wypozyczenie";
@@ -866,7 +867,10 @@ function LiveTicker({ total, label, currency }: { total: number; label: string; 
 
 export default function AgreementNew() {
   const { defaultCurrency } = useAppStore();
+  const search = useSearch();
+  const forceNew = new URLSearchParams(search).get("new") === "1";
   const [view, setView] = useState<"home" | "wizard">(() => {
+    if (forceNew) return "wizard";
     const hasDraft = !!loadDraft();
     const hasContracts = loadContracts().length > 0;
     return (hasDraft || hasContracts) ? "home" : "wizard";
@@ -3760,16 +3764,28 @@ function ContractLifecycle({
     if (phase === "awaiting_deposit" && isClient && !paymentSentAt) {
       const payLabel = data.category === "wynajem"
         ? `💸 Wysłałem kaucję i pierwszy czynsz${totalPrice > 0 ? ` — ${totalPrice.toLocaleString("pl-PL")} ${data.currency}` : ""}`
+        : data.category === "wypozyczenie"
+        ? `💸 Wysłałem kaucję${data.loanDeposit > 0 ? ` — ${data.loanDeposit.toLocaleString("pl-PL")} ${data.currency}` : ""}`
         : `💸 Wysłałem przelew${totalPrice > 0 ? ` — ${totalPrice.toLocaleString("pl-PL")} ${data.currency}` : ""}`;
       return { label: payLabel, action: savePaymentSent };
     }
     if (phase === "awaiting_deposit" && !isClient && paymentSentAt) {
       const confirmLabel = data.category === "wynajem"
         ? "✅ Potwierdzam wpłatę kaucji → najem aktywny"
+        : data.category === "wypozyczenie"
+        ? "✅ Potwierdzam wpłatę kaucji → wydaj przedmiot"
         : "✅ Potwierdzam odbiór przelewu → start realizacji";
       return { label: confirmLabel, action: confirmPaymentReceived, color: "#16a34a" };
     }
-    if (phase === "in_progress" && !isClient) {
+    // Wypożyczenie: borrower (client) submits return, owner (contractor) checks
+    if (phase === "in_progress" && isClient && data.category === "wypozyczenie") {
+      return { label: "📦 Zgłoś zwrot przedmiotu", action: () => setPhase("awaiting_release") };
+    }
+    if (phase === "awaiting_release" && !isClient && data.category === "wypozyczenie") {
+      const releaseLabel = "🔑 Sprawdź stan i rozlicz kaucję";
+      return { label: showProtocol ? "↑ Zwiń protokół" : releaseLabel, action: () => setShowProtocol(v => !v), color: showProtocol ? undefined : "#16a34a" };
+    }
+    if (phase === "in_progress" && !isClient && data.category !== "wypozyczenie") {
       const submitLabel = data.category === "wynajem"
         ? "📋 Zgłoś zakończenie najmu"
         : data.category === "sprzedaz"
@@ -3777,7 +3793,7 @@ function ContractLifecycle({
         : "📤 Zgłoś wykonanie zlecenia";
       return { label: submitLabel, action: () => setPhase("awaiting_release") };
     }
-    if (phase === "awaiting_release" && isClient) {
+    if (phase === "awaiting_release" && isClient && data.category !== "wypozyczenie") {
       const releaseLabel = data.category === "wynajem"
         ? "🔑 Zatwierdź odbiór lokalu i rozlicz kaucję"
         : data.category === "sprzedaz"
@@ -3790,7 +3806,11 @@ function ContractLifecycle({
 
   const cta = getCTA();
   const isFinished = phase === "completed";
-  const phaseTip: Record<string, string> = data.category === "wynajem" ? {
+  const phaseTip: Record<string, string> = data.category === "wypozyczenie" ? {
+    awaiting_deposit: "Kaucja zabezpieczona — zostanie zwrócona gdy przedmiot wróci w nienaruszonym stanie.",
+    in_progress: isClient ? "Korzystasz z wypożyczonego przedmiotu. Zgłoś zwrot gdy skończyłeś." : "Przedmiot jest u pożyczającego. Poczekaj na zgłoszenie zwrotu.",
+    awaiting_release: !isClient ? "Sprawdź stan zwróconego przedmiotu i zdecyduj o kaucji." : "Zgłoszono zwrot. Czekasz na weryfikację przez właściciela.",
+  } : data.category === "wynajem" ? {
     awaiting_deposit: "Kaucja jest zabezpieczona i zostanie zwrócona po zakończeniu najmu, jeżeli lokal będzie bez uszkodzeń.",
     in_progress: "Najem aktywny. Po zakończeniu umowy zgłoś zdanie lokalu.",
     awaiting_release: "Sprawdź stan lokalu przed zatwierdzeniem odbioru. Masz zastrzeżenia? Możesz zgłosić problem.",
@@ -3804,8 +3824,8 @@ function ContractLifecycle({
     awaiting_release: "Sprawdź wykonaną pracę przed zatwierdzeniem. Masz zastrzeżenia? Możesz poprosić o poprawki.",
   };
   const currentTip = phaseTip[phase];
-  const finishedTitle = data.category === "wynajem" ? "Najem zakończony!" : data.category === "sprzedaz" ? "Transakcja zakończona!" : "Zlecenie zakończone!";
-  const finishedDesc = data.category === "wynajem" ? `Najem dobiegł końca. Kaucja rozliczona przez ${contractorLabel.toLowerCase()}.` : data.category === "sprzedaz" ? `Transakcja sfinalizowana. Środki przekazane ${contractorLabel.toLowerCase()}cy.` : `Środki zostały odblokowane i przekazane ${contractorLabel.toLowerCase()}cy.`;
+  const finishedTitle = data.category === "wynajem" ? "Najem zakończony!" : data.category === "sprzedaz" ? "Transakcja zakończona!" : data.category === "wypozyczenie" ? "Wypożyczenie zakończone!" : "Zlecenie zakończone!";
+  const finishedDesc = data.category === "wynajem" ? `Najem dobiegł końca. Kaucja rozliczona przez ${contractorLabel.toLowerCase()}.` : data.category === "sprzedaz" ? `Transakcja sfinalizowana. Środki przekazane ${contractorLabel.toLowerCase()}cy.` : data.category === "wypozyczenie" ? `Przedmiot zwrócony. Kaucja rozliczona przez ${contractorLabel.toLowerCase()}.` : `Środki zostały odblokowane i przekazane ${contractorLabel.toLowerCase()}cy.`;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-background)", maxWidth: "min(560px, 100vw)", margin: "0 auto", padding: "20px 16px 100px", boxSizing: "border-box" }}>
@@ -3814,7 +3834,7 @@ function ContractLifecycle({
       <div style={{ marginBottom: 16 }}>
         {isFinished ? (
           <>
-            <div style={{ fontSize: 48, marginBottom: 10, textAlign: "center" }}>{data.category === "wynajem" ? "🏠" : data.category === "sprzedaz" ? "🤝" : "🎉"}</div>
+            <div style={{ fontSize: 48, marginBottom: 10, textAlign: "center" }}>{data.category === "wynajem" ? "🏠" : data.category === "sprzedaz" ? "🤝" : data.category === "wypozyczenie" ? "🔑" : "🎉"}</div>
             <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 6, textAlign: "center" }}>{finishedTitle}</h2>
             <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, textAlign: "center", lineHeight: 1.6 }}>
               {finishedDesc}
@@ -4107,14 +4127,14 @@ function ContractLifecycle({
         </button>
       )}
 
-      {/* Inline protocol panel — shown when client clicks CTA in awaiting_release */}
-      {showProtocol && phase === "awaiting_release" && isClient && (
+      {/* Inline protocol panel — shown in awaiting_release (contractor for wypozyczenie, client for others) */}
+      {showProtocol && phase === "awaiting_release" && (data.category === "wypozyczenie" ? !isClient : isClient) && (
         <div style={{ ...sectionCard, border: "1.5px solid var(--color-primary)", marginBottom: 12 }}>
           <div style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-            {data.category === "wynajem" ? "📋 Protokół wyjściowy" : "📋 Protokół odbioru"}
+            {data.category === "wynajem" ? "📋 Protokół wyjściowy" : data.category === "wypozyczenie" ? "📋 Protokół zwrotu" : "📋 Protokół odbioru"}
           </div>
           <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, marginBottom: 10 }}>
-            {data.category === "wynajem" ? "STAN LOKALU PRZY ZWROCIE" : "STATUS ODBIORU"}
+            {data.category === "wynajem" ? "STAN LOKALU PRZY ZWROCIE" : data.category === "wypozyczenie" ? "STAN PRZEDMIOTU PRZY ZWROCIE" : "STATUS ODBIORU"}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
             {(data.category === "wynajem" ? [
@@ -4122,6 +4142,11 @@ function ContractLifecycle({
               { v: "with_notes" as const, l: "Drobne uwagi — do uzgodnienia", c: "#f59e0b" },
               { v: "needs_fixes" as const, l: "Usterki do rozliczenia", c: "#ef4444" },
               { v: "rejected" as const, l: "Poważne zastrzeżenia — spór", c: "#6b7280" },
+            ] : data.category === "wypozyczenie" ? [
+              { v: "accepted" as const, l: "Zwrócono w stanie bez zarzutu — kaucja zwrotna", c: "#22c55e" },
+              { v: "with_notes" as const, l: "Drobne uwagi — kaucja częściowo zatrzymana", c: "#f59e0b" },
+              { v: "needs_fixes" as const, l: "Uszkodzenia — kaucja zatrzymana na naprawę", c: "#ef4444" },
+              { v: "rejected" as const, l: "Poważne szkody — sprawa sporna", c: "#6b7280" },
             ] : data.category === "sprzedaz" ? [
               { v: "accepted" as const, l: "Odebrano bez zastrzeżeń", c: "#22c55e" },
               { v: "with_notes" as const, l: "Odebrano z uwagami", c: "#f59e0b" },
@@ -4146,12 +4171,12 @@ function ContractLifecycle({
           </div>
           <div style={{ marginBottom: 12 }}>
             <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-              {data.category === "wynajem" ? "Uwagi do stanu lokalu" : "Opis odbioru"}
+              {data.category === "wynajem" ? "Uwagi do stanu lokalu" : data.category === "wypozyczenie" ? "Uwagi do stanu zwróconego przedmiotu" : "Opis odbioru"}
             </div>
             <textarea
               value={protocolDesc}
               onChange={e => setProtocolDesc(e.target.value)}
-              placeholder={data.category === "wynajem" ? "Opisz stan lokalu przy zwrocie..." : "Opisz odbiór (opcjonalnie)..."}
+              placeholder={data.category === "wynajem" ? "Opisz stan lokalu przy zwrocie..." : data.category === "wypozyczenie" ? "Opisz stan zwróconego przedmiotu..." : "Opisz odbiór (opcjonalnie)..."}
               style={{ ...textareaStyle, minHeight: 72 }}
             />
           </div>

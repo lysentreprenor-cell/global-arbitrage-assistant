@@ -481,7 +481,7 @@ export default function Dashboard() {
             <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, position: "relative" }}>
               <button
                 data-testid="btn-new-agreement"
-                onClick={() => setLocation("/agreements/new")}
+                onClick={() => setLocation("/agreements/new?new=1")}
                 onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
