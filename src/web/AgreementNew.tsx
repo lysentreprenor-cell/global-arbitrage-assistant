@@ -3176,6 +3176,10 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
           data.category === "sprzedaz" && data.vehicle?.fuel,
           data.category === "sprzedaz" && data.electronics?.imei,
           data.paymentStages.length > 0 && data.paymentStages.some(s => s.description),
+          data.category === "usluga" && data.ipTransfer,
+          data.category === "usluga" && data.confidentiality,
+          data.client.nip || data.contractor.nip,
+          data.client.address || data.contractor.address,
         ].filter(Boolean).length;
         const [label, color] = score >= 5 ? ["Kompletna ✓", "#16a34a"] : score >= 3 ? ["Dobra", "var(--color-primary)"] : ["Podstawowa", "var(--color-muted-foreground)"];
         return (
@@ -3283,6 +3287,9 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
         {data.requireApproval && <Row label="Zatwierdzanie zmian" value="Wymagana zgoda obu stron" />}
         {data.weekendWork && <Row label="Praca w weekendy" value="Tak" />}
         {data.scopeDescription ? <Row label="Opis zakresu" value={data.scopeDescription.slice(0, 80) + (data.scopeDescription.length > 80 ? "…" : "")} /> : null}
+        {data.category === "usluga" && <Row label="Prawa autorskie" value={data.ipTransfer ? "Przechodzą na klienta" : "Pozostają u wykonawcy"} />}
+        {data.category === "usluga" && data.confidentiality && <Row label="NDA" value="Klauzula poufności aktywna" />}
+        {data.category === "usluga" && <Row label="Rundy poprawek" value={data.revisionRounds === 0 ? "Bez poprawek w cenie" : `${data.revisionRounds} w cenie`} />}
       </Section>
       <Section id="platnosc" title="Płatność" stepId="platnosc">
         {data.pricingMethod === "price"
@@ -3566,15 +3573,15 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
   } as Record<string, string>)[data.pricingMethod] ?? data.pricingMethod;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, overflowY: "auto", padding: "16px" }}>
-      <div style={{ background: "var(--color-background)", borderRadius: 16, maxWidth: "min(540px, 100%)", margin: "0 auto", padding: "24px 20px 32px", boxSizing: "border-box", position: "relative" }}>
+    <div className="print-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, overflowY: "auto", padding: "16px" }}>
+      <div className="print-document" style={{ background: "var(--color-background)", borderRadius: 16, maxWidth: "min(540px, 100%)", margin: "0 auto", padding: "24px 20px 32px", boxSizing: "border-box", position: "relative" }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div>
             <div style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Podgląd umowy</div>
             <div style={{ color: "var(--color-foreground)", fontSize: 18, fontWeight: 800 }}>#{contractId}</div>
           </div>
-          <button onClick={onClose} style={{ border: "none", background: "transparent", color: "var(--color-muted-foreground)", fontSize: 24, cursor: "pointer", padding: 4 }}>×</button>
+          <button onClick={onClose} className="no-print" style={{ border: "none", background: "transparent", color: "var(--color-muted-foreground)", fontSize: 24, cursor: "pointer", padding: 4 }}>×</button>
         </div>
 
         {/* Document content */}
@@ -4559,6 +4566,34 @@ function ContractLifecycle({
 
       {isFinished && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+          <button
+            onClick={async () => {
+              const today = new Date().toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" });
+              const cat = CAT_LABELS[data.category] || "Umowa";
+              const receipt = [
+                `POTWIERDZENIE ODBIORU I ZAPŁATY`,
+                `Umowa #${contractId}`,
+                `Data: ${today}`,
+                ``,
+                `Przedmiot: ${cat}${data.subcategory ? ` › ${data.subcategory}` : ""}${data.customTitle ? ` — ${data.customTitle}` : ""}`,
+                data.scopeDescription ? `Zakres: ${data.scopeDescription}` : "",
+                ``,
+                totalPrice > 0 ? `Kwota: ${totalPrice.toLocaleString("pl-PL")} ${data.currency}` : "Kwota: bezpłatne",
+                ``,
+                `${clientLabel}: ${data.client.name || "—"}${data.client.nip ? ` (NIP: ${data.client.nip})` : ""}`,
+                `${contractorLabel}: ${data.contractor.name || "—"}${data.contractor.nip ? ` (NIP: ${data.contractor.nip})` : ""}`,
+                ``,
+                `Umowa zakończona. Strony potwierdzają prawidłowe wykonanie i odbiór.`,
+                `---`,
+                `Wygenerowano przez ItemPrise`,
+              ].filter(l => l !== "").join("\n");
+              if (navigator.share) { navigator.share({ title: `Potwierdzenie #${contractId}`, text: receipt }); }
+              else { await navigator.clipboard.writeText(receipt); }
+            }}
+            style={{ ...btnSecondary, width: "100%", padding: "12px", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+          >
+            📄 Generuj potwierdzenie odbioru
+          </button>
           <button
             onClick={() => onCloneContract({
               category: data.category, subcategory: data.subcategory, myRole: data.myRole,

@@ -322,3 +322,44 @@ main {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Print styles for ContractDocument overlay ── */
+@media print {
+  /* Hide all UI chrome */
+  body > *:not(#root) { display: none !important; }
+  header, nav, footer, .no-print { display: none !important; }
+
+  /* Force white background on the whole page */
+  html, body { background: #fff !important; color: #000 !important; margin: 0 !important; padding: 0 !important; }
+
+  /* The fixed overlay becomes a normal block */
+  .print-overlay {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* The document card becomes full-width */
+  .print-document {
+    position: static !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    padding: 20px 24px !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Document content: ensure readable black-on-white */
+  .print-document * {
+    color: #000 !important;
+    background: transparent !important;
+    border-color: #ccc !important;
+  }
+
+  /* Hide action buttons */
+  .print-document button,
+  .print-document a[href] { display: none !important; }
+}
