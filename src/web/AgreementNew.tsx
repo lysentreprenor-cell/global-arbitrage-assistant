@@ -1218,6 +1218,10 @@ export default function AgreementNew() {
             setSavedContracts(loadContracts());
             setView("home");
           }}
+          onCloneContract={(preset: Partial<WizardData>) => {
+            startFromTemplate(preset);
+            setView("wizard");
+          }}
         />
         {showDocument && (
           <ContractDocument data={data} contractId={contractId} onClose={() => setShowDocument(false)} />
@@ -3688,8 +3692,10 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 `z dnia ${today}`,
                 "",
                 `§1. STRONY UMOWY`,
-                `${clientLabel}: ${data.client.name || data.inviteContact || "—"}`,
-                `${contractorLabel}: ${data.contractor.name || "—"}`,
+                `${clientLabel}: ${data.client.name || data.inviteContact || "—"}${data.client.nip ? ` (NIP: ${data.client.nip})` : ""}`,
+                data.client.address ? `Adres: ${data.client.address}` : "",
+                `${contractorLabel}: ${data.contractor.name || "—"}${data.contractor.nip ? ` (NIP: ${data.contractor.nip})` : ""}`,
+                data.contractor.address ? `Adres: ${data.contractor.address}` : "",
                 "",
                 `§2. PRZEDMIOT UMOWY`,
                 `Kategoria: ${category}${data.subcategory ? ` › ${data.subcategory}` : ""}`,
@@ -3823,7 +3829,7 @@ function RatingScreen({ contractId, data, onDone }: { contractId: string; data: 
 }
 
 function ContractLifecycle({
-  data, phase, setPhase, totalPrice, contractId, showDocument, setShowDocument, onNewContract, events,
+  data, phase, setPhase, totalPrice, contractId, showDocument, setShowDocument, onNewContract, onCloneContract, events,
 }: {
   data: WizardData;
   phase: ContractPhase;
@@ -3833,6 +3839,7 @@ function ContractLifecycle({
   showDocument: boolean;
   setShowDocument: (v: boolean) => void;
   onNewContract: () => void;
+  onCloneContract: (preset: Partial<WizardData>) => void;
   events: ActivityEvent[];
 }) {
   const [disputeOpen, setDisputeOpen] = useState(false);
@@ -4450,9 +4457,24 @@ function ContractLifecycle({
       )}
 
       {isFinished && (
-        <button onClick={onNewContract} style={{ ...btnSecondary, width: "100%", padding: "14px", marginTop: 16 }}>
-          + Nowa umowa
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+          <button
+            onClick={() => onCloneContract({
+              category: data.category, subcategory: data.subcategory, myRole: data.myRole,
+              inviteContact: data.inviteContact, pricingMethod: data.pricingMethod,
+              basePrice: data.basePrice, currency: data.currency, paymentMethod: data.paymentMethod,
+              client: { ...data.client }, contractor: { ...data.contractor },
+              loanDeposit: data.loanDeposit, loanDamageLiability: data.loanDamageLiability,
+              rentalDeposit: data.rentalDeposit, rentalDamageLiability: data.rentalDamageLiability,
+            })}
+            style={{ ...btnPrimary, width: "100%", padding: "14px" }}
+          >
+            🔁 Stwórz podobną umowę
+          </button>
+          <button onClick={onNewContract} style={{ ...btnSecondary, width: "100%", padding: "14px" }}>
+            + Nowa umowa od zera
+          </button>
+        </div>
       )}
 
       {/* Dispute sheet overlay */}
