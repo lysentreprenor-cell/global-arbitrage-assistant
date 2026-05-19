@@ -1351,8 +1351,8 @@ export default function AgreementNew() {
 // ——— STEP 0: Rola
 function StepRola({ data, update, goNext }: { data: WizardData; update: (p: Partial<WizardData>) => void; goNext: () => void }) {
   const roles: { value: "client" | "contractor"; icon: string; label: string; desc: string }[] = [
-    { value: "client", icon: "🤝", label: "Klient / Zleceniodawca", desc: "Zamawiasz usługę, kupujesz, wynajmujesz" },
-    { value: "contractor", icon: "🔨", label: "Wykonawca / Sprzedający", desc: "Wykonujesz usługę, sprzedajesz, wynajmujesz" },
+    { value: "client", icon: "🤝", label: "Klient / Zleceniodawca", desc: "Zamawiasz usługę, kupujesz, wynajmujesz, pożyczasz przedmiot" },
+    { value: "contractor", icon: "🔨", label: "Wykonawca / Sprzedający", desc: "Wykonujesz usługę, sprzedajesz, wynajmujesz, wypożyczasz" },
   ];
   return (
     <div>
@@ -3313,9 +3313,11 @@ function StepPodpis({ data, update, onSign }: { data: WizardData; update: (p: Pa
       {/* Mój podpis */}
       <div style={{ ...sectionCard, border: "1.5px solid var(--color-primary)", marginBottom: 16 }}>
         <SectionLabel>Twój podpis ({myLabel})</SectionLabel>
-        <div style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+        <div style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2 }}>
           {myParty.name || "—"}
         </div>
+        {myParty.nip && <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, marginBottom: 12 }}>NIP: {myParty.nip}</div>}
+        {!myParty.nip && <div style={{ marginBottom: 12 }} />}
         <div
           onClick={() => setAccepted(v => !v)}
           style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}
