@@ -171,6 +171,12 @@ interface WizardData {
   bankAccount: string;
   bankBlik: string;
   paymentTitle: string;
+  loanItemName: string;
+  loanItemCondition: string;
+  loanItemValue: number;
+  loanDeposit: number;
+  loanReturnDate: string;
+  loanDamageLiability: boolean;
 }
 
 const INITIAL: WizardData = {
@@ -189,6 +195,7 @@ const INITIAL: WizardData = {
   rentalFrom: "", rentalTo: "", rentalDeposit: 0, rentalReturnNotes: "", rentalDamageLiability: false,
   rentalNoticePeriod: 30, rentalTenants: 1, rentalFurnitured: false, rentalPets: "", rentalKeys: 1, rentalParking: false,
   rentalUtilities: "", rentalSubletting: false, rentalDepositReturnDays: 30,
+  loanItemName: "", loanItemCondition: "", loanItemValue: 0, loanDeposit: 0, loanReturnDate: "", loanDamageLiability: true,
   cyclicInterval: 1, cyclicUnit: "months",
   additionalItems: [],
   paymentMethod: "", depositCovers: [],
@@ -772,6 +779,7 @@ function getSteps(category: string) {
   if (category === "remont") base.push({ id: "pomieszczenia", label: "Pomieszczenia" });
   if (category === "sprzedaz") base.push({ id: "szczegoly", label: "Opis przedmiotu" });
   if (category === "wynajem") base.push({ id: "szczegoly_wynajmu", label: "Szczegóły wynajmu" });
+  if (category === "wypozyczenie") base.push({ id: "szczegoly_wypozyczenia", label: "Przedmiot" });
   base.push({ id: "dodatki", label: "Koszty dodatkowe" });
   base.push({ id: "wycena_koncowa", label: "Wycena końcowa" });
   base.push({ id: "platnosc", label: "Sposób płatności" });
@@ -1050,6 +1058,7 @@ export default function AgreementNew() {
       case "pomieszczenia": return <StepPomieszczenia data={data} update={update} />;
       case "szczegoly": return <StepSzczegolySprzedaz data={data} update={update} />;
       case "szczegoly_wynajmu": return <StepSzczegolyWynajem data={data} update={update} />;
+      case "szczegoly_wypozyczenia": return <StepSzczegolyWypozyczenia data={data} update={update} />;
       case "dodatki": return <StepDodatki data={data} update={update} additionalTotal={additionalTotal} />;
       case "wycena_koncowa": return <StepWycenaKoncowa data={data} update={update} totalPrice={totalPrice} additionalTotal={additionalTotal} goBack={goBack} />;
       case "platnosc": return <StepPlatnosc data={data} update={update} totalPrice={totalPrice} />;
@@ -1265,6 +1274,58 @@ function StepRola({ data, update, goNext }: { data: WizardData; update: (p: Part
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ——— STEP: Szczegóły wypożyczenia
+function StepSzczegolyWypozyczenia({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
+  const conditionOptions = ["Nowy", "Bardzo dobry", "Dobry", "Lekko używany", "Używany"];
+  return (
+    <div>
+      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Przedmiot wypożyczenia</h2>
+      <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 18, lineHeight: 1.5 }}>Opisz co wypożyczasz i na jakich warunkach.</p>
+
+      <div style={sectionCard}>
+        <SectionLabel>Nazwa przedmiotu</SectionLabel>
+        <input value={data.loanItemName} onChange={e => update({ loanItemName: e.target.value })}
+          placeholder="np. Aparat Canon EOS R5, Wiertarka Bosch" style={inputStyle} />
+      </div>
+
+      <div style={sectionCard}>
+        <SectionLabel>Stan przedmiotu</SectionLabel>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {conditionOptions.map(c => (
+            <div key={c} onClick={() => update({ loanItemCondition: c })}
+              style={{ padding: "8px 14px", borderRadius: 20, cursor: "pointer", fontSize: 13, fontWeight: data.loanItemCondition === c ? 700 : 400,
+                border: data.loanItemCondition === c ? "1.5px solid var(--color-primary)" : "1px solid var(--color-border)",
+                background: data.loanItemCondition === c ? "color-mix(in srgb, var(--color-primary) 12%, transparent)" : "var(--color-card)",
+                color: data.loanItemCondition === c ? "var(--color-primary)" : "var(--color-muted-foreground)" }}>
+              {c}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={sectionCard}>
+        <SectionLabel>Szacowana wartość przedmiotu ({data.currency})</SectionLabel>
+        <input type="number" value={data.loanItemValue || ""} onChange={e => update({ loanItemValue: parseFloat(e.target.value) || 0 })}
+          placeholder="np. 3000" style={inputStyle} />
+        <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, marginTop: 6 }}>Używana przy wycenie ewentualnych szkód.</div>
+      </div>
+
+      <div style={sectionCard}>
+        <SectionLabel>Kaucja zabezpieczająca ({data.currency})</SectionLabel>
+        <input type="number" value={data.loanDeposit || ""} onChange={e => update({ loanDeposit: parseFloat(e.target.value) || 0 })}
+          placeholder="np. 500" style={inputStyle} />
+      </div>
+
+      <div style={sectionCard}>
+        <SectionLabel>Data zwrotu</SectionLabel>
+        <input type="date" value={data.loanReturnDate} onChange={e => update({ loanReturnDate: e.target.value })} style={inputStyle} />
+      </div>
+
+      <Toggle on={data.loanDamageLiability} onChange={v => update({ loanDamageLiability: v })} label="Pożyczający odpowiada za szkody" />
     </div>
   );
 }
@@ -3316,6 +3377,12 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 {data.saleItems.length > 0 && data.saleItems.map((i, idx) => (
                   <p key={i.id}>{idx + 1}. {i.name}{i.condition ? ` — ${i.condition}` : ""}{i.serial ? ` (nr: ${i.serial})` : ""}</p>
                 ))}
+                {data.category === "wypozyczenie" && data.loanItemName && <p><b>Przedmiot:</b> {data.loanItemName}</p>}
+                {data.category === "wypozyczenie" && data.loanItemCondition && <p><b>Stan przy wydaniu:</b> {data.loanItemCondition}</p>}
+                {data.category === "wypozyczenie" && data.loanItemValue > 0 && <p><b>Wartość szacunkowa:</b> {data.loanItemValue.toLocaleString("pl-PL")} {data.currency}</p>}
+                {data.category === "wypozyczenie" && data.loanDeposit > 0 && <p><b>Kaucja:</b> {data.loanDeposit.toLocaleString("pl-PL")} {data.currency}</p>}
+                {data.category === "wypozyczenie" && data.loanReturnDate && <p><b>Termin zwrotu:</b> {data.loanReturnDate}</p>}
+                {data.category === "wypozyczenie" && <p><b>Odpowiedzialność za szkody:</b> {data.loanDamageLiability ? "Pożyczający odpowiada w pełni" : "Ustalona indywidualnie"}</p>}
                 {data.category === "wynajem" && data.rentalTenants > 1 && <p><b>Liczba najemców:</b> {data.rentalTenants}</p>}
                 {data.category === "wynajem" && data.rentalFurnitured && <p><b>Umeblowanie:</b> Wliczone w najem</p>}
                 {data.category === "wynajem" && data.rentalParking && <p><b>Parking:</b> Wliczony w czynsz</p>}
@@ -3657,7 +3724,13 @@ function ContractLifecycle({
   const invited = data.inviteContact || otherParty.email || otherParty.phone || otherLabel;
 
   const PHASES: { id: ContractPhase; icon: string; label: string; who: string; desc: string }[] =
-    data.category === "wynajem" ? [
+    data.category === "wypozyczenie" ? [
+      { id: "awaiting_counterparty", icon: "✍️", label: "Podpisanie umowy",           who: contractorLabel, desc: `${contractorLabel} przegląda i podpisuje umowę wypożyczenia` },
+      { id: "awaiting_deposit",      icon: "💳", label: "Wpłata kaucji",              who: clientLabel,     desc: `${clientLabel} wpłaca kaucję zabezpieczającą` },
+      { id: "in_progress",           icon: "🔑", label: "Przedmiot w użyciu",         who: clientLabel,     desc: `${clientLabel} korzysta z przedmiotu zgodnie z umową` },
+      { id: "awaiting_release",      icon: "📋", label: "Zgłoszenie zwrotu",          who: clientLabel,     desc: `${clientLabel} zwraca przedmiot i zgłasza zakończenie` },
+      { id: "completed",             icon: "✅", label: "Odbiór i rozliczenie kaucji", who: contractorLabel, desc: `${contractorLabel} sprawdza stan → kaucja zwrócona lub zatrzymana` },
+    ] : data.category === "wynajem" ? [
       { id: "awaiting_counterparty", icon: "✍️", label: "Podpisanie umowy najmu",            who: contractorLabel, desc: `${contractorLabel} przegląda i podpisuje umowę najmu` },
       { id: "awaiting_deposit",      icon: "💳", label: "Wpłata kaucji i pierwszego czynszu", who: clientLabel,     desc: `${clientLabel} wpłaca kaucję — zabezpieczona do końca najmu` },
       { id: "in_progress",           icon: "🏠", label: "Najem aktywny",                      who: clientLabel,     desc: `Najem trwa zgodnie z warunkami umowy` },
