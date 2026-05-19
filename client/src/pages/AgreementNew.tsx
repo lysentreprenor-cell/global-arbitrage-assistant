@@ -2071,7 +2071,7 @@ function StepZakres({ data, update }: { data: WizardData; update: (p: Partial<Wi
         <textarea value={data.scopeDescription} onChange={e => update({ scopeDescription: e.target.value })} placeholder="np. Zakaz podnajmu, obowiązek ubezpieczenia, zakaz modyfikacji..." style={{ ...textareaStyle, minHeight: 90 }} />
       </div>
       <div style={sectionCard}>
-        <Toggle on={data.rentalDamageLiability} onChange={v => update({ rentalDamageLiability: v })} label="Pożyczający odpowiada za uszkodzenia" />
+        <Toggle on={data.loanDamageLiability} onChange={v => update({ loanDamageLiability: v })} label="Pożyczający odpowiada za uszkodzenia" />
         <div style={{ marginTop: 10 }} />
         <Toggle on={data.rentalProtocol} onChange={v => update({ rentalProtocol: v })} label="Protokół wydania i zwrotu wymagany" />
       </div>
@@ -3193,8 +3193,8 @@ function StepPodpis({ data, update, onSign }: { data: WizardData; update: (p: Pa
     ? (data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca")
     : (data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca");
   const otherLabel = data.myRole === "contractor"
-    ? (data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : "Zleceniodawca")
-    : (data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : "Wykonawca");
+    ? (data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca")
+    : (data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca");
   const hasOtherContact = !!(otherParty.email || otherParty.phone || data.inviteContact);
 
   return (
@@ -3492,8 +3492,10 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
             { par: "§3. WYNAGRODZENIE", content: (
               <div style={{ fontSize: 13 }}>
                 <p><b>Model rozliczenia:</b> {pricingLabel}</p>
-                <p><b>Kwota łączna:</b> {totalPrice.toLocaleString("pl-PL")} {data.currency}</p>
-                {data.paymentMethod && <p><b>Metoda płatności:</b> {({ upfront: "Z góry", after: "Po wykonaniu", stages: "Etapami", deposit: "Depozyt escrow", partial_deposit: "Częściowy depozyt" } as Record<string,string>)[data.paymentMethod] ?? data.paymentMethod}</p>}
+                {data.pricingMethod === "price"
+                  ? <p><b>Charakter umowy:</b> Wypożyczenie nieodpłatne</p>
+                  : <p><b>Kwota łączna:</b> {totalPrice.toLocaleString("pl-PL")} {data.currency}</p>}
+                {data.paymentMethod && data.pricingMethod !== "price" && <p><b>Metoda płatności:</b> {({ upfront: "Z góry", after: "Po wykonaniu", stages: "Etapami", deposit: "Depozyt escrow", partial_deposit: "Częściowy depozyt" } as Record<string,string>)[data.paymentMethod] ?? data.paymentMethod}</p>}
                 {data.rentalDeposit > 0 && <p><b>Kaucja:</b> {data.rentalDeposit.toLocaleString("pl-PL")} {data.currency}</p>}
                 {data.pricingMethod === "stages" && data.paymentStages.length > 0 && (
                   <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--color-border)" }}>
@@ -3516,6 +3518,7 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 {data.deadlineType === "cyclic" && data.cyclicInterval > 0 && (
                   <p><b>Cykl:</b> co {data.cyclicInterval} {({ days: "dni", weeks: "tygodnie", months: "miesiące" } as Record<string,string>)[data.cyclicUnit]}</p>
                 )}
+                {data.category === "wypozyczenie" && data.loanReturnDate && <p><b>Termin zwrotu:</b> {data.loanReturnDate}</p>}
                 {data.rentalFrom && <p><b>Data wydania:</b> {data.rentalFrom}</p>}
                 {data.rentalTo && <p><b>Data zwrotu:</b> {data.rentalTo}</p>}
                 {data.deadlineType === "tbd" && <p>Termin do uzgodnienia przez strony.</p>}
@@ -3531,7 +3534,9 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 {data.requireApproval && <p><b>Wymagane potwierdzenie odbioru</b> przez zleceniodawcę przed wypłatą.</p>}
                 {data.category === "wynajem" && data.rentalDepositReturnDays > 0 && <p><b>Zwrot kaucji:</b> do {data.rentalDepositReturnDays} dni od zdania lokalu</p>}
                 {data.category === "wynajem" && <p><b>Podnajem:</b> {data.rentalSubletting ? "Dozwolony za zgodą wynajmującego" : "Niedozwolony"}</p>}
-                {!data.warranty && !data.latePenalty && !data.requireApproval && <p>Bez dodatkowych warunków szczególnych.</p>}
+                {data.category === "wypozyczenie" && data.loanDamageLiability && <p><b>Odpowiedzialność:</b> Pożyczający odpowiada za wszelkie szkody w przedmiocie wypożyczenia.</p>}
+                {data.category === "wypozyczenie" && data.rentalProtocol && <p><b>Protokół:</b> Wymagany protokół wydania i zwrotu.</p>}
+                {!data.warranty && !data.latePenalty && !data.requireApproval && data.category !== "wynajem" && data.category !== "wypozyczenie" && <p>Bez dodatkowych warunków szczególnych.</p>}
               </div>
             )},
             { par: "§6. PROTOKÓŁ ODBIORU", content: (
@@ -3569,7 +3574,7 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
           </button>
           <button
             onClick={async () => {
-              const pricingLabelMap: Record<string,string> = { fixed:"Ryczałt", hourly:"Stawka godzinowa", unit:"Za sztukę", stages:"Etapami", per_day:"Za dzień", per_week:"Za tydzień", per_month:"Za miesiąc", m2:"Za m²", materials_labor:"Materiały + robocizna" };
+              const pricingLabelMap: Record<string,string> = { fixed:"Ryczałt", hourly:"Stawka godzinowa", unit:"Za sztukę", stages:"Etapami", per_day:"Za dzień", per_week:"Za tydzień", per_month:"Za miesiąc", m2:"Za m²", materials_labor:"Materiały + robocizna", price:"Bezpłatne" };
               const lines = [
                 `UMOWA NR #${contractId}`,
                 `z dnia ${today}`,
@@ -3581,16 +3586,20 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
                 `§2. PRZEDMIOT UMOWY`,
                 `Kategoria: ${category}${data.subcategory ? ` › ${data.subcategory}` : ""}`,
                 data.scopeDescription ? `Opis: ${data.scopeDescription}` : "",
+                data.category === "wypozyczenie" && data.loanItemName ? `Przedmiot: ${data.loanItemName}` : "",
+                data.category === "wypozyczenie" && data.loanItemCondition ? `Stan przy wydaniu: ${data.loanItemCondition}` : "",
                 "",
                 `§3. WYNAGRODZENIE`,
                 `Model rozliczenia: ${pricingLabelMap[data.pricingMethod] ?? data.pricingMethod}`,
-                `Kwota łączna: ${totalPrice.toLocaleString("pl-PL")} ${data.currency}`,
-                data.rentalDeposit > 0 ? `Kaucja: ${data.rentalDeposit.toLocaleString("pl-PL")} ${data.currency}` : "",
+                data.pricingMethod === "price" ? "Charakter umowy: Wypożyczenie nieodpłatne" : `Kwota łączna: ${totalPrice.toLocaleString("pl-PL")} ${data.currency}`,
+                data.rentalDeposit > 0 ? `Kaucja (najem): ${data.rentalDeposit.toLocaleString("pl-PL")} ${data.currency}` : "",
+                data.category === "wypozyczenie" && data.loanDeposit > 0 ? `Kaucja (wypożyczenie): ${data.loanDeposit.toLocaleString("pl-PL")} ${data.currency}` : "",
                 "",
                 `§4. TERMIN`,
                 data.deadlineSingle ? `Data realizacji: ${data.deadlineSingle}` : "",
                 data.deadlineFrom ? `Od: ${data.deadlineFrom}` : "",
                 data.deadlineTo ? `Do: ${data.deadlineTo}` : "",
+                data.category === "wypozyczenie" && data.loanReturnDate ? `Termin zwrotu: ${data.loanReturnDate}` : "",
                 data.deadlineType === "tbd" ? "Termin do uzgodnienia przez strony." : "",
                 "",
                 `§5. WARUNKI`,
@@ -3801,7 +3810,7 @@ function ContractLifecycle({
   const PHASES: { id: ContractPhase; icon: string; label: string; who: string; desc: string }[] =
     data.category === "wypozyczenie" ? [
       { id: "awaiting_counterparty", icon: "✍️", label: "Podpisanie umowy",           who: contractorLabel, desc: `${contractorLabel} przegląda i podpisuje umowę wypożyczenia` },
-      { id: "awaiting_deposit",      icon: "💳", label: "Wpłata kaucji",              who: clientLabel,     desc: `${clientLabel} wpłaca kaucję zabezpieczającą` },
+      { id: "awaiting_deposit",      icon: "💳", label: data.loanDeposit > 0 ? "Wpłata kaucji" : "Potwierdzenie odbioru", who: clientLabel, desc: data.loanDeposit > 0 ? `${clientLabel} wpłaca kaucję zabezpieczającą` : `${clientLabel} potwierdza odbiór przedmiotu` },
       { id: "in_progress",           icon: "🔑", label: "Przedmiot w użyciu",         who: clientLabel,     desc: `${clientLabel} korzysta z przedmiotu zgodnie z umową` },
       { id: "awaiting_release",      icon: "📋", label: "Zgłoszenie zwrotu",          who: clientLabel,     desc: `${clientLabel} zwraca przedmiot i zgłasza zakończenie` },
       { id: "completed",             icon: "✅", label: "Odbiór i rozliczenie kaucji", who: contractorLabel, desc: `${contractorLabel} sprawdza stan → kaucja zwrócona lub zatrzymana` },
@@ -3833,15 +3842,21 @@ function ContractLifecycle({
     if (phase === "awaiting_counterparty" && !isClient)
       return { label: `✍️ Podpisz jako ${contractorLabel.toLowerCase()} i zaakceptuj`, action: () => setPhase("awaiting_deposit") };
     if (phase === "awaiting_deposit" && isClient && !paymentSentAt) {
-      const payLabel = data.category === "wynajem"
+      const isFreeRental = data.category === "wypozyczenie" && data.loanDeposit === 0;
+      const payLabel = isFreeRental
+        ? "🤝 Potwierdzam — odbiorę przedmiot (bezpłatne wypożyczenie)"
+        : data.category === "wynajem"
         ? `💸 Wysłałem kaucję i pierwszy czynsz${totalPrice > 0 ? ` — ${totalPrice.toLocaleString("pl-PL")} ${data.currency}` : ""}`
         : data.category === "wypozyczenie"
-        ? `💸 Wysłałem kaucję${data.loanDeposit > 0 ? ` — ${data.loanDeposit.toLocaleString("pl-PL")} ${data.currency}` : ""}`
+        ? `💸 Wysłałem kaucję — ${data.loanDeposit.toLocaleString("pl-PL")} ${data.currency}`
         : `💸 Wysłałem przelew${totalPrice > 0 ? ` — ${totalPrice.toLocaleString("pl-PL")} ${data.currency}` : ""}`;
       return { label: payLabel, action: savePaymentSent };
     }
     if (phase === "awaiting_deposit" && !isClient && paymentSentAt) {
-      const confirmLabel = data.category === "wynajem"
+      const isFreeRental = data.category === "wypozyczenie" && data.loanDeposit === 0;
+      const confirmLabel = isFreeRental
+        ? "✅ Wydaję przedmiot — start użytkowania"
+        : data.category === "wynajem"
         ? "✅ Potwierdzam wpłatę kaucji → najem aktywny"
         : data.category === "wypozyczenie"
         ? "✅ Potwierdzam wpłatę kaucji → wydaj przedmiot"
@@ -3878,7 +3893,7 @@ function ContractLifecycle({
   const cta = getCTA();
   const isFinished = phase === "completed";
   const phaseTip: Record<string, string> = data.category === "wypozyczenie" ? {
-    awaiting_deposit: "Kaucja zabezpieczona — zostanie zwrócona gdy przedmiot wróci w nienaruszonym stanie.",
+    awaiting_deposit: data.loanDeposit > 0 ? "Kaucja zabezpieczona — zostanie zwrócona gdy przedmiot wróci w nienaruszonym stanie." : "Bezpłatne wypożyczenie — potwierdź odbiór przedmiotu aby rozpocząć użytkowanie.",
     in_progress: isClient ? "Korzystasz z wypożyczonego przedmiotu. Zgłoś zwrot gdy skończyłeś." : "Przedmiot jest u pożyczającego. Poczekaj na zgłoszenie zwrotu.",
     awaiting_release: !isClient ? "Sprawdź stan zwróconego przedmiotu i zdecyduj o kaucji." : "Zgłoszono zwrot. Czekasz na weryfikację przez właściciela.",
   } : data.category === "wynajem" ? {
