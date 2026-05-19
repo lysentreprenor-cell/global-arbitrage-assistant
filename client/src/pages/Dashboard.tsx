@@ -93,15 +93,23 @@ export default function Dashboard() {
       .catch(() => {});
   }, []);
 
-  const [contractCount, setContractCount] = useState<{ active: number; total: number }>({ active: 0, total: 0 });
+  const [contractCount, setContractCount] = useState<{ active: number; total: number; needsAction: number; overdue: number }>({ active: 0, total: 0, needsAction: 0, overdue: 0 });
   useEffect(() => {
     try {
       const stored = localStorage.getItem("itemprise_contracts");
       if (stored) {
-        const ags = JSON.parse(stored) as Array<{ phase?: string }>;
+        const today = new Date(); today.setHours(0,0,0,0);
+        const ags = JSON.parse(stored) as Array<{ phase?: string; data?: { deadlineSingle?: string; loanReturnDate?: string; category?: string } }>;
         const total = ags.length;
         const active = ags.filter(a => a.phase && a.phase !== "completed").length;
-        setContractCount({ active, total });
+        const needsAction = ags.filter(a => a.phase === "awaiting_release").length;
+        const overdue = ags.filter(a => {
+          if (a.phase === "completed") return false;
+          const d = a.data?.category === "wypozyczenie" ? a.data?.loanReturnDate : a.data?.deadlineSingle;
+          if (!d) return false;
+          return new Date(d) < today;
+        }).length;
+        setContractCount({ active, total, needsAction, overdue });
       }
     } catch {}
   }, []);
@@ -465,7 +473,27 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {contractCount.active > 0 && (
+              {contractCount.overdue > 0 ? (
+                <div style={{
+                  padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
+                  color: "#fca5a5",
+                  background: "rgba(220,38,38,0.18)",
+                  border: "1px solid rgba(220,38,38,0.35)",
+                  letterSpacing: 0.6,
+                }}>
+                  ⚠ {contractCount.overdue} PO TERMINIE
+                </div>
+              ) : contractCount.needsAction > 0 ? (
+                <div style={{
+                  padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
+                  color: "#fde68a",
+                  background: "rgba(245,158,11,0.18)",
+                  border: "1px solid rgba(245,158,11,0.35)",
+                  letterSpacing: 0.6,
+                }}>
+                  {contractCount.needsAction} DO ZROBIENIA
+                </div>
+              ) : contractCount.active > 0 ? (
                 <div style={{
                   padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
                   color: "#7df0ba",
@@ -475,7 +503,7 @@ export default function Dashboard() {
                 }}>
                   AKTYWNE
                 </div>
-              )}
+              ) : null}
             </div>
 
             <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, position: "relative" }}>
