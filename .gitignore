@@ -13,3 +13,4 @@ yarn-debug.*
 yarn-error.*
 .env
 .env.local
+.claude/
