@@ -51,6 +51,11 @@ import WalletTopUp from "@/pages/WalletTopUp";
 import Agreements from "@/pages/Agreements";
 import AgreementNew from "@/pages/AgreementNew";
 import AgreementDetail from "@/pages/AgreementDetail";
+import SplitBill from "@/pages/SplitBill";
+import RecurringPayments from "@/pages/RecurringPayments";
+import SavingsGoals from "@/pages/SavingsGoals";
+import KYCVerification from "@/pages/KYCVerification";
+import ReferralProgram from "@/pages/ReferralProgram";
 
 function AuthSplash() {
   return (
@@ -147,6 +152,11 @@ function Router() {
         <Route path="/agreements/new" component={AgreementNew} />
         <Route path="/agreements/:id" component={AgreementDetail} />
         <Route path="/contracts" component={() => { useEffect(() => setLocation("/agreements"), []); return null; }} />
+        <Route path="/split" component={SplitBill} />
+        <Route path="/recurring" component={RecurringPayments} />
+        <Route path="/savings" component={SavingsGoals} />
+        <Route path="/kyc" component={KYCVerification} />
+        <Route path="/referral" component={ReferralProgram} />
         <Route path="/verify-email" component={VerifyEmail} />
         <Route component={NotFound} />
       </Switch>

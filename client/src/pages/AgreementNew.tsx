@@ -328,6 +328,15 @@ const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset
   },
 ];
 
+const COMMUNITY_TEMPLATES = [
+  { id: "ct1", emoji: "💻", label: "Freelancer IT", desc: "Programowanie, 40h/mc", category: "usluga", subcategory: "Programowanie / IT", pricingMethod: "hourly", basePrice: 120, ipTransfer: true, confidentiality: true },
+  { id: "ct2", emoji: "🏠", label: "Wynajem pokoju", desc: "Pokój w mieszkaniu, kaucja 2M", category: "wynajem", subcategory: "Pokój", pricingMethod: "per_month", basePrice: 900, rentalDeposit: 1800, rentalDepositReturnDays: 30 },
+  { id: "ct3", emoji: "🚗", label: "Sprzedaż auta", desc: "Umowa kupna-sprzedaży pojazdu", category: "sprzedaz", subcategory: "Auto/pojazd", pricingMethod: "price", basePrice: 0 },
+  { id: "ct4", emoji: "🔨", label: "Remont łazienki", desc: "Kompleksowy remont, etapami", category: "remont", subcategory: "Łazienka", pricingMethod: "stages", basePrice: 0 },
+  { id: "ct5", emoji: "📸", label: "Sesja fotograficzna", desc: "Fotograf, prawa autorskie", category: "usluga", subcategory: "Fotografia", pricingMethod: "fixed", basePrice: 500, ipTransfer: true },
+  { id: "ct6", emoji: "🛠️", label: "Narzędzia", desc: "Wypożyczenie sprzętu budowlanego", category: "wypozyczenie", subcategory: "Sprzęt budowlany", pricingMethod: "per_day", basePrice: 80 },
+];
+
 const PHASE_LABELS: Record<string, string> = {
   awaiting_counterparty: "Oczekuje na akceptację",
   awaiting_deposit: "Oczekuje na wpłatę",
@@ -508,6 +517,32 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
               <span style={{ color: "var(--color-foreground)", fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>{t.label}</span>
               <span style={{ color: "var(--color-muted-foreground)", fontSize: 11 }}>{t.desc}</span>
             </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Community Templates */}
+      <div style={{ marginTop: 24, marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.4, color: "rgba(255,255,255,0.40)", marginBottom: 12 }}>
+          POPULARNE SZABLONY
+        </div>
+        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }} className="scrollbar-hide">
+          {COMMUNITY_TEMPLATES.map(t => (
+            <div
+              key={t.id}
+              onClick={() => onTemplate(t)}
+              style={{
+                flexShrink: 0, width: 140, borderRadius: 16, padding: "16px 14px",
+                background: "rgba(255,255,255,0.03)", border: "1.5px solid rgba(255,255,255,0.08)",
+                cursor: "pointer", transition: "all 0.18s ease",
+              }}
+              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.95)"; }}
+              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+            >
+              <div style={{ fontSize: 28, marginBottom: 8 }}>{t.emoji}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-foreground)", marginBottom: 4, lineHeight: 1.2 }}>{t.label}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.3 }}>{t.desc}</div>
+            </div>
           ))}
         </div>
       </div>
@@ -3917,6 +3952,12 @@ function ContractLifecycle({
   const [paymentSentAt, setPaymentSentAt] = useState<string | null>(() => {
     try { return loadContracts().find(c => c.contractId === contractId)?.paymentSentAt || null; } catch { return null; }
   });
+  const [inlineRating, setInlineRating] = useState(0);
+  const [inlineRatingSubmitted, setInlineRatingSubmitted] = useState(() => {
+    try { return !!JSON.parse(localStorage.getItem("finlys_ratings") || "[]").find((r: any) => r.contractId === contractId); }
+    catch { return false; }
+  });
+  const [inlineRatingNote, setInlineRatingNote] = useState("");
 
   const savePaymentSent = () => {
     const ts = new Date().toISOString();
@@ -4466,7 +4507,33 @@ function ContractLifecycle({
             />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <Toggle on={protocolPhotos} onChange={setProtocolPhotos} label="Zdjęcia dokumentacyjne wykonane" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-foreground)" }}>
+                  Zdjęcia dokumentacyjne
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.40)", marginTop: 2 }}>
+                  Dołącz zdjęcia jako dowód odbioru
+                </div>
+              </div>
+              <div
+                onClick={() => setProtocolPhotos(v => !v)}
+                style={{
+                  width: 44, height: 26, borderRadius: 13, cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
+                  background: protocolPhotos ? "var(--color-primary)" : "rgba(255,255,255,0.12)", position: "relative",
+                }}
+              >
+                <div style={{ position: "absolute", top: 3, left: protocolPhotos ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+              </div>
+            </div>
+            {protocolPhotos && (
+              <div style={{ padding: "12px 14px", background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", marginBottom: 14, textAlign: "center" }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>📷</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.50)" }}>
+                  W wersji produkcyjnej zdjęcia będą przesyłane do bezpiecznego magazynu
+                </div>
+              </div>
+            )}
           </div>
           <button
             disabled={!protocolStatus}
@@ -4524,13 +4591,16 @@ function ContractLifecycle({
 
       {/* Quick note */}
       {!isFinished && (
-        <div style={{ ...sectionCard, marginBottom: 12 }}>
-          <div style={{ color: "var(--color-foreground)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📝 Dodaj notatkę</div>
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "rgba(255,255,255,0.40)", marginBottom: 10 }}>
+            💬 NOTATKA DO KONTRAKTU
+          </div>
           <textarea
             value={quickNote}
             onChange={e => setQuickNote(e.target.value)}
-            placeholder="Notatka do umowy..."
-            style={{ ...textareaStyle, minHeight: 60, marginBottom: 8 }}
+            placeholder="Dodaj notatkę, ustalenie lub przypomnienie..."
+            rows={2}
+            style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "var(--color-foreground)", fontSize: 14, resize: "none", outline: "none", marginBottom: 10, fontFamily: "inherit", boxSizing: "border-box" }}
           />
           <button
             onClick={() => {
@@ -4539,9 +4609,9 @@ function ContractLifecycle({
               setQuickNote("");
             }}
             disabled={!quickNote.trim()}
-            style={{ ...btnSecondary, width: "100%", padding: "10px", fontSize: 13, opacity: quickNote.trim() ? 1 : 0.5, cursor: quickNote.trim() ? "pointer" : "not-allowed" }}
+            style={{ height: 38, borderRadius: 10, padding: "0 16px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--color-foreground)", fontSize: 13, fontWeight: 600, cursor: quickNote.trim() ? "pointer" : "not-allowed", opacity: quickNote.trim() ? 1 : 0.5 }}
           >
-            Zapisz notatkę
+            Dodaj notatkę
           </button>
         </div>
       )}

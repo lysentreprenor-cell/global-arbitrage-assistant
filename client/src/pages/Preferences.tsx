@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { ArrowLeft, Globe, BellRing, Lock, EyeOff, Check, Smartphone, Download } from "lucide-react";
+import { ArrowLeft, Globe, BellRing, Lock, EyeOff, Check, Smartphone, Download, PiggyBank, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,7 +7,7 @@ import { useAppStore, WALLET_FLAGS, CURRENCY_SYMBOLS, CURRENCY_NAMES, CurrencyCo
 import { useToast } from "@/hooks/use-toast";
 import { useTheme, ThemeName } from "@/context/ThemeContext";
 import { useLang, Lang } from "@/context/LanguageContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePWAInstall, PWAInstallGuide } from "@/components/PWAInstallBanner";
 
 /* language option display names */
@@ -274,6 +274,34 @@ export default function Preferences() {
   const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
   const [showAddCurrencyMenu, setShowAddCurrencyMenu] = useState(false);
   const [showThemes, setShowThemes]             = useState(false);
+  const [roundupEnabled, setRoundupEnabled]     = useState(() => {
+    try { return localStorage.getItem("finlys_roundup_enabled") === "true"; } catch { return false; }
+  });
+  const [offlineMode, setOfflineMode]           = useState(() => {
+    try { return localStorage.getItem("finlys_offline_mode") === "true"; } catch { return false; }
+  });
+
+  const handleRoundupToggle = (val: boolean) => {
+    setRoundupEnabled(val);
+    localStorage.setItem("finlys_roundup_enabled", String(val));
+    toast({
+      title: "Preference Updated",
+      description: val
+        ? (lang === "pl" ? "Zaokrąglenie włączone" : "Round-up savings enabled")
+        : (lang === "pl" ? "Zaokrąglenie wyłączone" : "Round-up savings disabled"),
+    });
+  };
+
+  const handleOfflineModeToggle = (val: boolean) => {
+    setOfflineMode(val);
+    localStorage.setItem("finlys_offline_mode", String(val));
+    toast({
+      title: "Preference Updated",
+      description: val
+        ? (lang === "pl" ? "Tryb offline włączony" : "Offline mode enabled")
+        : (lang === "pl" ? "Tryb offline wyłączony" : "Offline mode disabled"),
+    });
+  };
 
   const ALL_CURRENCIES: CurrencyCode[] = ["NOK","USD","EUR","GBP","CHF","PLN","SEK","DKK","CAD","AUD","JPY"];
 
@@ -605,8 +633,60 @@ export default function Preferences() {
           </div>
         </motion.div>
 
+        {/* ── EXTRA FEATURES section ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.30 }}
+          className="space-y-4"
+        >
+          <h2 className="text-[13px] font-black uppercase tracking-[0.20em] text-primary/80 px-1">
+            {lang === "pl" ? "Dodatkowe funkcje" : "Extra Features"}
+          </h2>
+          <div className="bg-card border border-border/30 rounded-3xl p-2 shadow-premium transition-colors duration-500">
+            {/* Round-up savings */}
+            <div className="p-5 flex items-center justify-between border-b border-border/30">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-primary border border-border/20">
+                  <PiggyBank className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-[15px] text-foreground/90">
+                    {lang === "pl" ? "Zaokrąglenie na oszczędności" : "Round-up savings"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {lang === "pl"
+                      ? "Każdy przelew zaokrąglany w górę do pełnego złotego. Różnica trafia na cel oszczędnościowy."
+                      : "Every transfer is rounded up to the nearest whole unit. The difference goes to your savings goal."}
+                  </p>
+                </div>
+              </div>
+              <Switch checked={roundupEnabled} onCheckedChange={handleRoundupToggle} />
+            </div>
+            {/* Offline mode */}
+            <div className="p-5 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-primary border border-border/20">
+                  <WifiOff className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-[15px] text-foreground/90">
+                    {lang === "pl" ? "Tryb offline" : "Offline mode"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {lang === "pl"
+                      ? "Przeglądaj historię i umowy bez połączenia z internetem."
+                      : "Browse history and agreements without internet connection."}
+                  </p>
+                </div>
+              </div>
+              <Switch checked={offlineMode} onCheckedChange={handleOfflineModeToggle} />
+            </div>
+          </div>
+        </motion.div>
+
         {/* ── PWA Install ── */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="px-5 pb-2">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }} className="px-5 pb-2">
           <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-3 px-1">Aplikacja mobilna</h2>
           <div className="bg-card rounded-3xl border border-border/30 shadow-sm overflow-hidden">
             <PWAInstallSection />

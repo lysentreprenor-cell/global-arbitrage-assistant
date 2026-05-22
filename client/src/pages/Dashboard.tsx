@@ -66,7 +66,7 @@ const TILE: Record<TileKey, { bg: string; iconColor: string; shadow: string; bor
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const { user, transactions, notifications, conversations, wallets, exchangeCurrency, fxRates, ratesUpdatedAt, ratesUnavailable, enabledCurrencies, primaryCurrency, saveCurrencySettings } = useAppStore();
+  const { user, transactions, notifications, conversations, wallets, exchangeCurrency, fxRates, ratesUpdatedAt, ratesUnavailable, enabledCurrencies, primaryCurrency, saveCurrencySettings, addNotification } = useAppStore();
   const { th } = useTheme();
   const { t, lang } = useLang();
   const { isEnabled } = useFeatures();
@@ -81,6 +81,40 @@ export default function Dashboard() {
   const [exResult, setExResult]             = useState<{ received: number; currency: CurrencyCode; from: CurrencyCode; fromAmount: number } | null>(null);
   const [exError, setExError]               = useState<string | null>(null);
   const [exLoading, setExLoading]           = useState(false);
+
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertFrom, setAlertFrom] = useState("EUR");
+  const [alertTo, setAlertTo] = useState("PLN");
+  const [alertThreshold, setAlertThreshold] = useState("");
+  const [alertCondition, setAlertCondition] = useState<"above" | "below">("below");
+
+  interface CurrencyAlert {
+    id: string;
+    from: string;
+    to: string;
+    threshold: number;
+    condition: "above" | "below";
+    triggered: boolean;
+  }
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("finlys_currency_alerts");
+      if (!stored || !fxRates) return;
+      const alerts: CurrencyAlert[] = JSON.parse(stored);
+      alerts.forEach(alert => {
+        if (alert.triggered) return;
+        const rate = fxRates[`${alert.from}_${alert.to}`] || (fxRates[alert.from] && fxRates[alert.to] ? fxRates[alert.to] / fxRates[alert.from] : null);
+        if (!rate) return;
+        const triggered = alert.condition === "above" ? rate > alert.threshold : rate < alert.threshold;
+        if (triggered) {
+          addNotification({ title: `Kurs ${alert.from}/${alert.to}`, message: `Kurs ${alert.from}/${alert.to} ${alert.condition === "above" ? "przekroczył" : "spadł poniżej"} ${alert.threshold}. Aktualnie: ${rate.toFixed(4)}`, type: "alert", category: "payment", priority: "high" });
+          const updated = alerts.map(a => a.id === alert.id ? { ...a, triggered: true } : a);
+          localStorage.setItem("finlys_currency_alerts", JSON.stringify(updated));
+        }
+      });
+    } catch {}
+  }, [fxRates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [cardStats, setCardStats] = useState<{ total: number; active: number } | null>(null);
   useEffect(() => {

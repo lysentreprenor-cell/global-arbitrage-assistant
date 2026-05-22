@@ -32,5 +32,28 @@
     }
   ],
   "categories": ["finance"],
-  "lang": "pl"
+  "lang": "pl",
+  "shortcuts": [
+    {
+      "name": "Wyślij pieniądze",
+      "short_name": "Wyślij",
+      "description": "Szybki przelew",
+      "url": "/transfer",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Moje umowy",
+      "short_name": "Umowy",
+      "description": "Przeglądaj aktywne umowy",
+      "url": "/agreements",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Podziel rachunek",
+      "short_name": "Podziel",
+      "description": "Podziel rachunek z grupą",
+      "url": "/split",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }

@@ -3,14 +3,14 @@ import { useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, TrendingDown, Target, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, ReferenceLine } from "recharts";
 import { useAppStore } from "@/lib/store";
 import { useLang } from "@/context/LanguageContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function BudgetForecast() {
   const [, setLocation] = useLocation();
-  const { transactions } = useAppStore();
+  const { transactions, wallets, primaryCurrency } = useAppStore();
   const { lang } = useLang();
   const { theme } = useTheme();
   const isLight = theme === "arctic-platinum";
@@ -66,6 +66,26 @@ export default function BudgetForecast() {
   }, [transactions, year, month, todayDay, daysInMonth]);
 
   const pctChange = totalSpent > 0 ? Math.round(((projectedEOM - totalSpent) / totalSpent) * 100) : 0;
+
+  const currentBalance = wallets[primaryCurrency] ?? 0;
+
+  const forecastData = useMemo(() => {
+    const now = new Date();
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    const recentTxs = transactions.filter(tx => new Date(tx.date) >= cutoff);
+    const dailyAvgOut = recentTxs.filter(tx => tx.amount < 0).reduce((s, tx) => s + Math.abs(tx.amount), 0) / 30;
+    const dailyAvgIn = recentTxs.filter(tx => tx.amount > 0).reduce((s, tx) => s + tx.amount, 0) / 30;
+    const netDaily = dailyAvgIn - dailyAvgOut;
+
+    return Array.from({ length: 30 }, (_, i) => {
+      const date = new Date(now); date.setDate(date.getDate() + i);
+      const projected = currentBalance + netDaily * i;
+      return {
+        day: i === 0 ? (pl ? "Dziś" : "Today") : `+${i}d`,
+        balance: Math.max(0, Math.round(projected)),
+      };
+    }).filter((_, i) => i % 5 === 0 || i === 0 || i === 29);
+  }, [transactions, currentBalance, pl]);
 
   const fmt = (n: number) =>
     n.toLocaleString(pl ? "pl-PL" : "en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -279,6 +299,29 @@ export default function BudgetForecast() {
             })()
           )}
         </motion.div>
+
+        {/* Balance Forecast */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "20px 16px", marginTop: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, color: "rgba(255,255,255,0.45)", marginBottom: 4 }}>
+            {pl ? "PROGNOZA SALDA — 30 DNI" : "BALANCE FORECAST — 30 DAYS"}
+          </div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 16 }}>
+            {pl ? "Na podstawie średnich wydatków z ostatniego miesiąca" : "Based on average spending from last month"}
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <LineChart data={forecastData}>
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.40)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.40)" }} axisLine={false} tickLine={false} hide />
+              <Tooltip contentStyle={{ background: "rgba(20,20,30,0.95)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#fff", fontSize: 12 }} formatter={(v: any) => [`${v} ${primaryCurrency}`, pl ? "Prognoza" : "Forecast"]} />
+              <ReferenceLine y={0} stroke="rgba(248,113,113,0.4)" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="balance" stroke="var(--color-primary)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>{pl ? "Teraz" : "Now"}: <b style={{ color: "var(--color-primary)" }}>{currentBalance.toFixed(0)} {primaryCurrency}</b></div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>+30d: <b style={{ color: forecastData[forecastData.length - 1]?.balance >= currentBalance ? "#4ade80" : "#f87171" }}>{forecastData[forecastData.length - 1]?.balance ?? 0} {primaryCurrency}</b></div>
+          </div>
+        </div>
       </main>
     </div>
   );

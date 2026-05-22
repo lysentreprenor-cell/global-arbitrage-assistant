@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Search, Calendar, Filter } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Search, Calendar, Filter, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppStore, Transaction } from "@/lib/store";
@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useState, useMemo } from "react";
 import { useLang } from "@/context/LanguageContext";
 import { useTheme } from "@/context/ThemeContext";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 export default function History() {
   const [, setLocation] = useLocation();
@@ -21,6 +22,31 @@ export default function History() {
 
   const pl = lang === "pl";
   const filterActive = filterType !== "all" || filterPeriod !== "all";
+  const [showReport, setShowReport] = useState(false);
+
+  const chartData = useMemo(() => {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    const byCategory: Record<string, number> = {};
+    transactions
+      .filter(tx => tx.amount < 0 && new Date(tx.date) >= cutoff)
+      .forEach(tx => {
+        const cat = tx.category || (pl ? "Inne" : "Other");
+        byCategory[cat] = (byCategory[cat] || 0) + Math.abs(tx.amount);
+      });
+    return Object.entries(byCategory)
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [transactions, pl]);
+
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthTxs = transactions.filter(tx => new Date(tx.date) >= monthStart);
+    const received = monthTxs.filter(tx => tx.amount > 0).reduce((s, tx) => s + tx.amount, 0);
+    const sent = monthTxs.filter(tx => tx.amount < 0).reduce((s, tx) => s + Math.abs(tx.amount), 0);
+    return { received, sent, net: received - sent, count: monthTxs.length };
+  }, [transactions]);
 
   const filteredTransactions = transactions.filter(tx => {
     const matchesSearch =
@@ -83,6 +109,9 @@ export default function History() {
               data-testid="input-history-search"
             />
           </div>
+          <Button variant="outline" size="icon" onClick={() => setShowReport(true)} className="h-12 w-12 rounded-xl bg-card border-white/10 shrink-0 text-muted-foreground hover:text-foreground">
+            <FileText className="w-5 h-5" />
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -177,7 +206,59 @@ export default function History() {
         </div>
       )}
 
+      {/* Monthly report bottom sheet */}
+      {showReport && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 50 }} onClick={() => setShowReport(false)}>
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "var(--color-card)", borderRadius: "20px 20px 0 0", padding: "20px 20px 48px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 40, height: 4, background: "rgba(255,255,255,0.15)", borderRadius: 2, margin: "0 auto 20px" }} />
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: "var(--color-foreground)" }}>
+              {pl ? "Raport miesięczny" : "Monthly Report"}
+            </div>
+            {[
+              { label: pl ? "Wpłynęło" : "Received", value: `+${monthlyStats.received.toFixed(0)} PLN`, color: "var(--color-primary)" },
+              { label: pl ? "Wysłano" : "Sent", value: `-${monthlyStats.sent.toFixed(0)} PLN`, color: "#f87171" },
+              { label: pl ? "Saldo netto" : "Net balance", value: `${monthlyStats.net >= 0 ? "+" : ""}${monthlyStats.net.toFixed(0)} PLN`, color: monthlyStats.net >= 0 ? "#4ade80" : "#f87171" },
+              { label: pl ? "Liczba transakcji" : "Transactions", value: String(monthlyStats.count), color: "rgba(255,255,255,0.70)" },
+            ].map(row => (
+              <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.60)" }}>{row.label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: row.color }}>{row.value}</div>
+              </div>
+            ))}
+            <button
+              onClick={() => { setShowReport(false); }}
+              style={{ width: "100%", height: 48, borderRadius: 14, marginTop: 20, background: "var(--color-primary)", color: "var(--color-primary-foreground)", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer" }}
+            >
+              {pl ? "Pobierz PDF" : "Download PDF"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="px-6 py-6 relative z-10 space-y-8">
+        {chartData.length > 0 && searchTerm === "" && !filterActive && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "20px 16px 12px", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, color: "rgba(255,255,255,0.45)", marginBottom: 16 }}>
+              {pl ? "WYDATKI — OSTATNIE 30 DNI" : "SPENDING — LAST 30 DAYS"}
+            </div>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.45)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.45)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "rgba(20,20,30,0.95)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#fff", fontSize: 12 }}
+                  formatter={(v: any) => [`${v} PLN`, pl ? "Wydatki" : "Spending"]}
+                />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {chartData.map((_, i) => (
+                    <Cell key={i} fill={i === 0 ? "var(--color-primary)" : `rgba(212,160,32,${0.6 - i * 0.08})`} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </motion.div>
+        )}
+
         {filteredTransactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mb-6 shadow-inner-glow border border-white/5">

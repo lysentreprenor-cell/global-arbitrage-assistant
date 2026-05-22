@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { User, Settings, Bell, Shield, LogOut, HelpCircle, ChevronRight, Sparkles, ArrowLeft, Users, Star } from "lucide-react";
+import { User, Settings, Bell, Shield, LogOut, HelpCircle, ChevronRight, Sparkles, ArrowLeft, Users, Star, SplitSquareHorizontal, RefreshCw, PiggyBank, BadgeCheck, Gift } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -215,18 +215,53 @@ export default function Profile() {
           );
         })()}
 
-        <motion.div 
+        {/* Financial Tools section */}
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="bg-card rounded-3xl p-2 border border-white/5 shadow-sm"
         >
           {[
-            { icon: User, label: "Identity & Profile", route: "/profile/account" },
-            { icon: Settings, label: "App Preferences", route: "/profile/preferences" },
-            { icon: Shield, label: "Security & Access", route: "/profile/security" },
+            { icon: SplitSquareHorizontal, label: lang === "pl" ? "Podziel rachunek" : "Split Bill", route: "/split" },
+            { icon: RefreshCw, label: lang === "pl" ? "Zlecenia stałe" : "Recurring Payments", route: "/recurring" },
+            { icon: PiggyBank, label: lang === "pl" ? "Cele oszczędnościowe" : "Savings Goals", route: "/savings" },
           ].map((item, i, arr) => (
-            <div 
+            <div
+              key={i}
+              onClick={() => handleAction(item.route, item.label)}
+              className={`p-4 flex items-center justify-between cursor-pointer hover:bg-secondary transition-colors rounded-2xl group ${i !== arr.length - 1 ? 'border-b border-border/20 rounded-b-none mb-1' : ''}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center text-primary border border-border/20 group-hover:scale-105 transition-transform">
+                  <item.icon className="w-5 h-5" />
+                </div>
+                <span className="font-semibold text-[15px]" style={{ color: th.textPrimary }}>{item.label}</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </div>
+          ))}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="bg-card rounded-3xl p-2 border border-white/5 shadow-sm"
+        >
+          {[
+            { icon: User, label: "Identity & Profile", route: "/profile/account", badge: null as string | null },
+            { icon: Settings, label: "App Preferences", route: "/profile/preferences", badge: null as string | null },
+            { icon: Shield, label: "Security & Access", route: "/profile/security", badge: null as string | null },
+            {
+              icon: BadgeCheck,
+              label: lang === "pl" ? "Weryfikacja tożsamości" : "Identity Verification",
+              route: "/kyc",
+              badge: (() => { try { return localStorage.getItem("finlys_kyc") ? (lang === "pl" ? "Zweryfikowany ✓" : "Verified ✓") : null; } catch { return null; } })(),
+            },
+            { icon: Gift, label: lang === "pl" ? "Program poleceń" : "Referral Program", route: "/referral", badge: null as string | null },
+          ].map((item, i, arr) => (
+            <div
               key={i}
               data-testid={`profile-menu-${i}`}
               onClick={() => handleAction(item.route, item.label)}
@@ -236,7 +271,14 @@ export default function Profile() {
                 <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center text-primary border border-border/20 group-hover:scale-105 transition-transform">
                   <item.icon className="w-5 h-5" />
                 </div>
-                <span className="font-semibold text-[15px]" style={{ color: th.textPrimary }}>{item.label}</span>
+                <div>
+                  <span className="font-semibold text-[15px]" style={{ color: th.textPrimary }}>{item.label}</span>
+                  {item.badge && (
+                    <span className="ml-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
               </div>
               <ChevronRight className="w-5 h-5 text-muted-foreground opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
             </div>
