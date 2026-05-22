@@ -62,7 +62,6 @@ export default function ContactSelection() {
       </header>
 
       <main className="px-6 py-6 relative z-10 flex-1 space-y-8">
-        <div style={{ background: "red", color: "white", padding: 8, borderRadius: 8, fontSize: 12, textAlign: "center" }}>TEST v2 — jeśli widzisz to, kod się załadował</div>
         {/* Quick Actions — only for send/request, not message */}
         {mode !== "message" && <motion.div
           initial={{ opacity: 0, y: 10 }}

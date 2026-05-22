@@ -94,12 +94,14 @@ export default function Dashboard() {
   }, []);
 
   const [contractCount, setContractCount] = useState<{ active: number; total: number; needsAction: number; overdue: number }>({ active: 0, total: 0, needsAction: 0, overdue: 0 });
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<Array<{ id: string; title: string; deadline: string; daysLeft: number }>>([]);
   useEffect(() => {
     try {
       const stored = localStorage.getItem("itemprise_contracts");
       if (stored) {
         const today = new Date(); today.setHours(0,0,0,0);
-        const ags = JSON.parse(stored) as Array<{ phase?: string; data?: { deadlineSingle?: string; loanReturnDate?: string; category?: string } }>;
+        const in7 = new Date(today); in7.setDate(in7.getDate() + 7);
+        const ags = JSON.parse(stored) as Array<{ id?: string; phase?: string; data?: { deadlineSingle?: string; deadlineTo?: string; loanReturnDate?: string; category?: string; subcategory?: string; customTitle?: string } }>;
         const total = ags.length;
         const active = ags.filter(a => a.phase && a.phase !== "completed").length;
         const needsAction = ags.filter(a => a.phase === "awaiting_release").length;
@@ -110,6 +112,28 @@ export default function Dashboard() {
           return new Date(d) < today;
         }).length;
         setContractCount({ active, total, needsAction, overdue });
+
+        const upcoming = ags
+          .filter(a => {
+            if (a.phase === "completed") return false;
+            const d = a.data?.deadlineSingle || a.data?.deadlineTo || a.data?.loanReturnDate;
+            if (!d) return false;
+            const dt = new Date(d); dt.setHours(0,0,0,0);
+            return dt >= today && dt <= in7;
+          })
+          .slice(0, 3)
+          .map(a => {
+            const d = a.data?.deadlineSingle || a.data?.deadlineTo || a.data?.loanReturnDate || "";
+            const dt = new Date(d); dt.setHours(0,0,0,0);
+            const daysLeft = Math.round((dt.getTime() - today.getTime()) / 86400000);
+            return {
+              id: a.id || "",
+              title: a.data?.customTitle || a.data?.subcategory || a.data?.category || "Umowa",
+              deadline: d,
+              daysLeft,
+            };
+          });
+        setUpcomingDeadlines(upcoming);
       }
     } catch {}
   }, []);
@@ -505,6 +529,26 @@ export default function Dashboard() {
                 </div>
               ) : null}
             </div>
+
+            {upcomingDeadlines.length > 0 && (
+              <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 12, position: "relative" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: "rgba(255,255,255,0.38)", marginBottom: 8 }}>
+                  NADCHODZĄCE TERMINY
+                </div>
+                {upcomingDeadlines.map(c => (
+                  <div
+                    key={c.id}
+                    onClick={() => setLocation("/agreements")}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer" }}
+                  >
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "75%" }}>{c.title}</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: c.daysLeft <= 2 ? "#f87171" : "#fbbf24", flexShrink: 0 }}>
+                      {c.daysLeft === 0 ? "Dziś" : `${c.daysLeft}d`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, position: "relative" }}>
               <button

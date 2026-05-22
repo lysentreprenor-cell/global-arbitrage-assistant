@@ -15,13 +15,35 @@ export default function History() {
   const { theme } = useTheme();
   const isLight = theme === "arctic-platinum";
   const [searchTerm, setSearchTerm] = useState("");
+  const [showFilter, setShowFilter] = useState(false);
+  const [filterType, setFilterType] = useState<"all" | "send" | "receive" | "exchange" | "contract">("all");
+  const [filterPeriod, setFilterPeriod] = useState<"all" | "7d" | "30d" | "90d">("all");
 
   const pl = lang === "pl";
+  const filterActive = filterType !== "all" || filterPeriod !== "all";
 
-  const filteredTransactions = transactions.filter(tx =>
-    tx.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.subtitle.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTransactions = transactions.filter(tx => {
+    const matchesSearch =
+      tx.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tx.subtitle.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (filterType !== "all") {
+      if (filterType === "send" && tx.type !== "send") return false;
+      if (filterType === "receive" && tx.type !== "receive") return false;
+      if (filterType === "exchange" && tx.type !== "exchange") return false;
+      if (filterType === "contract" && (tx as any).category !== "contract") return false;
+    }
+
+    if (filterPeriod !== "all") {
+      const days = { "7d": 7, "30d": 30, "90d": 90 }[filterPeriod];
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      if (new Date(tx.date) < cutoff) return false;
+    }
+
+    return true;
+  });
 
   const groupedTransactions = useMemo(() => {
     const groups: { [key: string]: Transaction[] } = {};
@@ -61,11 +83,99 @@ export default function History() {
               data-testid="input-history-search"
             />
           </div>
-          <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl bg-card border-white/10 shrink-0 text-muted-foreground hover:text-foreground">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowFilter(true)}
+            className="h-12 w-12 rounded-xl bg-card border-white/10 shrink-0 hover:text-foreground relative"
+            style={{ color: filterActive ? "var(--color-primary)" : undefined, borderColor: filterActive ? "var(--color-primary)" : undefined }}
+          >
             <Filter className="w-5 h-5" />
+            {filterActive && (
+              <span style={{ position: "absolute", top: 7, right: 7, width: 7, height: 7, borderRadius: "50%", background: "var(--color-primary)", border: "1.5px solid var(--color-card)" }} />
+            )}
           </Button>
         </div>
       </header>
+
+      {/* Filter bottom sheet */}
+      {showFilter && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 50 }}
+          onClick={() => setShowFilter(false)}
+        >
+          <div
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "var(--color-card)", borderRadius: "20px 20px 0 0", padding: "20px 20px 48px" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ width: 40, height: 4, background: "rgba(255,255,255,0.15)", borderRadius: 2, margin: "0 auto 20px" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-foreground)" }}>
+                {pl ? "Filtruj transakcje" : "Filter transactions"}
+              </div>
+              {filterActive && (
+                <div
+                  onClick={() => { setFilterType("all"); setFilterPeriod("all"); }}
+                  style={{ fontSize: 13, fontWeight: 600, color: "var(--color-primary)", cursor: "pointer" }}
+                >
+                  {pl ? "Wyczyść" : "Clear"}
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "var(--color-muted-foreground)", marginBottom: 10 }}>
+              {pl ? "TYP" : "TYPE"}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
+              {[
+                { val: "all", label: pl ? "Wszystkie" : "All" },
+                { val: "send", label: pl ? "Wysłane" : "Sent" },
+                { val: "receive", label: pl ? "Otrzymane" : "Received" },
+                { val: "exchange", label: pl ? "Przewaluta" : "Exchange" },
+                { val: "contract", label: pl ? "Umowy" : "Contracts" },
+              ].map(o => (
+                <div
+                  key={o.val}
+                  onClick={() => setFilterType(o.val as any)}
+                  style={{
+                    padding: "8px 16px", borderRadius: 20, cursor: "pointer", fontSize: 13, fontWeight: 600,
+                    background: filterType === o.val ? "var(--color-primary)" : "rgba(255,255,255,0.05)",
+                    color: filterType === o.val ? "var(--color-primary-foreground)" : "rgba(255,255,255,0.60)",
+                    border: `1.5px solid ${filterType === o.val ? "transparent" : "rgba(255,255,255,0.10)"}`,
+                  }}
+                >
+                  {o.label}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "var(--color-muted-foreground)", marginBottom: 10 }}>
+              {pl ? "OKRES" : "PERIOD"}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[
+                { val: "all", label: pl ? "Cały czas" : "All time" },
+                { val: "7d", label: pl ? "7 dni" : "7 days" },
+                { val: "30d", label: pl ? "30 dni" : "30 days" },
+                { val: "90d", label: pl ? "90 dni" : "90 days" },
+              ].map(o => (
+                <div
+                  key={o.val}
+                  onClick={() => setFilterPeriod(o.val as any)}
+                  style={{
+                    padding: "8px 16px", borderRadius: 20, cursor: "pointer", fontSize: 13, fontWeight: 600,
+                    background: filterPeriod === o.val ? "var(--color-primary)" : "rgba(255,255,255,0.05)",
+                    color: filterPeriod === o.val ? "var(--color-primary-foreground)" : "rgba(255,255,255,0.60)",
+                    border: `1.5px solid ${filterPeriod === o.val ? "transparent" : "rgba(255,255,255,0.10)"}`,
+                  }}
+                >
+                  {o.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="px-6 py-6 relative z-10 space-y-8">
         {filteredTransactions.length === 0 ? (
@@ -81,6 +191,14 @@ export default function History() {
                 ? "Dostosuj kryteria wyszukiwania lub wykonaj pierwszą operację."
                 : "Try adjusting your search terms or make your first transaction."}
             </p>
+            {filterActive && (
+              <div
+                onClick={() => { setFilterType("all"); setFilterPeriod("all"); }}
+                style={{ marginTop: 16, padding: "10px 20px", borderRadius: 20, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--color-primary)" }}
+              >
+                {pl ? "Wyczyść filtry" : "Clear filters"}
+              </div>
+            )}
           </div>
         ) : (
           <motion.div
