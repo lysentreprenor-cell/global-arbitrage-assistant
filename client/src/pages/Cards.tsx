@@ -32,11 +32,14 @@ export default function Cards() {
   const [isFrozen, setIsFrozen]       = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [simCard, setSimCard]         = useState<SimCard | null>(null);
+  const [cardStats, setCardStats]     = useState<{ total: number; active: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/cards")
       .then(r => r.ok ? r.json() : Promise.reject(r))
       .then((cards: SimCard[]) => {
+        const active = cards.filter(c => c.status === "active").length;
+        setCardStats({ total: cards.length, active });
         if (cards.length > 0) {
           const c = cards[0];
           setSimCard(c);
@@ -90,6 +93,36 @@ export default function Cards() {
       </div>
 
       <div style={{ padding: "22px 22px 0", position: "relative", zIndex: 1 }}>
+
+        {/* ── Cards Summary ── */}
+        {cardStats !== null && (
+          <div style={{
+            marginBottom: 18, borderRadius: r.md, padding: "14px 18px",
+            background: isLight ? "rgba(255,255,255,0.70)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${isLight ? "rgba(10,30,90,0.10)" : "rgba(255,255,255,0.09)"}`,
+            boxShadow: "0 4px 18px rgba(0,0,0,0.22)",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <div style={{ fontSize: 13, letterSpacing: 2.4, fontWeight: 700, color: th.textMuted, textTransform: "uppercase" }}>
+              {lang === "pl" ? "Twoje karty" : "Your cards"}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>
+                <span style={{ color: "#24d487" }}>{cardStats.active}</span>
+                <span style={{ color: th.textMuted }}> / {cardStats.total} {lang === "pl" ? "aktywne" : "active"}</span>
+              </div>
+              <div style={{
+                padding: "3px 9px", borderRadius: 999,
+                fontSize: 12, fontWeight: 800, letterSpacing: 1,
+                color: cardStats.active > 0 ? "#7df0ba" : th.textMuted,
+                background: cardStats.active > 0 ? "rgba(35,183,118,0.16)" : "rgba(255,255,255,0.07)",
+                border: `1px solid ${cardStats.active > 0 ? "rgba(80,225,155,0.24)" : "rgba(255,255,255,0.10)"}`,
+              }}>
+                {cardStats.active > 0 ? (lang === "pl" ? "AKTYWNE" : "ACTIVE") : (lang === "pl" ? "BRAK" : "NONE")}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Main Card ── */}
         <motion.div

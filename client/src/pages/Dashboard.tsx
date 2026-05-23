@@ -153,16 +153,6 @@ export default function Dashboard() {
     } catch {}
   }, [fxRates]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [cardStats, setCardStats] = useState<{ total: number; active: number } | null>(null);
-  useEffect(() => {
-    fetch("/api/cards")
-      .then(r => r.ok ? r.json() : [])
-      .then((cards: { status: string }[]) => {
-        const active = cards.filter(c => c.status === "active").length;
-        setCardStats({ total: cards.length, active });
-      })
-      .catch(() => {});
-  }, []);
 
   const [contractCount, setContractCount] = useState<{ active: number; total: number; needsAction: number; overdue: number }>({ active: 0, total: 0, needsAction: 0, overdue: 0 });
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<Array<{ id: string; title: string; deadline: string; daysLeft: number }>>([]);
@@ -895,39 +885,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Cards Summary ── */}
-        {cardStats !== null && (
-          <div
-            data-testid="dashboard-cards-summary"
-            style={{
-              marginTop: 14, borderRadius: r.md, padding: "14px 18px",
-              background: th.cardAltBg, border: `1px solid ${th.border}`,
-              boxShadow: "0 4px 18px rgba(0,0,0,0.32)",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              cursor: "pointer",
-            }}
-            onClick={() => setLocation("/cards")}
-          >
-            <div style={{ fontSize: 15, letterSpacing: 2.4, fontWeight: 700, color: th.textMuted }}>
-              {t.yourCards}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>
-                <span style={{ color: "#24d487" }}>{cardStats.active}</span>
-                <span style={{ color: th.textMuted }}> / {cardStats.total} {t.activeCards}</span>
-              </div>
-              <div style={{
-                padding: "3px 9px", borderRadius: 999,
-                fontSize: 13, fontWeight: 800, letterSpacing: 1,
-                color: "#7df0ba",
-                background: "rgba(35,183,118,0.16)",
-                border: "1px solid rgba(80,225,155,0.24)",
-              }}>
-                {cardStats.active > 0 ? t.activeStatus : t.noCards}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── Recent Operations ── */}
         <div style={{ marginTop: 20 }}>
