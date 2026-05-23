@@ -14,7 +14,7 @@ export default function History() {
   const { transactions } = useAppStore();
   const { lang } = useLang();
   const { theme } = useTheme();
-  const isLight = theme === "arctic-platinum";
+  const isLight = (theme as string) === "arctic-platinum";
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "send" | "receive" | "exchange" | "contract">("all");
@@ -57,7 +57,7 @@ export default function History() {
     if (filterType !== "all") {
       if (filterType === "send" && tx.type !== "send") return false;
       if (filterType === "receive" && tx.type !== "receive") return false;
-      if (filterType === "exchange" && tx.type !== "exchange") return false;
+      if (filterType === "exchange" && (tx as any).type !== "exchange") return false;
       if (filterType === "contract" && (tx as any).category !== "contract") return false;
     }
 

@@ -101,7 +101,7 @@ export default function Notifications() {
   const { t } = useLang();
   const { theme } = useTheme();
   const { toast } = useToast();
-  const isLight = theme === "arctic-platinum";
+  const isLight = (theme as string) === "arctic-platinum";
   const textPrimary = isLight ? "text-gray-900" : "text-white/90";
 
   const [pushEnabled, setPushEnabled] = useState(false);

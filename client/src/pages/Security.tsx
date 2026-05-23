@@ -41,7 +41,7 @@ export default function Security() {
   const { theme } = useTheme();
   const { updateSettings: storeUpdateSettings, logout } = useAppStore();
   const pl = lang === "pl";
-  const isLight = theme === "arctic-platinum";
+  const isLight = (theme as string) === "arctic-platinum";
   const textPrimary = isLight ? "text-gray-900" : "text-white/90";
 
   const {

@@ -347,6 +347,7 @@ export default function ChatThread() {
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const waveformRafRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const chatComposerRef = useRef<HTMLDivElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1032,13 +1033,13 @@ export default function ChatThread() {
 
           <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
             <span className="text-primary font-bold text-lg">
-              {String(meta?.contactName || meta?.displayName || meta?.name || meta?.contactHandle || "R").slice(0, 1).toUpperCase()}
+              {String(meta?.contactName || (meta as any)?.displayName || (meta as any)?.name || meta?.contactHandle || "R").slice(0, 1).toUpperCase()}
             </span>
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="text-xl font-bold text-foreground truncate">
-              {meta?.contactName || meta?.displayName || meta?.name || meta?.contactHandle || "Rozmowa"}
+              {meta?.contactName || (meta as any)?.displayName || (meta as any)?.name || meta?.contactHandle || "Rozmowa"}
             </div>
             <div className="text-sm text-muted-foreground truncate">
               {meta?.contactHandle ? "@" + meta.contactHandle + " · " : ""}

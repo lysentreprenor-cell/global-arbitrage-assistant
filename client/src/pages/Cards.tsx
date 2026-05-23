@@ -27,7 +27,7 @@ export default function Cards() {
   const { toast } = useToast();
   const { th, theme } = useTheme();
   const { lang } = useLang();
-  const isLight = theme === "arctic-platinum";
+  const isLight = (theme as string) === "arctic-platinum";
 
   const [isFrozen, setIsFrozen]       = useState(false);
   const [showDetails, setShowDetails] = useState(false);

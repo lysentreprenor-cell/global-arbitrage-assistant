@@ -43,7 +43,7 @@ export default function WalletTopUp() {
   const { user, refreshWallets } = useAppStore();
   const { th, theme } = useTheme();
   const { t } = useLang();
-  const isLight = theme === "arctic-platinum";
+  const isLight = (theme as string) === "arctic-platinum";
 
   const searchParams = new URLSearchParams(window.location.search);
   const isSuccess = searchParams.get("success") === "true";

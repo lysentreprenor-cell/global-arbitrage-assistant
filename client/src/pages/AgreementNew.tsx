@@ -597,7 +597,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
           {COMMUNITY_TEMPLATES.map(t => (
             <div
               key={t.id}
-              onClick={() => onTemplate(t)}
+              onClick={() => onTemplate(t as Partial<WizardData>)}
               style={{
                 flexShrink: 0, width: 140, borderRadius: 16, padding: "16px 14px",
                 background: "rgba(255,255,255,0.03)", border: "1.5px solid rgba(255,255,255,0.08)",
@@ -1111,7 +1111,7 @@ function LiveTicker({ total, label, currency }: { total: number; label: string; 
 
 export default function AgreementNew() {
   const { user } = useAppStore();
-  const defaultCurrency = (user?.currency as string) || "PLN";
+  const defaultCurrency: CurrencyCode = ((user as any)?.currency as CurrencyCode) || "PLN";
   const search = useSearch();
   const forceNew = new URLSearchParams(search).get("new") === "1";
   const [view, setView] = useState<"home" | "wizard">(() => {

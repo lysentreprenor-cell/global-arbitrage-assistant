@@ -13,7 +13,7 @@ export default function BudgetForecast() {
   const { transactions, wallets, primaryCurrency } = useAppStore();
   const { lang } = useLang();
   const { theme } = useTheme();
-  const isLight = theme === "arctic-platinum";
+  const isLight = (theme as string) === "arctic-platinum";
   const textPrimary = isLight ? "text-gray-900" : "text-foreground/90";
   const pl = lang === "pl";
 

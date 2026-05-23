@@ -113,7 +113,7 @@ export type Friend = {
   createdAt: string;
 };
 
-export type CurrencyCode = "USD" | "EUR" | "GBP" | "CHF" | "PLN" | "NOK" | "SEK" | "DKK" | "CAD" | "AUD" | "JPY";
+export type CurrencyCode = "USD" | "EUR" | "GBP" | "CHF" | "PLN" | "NOK" | "SEK" | "DKK" | "CAD" | "AUD" | "JPY" | "CZK";
 export type Wallets = Record<CurrencyCode, number>;
 
 export type SandboxTransfer = {
@@ -161,44 +161,45 @@ export const FX_RATES: Record<CurrencyCode, number> = {
   CAD: 1.3600,
   AUD: 1.5500,
   JPY: 149.50,
+  CZK: 23.50,
 };
 
 export const CURRENCY_SYMBOLS: Record<CurrencyCode, string> = {
   NOK: "kr", USD: "$", EUR: "€", GBP: "£", CHF: "Fr", PLN: "zł",
-  SEK: "kr", DKK: "kr", CAD: "$", AUD: "$", JPY: "¥",
+  SEK: "kr", DKK: "kr", CAD: "$", AUD: "$", JPY: "¥", CZK: "Kč",
 };
 
 export const WALLET_FLAGS: Record<CurrencyCode, string> = {
   NOK: "🇳🇴", USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", CHF: "🇨🇭", PLN: "🇵🇱",
-  SEK: "🇸🇪", DKK: "🇩🇰", CAD: "🇨🇦", AUD: "🇦🇺", JPY: "🇯🇵",
+  SEK: "🇸🇪", DKK: "🇩🇰", CAD: "🇨🇦", AUD: "🇦🇺", JPY: "🇯🇵", CZK: "🇨🇿",
 };
 
 export const CURRENCY_NAMES: Record<CurrencyCode, string> = {
   NOK: "Norwegian Krone", USD: "US Dollar", EUR: "Euro", GBP: "British Pound",
   CHF: "Swiss Franc", PLN: "Polish Złoty", SEK: "Swedish Krona",
   DKK: "Danish Krone", CAD: "Canadian Dollar", AUD: "Australian Dollar",
-  JPY: "Japanese Yen",
+  JPY: "Japanese Yen", CZK: "Czech Koruna",
 };
 
 const CURRENCY_NAMES_PL: Record<CurrencyCode, string> = {
   NOK: "Korona norweska", USD: "Dolar amerykański", EUR: "Euro", GBP: "Funt szterling",
   CHF: "Frank szwajcarski", PLN: "Złoty polski", SEK: "Korona szwedzka",
   DKK: "Korona duńska", CAD: "Dolar kanadyjski", AUD: "Dolar australijski",
-  JPY: "Jen japoński",
+  JPY: "Jen japoński", CZK: "Korona czeska",
 };
 
 const CURRENCY_NAMES_NO: Record<CurrencyCode, string> = {
   NOK: "Norsk krone", USD: "Amerikansk dollar", EUR: "Euro", GBP: "Britisk pund",
   CHF: "Sveitsisk franc", PLN: "Polsk zloty", SEK: "Svensk krone",
   DKK: "Dansk krone", CAD: "Kanadisk dollar", AUD: "Australsk dollar",
-  JPY: "Japansk yen",
+  JPY: "Japansk yen", CZK: "Tsjekkisk krone",
 };
 
 const CURRENCY_NAMES_ES: Record<CurrencyCode, string> = {
   NOK: "Corona noruega", USD: "Dólar estadounidense", EUR: "Euro", GBP: "Libra esterlina",
   CHF: "Franco suizo", PLN: "Esloti polaco", SEK: "Corona sueca",
   DKK: "Corona danesa", CAD: "Dólar canadiense", AUD: "Dólar australiano",
-  JPY: "Yen japonés",
+  JPY: "Yen japonés", CZK: "Corona checa",
 };
 
 export function getCurrencyName(currency: CurrencyCode, lang: string): string {
@@ -240,6 +241,7 @@ export const DEFAULT_WALLETS: Wallets = {
   CAD: 0,
   AUD: 0,
   JPY: 0,
+  CZK: 0,
 };
 
 type AppState = {

@@ -117,7 +117,7 @@ export default function Transfer() {
   const { user, sendMoney, addMoney, wallets, sessionConfirmed } = useAppStore();
   const { toast } = useToast();
   const { theme, th } = useTheme();
-  const isLight = theme === "arctic-platinum";
+  const isLight = (theme as string) === "arctic-platinum";
 
   const [amount, setAmount] = useState("0");
   const [recipient, setRecipient] = useState("");

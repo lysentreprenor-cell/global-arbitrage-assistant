@@ -11,6 +11,8 @@ import { CURRENCY_SYMBOLS, type CurrencyCode } from "@/lib/store";
 const LOCALE_MAP: Record<Lang, string> = {
   en: "en-US",
   pl: "pl-PL",
+  no: "nb-NO",
+  es: "es-ES",
 };
 
 // ─── Standalone pure formatters (use anywhere, no hook needed) ────────────────

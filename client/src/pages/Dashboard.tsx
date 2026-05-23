@@ -140,7 +140,8 @@ export default function Dashboard() {
       const alerts: CurrencyAlert[] = JSON.parse(stored);
       alerts.forEach(alert => {
         if (alert.triggered) return;
-        const rate = fxRates[`${alert.from}_${alert.to}`] || (fxRates[alert.from] && fxRates[alert.to] ? fxRates[alert.to] / fxRates[alert.from] : null);
+        const rates = fxRates as Record<string, number>;
+        const rate = rates[`${alert.from}_${alert.to}`] || (rates[alert.from] && rates[alert.to] ? rates[alert.to] / rates[alert.from] : null);
         if (!rate) return;
         const triggered = alert.condition === "above" ? rate > alert.threshold : rate < alert.threshold;
         if (triggered) {
