@@ -422,7 +422,8 @@ export default function Dashboard() {
                 background: `linear-gradient(90deg, ${th.glow}, transparent)` }} />
             </div>
 
-            <div style={{ marginTop: 28 }}>
+            <div style={{ marginTop: 28, display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Żółty — Dodaj Środki */}
               <button
                 data-testid="btn-add-funds"
                 onClick={() => setLocation("/wallet/top-up")}
@@ -445,52 +446,59 @@ export default function Dashboard() {
                   borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
                 {t.addFunds}
               </button>
-            </div>
-          </div>
-        </div>
 
-        {/* ── Przelewy ── */}
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
-            Przelewy
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-            <div
-              data-testid="btn-hero-send"
-              onClick={() => setLocation("/transfer")}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              style={{
-                borderRadius: r.md, padding: "18px 16px", cursor: "pointer",
-                background: "linear-gradient(150deg, rgba(140,10,55,0.85) 0%, rgba(70,4,26,0.96) 100%)",
-                border: "1px solid rgba(220,30,110,0.30)",
-                boxShadow: "0 8px 24px rgba(180,10,80,0.30), inset 0 1.5px 0 rgba(255,150,200,0.18), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
-                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
-                position: "relative", overflow: "hidden",
-                transition: "transform 0.15s ease",
-              }}
-            >
-              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
-                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: "rgba(255,255,255,0.10)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#ff5fa0",
-                boxShadow: "0 0 14px rgba(255,95,160,0.35)",
-              }}>
-                <Send size={18} />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: 0.2 }}>Wyślij</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2, lineHeight: 1.3 }}>Przelej pieniądze</div>
-              </div>
-            </div>
+              {/* Zielony — Wyślij */}
+              <button
+                data-testid="btn-hero-send"
+                onClick={() => setLocation("/transfer")}
+                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                style={{
+                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+                  fontSize: 14, fontWeight: 800, color: "#0a2e12", letterSpacing: 0.3,
+                  background: "linear-gradient(180deg, #6effa0 0%, #34d768 22%, #1aaf48 62%, #0e8535 100%)",
+                  boxShadow: "0 3px 0 rgba(8,72,28,0.90), 0 8px 20px rgba(26,175,72,0.45)",
+                  position: "relative", overflow: "hidden",
+                  transition: "transform 0.15s ease",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}
+              >
+                <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
+                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+                <Send size={16} />
+                Wyślij
+              </button>
 
+              {/* Niebieski — Nowa umowa */}
+              <button
+                data-testid="btn-new-agreement-pill"
+                onClick={() => setLocation("/agreements/new?new=1")}
+                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
+                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                style={{
+                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+                  fontSize: 14, fontWeight: 800, color: "#06143a", letterSpacing: 0.3,
+                  background: "linear-gradient(180deg, #93c5fd 0%, #60a5fa 22%, #2563eb 62%, #1d4ed8 100%)",
+                  boxShadow: "0 3px 0 rgba(10,30,120,0.90), 0 8px 20px rgba(37,99,235,0.45)",
+                  position: "relative", overflow: "hidden",
+                  transition: "transform 0.15s ease",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}
+              >
+                <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
+                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+                <Plus size={16} />
+                Nowa umowa
+              </button>
+            </div>
           </div>
         </div>
 
