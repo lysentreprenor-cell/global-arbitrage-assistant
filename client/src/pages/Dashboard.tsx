@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import {
   Sparkles, ArrowDownLeft, MoreHorizontal,
   ArrowUpRight, Eye, EyeOff, ArrowLeftRight, Loader2,
-  Send, FileText, Plus, ChevronRight,
+  Send, FileText, Plus, ChevronRight, Clock, Target, BarChart2, TrendingDown, TrendingUp,
 } from "lucide-react";
 import { useAppStore, CurrencyCode, CURRENCY_SYMBOLS, WALLET_FLAGS, formatMoney, formatMoneyCompact, getCurrencyName, CORE_WALLET_CURRENCIES } from "@/lib/store";
 import { luxuryTheme, luxuryGradients } from "@/theme/luxuryTheme";
@@ -33,34 +33,70 @@ function CardSheen({ radius = 28, color = "rgba(255,255,255,0.06)" }: { radius?:
   );
 }
 
-type TileKey = "FORECAST" | "REQUEST" | "INVEST" | "CARDS";
+type TileKey = "FORECAST" | "REQUEST" | "INVEST" | "CARDS" | "HISTORY" | "GOALS" | "BUDGET" | "EXCHANGE";
 
 const TILE: Record<TileKey, { bg: string; iconColor: string; shadow: string; border: string }> = {
   FORECAST: {
     bg:        "linear-gradient(160deg, rgba(140,10,55,0.72) 0%, rgba(70,4,26,0.90) 100%)",
-    iconColor: "#ff5fa0",
-    border:    "rgba(220,30,110,0.22)",
+    iconColor: "#ff5fa0", border: "rgba(220,30,110,0.22)",
     shadow:    "0 6px 18px rgba(180,10,80,0.22), inset 0 1.5px 0 rgba(255,150,200,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   REQUEST: {
     bg:        "linear-gradient(160deg, rgba(140,10,55,0.72) 0%, rgba(70,4,26,0.90) 100%)",
-    iconColor: "#ff5fa0",
-    border:    "rgba(220,30,110,0.22)",
+    iconColor: "#ff5fa0", border: "rgba(220,30,110,0.22)",
     shadow:    "0 6px 18px rgba(180,10,80,0.22), inset 0 1.5px 0 rgba(255,150,200,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   INVEST: {
     bg:        "linear-gradient(160deg, rgba(10,80,44,0.80) 0%, rgba(4,34,18,0.95) 100%)",
-    iconColor: "#24d487",
-    border:    "rgba(36,212,135,0.22)",
+    iconColor: "#24d487", border: "rgba(36,212,135,0.22)",
     shadow:    "0 6px 18px rgba(20,180,90,0.18), inset 0 1.5px 0 rgba(100,255,180,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   CARDS: {
     bg:        "linear-gradient(160deg, rgba(18,42,100,0.72) 0%, rgba(8,20,52,0.90) 100%)",
-    iconColor: "#a0bcff",
-    border:    "rgba(100,150,255,0.20)",
+    iconColor: "#a0bcff", border: "rgba(100,150,255,0.20)",
     shadow:    "0 6px 18px rgba(60,100,255,0.15), inset 0 1.5px 0 rgba(160,200,255,0.10), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
+  HISTORY: {
+    bg:        "linear-gradient(160deg, rgba(80,30,120,0.72) 0%, rgba(40,10,70,0.90) 100%)",
+    iconColor: "#c084fc", border: "rgba(147,51,234,0.28)",
+    shadow:    "0 6px 18px rgba(120,40,200,0.22), inset 0 1.5px 0 rgba(200,150,255,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
+  GOALS: {
+    bg:        "linear-gradient(160deg, rgba(120,80,0,0.72) 0%, rgba(60,36,0,0.90) 100%)",
+    iconColor: "#fbbf24", border: "rgba(212,160,32,0.30)",
+    shadow:    "0 6px 18px rgba(180,130,0,0.22), inset 0 1.5px 0 rgba(255,210,80,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
+  BUDGET: {
+    bg:        "linear-gradient(160deg, rgba(10,80,44,0.80) 0%, rgba(4,34,18,0.95) 100%)",
+    iconColor: "#34d399", border: "rgba(36,212,135,0.22)",
+    shadow:    "0 6px 18px rgba(20,180,90,0.18), inset 0 1.5px 0 rgba(100,255,180,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
+  EXCHANGE: {
+    bg:        "linear-gradient(160deg, rgba(18,42,100,0.72) 0%, rgba(8,20,52,0.90) 100%)",
+    iconColor: "#60a5fa", border: "rgba(96,165,250,0.25)",
+    shadow:    "0 6px 18px rgba(60,120,255,0.18), inset 0 1.5px 0 rgba(150,200,255,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
 };
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  food:"🍕", jedzenie:"🍕", restauracja:"🍕", restaurant:"🍕",
+  transport:"🚗", uber:"🚗", taxi:"🚗",
+  shopping:"🛍️", zakupy:"🛍️",
+  contract:"📋", umowa:"📋",
+  exchange:"💱", wymiana:"💱",
+  health:"💊", zdrowie:"💊", apteka:"💊",
+  entertainment:"🎬", rozrywka:"🎬",
+  travel:"✈️", podróż:"✈️",
+  salary:"💰", wynagrodzenie:"💰", przelew:"💸",
+  housing:"🏠", mieszkanie:"🏠", czynsz:"🏠",
+  sport:"🏋️", fitness:"🏋️",
+  education:"📚", edukacja:"📚",
+};
+function getCatEmoji(category?: string): string {
+  if (!category) return "💳";
+  const key = category.toLowerCase().trim();
+  return CATEGORY_EMOJI[key] ?? "💳";
+}
 
 
 
@@ -235,13 +271,36 @@ export default function Dashboard() {
 
   const tileConfig = TILE;
 
-  type QuickAction = { icon: React.ReactNode; label: TileKey; labelKey: "forecast"|"request"|"invest"|"exchange"|"cards"; feature: FeatureKey; onClick: () => void; testId: string };
+  type QuickAction = { icon: React.ReactNode; label: TileKey; text: string; feature: FeatureKey; onClick: () => void; testId: string };
   const quickActions: QuickAction[] = ([
-    { icon: <Sparkles size={22} />,       label: "FORECAST" as TileKey, labelKey: "forecast", feature: "budget-forecast" as FeatureKey, onClick: () => setLocation("/budget"),                                                   testId: "action-forecast" },
-    { icon: <ArrowDownLeft size={22} />,  label: "REQUEST"  as TileKey, labelKey: "request",  feature: "transfer"        as FeatureKey, onClick: () => setLocation("/transfer?mode=request"),                                    testId: "action-request"  },
-    { icon: <ArrowLeftRight size={22} />, label: "INVEST"   as TileKey, labelKey: "exchange", feature: "transfer"        as FeatureKey, onClick: () => { setShowExchange(s => !s); setExResult(null); setExError(null); },       testId: "action-exchange" },
-    { icon: <MoreHorizontal size={22} />, label: "CARDS"    as TileKey, labelKey: "cards",    feature: "cards"           as FeatureKey, onClick: () => setLocation("/cards"),                                                    testId: "action-cards"    },
+    { icon: <Clock size={22} />,          label: "HISTORY"  as TileKey, text: "HISTORIA", feature: "transfer"        as FeatureKey, onClick: () => setLocation("/history"),                                                      testId: "action-history"  },
+    { icon: <Target size={22} />,         label: "GOALS"    as TileKey, text: "CELE",     feature: "transfer"        as FeatureKey, onClick: () => setLocation("/savings"),                                                      testId: "action-goals"    },
+    { icon: <BarChart2 size={22} />,      label: "BUDGET"   as TileKey, text: "BUDŻET",   feature: "budget-forecast" as FeatureKey, onClick: () => setLocation("/budget"),                                                       testId: "action-budget"   },
+    { icon: <ArrowLeftRight size={22} />, label: "EXCHANGE" as TileKey, text: "WYMIANA",  feature: "transfer"        as FeatureKey, onClick: () => { setShowExchange(s => !s); setExResult(null); setExError(null); },           testId: "action-exchange" },
   ] as QuickAction[]).filter(a => isEnabled(a.feature));
+
+  const topCategories = useMemo(() => {
+    const now = new Date();
+    const byCategory: Record<string, number> = {};
+    transactions
+      .filter(tx => tx.amount < 0 && new Date(tx.date).getMonth() === now.getMonth() && new Date(tx.date).getFullYear() === now.getFullYear())
+      .forEach(tx => {
+        const cat = tx.category || "Inne";
+        byCategory[cat] = (byCategory[cat] || 0) + Math.abs(tx.amount);
+      });
+    return Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  }, [transactions]);
+
+  const [topGoal, setTopGoal] = useState<{ emoji: string; name: string; target: number; saved: number; currency: string } | null>(null);
+  useEffect(() => {
+    try {
+      const goals = JSON.parse(localStorage.getItem("finlys_goals") || "[]");
+      const active = goals.filter((g: any) => g.saved < g.target);
+      if (active.length > 0) {
+        setTopGoal(active.sort((a: any, b: any) => (b.saved / b.target) - (a.saved / a.target))[0]);
+      }
+    } catch {}
+  }, []);
 
   const goldStyle: React.CSSProperties = {
     background: th.primaryGradient,
@@ -848,7 +907,7 @@ export default function Dashboard() {
                     color: "rgba(255,255,255,0.85)", textAlign: "center",
                     textShadow: "0 1px 2px rgba(0,0,0,0.70)", lineHeight: 1.1,
                   }}>
-                    {t[action.labelKey]}
+                    {action.text}
                   </div>
                 </div>
               );
@@ -918,6 +977,84 @@ export default function Dashboard() {
             }} />
           </div>
         </div>
+
+        {/* ── Top Spending Categories ── */}
+        {topCategories.length > 0 && (
+          <div style={{
+            marginTop: 14, borderRadius: r.lg, padding: "16px 18px",
+            background: th.cardAltBg, border: `1px solid ${th.border}`,
+            boxShadow: "0 4px 18px rgba(0,0,0,0.32)",
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 3, color: th.textMuted, textTransform: "uppercase", marginBottom: 12 }}>
+              Wydatki tego miesiąca
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {topCategories.map(([cat, amount], i) => {
+                const maxAmt = topCategories[0][1];
+                const pct = maxAmt > 0 ? (amount / maxAmt) * 100 : 0;
+                const catColors = ["#a78bfa", "#60a5fa", "#34d399", "#f472b6"];
+                const color = catColors[i] || "#a78bfa";
+                return (
+                  <div key={cat}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: th.textPrimary }}>
+                        <span style={{ fontSize: 15 }}>{getCatEmoji(cat)}</span>
+                        <span style={{ textTransform: "capitalize" }}>{cat}</span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color }}>{amount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.07)" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: color, transition: "width 0.6s ease" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Top Savings Goal ── */}
+        {topGoal && (
+          <div
+            style={{
+              marginTop: 14, borderRadius: r.lg, padding: "16px 18px",
+              background: th.cardAltBg, border: `1px solid ${th.border}`,
+              boxShadow: "0 4px 18px rgba(0,0,0,0.32)",
+              cursor: "pointer",
+            }}
+            onClick={() => setLocation("/savings")}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 3, color: th.textMuted, textTransform: "uppercase", marginBottom: 4 }}>
+                  Cel oszczędnościowy
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ fontSize: 20 }}>{topGoal.emoji}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>{topGoal.name}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#a78bfa" }}>
+                  {((topGoal.saved / topGoal.target) * 100).toFixed(0)}%
+                </div>
+                <div style={{ fontSize: 11, color: th.textMuted, marginTop: 1 }}>
+                  {topGoal.saved.toFixed(0)} / {topGoal.target.toFixed(0)} {topGoal.currency}
+                </div>
+              </div>
+            </div>
+            <div style={{ height: 6, borderRadius: 99, background: "rgba(255,255,255,0.07)" }}>
+              <div style={{
+                height: "100%",
+                width: `${Math.min((topGoal.saved / topGoal.target) * 100, 100)}%`,
+                borderRadius: 99,
+                background: "linear-gradient(90deg, #7c3aed, #a78bfa)",
+                boxShadow: "0 0 10px rgba(167,139,250,0.45)",
+                transition: "width 0.6s ease",
+              }} />
+            </div>
+          </div>
+        )}
 
         {/* ── Cards Summary ── */}
         {cardStats !== null && (
@@ -1001,8 +1138,9 @@ export default function Dashboard() {
                     color: isIn ? c.green : c.pink,
                     border: `1px solid ${isIn ? "rgba(36,212,135,0.24)" : "rgba(255,95,151,0.24)"}`,
                     boxShadow: `0 6px 18px rgba(0,0,0,0.45), inset 0 1.5px 0 ${isIn ? "rgba(100,255,180,0.20)" : "rgba(255,130,170,0.18)"}`,
+                    fontSize: 18,
                   }}>
-                    {isIn ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />}
+                    {tx.category ? getCatEmoji(tx.category) : (isIn ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />)}
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
