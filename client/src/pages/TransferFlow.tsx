@@ -981,7 +981,7 @@ export default function TransferFlow() {
 
   if (step === "success") {
     return (
-      <div className="min-h-screen bg-background flex flex-col p-6 relative overflow-hidden">
+      <div className="min-h-screen bg-background flex flex-col p-6 relative overflow-x-hidden">
         <header className="py-4 flex justify-between items-center relative z-10">
           <Button variant="ghost" size="icon" className="rounded-full bg-secondary/50 border border-white/5" onClick={() => setLocation("/")}>
             <ArrowLeft className="w-5 h-5 text-foreground" />
@@ -1034,7 +1034,7 @@ export default function TransferFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col relative overflow-x-hidden">
       {peerRiskPending && (
         <PeerRiskModal
           riskLevel={peerRiskPending.riskLevel}

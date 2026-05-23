@@ -680,7 +680,7 @@ export default function AgreementDetail() {
   const pendingChangeIsFromOtherParty = pendingChange && pendingChange.requestedBy !== user?.id;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col relative overflow-x-hidden">
       <div className="absolute top-0 right-0 w-[250px] h-[250px] bg-purple-500/5 rounded-full blur-[70px] pointer-events-none" />
 
       <header className="px-5 pt-14 pb-4 sticky top-0 bg-background/90 backdrop-blur-xl z-20 border-b border-white/5 flex items-center gap-3">

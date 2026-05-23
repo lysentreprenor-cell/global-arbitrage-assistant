@@ -204,7 +204,7 @@ export default function Security() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-28 relative overflow-hidden">
+    <div className="min-h-screen bg-background pb-28 relative overflow-x-hidden">
       <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
 
       {pinModalOpen && (

@@ -479,7 +479,7 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-24 relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-background pb-24 relative overflow-x-hidden flex flex-col">
       <div className="absolute top-[-5%] right-[-15%] w-[350px] h-[350px] bg-red-500/8 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[10%] left-[-10%] w-[250px] h-[250px] bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
 

@@ -159,7 +159,7 @@ export default function Agreements() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-32 relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-background pb-32 relative overflow-x-hidden flex flex-col">
       <div className="absolute top-[-10%] right-[-10%] w-[300px] h-[300px] bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
 
       <header className="px-6 pt-14 pb-4 sticky top-0 bg-background/90 backdrop-blur-xl z-20 border-b border-border">

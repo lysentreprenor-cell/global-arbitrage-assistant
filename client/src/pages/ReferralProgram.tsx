@@ -81,7 +81,7 @@ export default function ReferralProgram() {
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
   return (
-    <div className="min-h-screen bg-background pb-28 relative overflow-hidden">
+    <div className="min-h-screen bg-background pb-28 relative overflow-x-hidden">
       <div className="absolute top-0 right-0 w-full h-[300px] bg-primary/5 blur-[100px] pointer-events-none" />
 
       <header className="px-6 pt-14 pb-6 flex items-center sticky top-0 bg-background/90 backdrop-blur-xl z-10 border-b border-border/40">

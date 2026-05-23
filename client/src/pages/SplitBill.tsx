@@ -105,7 +105,7 @@ export default function SplitBill() {
   const PILL_OPTIONS = [2, 3, 4, 5, 6];
 
   return (
-    <div className="min-h-screen bg-background pb-28 relative overflow-hidden">
+    <div className="min-h-screen bg-background pb-28 relative overflow-x-hidden">
       <div className="absolute top-0 right-0 w-full h-[300px] bg-primary/5 blur-[100px] pointer-events-none" />
 
       <header className="px-6 pt-14 pb-6 flex items-center sticky top-0 bg-background/90 backdrop-blur-xl z-10 border-b border-border/40">

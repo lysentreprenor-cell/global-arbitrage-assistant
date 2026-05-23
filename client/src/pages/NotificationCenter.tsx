@@ -152,7 +152,7 @@ export default function NotificationCenter() {
   const unreadTotal = rqNotifications.filter(n => !n.read).length;
 
   return (
-    <div className="min-h-screen bg-background pb-32 relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-background pb-32 relative overflow-x-hidden flex flex-col">
       <div className="absolute top-[-10%] right-[-10%] w-[350px] h-[350px] bg-primary/8 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Header */}

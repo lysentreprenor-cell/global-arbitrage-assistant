@@ -24,7 +24,7 @@ export default function PhysicalCard() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24 relative overflow-hidden">
+    <div className="min-h-screen bg-background pb-24 relative overflow-x-hidden">
       <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] pointer-events-none"></div>
 
       <header className="px-6 pt-14 pb-6 flex items-center sticky top-0 bg-background/90 backdrop-blur-xl z-20 border-b border-white/5">

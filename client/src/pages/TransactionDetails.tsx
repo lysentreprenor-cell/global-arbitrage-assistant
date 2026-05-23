@@ -46,7 +46,7 @@ export default function TransactionDetails() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24 relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-background pb-24 relative overflow-x-hidden flex flex-col">
       <div className="absolute top-[-10%] right-[-10%] w-[400px] h-[400px] bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
 
       <header className="px-6 pt-14 pb-6 flex items-center justify-between sticky top-0 bg-background/90 backdrop-blur-xl z-20 border-b border-white/5">

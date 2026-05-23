@@ -241,7 +241,7 @@ export default function Transfer() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col relative overflow-x-hidden">
       {showPinGate && (
         <PinEntryModal
           mode="verify"

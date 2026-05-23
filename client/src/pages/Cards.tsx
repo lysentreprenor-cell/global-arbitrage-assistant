@@ -50,7 +50,7 @@ export default function Cards() {
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: th.pageBg, paddingBottom: "calc(120px + env(safe-area-inset-bottom))", position: "relative", overflow: "hidden", transition: "background 0.5s ease" }}>
+    <div style={{ minHeight: "100vh", background: th.pageBg, paddingBottom: "calc(120px + env(safe-area-inset-bottom))", position: "relative", overflowX: "hidden", transition: "background 0.5s ease" }}>
 
       {/* Ambient glow */}
       <div style={{ position: "absolute", top: -60, left: -80, width: 360, height: 360, borderRadius: "50%",

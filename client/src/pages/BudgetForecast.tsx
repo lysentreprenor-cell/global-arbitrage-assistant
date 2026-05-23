@@ -91,7 +91,7 @@ export default function BudgetForecast() {
     n.toLocaleString(pl ? "pl-PL" : "en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
   return (
-    <div className="min-h-screen bg-background pb-24 relative overflow-hidden flex flex-col transition-colors duration-500">
+    <div className="min-h-screen bg-background pb-24 relative overflow-x-hidden flex flex-col transition-colors duration-500">
       <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] pointer-events-none transition-colors duration-500"></div>
 
       <header className="px-6 pt-14 pb-6 flex items-center sticky top-0 bg-background/90 backdrop-blur-xl z-10 border-b border-border/50 transition-colors duration-500">
