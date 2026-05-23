@@ -140,11 +140,11 @@ export default function ContactSelection() {
             onClick={() => setLocation("/agreements/new")}
             style={{
               gridColumn: "1 / -1",
-              height: 76,
+              height: 80,
               borderRadius: 20,
-              background: "linear-gradient(135deg, rgba(147,51,234,0.18) 0%, rgba(79,70,229,0.12) 100%)",
-              border: "1.5px solid rgba(147,51,234,0.35)",
-              boxShadow: "0 4px 20px rgba(147,51,234,0.18), 0 1px 0 rgba(255,255,255,0.06) inset",
+              background: "linear-gradient(135deg, #6d28d9 0%, #4338ca 100%)",
+              border: "2px solid #9333ea",
+              boxShadow: "0 4px 32px rgba(147,51,234,0.55), 0 1px 0 rgba(255,255,255,0.15) inset",
               display: "flex",
               alignItems: "center",
               gap: 16,
@@ -161,14 +161,14 @@ export default function ContactSelection() {
             onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
           >
             {/* glow blob */}
-            <div style={{ position: "absolute", right: -20, top: "50%", transform: "translateY(-50%)", width: 100, height: 100, borderRadius: "50%", background: "rgba(147,51,234,0.22)", filter: "blur(28px)", pointerEvents: "none" }} />
+            <div style={{ position: "absolute", right: -20, top: "50%", transform: "translateY(-50%)", width: 120, height: 120, borderRadius: "50%", background: "rgba(147,51,234,0.40)", filter: "blur(28px)", pointerEvents: "none" }} />
             {/* top shimmer line */}
             <div style={{ position: "absolute", top: 0, left: "8%", right: "8%", height: 1, background: "rgba(180,140,255,0.22)", pointerEvents: "none" }} />
 
             <div style={{
               width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-              background: "rgba(147,51,234,0.22)",
-              border: "1px solid rgba(147,51,234,0.45)",
+              background: "rgba(147,51,234,0.55)",
+              border: "1.5px solid #a855f7",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
               <FilePlus style={{ width: 20, height: 20, color: "#c084fc", filter: "drop-shadow(0 0 6px rgba(192,132,252,0.7))" }} />
