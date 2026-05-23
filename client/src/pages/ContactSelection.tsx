@@ -252,53 +252,108 @@ export default function ContactSelection() {
         )}
 
         {/* ═══════════════════════════════
-            SEND MODE — pills + umowa
+            SEND MODE — kwota + metody + umowa
             ═══════════════════════════════ */}
         {mode === "send" && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {[
-                { label: pl ? "Konto bankowe" : "Bank account", icon: <Building2 size={14} />, onClick: () => setLocation(`/transfer/new?to=bank&mode=${mode}`), testId: "tile-bank-account" },
-                { label: pl ? "Na kartę" : "To card",           icon: <FileText size={14} />,   onClick: () => setLocation(`/transfer/new?to=card&mode=${mode}`), testId: "tile-card-payout" },
-                { label: pl ? "Telefon" : "Phone",              icon: <Phone size={14} />,      onClick: () => setLocation(`/transfer/new?to=phone&mode=${mode}`), testId: "tile-phone-transfer" },
-              ].map(pill => (
-                <button
-                  key={pill.testId}
-                  data-testid={pill.testId}
-                  onClick={pill.onClick}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+
+            {/* Kwota (opcjonalnie) — pre-fill przed wyborem osoby */}
+            <div style={{
+              borderRadius: 22,
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.09)",
+              padding: "20px 20px 16px",
+            }}>
+              <div style={{ fontSize: 10, letterSpacing: 4, fontWeight: 800, color: "rgba(255,255,255,0.30)", marginBottom: 14 }}>
+                {pl ? "KWOTA" : "AMOUNT"}
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={requestAmount}
+                  onChange={e => setRequestAmount(e.target.value)}
                   style={{
-                    flex: 1, height: 44, borderRadius: 22,
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    cursor: "pointer", color: "rgba(255,255,255,0.65)",
-                    fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
-                    transition: "all 0.15s ease", whiteSpace: "nowrap",
+                    flex: 1, background: "none", border: "none", outline: "none",
+                    fontSize: 48, fontWeight: 800, lineHeight: 1,
+                    color: requestAmount ? "white" : "rgba(255,255,255,0.18)",
+                    width: "100%",
                   }}
-                  onMouseDown={e => { e.currentTarget.style.transform = "scale(0.95)"; e.currentTarget.style.background = "rgba(255,255,255,0.09)"; }}
-                  onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-                  onTouchStart={e => { e.currentTarget.style.transform = "scale(0.95)"; e.currentTarget.style.background = "rgba(255,255,255,0.09)"; }}
-                  onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                />
+                <span style={{
+                  fontSize: 20, fontWeight: 700, paddingBottom: 6,
+                  color: requestAmount ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.25)",
+                  transition: "color 0.2s",
+                }}>PLN</span>
+              </div>
+              {/* Quick amount chips */}
+              <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
+                {["20", "50", "100", "200", "500"].map(amt => (
+                  <button
+                    key={amt}
+                    onClick={() => setRequestAmount(requestAmount === amt ? "" : amt)}
+                    style={{
+                      padding: "5px 12px", borderRadius: 999,
+                      fontSize: 12, fontWeight: 700,
+                      background: requestAmount === amt
+                        ? "rgba(var(--color-primary-rgb, 201,168,76), 0.18)"
+                        : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${requestAmount === amt
+                        ? "rgba(var(--color-primary-rgb, 201,168,76), 0.35)"
+                        : "rgba(255,255,255,0.09)"}`,
+                      color: requestAmount === amt ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.50)",
+                      cursor: "pointer", transition: "all 0.15s ease",
+                    }}
+                  >
+                    {amt} zł
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3 metody — kafelki zamiast malutkich pills */}
+            <div style={{ display: "flex", gap: 10 }}>
+              {[
+                { label: pl ? "Konto bankowe" : "Bank",  sub: pl ? "IBAN / numer" : "IBAN / number", icon: <Building2 size={20} />, onClick: () => setLocation(`/transfer/new?to=bank&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-bank-account" },
+                { label: pl ? "Na kartę" : "Card",       sub: pl ? "Numer karty" : "Card number",    icon: <FileText size={20} />,   onClick: () => setLocation(`/transfer/new?to=card&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-card-payout" },
+                { label: pl ? "Telefon" : "Phone",       sub: pl ? "Numer tel." : "Phone number",    icon: <Phone size={20} />,      onClick: () => setLocation(`/transfer/new?to=phone&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-phone-transfer" },
+              ].map(tile => (
+                <button
+                  key={tile.testId}
+                  data-testid={tile.testId}
+                  onClick={tile.onClick}
+                  style={{
+                    flex: 1, borderRadius: 18, padding: "14px 8px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                    cursor: "pointer", transition: "all 0.15s ease",
+                  }}
+                  onMouseDown={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.96)"; }}
+                  onMouseUp={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
+                  onTouchStart={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.96)"; }}
+                  onTouchEnd={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
                 >
-                  <span style={{ color: "var(--primary, #D4A020)", opacity: 0.9 }}>{pill.icon}</span>
-                  {pill.label}
+                  <div style={{ color: "var(--primary, #D4A020)", opacity: 0.85 }}>{tile.icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.80)", letterSpacing: 0.1 }}>{tile.label}</div>
+                  <div style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.32)", textAlign: "center" }}>{tile.sub}</div>
                 </button>
               ))}
             </div>
 
-            {/* Utwórz umowę — pełna wersja */}
+            {/* Utwórz umowę */}
             <div
               data-testid="tile-create-contract"
               onClick={() => setLocation("/agreements/new")}
               style={{
-                height: 72, borderRadius: 18,
+                height: 62, borderRadius: 16,
                 background: "linear-gradient(135deg, #6d28d9 0%, #4338ca 100%)",
-                border: "1.5px solid #9333ea",
-                boxShadow: "0 4px 24px rgba(147,51,234,0.45), 0 1px 0 rgba(255,255,255,0.12) inset",
-                display: "flex", alignItems: "center", gap: 14, padding: "0 18px",
-                cursor: "pointer", position: "relative", overflow: "hidden",
-                transition: "all 0.15s ease",
+                border: "1.5px solid rgba(147,51,234,0.70)",
+                boxShadow: "0 4px 20px rgba(147,51,234,0.30)",
+                display: "flex", alignItems: "center", gap: 12, padding: "0 16px",
+                cursor: "pointer", transition: "transform 0.15s ease",
               }}
               onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
               onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
@@ -306,21 +361,16 @@ export default function ContactSelection() {
               onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
               onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
             >
-              <div style={{ position: "absolute", right: -16, top: "50%", transform: "translateY(-50%)", width: 100, height: 100, borderRadius: "50%", background: "rgba(147,51,234,0.35)", filter: "blur(24px)", pointerEvents: "none" }} />
-              <div style={{ position: "absolute", top: 0, left: "8%", right: "8%", height: 1, background: "rgba(180,140,255,0.20)", pointerEvents: "none" }} />
-              <div style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <FilePlus style={{ width: 18, height: 18, color: "#e9d5ff" }} />
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <FilePlus style={{ width: 16, height: 16, color: "#e9d5ff" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.8, color: "#fff", marginBottom: 2 }}>
-                  {pl ? "Utwórz umowę" : "Create contract"}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(233,213,255,0.70)", fontWeight: 500 }}>
-                  {pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{pl ? "Utwórz umowę" : "Create contract"}</div>
+                <div style={{ fontSize: 11, color: "rgba(233,213,255,0.60)" }}>{pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}</div>
               </div>
-              <ArrowUpRight style={{ width: 15, height: 15, color: "rgba(233,213,255,0.55)", flexShrink: 0 }} />
+              <ArrowUpRight style={{ width: 14, height: 14, color: "rgba(233,213,255,0.50)", flexShrink: 0 }} />
             </div>
+
           </motion.div>
         )}
 
@@ -350,7 +400,7 @@ export default function ContactSelection() {
                       const convoId = openConversation(contact.handle, contact.name);
                       setLocation(`/messages/${convoId}`);
                     } else {
-                      const amountParam = mode === "request" && requestAmount ? `&amount=${requestAmount}` : "";
+                      const amountParam = requestAmount ? `&amount=${requestAmount}` : "";
                       const noteParam = mode === "request" && requestNote ? `&note=${encodeURIComponent(requestNote)}` : "";
                       setLocation(`/transfer/new?to=${contact.handle}&mode=${mode}${amountParam}${noteParam}`);
                     }
@@ -364,7 +414,7 @@ export default function ContactSelection() {
                     <h4 className="font-semibold text-[15px] text-foreground truncate">{contact.name}</h4>
                     <UserHandleText handle={contact.handle} compact />
                   </div>
-                  {mode === "request" ? (
+                  {(mode === "request" || (mode === "send" && requestAmount)) ? (
                     <div style={{
                       display: "flex", alignItems: "center", gap: 4,
                       padding: "5px 12px", borderRadius: 999,
@@ -374,7 +424,9 @@ export default function ContactSelection() {
                       border: "1px solid rgba(var(--color-primary-rgb, 201,168,76), 0.22)",
                       flexShrink: 0,
                     }}>
-                      {pl ? "Poproś" : "Ask"}
+                      {mode === "request"
+                        ? (requestAmount ? `${requestAmount} PLN` : (pl ? "Poproś" : "Ask"))
+                        : `${requestAmount} PLN`}
                       <ChevronRight size={12} />
                     </div>
                   ) : (
