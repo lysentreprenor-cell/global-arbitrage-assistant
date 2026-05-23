@@ -454,7 +454,7 @@ export default function Dashboard() {
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
             Przelewy
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
             <div
               data-testid="btn-hero-send"
               onClick={() => setLocation("/transfer")}
@@ -491,41 +491,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div
-              data-testid="btn-hero-request"
-              onClick={() => setLocation("/transfer?mode=request")}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              style={{
-                borderRadius: r.md, padding: "18px 16px", cursor: "pointer",
-                background: "linear-gradient(150deg, rgba(10,80,44,0.85) 0%, rgba(4,34,18,0.96) 100%)",
-                border: "1px solid rgba(36,212,135,0.25)",
-                boxShadow: "0 8px 24px rgba(20,180,90,0.22), inset 0 1.5px 0 rgba(100,255,180,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
-                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
-                position: "relative", overflow: "hidden",
-                transition: "transform 0.15s ease",
-              }}
-            >
-              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
-                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: "rgba(255,255,255,0.10)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#24d487",
-                boxShadow: "0 0 14px rgba(36,212,135,0.30)",
-              }}>
-                <ArrowDownLeft size={18} />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: 0.2 }}>Poproś</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2, lineHeight: 1.3 }}>Żądanie przelewu</div>
-              </div>
-            </div>
           </div>
         </div>
 

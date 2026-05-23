@@ -893,6 +893,59 @@ export async function registerRoutes(
     }
   });
 
+  // --- Payment Request (sends notification, no money transfer) ---
+  app.post("/api/payment-request", async (req, res) => {
+    try {
+      const sessionUser = await resolveRequestUser(req);
+      if (!sessionUser?.id) return res.status(401).json({ message: "Unauthorized" });
+
+      const { requesterId, recipientHandle, amount, note, currency } = z.object({
+        requesterId: z.string(),
+        recipientHandle: z.string(),
+        amount: z.number().positive(),
+        note: z.string().optional(),
+        currency: z.string().default("PLN"),
+      }).parse(req.body);
+
+      if (sessionUser.id !== requesterId) return res.status(403).json({ message: "Forbidden" });
+
+      const requester = await storage.getUser(requesterId);
+      if (!requester) return res.status(404).json({ message: "Requester not found" });
+
+      const normalizedHandle = recipientHandle.startsWith("@") ? recipientHandle : `@${recipientHandle}`;
+      const recipient = await storage.getUserByHandle(normalizedHandle);
+      if (!recipient) return res.status(404).json({ message: "Recipient not found" });
+
+      if (requester.id === recipient.id) return res.status(400).json({ message: "Cannot request from yourself" });
+
+      const currencySymbols: Record<string, string> = { NOK: "kr", USD: "$", EUR: "€", GBP: "£", CHF: "₣", PLN: "zł" };
+      const sym = currencySymbols[currency] || currency;
+
+      // Notification for recipient — no money moved
+      await storage.createNotification({
+        userId: recipient.id,
+        type: "transfer",
+        title: "Prośba o przelew",
+        message: `${requester.name} prosi Cię o ${sym}${amount.toLocaleString("pl-PL", { minimumFractionDigits: 2 })}${note ? ` — ${note}` : ""}`,
+      });
+
+      // Firebase real-time signal to recipient
+      try {
+        const adminDb = getAdminDb();
+        if (adminDb) {
+          await adminDb.ref(`transfers/requests/${recipient.id}`).set({ at: Date.now(), amount, currency, from: requester.id, fromHandle: normalizedHandle.slice(1), note: note || "" });
+        }
+      } catch (_fbErr) { /* non-fatal */ }
+
+      // Pending record for requester
+      await storage.createTransaction({ userId: requester.id, type: "receive", status: "pending", amount, title: recipient.name, subtitle: note || "Prośba o przelew" });
+
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
   // --- P2P Message (both sides) ---
 
   app.post("/api/message/send", async (req, res) => {

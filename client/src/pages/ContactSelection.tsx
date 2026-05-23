@@ -12,11 +12,13 @@ import { useToast } from "@/hooks/use-toast";
 export default function ContactSelection() {
   const [, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
-  const mode = searchParams.get("mode") || "send";
+  const initialMode = searchParams.get("mode") || "send";
   const { contacts, user, openConversation } = useAppStore();
+  const [activeMode, setActiveMode] = useState(initialMode);
   const [searchTerm, setSearchTerm] = useState("");
-  const [requestAmount, setRequestAmount] = useState("");
-  const [requestNote, setRequestNote] = useState("");
+  const [requestAmount, setRequestAmount] = useState(searchParams.get("amount") || "");
+  const [requestNote, setRequestNote] = useState(searchParams.get("note") || "");
+  const [requestSent, setRequestSent] = useState<{ name: string; amount: string } | null>(null);
   const userSearch = useUserSearch();
   const { lang } = useLang();
   const { toast } = useToast();
@@ -51,6 +53,36 @@ export default function ContactSelection() {
     } catch {}
   };
 
+  if (requestSent) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 gap-6 text-center">
+        <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgba(212,160,32,0.12)", border: "1px solid rgba(212,160,32,0.30)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ArrowUpRight size={36} style={{ color: "var(--primary, #D4A020)" }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", marginBottom: 8 }}>{pl ? "Prośba wysłana!" : "Request sent!"}</div>
+          <div style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
+            {pl
+              ? `${requestSent.name} dostał(a) prośbę o przelew ${requestSent.amount} PLN`
+              : `${requestSent.name} received your payment request for ${requestSent.amount} PLN`}
+          </div>
+        </div>
+        <button
+          onClick={() => setLocation("/")}
+          style={{ marginTop: 8, height: 52, borderRadius: 16, border: "none", cursor: "pointer", background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)", fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2, padding: "0 40px", boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
+        >
+          {pl ? "WRÓĆ DO DOMU" : "BACK HOME"}
+        </button>
+        <button
+          onClick={() => { setRequestSent(null); setRequestAmount(""); setRequestNote(""); }}
+          style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.40)", background: "none", border: "none", cursor: "pointer" }}
+        >
+          {pl ? "Wyślij kolejną prośbę" : "Send another request"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-32 relative flex flex-col">
       <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
@@ -61,19 +93,19 @@ export default function ContactSelection() {
           <Button
             variant="ghost" size="icon"
             className="rounded-full bg-secondary border border-white/5 mr-4 hover:bg-secondary/80"
-            onClick={() => setLocation(mode === "message" ? "/messages" : "/")}
+            onClick={() => activeMode === "message" ? setLocation("/messages") : activeMode === "request" && initialMode === "send" ? setActiveMode("send") : setLocation("/")}
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </Button>
           <div>
             <h1 className="text-2xl font-heading text-foreground leading-tight">
-              {mode === "message"
+              {activeMode === "message"
                 ? (pl ? "Nowa wiadomość" : "New Message")
-                : mode === "request"
+                : activeMode === "request"
                 ? (pl ? "Poproś o przelew" : "Request Payment")
                 : (pl ? "Wyślij do" : "Send to")}
             </h1>
-            {mode === "request" && (
+            {activeMode === "request" && (
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", marginTop: 1, fontWeight: 500 }}>
                 {pl ? "Podaj kwotę i wybierz osobę lub udostępnij link" : "Set amount, pick a person or share a link"}
               </p>
@@ -82,7 +114,7 @@ export default function ContactSelection() {
         </div>
 
         {/* Search field — only show for message mode or when contacts make sense */}
-        {mode !== "request" || searchTerm !== "" || filteredContacts.length > 0 ? (
+        {activeMode !== "request" || searchTerm !== "" || filteredContacts.length > 0 ? (
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
               <User className="w-4 h-4" />
@@ -93,7 +125,7 @@ export default function ContactSelection() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full h-12 pl-11 pr-4 bg-card border border-white/10 rounded-xl text-[15px] focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all outline-none"
-              autoFocus={mode !== "request"}
+              autoFocus={activeMode !== "request"}
               data-testid="input-contact-search"
             />
           </div>
@@ -105,7 +137,7 @@ export default function ContactSelection() {
         {/* ═══════════════════════════════════
             REQUEST MODE — nowy, kompletny flow
             ═══════════════════════════════════ */}
-        {mode === "request" && (
+        {activeMode === "request" && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
 
             {/* Kwota */}
@@ -253,7 +285,7 @@ export default function ContactSelection() {
         {/* ═══════════════════════════════
             SEND MODE — kwota + metody + umowa
             ═══════════════════════════════ */}
-        {mode === "send" && (
+        {activeMode === "send" && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
 
             {/* Kwota (opcjonalnie) — pre-fill przed wyborem osoby */}
@@ -314,10 +346,10 @@ export default function ContactSelection() {
             {/* 4 metody — siatka 2×2: Konto | Karta / Telefon | Poproś */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: pl ? "Konto bankowe" : "Bank",  sub: pl ? "IBAN / numer" : "IBAN",        icon: <Building2 size={20} />,    onClick: () => setLocation(`/transfer/new?to=bank&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-bank-account" },
-                { label: pl ? "Na kartę" : "Card",       sub: pl ? "Numer karty" : "Card number",  icon: <FileText size={20} />,      onClick: () => setLocation(`/transfer/new?to=card&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-card-payout" },
-                { label: pl ? "Telefon" : "Phone",       sub: pl ? "Numer tel." : "Phone",         icon: <Phone size={20} />,         onClick: () => setLocation(`/transfer/new?to=phone&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`),         testId: "tile-phone-transfer" },
-                { label: pl ? "Poproś" : "Request",      sub: pl ? "Poproś o przelew" : "Request", icon: <ArrowUpRight size={20} />,  onClick: () => setLocation(`/transfer?mode=request`),                                                                         testId: "tile-request-from-send" },
+                { label: pl ? "Konto bankowe" : "Bank",  sub: pl ? "IBAN / numer" : "IBAN",        icon: <Building2 size={20} />,    onClick: () => setLocation(`/transfer/new?to=bank${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-bank-account" },
+                { label: pl ? "Na kartę" : "Card",       sub: pl ? "Numer karty" : "Card number",  icon: <FileText size={20} />,      onClick: () => setLocation(`/transfer/new?to=card${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-card-payout" },
+                { label: pl ? "Telefon" : "Phone",       sub: pl ? "Numer tel." : "Phone",         icon: <Phone size={20} />,         onClick: () => setLocation(`/transfer/new?to=phone${requestAmount ? `&amount=${requestAmount}` : ""}`),         testId: "tile-phone-transfer" },
+                { label: pl ? "Poproś" : "Request",      sub: pl ? "Poproś o przelew" : "Request", icon: <ArrowUpRight size={20} />,  onClick: () => setActiveMode("request"),                                                                                       testId: "tile-request-from-send" },
               ].map(tile => (
                 <button
                   key={tile.testId}
@@ -383,7 +415,7 @@ export default function ContactSelection() {
             transition={{ delay: 0.06 }}
             className="space-y-3"
           >
-            {searchTerm === "" && mode !== "request" && (
+            {searchTerm === "" && activeMode !== "request" && (
               <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-widest text-muted-foreground">
                 <Calendar className="w-3 h-3" />
                 <span>{pl ? "Ostatnie" : "Recent"}</span>
@@ -394,14 +426,40 @@ export default function ContactSelection() {
               {filteredContacts.map((contact, i) => (
                 <div
                   key={contact.id}
-                  onClick={() => {
-                    if (mode === "message") {
+                  onClick={async () => {
+                    if (activeMode === "message") {
                       const convoId = openConversation(contact.handle, contact.name);
                       setLocation(`/messages/${convoId}`);
+                    } else if (activeMode === "request") {
+                      if (!requestAmount || parseFloat(requestAmount) <= 0) {
+                        toast({ title: pl ? "Podaj kwotę" : "Enter amount", description: pl ? "Wpisz kwotę, o którą prosisz." : "Enter the amount you are requesting.", variant: "destructive" });
+                        return;
+                      }
+                      try {
+                        const res = await fetch("/api/payment-request", {
+                          method: "POST",
+                          credentials: "include",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            requesterId: user?.id,
+                            recipientHandle: contact.handle,
+                            amount: parseFloat(requestAmount),
+                            note: requestNote || undefined,
+                            currency: "PLN",
+                          }),
+                        });
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({}));
+                          toast({ title: pl ? "Błąd" : "Error", description: err.message || (pl ? "Nie udało się wysłać prośby." : "Failed to send request."), variant: "destructive" });
+                          return;
+                        }
+                        setRequestSent({ name: contact.name, amount: requestAmount });
+                      } catch {
+                        toast({ title: pl ? "Błąd sieci" : "Network error", variant: "destructive" });
+                      }
                     } else {
                       const amountParam = requestAmount ? `&amount=${requestAmount}` : "";
-                      const noteParam = mode === "request" && requestNote ? `&note=${encodeURIComponent(requestNote)}` : "";
-                      setLocation(`/transfer/new?to=${contact.handle}&mode=${mode}${amountParam}${noteParam}`);
+                      setLocation(`/transfer/new?to=${contact.handle}${amountParam}`);
                     }
                   }}
                   className={`flex items-center gap-4 p-4 cursor-pointer hover:bg-secondary/50 transition-colors ${i !== filteredContacts.length - 1 ? "border-b border-white/5" : ""}`}
@@ -413,7 +471,7 @@ export default function ContactSelection() {
                     <h4 className="font-semibold text-[15px] text-foreground truncate">{contact.name}</h4>
                     <UserHandleText handle={contact.handle} compact />
                   </div>
-                  {(mode === "request" || (mode === "send" && requestAmount)) ? (
+                  {(activeMode === "request" || (activeMode === "send" && requestAmount)) ? (
                     <div style={{
                       display: "flex", alignItems: "center", gap: 4,
                       padding: "5px 12px", borderRadius: 999,
@@ -423,7 +481,7 @@ export default function ContactSelection() {
                       border: "1px solid rgba(var(--color-primary-rgb, 201,168,76), 0.22)",
                       flexShrink: 0,
                     }}>
-                      {mode === "request"
+                      {activeMode === "request"
                         ? (requestAmount ? `${requestAmount} PLN` : (pl ? "Poproś" : "Ask"))
                         : `${requestAmount} PLN`}
                       <ChevronRight size={12} />
