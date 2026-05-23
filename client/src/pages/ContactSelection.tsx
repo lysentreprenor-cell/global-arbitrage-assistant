@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight } from "lucide-react";
+import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAppStore } from "@/lib/store";
-import { motion } from "framer-motion";
+import { useAppStore, CORE_WALLET_CURRENCIES, CURRENCY_SYMBOLS, WALLET_FLAGS } from "@/lib/store";
+import { motion, AnimatePresence } from "framer-motion";
 import { useUserSearch } from "@/hooks/useUserSearch";
 import UserHandleText from "@/components/UserHandleText";
 import { useLang } from "@/context/LanguageContext";
@@ -19,6 +19,10 @@ export default function ContactSelection() {
   const [requestAmount, setRequestAmount] = useState(searchParams.get("amount") || "");
   const [requestNote, setRequestNote] = useState(searchParams.get("note") || "");
   const [requestSent, setRequestSent] = useState<{ name: string; amount: string } | null>(null);
+  const [sendCurrency, setSendCurrency] = useState("PLN");
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [sendNote, setSendNote] = useState("");
+  const currencyPickerRef = useRef<HTMLDivElement>(null);
   const userSearch = useUserSearch();
   const { lang } = useLang();
   const { toast } = useToast();
@@ -288,58 +292,109 @@ export default function ContactSelection() {
         {activeMode === "send" && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
 
-            {/* Kwota (opcjonalnie) — pre-fill przed wyborem osoby */}
-            <div style={{
-              borderRadius: 22,
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.09)",
-              padding: "20px 20px 16px",
-            }}>
-              <div style={{ fontSize: 10, letterSpacing: 4, fontWeight: 800, color: "rgba(255,255,255,0.30)", marginBottom: 14 }}>
-                {pl ? "KWOTA" : "AMOUNT"}
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={requestAmount}
-                  onChange={e => setRequestAmount(e.target.value)}
-                  style={{
-                    flex: 1, background: "none", border: "none", outline: "none",
-                    fontSize: 48, fontWeight: 800, lineHeight: 1,
-                    color: requestAmount ? "white" : "rgba(255,255,255,0.18)",
-                    width: "100%",
-                  }}
-                />
-                <span style={{
-                  fontSize: 20, fontWeight: 700, paddingBottom: 6,
-                  color: requestAmount ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.25)",
-                  transition: "color 0.2s",
-                }}>PLN</span>
-              </div>
-              {/* Quick amount chips */}
-              <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
-                {["20", "50", "100", "200", "500"].map(amt => (
-                  <button
-                    key={amt}
-                    onClick={() => setRequestAmount(requestAmount === amt ? "" : amt)}
+            {/* Kwota + waluta + wiadomość */}
+            <div style={{ position: "relative" }} ref={currencyPickerRef}>
+              <div style={{
+                borderRadius: 22,
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                padding: "20px 20px 16px",
+              }}>
+                <div style={{ fontSize: 10, letterSpacing: 4, fontWeight: 800, color: "rgba(255,255,255,0.30)", marginBottom: 14 }}>
+                  {pl ? "KWOTA" : "AMOUNT"}
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={requestAmount}
+                    onChange={e => setRequestAmount(e.target.value)}
                     style={{
-                      padding: "5px 12px", borderRadius: 999,
-                      fontSize: 12, fontWeight: 700,
-                      background: requestAmount === amt
-                        ? "rgba(var(--color-primary-rgb, 201,168,76), 0.18)"
-                        : "rgba(255,255,255,0.06)",
-                      border: `1px solid ${requestAmount === amt
-                        ? "rgba(var(--color-primary-rgb, 201,168,76), 0.35)"
-                        : "rgba(255,255,255,0.09)"}`,
-                      color: requestAmount === amt ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.50)",
-                      cursor: "pointer", transition: "all 0.15s ease",
+                      flex: 1, background: "none", border: "none", outline: "none",
+                      fontSize: 48, fontWeight: 800, lineHeight: 1,
+                      color: requestAmount ? "white" : "rgba(255,255,255,0.18)",
+                      width: "100%",
+                    }}
+                  />
+                  {/* Tappable currency pill */}
+                  <button
+                    onClick={() => setShowCurrencyPicker(v => !v)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4, paddingBottom: 6,
+                      background: "none", border: "none", cursor: "pointer",
+                      fontSize: 20, fontWeight: 700,
+                      color: requestAmount ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.25)",
+                      transition: "color 0.2s",
                     }}
                   >
-                    {amt} zł
+                    {sendCurrency}
+                    <ChevronDown size={14} style={{ opacity: 0.6, marginBottom: 1 }} />
                   </button>
-                ))}
+                </div>
+
+                {/* Currency picker dropdown */}
+                <AnimatePresence>
+                  {showCurrencyPicker && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ overflow: "hidden" }}
+                    >
+                      <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {CORE_WALLET_CURRENCIES.map(cur => (
+                          <button
+                            key={cur}
+                            onClick={() => { setSendCurrency(cur); setShowCurrencyPicker(false); }}
+                            style={{
+                              padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+                              background: sendCurrency === cur ? "rgba(var(--color-primary-rgb,201,168,76),0.18)" : "rgba(255,255,255,0.06)",
+                              border: `1px solid ${sendCurrency === cur ? "rgba(var(--color-primary-rgb,201,168,76),0.35)" : "rgba(255,255,255,0.09)"}`,
+                              color: sendCurrency === cur ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.55)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {WALLET_FLAGS[cur]} {cur}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Quick amount chips */}
+                <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
+                  {["20", "50", "100", "200", "500"].map(amt => (
+                    <button
+                      key={amt}
+                      onClick={() => setRequestAmount(requestAmount === amt ? "" : amt)}
+                      style={{
+                        padding: "5px 12px", borderRadius: 999,
+                        fontSize: 12, fontWeight: 700,
+                        background: requestAmount === amt ? "rgba(var(--color-primary-rgb,201,168,76),0.18)" : "rgba(255,255,255,0.06)",
+                        border: `1px solid ${requestAmount === amt ? "rgba(var(--color-primary-rgb,201,168,76),0.35)" : "rgba(255,255,255,0.09)"}`,
+                        color: requestAmount === amt ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.50)",
+                        cursor: "pointer", transition: "all 0.15s ease",
+                      }}
+                    >
+                      {amt} {CURRENCY_SYMBOLS[sendCurrency as keyof typeof CURRENCY_SYMBOLS] || sendCurrency}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Note / wiadomość */}
+                <div style={{ marginTop: 14, height: 1, background: "rgba(255,255,255,0.06)" }} />
+                <input
+                  type="text"
+                  placeholder={pl ? "Wiadomość (opcjonalnie)…" : "Message (optional)…"}
+                  value={sendNote}
+                  onChange={e => setSendNote(e.target.value)}
+                  style={{
+                    marginTop: 12, width: "100%", background: "none", border: "none",
+                    outline: "none", fontSize: 14, color: "rgba(255,255,255,0.70)", fontWeight: 500,
+                  }}
+                />
               </div>
             </div>
 
@@ -373,33 +428,6 @@ export default function ContactSelection() {
                   <div style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.32)", textAlign: "center" }}>{tile.sub}</div>
                 </button>
               ))}
-            </div>
-
-            {/* Utwórz umowę — ciemny styl (nie fioletowy) */}
-            <div
-              data-testid="tile-create-contract"
-              onClick={() => setLocation("/agreements/new")}
-              style={{
-                height: 62, borderRadius: 16,
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.09)",
-                display: "flex", alignItems: "center", gap: 12, padding: "0 16px",
-                cursor: "pointer", transition: "all 0.15s ease",
-              }}
-              onMouseDown={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.97)"; }}
-              onMouseUp={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.97)"; }}
-              onTouchEnd={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
-            >
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <FilePlus style={{ width: 16, height: 16, color: "var(--primary, #D4A020)" }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>{pl ? "Utwórz umowę" : "Create contract"}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}</div>
-              </div>
-              <ArrowUpRight style={{ width: 14, height: 14, color: "rgba(255,255,255,0.30)", flexShrink: 0 }} />
             </div>
 
           </motion.div>
@@ -459,7 +487,9 @@ export default function ContactSelection() {
                       }
                     } else {
                       const amountParam = requestAmount ? `&amount=${requestAmount}` : "";
-                      setLocation(`/transfer/new?to=${contact.handle}${amountParam}`);
+                      const noteParam = sendNote ? `&note=${encodeURIComponent(sendNote)}` : "";
+                      const curParam = sendCurrency !== "PLN" ? `&currency=${sendCurrency}` : "";
+                      setLocation(`/transfer/new?to=${contact.handle}${amountParam}${noteParam}${curParam}`);
                     }
                   }}
                   className={`flex items-center gap-4 p-4 cursor-pointer hover:bg-secondary/50 transition-colors ${i !== filteredContacts.length - 1 ? "border-b border-white/5" : ""}`}
