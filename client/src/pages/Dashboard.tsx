@@ -493,61 +493,71 @@ export default function Dashboard() {
         </div>
 
 
-        {/* ── Currency Accounts ── */}
+        {/* ── Currency Tile ── */}
         <div style={{ marginTop: 14 }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10,
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 3, color: th.textMuted }}>
-              {t.currencies}
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            {/* Cycling currency tile */}
+            <div
+              data-testid="wallet-currency-tile"
+              onClick={() => {
+                const idx = enabledCurrencies.indexOf(activeWallet);
+                const next = enabledCurrencies[(idx + 1) % enabledCurrencies.length];
+                setActiveWallet(next);
+              }}
+              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
+              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
+              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              style={{
+                width: 80, height: 80, borderRadius: r.md, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "linear-gradient(160deg, rgba(18,42,100,0.72) 0%, rgba(8,20,52,0.90) 100%)",
+                border: "1px solid rgba(100,150,255,0.20)",
+                boxShadow: "0 6px 18px rgba(60,100,255,0.15), inset 0 1.5px 0 rgba(160,200,255,0.10), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+                position: "relative", overflow: "hidden",
+                transition: "transform 0.15s ease",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
+                background: "rgba(255,255,255,0.20)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "42%",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
+                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                <span style={{ fontSize: 30, lineHeight: 1, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.50))" }}>
+                  {WALLET_FLAGS[activeWallet]}
+                </span>
+                <div style={{
+                  fontSize: 10, letterSpacing: 1.5, fontWeight: 800,
+                  color: "rgba(255,255,255,0.85)", textAlign: "center",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.70)",
+                }}>
+                  {activeWallet}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div style={{ position: "relative" }}>
-            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-              {enabledCurrencies.map(cur => {
-                const active = activeWallet === cur;
-                const curRate = fxRates[cur];
-                const tileValue = curRate && curRate > 0 ? parseFloat((totalUSD * curRate).toFixed(2)) : 0;
-                return (
-                  <button
-                    key={cur}
-                    data-testid={`wallet-card-${cur}`}
-                    onClick={() => setActiveWallet(cur)}
-                    style={{
-                      flexShrink: 0, width: 148, borderRadius: r.md, padding: "14px 16px",
-                      display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6,
-                      textAlign: "left", cursor: "pointer",
-                      border: `1.5px solid ${active ? th.activeTileBorder : "rgba(255,255,255,0.08)"}`,
-                      background: active ? th.activeTileBg : "rgba(255,255,255,0.03)",
-                      boxShadow: active ? th.activeTileGlow : "0 4px 12px rgba(0,0,0,0.28)",
-                      transition: "all 0.22s ease",
-                    }}
-                  >
-                    <span style={{ fontSize: 28, lineHeight: 1 }}>{WALLET_FLAGS[cur]}</span>
-                    <span style={{
-                      fontSize: 18, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1,
-                      color: active ? th.activeTileColor : th.textPrimary,
-                      whiteSpace: "nowrap",
-                    }}>
-                      {balanceVisible ? formatMoneyCompact(tileValue, cur) : "•••"}
-                    </span>
-                    <span style={{
-                      fontSize: 11, letterSpacing: 0.3, lineHeight: 1.2,
-                      color: th.textMuted, whiteSpace: "nowrap",
-                      overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
-                    }}>
-                      {getCurrencyName(cur, lang)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* Balance for active wallet */}
             <div style={{
-              position: "absolute", top: 0, right: 0, bottom: 4, width: 56,
-              background: `linear-gradient(90deg, transparent, ${th.pageBg})`,
-              pointerEvents: "none",
-            }} />
+              flex: 1, borderRadius: r.md, padding: "12px 16px",
+              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+              display: "flex", flexDirection: "column", justifyContent: "center", gap: 4,
+              minHeight: 80,
+            }}>
+              <div style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: th.textMuted, textTransform: "uppercase" }}>
+                {getCurrencyName(activeWallet, lang)}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: th.activeTileColor, lineHeight: 1.1 }}>
+                {balanceVisible
+                  ? formatMoneyCompact((() => { const r2 = (fxRates as Record<string,number>)[activeWallet]; return r2 && r2 > 0 ? parseFloat((totalUSD * r2).toFixed(2)) : 0; })(), activeWallet)
+                  : "•••"}
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)", fontWeight: 600 }}>
+                {enabledCurrencies.indexOf(activeWallet) + 1} / {enabledCurrencies.length} walut — tap aby zmienić
+              </div>
+            </div>
           </div>
 
           {showExchange && (
