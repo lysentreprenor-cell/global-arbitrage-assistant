@@ -641,55 +641,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── Quick Actions ── */}
-        <div style={{ marginTop: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
-            Szybkie akcje
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-            {quickActions.map(action => {
-              const tile = tileConfig[action.label];
-              return (
-                <div
-                  key={action.label}
-                  data-testid={action.testId}
-                  onClick={action.onClick}
-                  onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-                  onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                  onTouchStart={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-                  onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                  style={{
-                    aspectRatio: "1 / 1", borderRadius: r.md, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: tile.bg, border: `1px solid ${tile.border}`,
-                    boxShadow: tile.shadow, color: tile.iconColor,
-                    position: "relative", overflow: "hidden",
-                    transition: "transform 0.15s ease, background 0.4s ease",
-                  }}
-                >
-                  <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
-                    background: "rgba(255,255,255,0.20)", pointerEvents: "none" }} />
-                  <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "42%",
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
-                    borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                  <div style={{ display: "flex", filter: `drop-shadow(0 2px 5px rgba(0,0,0,0.50)) drop-shadow(0 0 4px ${tile.iconColor}44)` }}>
-                    {action.icon}
-                  </div>
-                  <div style={{
-                    position: "absolute", bottom: 8, left: 2, right: 2,
-                    fontSize: 10, letterSpacing: 1.5, fontWeight: 800,
-                    color: "rgba(255,255,255,0.85)", textAlign: "center",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.70)", lineHeight: 1.1,
-                  }}>
-                    {action.text}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
         {/* ── Cash Flow Card ── */}
         <div style={{
           marginTop: 14, borderRadius: r.lg, padding: "18px 20px",
