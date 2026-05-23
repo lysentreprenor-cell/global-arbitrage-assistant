@@ -194,32 +194,31 @@ export default function ContactSelection() {
               ))}
             </div>
 
-            {/* Utwórz umowę — kompaktowa wersja dla request */}
+            {/* Utwórz umowę — ciemny styl */}
             <div
               data-testid="tile-create-contract"
               onClick={() => setLocation("/agreements/new")}
               style={{
                 height: 62, borderRadius: 16,
-                background: "linear-gradient(135deg, #6d28d9 0%, #4338ca 100%)",
-                border: "1.5px solid rgba(147,51,234,0.70)",
-                boxShadow: "0 4px 20px rgba(147,51,234,0.30)",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.09)",
                 display: "flex", alignItems: "center", gap: 12, padding: "0 16px",
-                cursor: "pointer", transition: "transform 0.15s ease",
+                cursor: "pointer", transition: "all 0.15s ease",
               }}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseDown={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.97)"; }}
+              onMouseUp={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.97)"; }}
+              onTouchEnd={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
             >
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <FilePlus style={{ width: 16, height: 16, color: "#e9d5ff" }} />
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <FilePlus style={{ width: 16, height: 16, color: "var(--primary, #D4A020)" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{pl ? "Utwórz umowę" : "Create contract"}</div>
-                <div style={{ fontSize: 11, color: "rgba(233,213,255,0.60)" }}>{pl ? "Usługa, wynajem, sprzedaż…" : "Service, rental, sale…"}</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>{pl ? "Utwórz umowę" : "Create contract"}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{pl ? "Usługa, wynajem, sprzedaż…" : "Service, rental, sale…"}</div>
               </div>
-              <ArrowUpRight style={{ width: 14, height: 14, color: "rgba(233,213,255,0.50)", flexShrink: 0 }} />
+              <ArrowUpRight style={{ width: 14, height: 14, color: "rgba(255,255,255,0.30)", flexShrink: 0 }} />
             </div>
 
             {/* Separator przed kontaktami */}
@@ -312,22 +311,23 @@ export default function ContactSelection() {
               </div>
             </div>
 
-            {/* 3 metody — kafelki zamiast malutkich pills */}
-            <div style={{ display: "flex", gap: 10 }}>
+            {/* 4 metody — siatka 2×2: Konto | Karta / Telefon | Poproś */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: pl ? "Konto bankowe" : "Bank",  sub: pl ? "IBAN / numer" : "IBAN / number", icon: <Building2 size={20} />, onClick: () => setLocation(`/transfer/new?to=bank&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-bank-account" },
-                { label: pl ? "Na kartę" : "Card",       sub: pl ? "Numer karty" : "Card number",    icon: <FileText size={20} />,   onClick: () => setLocation(`/transfer/new?to=card&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-card-payout" },
-                { label: pl ? "Telefon" : "Phone",       sub: pl ? "Numer tel." : "Phone number",    icon: <Phone size={20} />,      onClick: () => setLocation(`/transfer/new?to=phone&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-phone-transfer" },
+                { label: pl ? "Konto bankowe" : "Bank",  sub: pl ? "IBAN / numer" : "IBAN",        icon: <Building2 size={20} />,    onClick: () => setLocation(`/transfer/new?to=bank&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-bank-account" },
+                { label: pl ? "Na kartę" : "Card",       sub: pl ? "Numer karty" : "Card number",  icon: <FileText size={20} />,      onClick: () => setLocation(`/transfer/new?to=card&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-card-payout" },
+                { label: pl ? "Telefon" : "Phone",       sub: pl ? "Numer tel." : "Phone",         icon: <Phone size={20} />,         onClick: () => setLocation(`/transfer/new?to=phone&mode=${mode}${requestAmount ? `&amount=${requestAmount}` : ""}`),         testId: "tile-phone-transfer" },
+                { label: pl ? "Poproś" : "Request",      sub: pl ? "Poproś o przelew" : "Request", icon: <ArrowUpRight size={20} />,  onClick: () => setLocation(`/transfer?mode=request`),                                                                         testId: "tile-request-from-send" },
               ].map(tile => (
                 <button
                   key={tile.testId}
                   data-testid={tile.testId}
                   onClick={tile.onClick}
                   style={{
-                    flex: 1, borderRadius: 18, padding: "14px 8px",
+                    borderRadius: 18, padding: "16px 8px",
                     background: "rgba(255,255,255,0.04)",
                     border: "1px solid rgba(255,255,255,0.09)",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
                     cursor: "pointer", transition: "all 0.15s ease",
                   }}
                   onMouseDown={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.96)"; }}
@@ -343,32 +343,31 @@ export default function ContactSelection() {
               ))}
             </div>
 
-            {/* Utwórz umowę */}
+            {/* Utwórz umowę — ciemny styl (nie fioletowy) */}
             <div
               data-testid="tile-create-contract"
               onClick={() => setLocation("/agreements/new")}
               style={{
                 height: 62, borderRadius: 16,
-                background: "linear-gradient(135deg, #6d28d9 0%, #4338ca 100%)",
-                border: "1.5px solid rgba(147,51,234,0.70)",
-                boxShadow: "0 4px 20px rgba(147,51,234,0.30)",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.09)",
                 display: "flex", alignItems: "center", gap: 12, padding: "0 16px",
-                cursor: "pointer", transition: "transform 0.15s ease",
+                cursor: "pointer", transition: "all 0.15s ease",
               }}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseDown={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.97)"; }}
+              onMouseUp={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.97)"; }}
+              onTouchEnd={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
             >
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <FilePlus style={{ width: 16, height: 16, color: "#e9d5ff" }} />
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <FilePlus style={{ width: 16, height: 16, color: "var(--primary, #D4A020)" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{pl ? "Utwórz umowę" : "Create contract"}</div>
-                <div style={{ fontSize: 11, color: "rgba(233,213,255,0.60)" }}>{pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>{pl ? "Utwórz umowę" : "Create contract"}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}</div>
               </div>
-              <ArrowUpRight style={{ width: 14, height: 14, color: "rgba(233,213,255,0.50)", flexShrink: 0 }} />
+              <ArrowUpRight style={{ width: 14, height: 14, color: "rgba(255,255,255,0.30)", flexShrink: 0 }} />
             </div>
 
           </motion.div>
