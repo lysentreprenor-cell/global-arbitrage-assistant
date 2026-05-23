@@ -134,7 +134,7 @@ export default function Profile() {
   ];
 
   return (
-    <div className="pb-28 min-h-screen bg-background relative overflow-hidden">
+    <div className="pb-28 min-h-screen bg-background relative overflow-x-hidden">
       <div className="absolute top-0 right-0 w-full h-[400px] bg-primary/5 blur-[120px] pointer-events-none" />
 
       {/* ── Header ── */}
