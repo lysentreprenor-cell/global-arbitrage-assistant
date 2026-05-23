@@ -109,6 +109,8 @@ export default function Dashboard() {
   const [balanceVisible, setBalanceVisible]     = useState(true);
   const [activeWallet, setActiveWallet]         = useState<CurrencyCode>(primaryCurrency);
   const [showExchange, setShowExchange]         = useState(false);
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [showAddCurrency, setShowAddCurrency]   = useState(false);
   const [exFrom, setExFrom]                     = useState<CurrencyCode>(primaryCurrency);
   const [exTo, setExTo]                         = useState<CurrencyCode>("EUR");
   const [exAmount, setExAmount]             = useState("");
@@ -359,7 +361,7 @@ export default function Dashboard() {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
                   data-testid="btn-currency-pill"
-                  onClick={() => { const idx = enabledCurrencies.indexOf(activeWallet); setActiveWallet(enabledCurrencies[(idx + 1) % enabledCurrencies.length]); }}
+                  onClick={() => { setShowCurrencyPicker(true); setShowAddCurrency(false); }}
                   style={{
                     display: "flex", alignItems: "center", gap: 4,
                     borderRadius: 999, padding: "5px 10px",
@@ -491,72 +493,8 @@ export default function Dashboard() {
         </div>
 
 
-        {/* ── Currency Tile ── */}
+        {/* ── Currency Tile placeholder (removed) ── */}
         <div style={{ marginTop: 14 }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            {/* Cycling currency tile */}
-            <div
-              data-testid="wallet-currency-tile"
-              onClick={() => {
-                const idx = enabledCurrencies.indexOf(activeWallet);
-                const next = enabledCurrencies[(idx + 1) % enabledCurrencies.length];
-                setActiveWallet(next);
-              }}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              style={{
-                width: 80, height: 80, borderRadius: r.md, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: "linear-gradient(160deg, rgba(18,42,100,0.72) 0%, rgba(8,20,52,0.90) 100%)",
-                border: "1px solid rgba(100,150,255,0.20)",
-                boxShadow: "0 6px 18px rgba(60,100,255,0.15), inset 0 1.5px 0 rgba(160,200,255,0.10), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
-                position: "relative", overflow: "hidden",
-                transition: "transform 0.15s ease",
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
-                background: "rgba(255,255,255,0.20)", pointerEvents: "none" }} />
-              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "42%",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
-                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                <span style={{ fontSize: 30, lineHeight: 1, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.50))" }}>
-                  {WALLET_FLAGS[activeWallet]}
-                </span>
-                <div style={{
-                  fontSize: 10, letterSpacing: 1.5, fontWeight: 800,
-                  color: "rgba(255,255,255,0.85)", textAlign: "center",
-                  textShadow: "0 1px 2px rgba(0,0,0,0.70)",
-                }}>
-                  {activeWallet}
-                </div>
-              </div>
-            </div>
-
-            {/* Balance for active wallet */}
-            <div style={{
-              flex: 1, borderRadius: r.md, padding: "12px 16px",
-              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-              display: "flex", flexDirection: "column", justifyContent: "center", gap: 4,
-              minHeight: 80,
-            }}>
-              <div style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: th.textMuted, textTransform: "uppercase" }}>
-                {getCurrencyName(activeWallet, lang)}
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color: th.activeTileColor, lineHeight: 1.1 }}>
-                {balanceVisible
-                  ? formatMoneyCompact((() => { const r2 = (fxRates as Record<string,number>)[activeWallet]; return r2 && r2 > 0 ? parseFloat((totalUSD * r2).toFixed(2)) : 0; })(), activeWallet)
-                  : "•••"}
-              </div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)", fontWeight: 600 }}>
-                {enabledCurrencies.indexOf(activeWallet) + 1} / {enabledCurrencies.length} walut — tap aby zmienić
-              </div>
-            </div>
-          </div>
 
           {showExchange && (
             <div style={{
@@ -974,6 +912,85 @@ export default function Dashboard() {
       </div>
 
       {/* ── Currency Picker Modal ── */}
+      {showCurrencyPicker && (
+        <div
+          data-testid="modal-currency-picker"
+          onClick={() => { setShowCurrencyPicker(false); setShowAddCurrency(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end" }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "85vh", overflowY: "auto", borderRadius: "24px 24px 0 0", background: "#0f1528", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 -8px 40px rgba(0,0,0,0.40)", padding: "0 0 40px" }}>
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 0" }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)" }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 8px" }}>
+              <div>
+                {showAddCurrency && (
+                  <button onClick={() => setShowAddCurrency(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#a0bcff", padding: 0 }}>← Back</button>
+                )}
+                <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 3, color: "rgba(255,255,255,0.70)", marginTop: 4 }}>
+                  {showAddCurrency ? t.addCurrency.toUpperCase() : t.selectCurrency}
+                </div>
+              </div>
+              <button data-testid="btn-close-currency-picker" onClick={() => { setShowCurrencyPicker(false); setShowAddCurrency(false); }} style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>×</button>
+            </div>
+            <div style={{ padding: "4px 16px 8px" }}>
+              {!showAddCurrency ? (
+                <>
+                  {enabledCurrencies.map(cur => {
+                    const isPrimary = cur === primaryCurrency;
+                    return (
+                      <div key={cur} style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
+                        <div data-testid={`currency-pick-${cur}`} role="button" tabIndex={0}
+                          onClick={() => { saveCurrencySettings(enabledCurrencies, cur); setActiveWallet(cur); setShowCurrencyPicker(false); setShowAddCurrency(false); }}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); saveCurrencySettings(enabledCurrencies, cur); setActiveWallet(cur); setShowCurrencyPicker(false); setShowAddCurrency(false); } }}
+                          style={{ flex: 1, display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 16, background: isPrimary ? "rgba(247,210,72,0.08)" : "rgba(255,255,255,0.04)", border: `1.5px solid ${isPrimary ? "rgba(247,210,72,0.35)" : "rgba(255,255,255,0.07)"}`, cursor: "pointer", textAlign: "left" }}
+                        >
+                          <span style={{ fontSize: 26 }}>{WALLET_FLAGS[cur]}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: isPrimary ? "#f7d248" : th.textPrimary }}>{cur}</div>
+                            <div style={{ fontSize: 14, color: th.textMuted, marginTop: 1 }}>{getCurrencyName(cur, lang)}</div>
+                          </div>
+                          {isPrimary && <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.2, color: "#f7d248", background: "rgba(247,210,72,0.15)", padding: "3px 8px", borderRadius: 99 }}>{t.primaryBadge}</div>}
+                        </div>
+                        {enabledCurrencies.length > 1 && !isPrimary && (
+                          <button data-testid={`btn-remove-currency-${cur}`}
+                            onClick={() => { const next = enabledCurrencies.filter(c => c !== cur); saveCurrencySettings(next, primaryCurrency); if (activeWallet === cur) setActiveWallet(primaryCurrency); }}
+                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", cursor: "pointer", background: "rgba(255,80,80,0.15)", color: "#ff8080", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}
+                          >×</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <button data-testid="btn-add-currency" onClick={() => setShowAddCurrency(true)} style={{ width: "100%", padding: "14px 16px", borderRadius: 16, marginTop: 4, border: "1.5px dashed rgba(255,255,255,0.12)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 700 }}>
+                    <span style={{ fontSize: 20 }}>+</span> {t.addCurrency}
+                  </button>
+                </>
+              ) : (
+                (() => {
+                  const allCurrencies: CurrencyCode[] = ["NOK","USD","EUR","GBP","CHF","PLN","SEK","DKK","CAD","AUD","JPY"];
+                  const available = allCurrencies.filter(c => !enabledCurrencies.includes(c));
+                  return available.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "30px 0", color: th.textMuted, fontSize: 14 }}>All currencies already added.</div>
+                  ) : available.map(cur => (
+                    <button key={cur} data-testid={`currency-add-${cur}`}
+                      onClick={() => { const next = [...enabledCurrencies, cur]; saveCurrencySettings(next, primaryCurrency); setShowAddCurrency(false); }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 16, marginBottom: 6, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", cursor: "pointer", textAlign: "left" }}
+                    >
+                      <span style={{ fontSize: 26 }}>{WALLET_FLAGS[cur]}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>{cur}</div>
+                        <div style={{ fontSize: 14, color: th.textMuted, marginTop: 1 }}>{getCurrencyName(cur, lang)}</div>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: th.textMuted, background: "rgba(255,255,255,0.07)", padding: "3px 8px", borderRadius: 99 }}>{CURRENCY_SYMBOLS[cur]}</div>
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(255,255,255,0.50)" }}>+</div>
+                    </button>
+                  ));
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
