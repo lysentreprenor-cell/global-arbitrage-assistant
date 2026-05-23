@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, UserPlus, FilePlus } from "lucide-react";
+import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import { motion } from "framer-motion";
@@ -61,151 +61,105 @@ export default function ContactSelection() {
         </div>
       </header>
 
-      <main className="px-6 py-6 relative z-10 flex-1 space-y-8">
-        <div style={{ background: "#ff0000", color: "#fff", padding: "8px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, textAlign: "center" }}>SERWER-TEST-XK7</div>
-        {/* Quick Actions — only for send/request, not message */}
-        {mode !== "message" && <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-2 gap-3"
-        >
-          {[
-            {
-              label: pl ? "KONTO\nBANKOWE" : "BANK\nACCOUNT",
-              icon: <ArrowUpRight className="w-6 h-6" />,
-              onClick: () => setLocation(`/transfer/new?to=bank&mode=${mode}`),
-              testId: "tile-bank-account",
-            },
-            {
-              label: pl ? "NA KARTĘ" : "TO CARD",
-              icon: <FileText className="w-6 h-6" />,
-              onClick: () => setLocation(`/transfer/new?to=card&mode=${mode}`),
-              testId: "tile-card-payout",
-            },
-            {
-              label: pl ? "NUMER\nTELEFONU" : "PHONE\nNUMBER",
-              icon: <Phone className="w-6 h-6" />,
-              onClick: () => setLocation(`/transfer/new?to=phone&mode=${mode}`),
-              testId: "tile-phone-transfer",
-            },
-            {
-              label: pl ? "ZAPROŚ\nDO UMOWY" : "CONTRACT\nINVITE",
-              icon: <UserPlus className="w-6 h-6" />,
-              onClick: () => setLocation("/transfer/invite"),
-              testId: "tile-contract-invite",
-            },
-          ].map((tile) => (
+      <main className="px-6 py-5 relative z-10 flex-1 space-y-6">
+
+        {/* Quick method chips — only for send/request, not message */}
+        {mode !== "message" && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+
+            {/* 3 compact method pills */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {[
+                { label: pl ? "Konto bankowe" : "Bank account", icon: <Building2 size={14} />, onClick: () => setLocation(`/transfer/new?to=bank&mode=${mode}`), testId: "tile-bank-account" },
+                { label: pl ? "Na kartę" : "To card",           icon: <FileText size={14} />,   onClick: () => setLocation(`/transfer/new?to=card&mode=${mode}`), testId: "tile-card-payout" },
+                { label: pl ? "Telefon" : "Phone",              icon: <Phone size={14} />,      onClick: () => setLocation(`/transfer/new?to=phone&mode=${mode}`), testId: "tile-phone-transfer" },
+              ].map(pill => (
+                <button
+                  key={pill.testId}
+                  data-testid={pill.testId}
+                  onClick={pill.onClick}
+                  style={{
+                    flex: 1,
+                    height: 44,
+                    borderRadius: 22,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    cursor: "pointer",
+                    color: "rgba(255,255,255,0.65)",
+                    fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+                    transition: "all 0.15s ease",
+                    whiteSpace: "nowrap",
+                  }}
+                  onMouseDown={e => { e.currentTarget.style.transform = "scale(0.95)"; e.currentTarget.style.background = "rgba(255,255,255,0.09)"; }}
+                  onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                  onTouchStart={e => { e.currentTarget.style.transform = "scale(0.95)"; e.currentTarget.style.background = "rgba(255,255,255,0.09)"; }}
+                  onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                >
+                  <span style={{ color: "var(--primary, #D4A020)", opacity: 0.9 }}>{pill.icon}</span>
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Create contract — full width featured tile */}
             <div
-              key={tile.testId}
-              data-testid={tile.testId}
-              onClick={tile.onClick}
+              data-testid="tile-create-contract"
+              onClick={() => setLocation("/agreements/new")}
               style={{
-                aspectRatio: "1 / 1",
-                borderRadius: 20,
-                background: "rgba(255,255,255,0.03)",
-                border: "1.5px solid rgba(255,255,255,0.08)",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                cursor: "pointer",
-                position: "relative",
-                overflow: "hidden",
-                transition: "all 0.18s ease",
+                height: 72,
+                borderRadius: 18,
+                background: "linear-gradient(135deg, #6d28d9 0%, #4338ca 100%)",
+                border: "1.5px solid #9333ea",
+                boxShadow: "0 4px 24px rgba(147,51,234,0.45), 0 1px 0 rgba(255,255,255,0.12) inset",
+                display: "flex", alignItems: "center", gap: 14, padding: "0 18px",
+                cursor: "pointer", position: "relative", overflow: "hidden",
+                transition: "all 0.15s ease",
               }}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.94)"; }}
+              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
               onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
               onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.94)"; }}
+              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
               onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
             >
-              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1, background: "rgba(255,255,255,0.14)", pointerEvents: "none" }} />
-              <span style={{ color: "var(--primary, #D4A020)", filter: "drop-shadow(0 0 6px rgba(212,160,32,0.5))" }}>
-                {tile.icon}
-              </span>
-              <span style={{
-                fontSize: 10, fontWeight: 800, letterSpacing: 1.4,
-                color: "rgba(255,255,255,0.70)", textAlign: "center",
-                lineHeight: 1.3, whiteSpace: "pre-line",
-              }}>
-                {tile.label}
-              </span>
-            </div>
-          ))}
-
-          {/* Featured tile — create contract, full width */}
-          <div
-            data-testid="tile-create-contract"
-            onClick={() => setLocation("/agreements/new")}
-            style={{
-              gridColumn: "1 / -1",
-              height: 80,
-              borderRadius: 20,
-              background: "linear-gradient(135deg, #6d28d9 0%, #4338ca 100%)",
-              border: "2px solid #9333ea",
-              boxShadow: "0 4px 32px rgba(147,51,234,0.55), 0 1px 0 rgba(255,255,255,0.15) inset",
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              padding: "0 22px",
-              cursor: "pointer",
-              position: "relative",
-              overflow: "hidden",
-              transition: "all 0.18s ease",
-            }}
-            onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-            onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-            onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-            onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-          >
-            {/* glow blob */}
-            <div style={{ position: "absolute", right: -20, top: "50%", transform: "translateY(-50%)", width: 120, height: 120, borderRadius: "50%", background: "rgba(147,51,234,0.40)", filter: "blur(28px)", pointerEvents: "none" }} />
-            {/* top shimmer line */}
-            <div style={{ position: "absolute", top: 0, left: "8%", right: "8%", height: 1, background: "rgba(180,140,255,0.22)", pointerEvents: "none" }} />
-
-            <div style={{
-              width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-              background: "rgba(147,51,234,0.55)",
-              border: "1.5px solid #a855f7",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <FilePlus style={{ width: 20, height: 20, color: "#c084fc", filter: "drop-shadow(0 0 6px rgba(192,132,252,0.7))" }} />
-            </div>
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.90)", marginBottom: 3 }}>
-                {pl ? "UTWÓRZ UMOWĘ" : "CREATE CONTRACT"}
+              <div style={{ position: "absolute", right: -16, top: "50%", transform: "translateY(-50%)", width: 100, height: 100, borderRadius: "50%", background: "rgba(147,51,234,0.35)", filter: "blur(24px)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", top: 0, left: "8%", right: "8%", height: 1, background: "rgba(180,140,255,0.20)", pointerEvents: "none" }} />
+              <div style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FilePlus style={{ width: 18, height: 18, color: "#e9d5ff" }} />
               </div>
-              <div style={{ fontSize: 11, color: "rgba(192,132,252,0.75)", fontWeight: 500, letterSpacing: 0.2 }}>
-                {pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.8, color: "#fff", marginBottom: 2 }}>
+                  {pl ? "Utwórz umowę" : "Create contract"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(233,213,255,0.70)", fontWeight: 500 }}>
+                  {pl ? "Usługa, wynajem, sprzedaż, IT…" : "Service, rental, sale, IT…"}
+                </div>
               </div>
+              <ArrowUpRight style={{ width: 15, height: 15, color: "rgba(233,213,255,0.55)", flexShrink: 0 }} />
             </div>
 
-            <ArrowUpRight style={{ width: 16, height: 16, color: "rgba(192,132,252,0.60)", flexShrink: 0 }} />
-          </div>
-        </motion.div>}
+          </motion.div>
+        )}
 
         {/* Contacts List */}
         {filteredContacts.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="space-y-4"
+            transition={{ delay: 0.08 }}
+            className="space-y-3"
           >
             {searchTerm === "" && (
-              <div className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-widest text-muted-foreground mb-4">
-                <Calendar className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <Calendar className="w-3 h-3" />
                 <span>{pl ? "Ostatnie" : "Recent"}</span>
               </div>
             )}
-            
-            <div className="bg-card border border-white/5 rounded-3xl shadow-premium overflow-hidden">
+
+            <div className="bg-card border border-white/5 rounded-2xl overflow-hidden">
               {filteredContacts.map((contact, i) => (
-                <div 
+                <div
                   key={contact.id}
                   onClick={() => {
                     if (mode === "message") {
@@ -217,7 +171,7 @@ export default function ContactSelection() {
                   }}
                   className={`flex items-center gap-4 p-4 cursor-pointer hover:bg-secondary/50 transition-colors ${i !== filteredContacts.length - 1 ? 'border-b border-white/5' : ''}`}
                 >
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold shadow-inner-glow border border-white/5 ${contact.color}`}>
+                  <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold shadow-inner-glow border border-white/5 ${contact.color}`}>
                     {contact.initials}
                   </div>
                   <div className="flex-1">

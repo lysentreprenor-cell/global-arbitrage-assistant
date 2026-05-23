@@ -362,7 +362,7 @@ export default function Dashboard() {
                 background: `linear-gradient(90deg, ${th.glow}, transparent)` }} />
             </div>
 
-            <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ marginTop: 28 }}>
               <button
                 data-testid="btn-add-funds"
                 onClick={() => setLocation("/wallet/top-up")}
@@ -372,7 +372,7 @@ export default function Dashboard() {
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
-                  height: 56, borderRadius: 999, border: "none", cursor: "pointer",
+                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
                   fontSize: 14, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
                   background: th.primaryGradient,
                   boxShadow: th.primaryBtnShadow,
@@ -384,28 +384,6 @@ export default function Dashboard() {
                   background: "linear-gradient(180deg, rgba(255,255,255,0.24) 0%, transparent 100%)",
                   borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
                 {t.addFunds}
-              </button>
-
-              <button
-                data-testid="btn-transfer"
-                onClick={() => setLocation("/transfer")}
-                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                style={{
-                  height: 56, borderRadius: 999, cursor: "pointer",
-                  fontSize: 14, fontWeight: 700,
-                  color: th.secondaryBtnColor,
-                  letterSpacing: 0.3,
-                  background: th.secondaryBtnBg,
-                  border: `1px solid ${th.secondaryBtnBorder}`,
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.20)",
-                  transition: "transform 0.15s ease",
-                }}
-              >
-                {t.transfer}
               </button>
             </div>
           </div>
