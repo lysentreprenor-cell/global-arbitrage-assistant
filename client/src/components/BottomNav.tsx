@@ -133,11 +133,7 @@ export function BottomNav() {
                 background: "linear-gradient(180deg, rgba(255,255,255,0.28) 0%, transparent 100%)",
                 borderRadius: "0 0 50% 50%", pointerEvents: "none",
               }} />
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, position: "relative" }}>
-                <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: 0.6, color: th.orbColor, opacity: 0.85, lineHeight: 1 }}>WYŚLIJ</span>
-                <ArrowRightLeft size={17} />
-                <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: 0.6, color: th.orbColor, opacity: 0.85, lineHeight: 1 }}>POPROŚ</span>
-              </div>
+              <ArrowRightLeft size={22} />
             </a>
           </Link>
         ) : <div style={{ width: 68 }} />}
