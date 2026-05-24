@@ -456,7 +456,7 @@ export default function Dashboard() {
                 {t.addFunds}
               </button>
 
-              {/* Niebieski 3D — Nowa umowa */}
+              {/* Fiolet→Złoty 3D — Nowa umowa */}
               <button
                 data-testid="btn-new-agreement-pill"
                 onClick={() => setLocation("/agreements/new?new=1")}
@@ -467,9 +467,9 @@ export default function Dashboard() {
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
                   flex: 1, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 13, fontWeight: 800, color: "#06143a", letterSpacing: 0.3,
-                  background: "linear-gradient(180deg, #93c5fd 0%, #60a5fa 22%, #2563eb 62%, #1d4ed8 100%)",
-                  boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.80), inset 0 -2px 0 rgba(0,0,0,0.22), 0 3px 0 rgba(10,30,120,0.90), 0 8px 20px rgba(37,99,235,0.55)",
+                  fontSize: 13, fontWeight: 800, color: "#000", letterSpacing: 0.3,
+                  background: "linear-gradient(135deg, #7c3aed, #d4a020)",
+                  boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.30), inset 0 -2px 0 rgba(0,0,0,0.22), 0 3px 0 rgba(80,20,140,0.90), 0 8px 20px rgba(124,58,237,0.45)",
                   position: "relative", overflow: "hidden",
                   transition: "transform 0.15s ease",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
