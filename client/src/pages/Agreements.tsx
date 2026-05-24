@@ -8,6 +8,7 @@ import { realtimeDb } from "@/lib/firebase";
 import { useAppStore, formatMoney, type CurrencyCode } from "@/lib/store";
 import { useLang } from "@/context/LanguageContext";
 import { useNotificationsSummary } from "@/hooks/useNotificationsSummary";
+import { useTheme } from "@/context/ThemeContext";
 
 export type AgreementStatus =
   | "pending_acceptance"
@@ -86,6 +87,7 @@ export default function Agreements() {
   const [, setLocation] = useLocation();
   const { user } = useAppStore();
   const { t } = useLang();
+  const { th } = useTheme();
   const { unreadCount: notifUnread } = useNotificationsSummary();
   const [tab, setTab] = useState<Tab>("active");
   const [agreements, setAgreements] = useState<Agreement[]>([]);
@@ -160,7 +162,7 @@ export default function Agreements() {
 
   return (
     <div className="min-h-screen bg-background pb-32 relative overflow-x-hidden flex flex-col">
-      <div className="absolute top-[-10%] right-[-10%] w-[300px] h-[300px] bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
+      <div className="absolute top-0 right-0 w-full h-[300px] bg-primary/5 blur-[100px] pointer-events-none" />
 
       <header className="px-6 pt-14 pb-4 sticky top-0 bg-background/90 backdrop-blur-xl z-20 border-b border-border">
         <div className="flex items-center justify-between mb-4">
@@ -191,7 +193,7 @@ export default function Agreements() {
             <Button
               data-testid="button-new-agreement"
               onClick={() => setLocation("/agreements/new")}
-              className="h-10 px-4 rounded-full bg-purple-500/15 text-purple-600 border border-purple-500/25 hover:bg-purple-500/25 text-[13px] font-bold tracking-widest dark:text-purple-300"
+              className="h-10 px-4 rounded-full bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 text-[13px] font-bold tracking-widest"
             >
               <Plus className="w-4 h-4 mr-1" />
               {t.agreeNewContract}
@@ -207,8 +209,8 @@ export default function Agreements() {
               onClick={() => setTab(tb.key)}
               className="flex-1 relative py-2 rounded-xl text-[13px] font-bold tracking-wider transition-all"
               style={{
-                background: tab === tb.key ? "rgba(180,141,255,0.15)" : "transparent",
-                color: tab === tb.key ? "#9333ea" : "var(--color-muted-foreground)",
+                background: tab === tb.key ? `${th.primary}22` : "transparent",
+                color: tab === tb.key ? th.primary : "var(--color-muted-foreground)",
               }}
             >
               {tb.label}
@@ -216,8 +218,8 @@ export default function Agreements() {
                 <span style={{
                   position: "absolute", top: 4, right: 4,
                   minWidth: 14, height: 14, borderRadius: 999,
-                  background: tab === tb.key ? "#9333ea" : "var(--color-muted)",
-                  color: tab === tb.key ? "#ffffff" : "var(--color-muted-foreground)",
+                  background: tab === tb.key ? th.primary : "var(--color-muted)",
+                  color: tab === tb.key ? "#000" : "var(--color-muted-foreground)",
                   fontSize: 10, fontWeight: 800,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   padding: "0 3px",
@@ -233,7 +235,7 @@ export default function Agreements() {
       <main className="px-4 py-4 flex-1">
         {loading ? (
           <div className="flex justify-center items-center py-20">
-            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         ) : displayed.length === 0 ? (
           <motion.div
@@ -241,15 +243,15 @@ export default function Agreements() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center justify-center py-20 text-center"
           >
-            <div className="w-20 h-20 rounded-3xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-5">
-              <FileText className="w-8 h-8 text-purple-400/40" />
+            <div className="w-20 h-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-5">
+              <FileText className="w-8 h-8 text-primary/40" />
             </div>
             <h3 className="text-lg font-heading text-foreground/80 mb-2">{t.agreeEmpty}</h3>
             <p className="text-sm text-muted-foreground max-w-[220px]">{t.agreeEmptyDesc}</p>
             {tab === "active" && (
               <Button
                 onClick={() => setLocation("/agreements/new")}
-                className="mt-6 rounded-xl bg-purple-500/15 text-purple-600 border border-purple-500/25 hover:bg-purple-500/25 font-bold dark:text-purple-300"
+                className="mt-6 rounded-xl bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 font-bold"
               >
                 {t.agreeNewBtn}
               </Button>
@@ -319,7 +321,7 @@ export default function Agreements() {
                           </>
                         )}
                       </div>
-                      <span className="text-[12px] font-bold tracking-widest text-purple-400 uppercase">
+                      <span className="text-[12px] font-bold tracking-widest text-primary uppercase">
                         {t.agreeOpenBtn} →
                       </span>
                     </div>

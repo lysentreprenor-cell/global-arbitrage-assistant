@@ -309,7 +309,7 @@ export default function MessagesPage() {
   return (
     <div className="h-[100dvh] max-h-[100dvh] bg-background flex flex-col relative overflow-hidden">
       {/* Ambient glow */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-primary/5 rounded-full blur-[100px] pointer-events-none" aria-hidden />
+      <div className="absolute top-0 right-0 w-full h-[300px] bg-primary/5 blur-[100px] pointer-events-none" aria-hidden />
 
       {/* Toast */}
       <AnimatePresence>
