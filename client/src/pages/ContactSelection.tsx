@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, X, CalendarDays, Repeat, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, CORE_WALLET_CURRENCIES, CURRENCY_SYMBOLS, WALLET_FLAGS } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,6 +27,14 @@ export default function ContactSelection() {
   const { lang } = useLang();
   const { toast } = useToast();
   const pl = lang === "pl";
+
+  // Loan P2P state
+  const [showLoanModal, setShowLoanModal] = useState(searchParams.get("mode") === "loan");
+  const [loanAmount, setLoanAmount] = useState("");
+  const [loanDueDate, setLoanDueDate] = useState("");
+  const [loanInstallments, setLoanInstallments] = useState(false);
+  const [loanInstallmentCount, setLoanInstallmentCount] = useState("3");
+  const [loanSent, setLoanSent] = useState(false);
 
   useEffect(() => {
     userSearch.search(searchTerm);
@@ -429,6 +437,162 @@ export default function ContactSelection() {
                 </button>
               ))}
             </div>
+
+            {/* Pożyczka P2P — pełna szerokość */}
+            <button
+              data-testid="tile-loan-p2p"
+              onClick={() => { setShowLoanModal(true); setLoanSent(false); }}
+              style={{
+                marginTop: 10, width: "100%", borderRadius: 18, padding: "14px 20px",
+                background: "rgba(212,160,32,0.07)",
+                border: "1px solid rgba(212,160,32,0.22)",
+                display: "flex", alignItems: "center", gap: 14,
+                cursor: "pointer", transition: "all 0.15s ease",
+              }}
+              onMouseDown={e => { e.currentTarget.style.background = "rgba(212,160,32,0.13)"; e.currentTarget.style.transform = "scale(0.98)"; }}
+              onMouseUp={e => { e.currentTarget.style.background = "rgba(212,160,32,0.07)"; e.currentTarget.style.transform = "scale(1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,160,32,0.07)"; e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={e => { e.currentTarget.style.background = "rgba(212,160,32,0.13)"; e.currentTarget.style.transform = "scale(0.98)"; }}
+              onTouchEnd={e => { e.currentTarget.style.background = "rgba(212,160,32,0.07)"; e.currentTarget.style.transform = "scale(1)"; }}
+            >
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(212,160,32,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Banknote size={20} style={{ color: "var(--primary, #D4A020)" }} />
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.88)" }}>{pl ? "Pożyczka P2P" : "P2P Loan"}</div>
+                <div style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.38)" }}>{pl ? "Dla znajomego lub rodziny" : "For a friend or family"}</div>
+              </div>
+            </button>
+
+            {/* Modal Pożyczka P2P */}
+            <AnimatePresence>
+              {showLoanModal && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+                  onClick={e => { if (e.target === e.currentTarget) setShowLoanModal(false); }}
+                >
+                  <motion.div
+                    initial={{ y: 80, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 80, opacity: 0 }}
+                    transition={{ type: "spring", damping: 26, stiffness: 300 }}
+                    style={{ width: "100%", maxWidth: 480, background: "var(--card, #111)", borderRadius: "24px 24px 0 0", padding: "28px 24px 48px", border: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(212,160,32,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Banknote size={18} style={{ color: "var(--primary, #D4A020)" }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>{pl ? "Pożyczka P2P" : "P2P Loan"}</div>
+                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.38)" }}>{pl ? "Dla znajomego lub rodziny" : "For friend or family"}</div>
+                        </div>
+                      </div>
+                      <button onClick={() => setShowLoanModal(false)} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                        <X size={16} style={{ color: "rgba(255,255,255,0.5)" }} />
+                      </button>
+                    </div>
+
+                    {loanSent ? (
+                      <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+                        <CheckCircle2 size={48} style={{ color: "var(--primary, #D4A020)", marginBottom: 12 }} />
+                        <div style={{ fontSize: 18, fontWeight: 800, color: "rgba(255,255,255,0.9)", marginBottom: 6 }}>{pl ? "Umowa wysłana!" : "Loan request sent!"}</div>
+                        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 24 }}>{pl ? "Drugą stronę poinformujemy o szczegółach pożyczki." : "The other party will be notified of the loan details."}</div>
+                        <button onClick={() => setShowLoanModal(false)} style={{ background: "var(--primary, #D4A020)", color: "#000", border: "none", borderRadius: 12, padding: "12px 32px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>{pl ? "Gotowe" : "Done"}</button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Kwota */}
+                        <div style={{ marginBottom: 16 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 6 }}>{pl ? "Kwota pożyczki" : "Loan amount"}</label>
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={loanAmount}
+                              onChange={e => setLoanAmount(e.target.value)}
+                              style={{ width: "100%", padding: "14px 48px 14px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 18, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                            />
+                            <span style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.35)" }}>PLN</span>
+                          </div>
+                        </div>
+
+                        {/* Termin spłaty */}
+                        <div style={{ marginBottom: 16 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 6 }}>
+                            <CalendarDays size={12} style={{ display: "inline", marginRight: 5 }} />{pl ? "Termin spłaty" : "Repayment date"}
+                          </label>
+                          <input
+                            type="date"
+                            value={loanDueDate}
+                            onChange={e => setLoanDueDate(e.target.value)}
+                            min={new Date().toISOString().split("T")[0]}
+                            style={{ width: "100%", padding: "12px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: loanDueDate ? "white" : "rgba(255,255,255,0.3)", fontSize: 15, fontWeight: 600, outline: "none", boxSizing: "border-box", colorScheme: "dark" }}
+                          />
+                        </div>
+
+                        {/* Jednorazowo / Na raty */}
+                        <div style={{ marginBottom: 20 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 8 }}>
+                            <Repeat size={12} style={{ display: "inline", marginRight: 5 }} />{pl ? "Sposób spłaty" : "Repayment method"}
+                          </label>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            {[
+                              { key: false, label: pl ? "Jednorazowo" : "One-time", sub: pl ? "Całość na raz" : "Full amount" },
+                              { key: true,  label: pl ? "Na raty" : "Installments", sub: pl ? "Kilka spłat" : "Multiple payments" },
+                            ].map(opt => (
+                              <button
+                                key={String(opt.key)}
+                                onClick={() => setLoanInstallments(opt.key)}
+                                style={{
+                                  borderRadius: 14, padding: "12px 10px", cursor: "pointer",
+                                  background: loanInstallments === opt.key ? "rgba(212,160,32,0.14)" : "rgba(255,255,255,0.04)",
+                                  border: `1.5px solid ${loanInstallments === opt.key ? "rgba(212,160,32,0.50)" : "rgba(255,255,255,0.08)"}`,
+                                  display: "flex", flexDirection: "column", gap: 3,
+                                }}
+                              >
+                                <span style={{ fontSize: 13, fontWeight: 800, color: loanInstallments === opt.key ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.75)" }}>{opt.label}</span>
+                                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{opt.sub}</span>
+                              </button>
+                            ))}
+                          </div>
+
+                          {loanInstallments && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} style={{ overflow: "hidden", marginTop: 10 }}>
+                              <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.40)", display: "block", marginBottom: 6 }}>{pl ? "Liczba rat" : "Number of installments"}</label>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                {["2", "3", "4", "6", "12"].map(n => (
+                                  <button key={n} onClick={() => setLoanInstallmentCount(n)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1.5px solid ${loanInstallmentCount === n ? "rgba(212,160,32,0.5)" : "rgba(255,255,255,0.08)"}`, background: loanInstallmentCount === n ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.03)", color: loanInstallmentCount === n ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{n}x</button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+
+                        {/* Wyślij */}
+                        <button
+                          onClick={() => {
+                            if (!loanAmount || !loanDueDate) {
+                              toast({ title: pl ? "Uzupełnij kwotę i termin spłaty" : "Fill in amount and due date", variant: "destructive" });
+                              return;
+                            }
+                            setLoanSent(true);
+                          }}
+                          style={{ width: "100%", padding: "15px", borderRadius: 16, background: "var(--primary, #D4A020)", color: "#000", border: "none", fontSize: 15, fontWeight: 900, cursor: "pointer", letterSpacing: 0.3 }}
+                        >
+                          {pl ? "Wyślij umowę pożyczki" : "Send loan agreement"}
+                        </button>
+                      </>
+                    )}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
           </motion.div>
         )}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { User, Settings, Bell, Shield, LogOut, HelpCircle, ChevronRight, Sparkles, ArrowLeft, Users, Star, SplitSquareHorizontal, RefreshCw, PiggyBank, BadgeCheck, Gift, CreditCard, Lock, Palette, History } from "lucide-react";
+import { User, Settings, Bell, Shield, LogOut, HelpCircle, ChevronRight, Sparkles, ArrowLeft, Users, Star, SplitSquareHorizontal, RefreshCw, PiggyBank, BadgeCheck, Gift, CreditCard, Lock, Palette, History, Banknote } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -128,6 +128,7 @@ export default function Profile() {
   ];
 
   const financialItems = [
+    { icon: Banknote,              label: pl ? "Pożyczka P2P"          : "P2P Loan",            route: "/transfer?mode=loan" },
     { icon: SplitSquareHorizontal, label: pl ? "Podziel rachunek"      : "Split Bill",          route: "/split" },
     { icon: RefreshCw,             label: pl ? "Zlecenia stałe"        : "Recurring Payments",  route: "/recurring" },
     { icon: PiggyBank,             label: pl ? "Cele oszczędnościowe"  : "Savings Goals",       route: "/savings" },
