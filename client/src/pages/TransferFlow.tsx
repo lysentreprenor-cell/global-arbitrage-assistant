@@ -137,7 +137,7 @@ function PinScreen({ onConfirm, onBack }: { onConfirm: () => void; onBack: () =>
   const numPadKeys = ["1","2","3","4","5","6","7","8","9","","0","del"];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 24px", minHeight: "100vh", background: "var(--background)" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 24px", minHeight: "100vh", background: "var(--background)", overflowX: "hidden" }}>
       <button data-testid="pin-back" onClick={onBack} style={{ alignSelf: "flex-start", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", marginBottom: 40 }}>
         <ArrowLeft size={20} />
       </button>
@@ -196,7 +196,7 @@ function ConfirmScreen({
 }) {
   const sym = CURRENCY_SYMBOLS[currency as CurrencyCode] || currency;
   return (
-    <div style={{ padding: "0 0 24px", display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--background)" }}>
+    <div style={{ padding: "0 0 24px", display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--background)", overflowX: "hidden" }}>
       <div style={{ padding: "60px 24px 20px" }}>
         <button data-testid="confirm-back" onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
           <ArrowLeft size={18} /> <span style={{ fontSize: 14 }}>Wróć</span>
@@ -264,7 +264,7 @@ function SuccessScreen({ reference, onDone }: { reference: string; onDone: () =>
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "0 28px", background: "var(--background)" }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "0 28px", background: "var(--background)", overflowX: "hidden" }}
     >
       <motion.div
         initial={{ scale: 0 }}
@@ -300,7 +300,7 @@ function SuccessScreen({ reference, onDone }: { reference: string; onDone: () =>
 // ── ERROR SCREEN ───────────────────────────────────────────────────────────────
 function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "0 28px", background: "var(--background)" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "0 28px", background: "var(--background)", overflowX: "hidden" }}>
       <div style={{ width: 88, height: 88, borderRadius: "50%", background: "rgba(248,113,113,0.12)", border: "2px solid rgba(248,113,113,0.30)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
         <XCircle size={44} style={{ color: "#f87171" }} />
       </div>
@@ -331,7 +331,7 @@ function SandboxPinScreen({ onConfirm, onBack }: { onConfirm: () => void; onBack
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--background)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", overflowX: "hidden" }}>
       <div style={{ textAlign: "center", marginBottom: 32 }}>
         <div style={{ width: 64, height: 64, borderRadius: 20, background: "rgba(212,160,32,0.12)", border: "1px solid rgba(212,160,32,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <ShieldCheck size={28} style={{ color: "#d4a020" }} />
@@ -441,7 +441,7 @@ function BankTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { use
   if (step === "error") return <ErrorScreen message={errorMsg} onRetry={() => setStep("form")} />;
 
   return (<>
-    <div style={{ minHeight: "100vh", background: "var(--background)", paddingBottom: 120 }}>
+    <div style={{ minHeight: "100vh", background: "var(--background)", paddingBottom: 120, overflowX: "hidden" }}>
       <div style={{ padding: "60px 24px 24px" }}>
         <button data-testid="bank-back" onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: 6, marginBottom: 24 }}>
           <ArrowLeft size={18} /> <span style={{ fontSize: 14 }}>Wróć</span>
@@ -620,7 +620,7 @@ function CardPayoutFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { user:
   if (step === "error") return <ErrorScreen message={errorMsg} onRetry={() => setStep("form")} />;
 
   return (<>
-    <div style={{ minHeight: "100vh", background: "var(--background)", paddingBottom: 120 }}>
+    <div style={{ minHeight: "100vh", background: "var(--background)", paddingBottom: 120, overflowX: "hidden" }}>
       <div style={{ padding: "60px 24px 24px" }}>
         <button data-testid="card-back" onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: 6, marginBottom: 24 }}>
           <ArrowLeft size={18} /> <span style={{ fontSize: 14 }}>Wróć</span>
@@ -776,7 +776,7 @@ function PhoneTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { us
   if (step === "error") return <ErrorScreen message={errorMsg} onRetry={() => setStep("form")} />;
 
   return (<>
-    <div style={{ minHeight: "100vh", background: "var(--background)", paddingBottom: 120 }}>
+    <div style={{ minHeight: "100vh", background: "var(--background)", paddingBottom: 120, overflowX: "hidden" }}>
       <div style={{ padding: "60px 24px 24px" }}>
         <button data-testid="phone-back" onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: 6, marginBottom: 24 }}>
           <ArrowLeft size={18} /> <span style={{ fontSize: 14 }}>Wróć</span>
@@ -899,7 +899,7 @@ export default function TransferFlow() {
   // Fail-closed auth guard — requires server-confirmed session (not just stale cache)
   if (!user || !sessionConfirmed) {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--background)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "0 24px" }}>
+      <div style={{ minHeight: "100vh", background: "var(--background)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "0 24px", overflowX: "hidden" }}>
         <ShieldCheck size={40} style={{ color: "rgba(212,160,32,0.6)" }} />
         <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", textAlign: "center" }} data-testid="transfer-auth-guard">
           Zaloguj się, aby kontynuować
