@@ -309,7 +309,7 @@ export default function MessagesPage() {
   return (
     <div className="h-[100dvh] max-h-[100dvh] bg-background flex flex-col relative overflow-hidden">
       {/* Ambient glow */}
-      <div className="absolute top-0 right-0 w-full h-[300px] bg-primary/5 blur-[100px] pointer-events-none" aria-hidden />
+      <div className="absolute top-0 right-0 w-full h-[300px] bg-purple-500/10 blur-[100px] pointer-events-none" aria-hidden />
 
       {/* Toast */}
       <AnimatePresence>
@@ -460,8 +460,8 @@ export default function MessagesPage() {
           </div>
         ) : filteredConversations.length === 0 && !showUserResults ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-20 h-20 rounded-3xl bg-secondary border border-border flex items-center justify-center mb-5">
-              <MessageSquare className="w-8 h-8 text-muted-foreground/40" />
+            <div className="w-20 h-20 rounded-3xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-5">
+              <MessageSquare className="w-8 h-8 text-purple-400" />
             </div>
             <h3 className="font-heading text-xl text-foreground mb-2">
               {filter === "unread" ? "Brak nieprzeczytanych"

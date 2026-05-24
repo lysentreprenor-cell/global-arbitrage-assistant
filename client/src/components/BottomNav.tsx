@@ -121,9 +121,9 @@ export function BottomNav() {
               style={{
                 width: 68, height: 68, borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#0a1e0d",
-                background: "radial-gradient(circle at 35% 28%, #e0ffe0 0%, #4ade80 28%, #16a34a 65%, #0d6b30 100%)",
-                boxShadow: "inset 0 2px 4px rgba(180,255,180,0.60), inset 0 -3px 6px rgba(0,0,0,0.28), 0 3px 0 rgba(10,100,30,0.90), 0 10px 28px rgba(50,200,80,0.55), 0 0 0 1px rgba(100,240,120,0.24)",
+                color: th.orbColor,
+                background: th.orbBg,
+                boxShadow: th.orbShadow,
                 textDecoration: "none", position: "relative", overflow: "hidden",
                 transition: "background 0.5s ease, box-shadow 0.5s ease",
               }}
