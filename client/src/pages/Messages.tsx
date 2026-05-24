@@ -387,12 +387,16 @@ export default function MessagesPage() {
 
           {/* Filter chips */}
           {!showUserResults && (
-            <div className="flex gap-2 pb-1">
+            <div className="flex gap-1 bg-secondary/40 rounded-2xl p-1">
               {FILTERS.map(f => (
                 <button
                   key={f.key}
                   onClick={() => setFilter(f.key)}
-                  className={`px-3.5 py-1.5 rounded-full text-[13px] font-bold uppercase tracking-wider transition-colors ${filter === f.key ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground border border-border hover:border-primary/30"}`}
+                  className="flex-1 py-2 rounded-xl text-[13px] font-bold tracking-wider transition-all"
+                  style={{
+                    background: filter === f.key ? "rgba(124,58,237,0.18)" : "transparent",
+                    color: filter === f.key ? "#a855f7" : "var(--color-muted-foreground)",
+                  }}
                   data-testid={`filter-${f.key}`}
                 >
                   {f.label}{f.key === "unread" && totalUnread > 0 ? ` (${totalUnread})` : ""}
