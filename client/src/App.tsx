@@ -96,6 +96,22 @@ function AuthSplash() {
   );
 }
 
+function ResellRouter() {
+  return (
+    <div style={{ width: "100%", minHeight: "100dvh", background: "#0a0a14" }}>
+      <Switch>
+        <Route path="/resell" component={ResellDashboard} />
+        <Route path="/resell/add" component={ResellAddProduct} />
+        <Route path="/resell/analysis/:id" component={ResellAnalysis} />
+        <Route path="/resell/calculator" component={ResellCalculator} />
+        <Route path="/resell/compliance" component={ResellCompliance} />
+        <Route path="/resell/generator" component={ResellGenerator} />
+        <Route path="/resell/history" component={ResellHistory} />
+      </Switch>
+    </div>
+  );
+}
+
 function Router() {
   const { isAuthenticated, authLoading, user } = useAppStore();
   const { isEnabled } = useFeatures();
@@ -107,6 +123,11 @@ function Router() {
       setLocation("/");
     }
   }, [isAuthenticated, location, setLocation]);
+
+  // Resell Assistant is publicly accessible — no login required
+  if (location === "/resell" || location.startsWith("/resell/")) {
+    return <ResellRouter />;
+  }
 
   // While /api/me is in flight, show a neutral splash so no auth screen flashes.
   // AnimatePresence handles the fade-out when authLoading → false.
@@ -167,13 +188,6 @@ function Router() {
         <Route path="/kyc" component={KYCVerification} />
         <Route path="/referral" component={ReferralProgram} />
         <Route path="/verify-email" component={VerifyEmail} />
-        <Route path="/resell" component={ResellDashboard} />
-        <Route path="/resell/add" component={ResellAddProduct} />
-        <Route path="/resell/analysis/:id" component={ResellAnalysis} />
-        <Route path="/resell/calculator" component={ResellCalculator} />
-        <Route path="/resell/compliance" component={ResellCompliance} />
-        <Route path="/resell/generator" component={ResellGenerator} />
-        <Route path="/resell/history" component={ResellHistory} />
         <Route component={NotFound} />
       </Switch>
       <BottomNav />
