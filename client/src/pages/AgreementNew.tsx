@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, type CurrencyCode } from "@/lib/store";
-import { useSearch } from "wouter";
+import { useSearch, useLocation } from "wouter";
 
 // ——— Types
 type Category = "usluga" | "remont" | "sprzedaz" | "wynajem" | "wlasna" | "wypozyczenie" | "korepetycje" | "opieka" | "rezerwacja";
@@ -424,13 +424,14 @@ const CAT_LABELS: Record<string, string> = {
 };
 
 // ——— HOME SCREEN
-function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContract }: {
+function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContract, onBack }: {
   onNew: () => void;
   onResume: () => void;
   onTemplate: (preset: Partial<WizardData>) => void;
   draft: { data: WizardData; stepIndex: number } | null;
   contracts: SavedContract[];
   onOpenContract: (c: SavedContract) => void;
+  onBack: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "done" | "action">("all");
@@ -509,10 +510,18 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-background)", maxWidth: "min(560px, 100vw)", margin: "0 auto", padding: "24px 16px 100px", boxSizing: "border-box" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-        <div>
-          <div style={{ color: "var(--color-primary)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>ItemPrise</div>
-          <h1 style={{ color: "var(--color-foreground)", fontSize: 26, fontWeight: 900, margin: 0, lineHeight: 1.2 }}>Moje umowy</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={onBack}
+            style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "rgba(255,255,255,0.7)" }}><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          </button>
+          <div>
+            <div style={{ color: "var(--color-primary)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>ItemPrise</div>
+            <h1 style={{ color: "var(--color-foreground)", fontSize: 26, fontWeight: 900, margin: 0, lineHeight: 1.2 }}>Moje umowy</h1>
+          </div>
         </div>
         <button onClick={onNew} style={{ background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: 12, padding: "10px 18px", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>+ Nowa</button>
       </div>
@@ -1113,6 +1122,7 @@ export default function AgreementNew() {
   const { user } = useAppStore();
   const defaultCurrency: CurrencyCode = ((user as any)?.currency as CurrencyCode) || "PLN";
   const search = useSearch();
+  const [, setLocation] = useLocation();
   const forceNew = new URLSearchParams(search).get("new") === "1";
   const [view, setView] = useState<"home" | "wizard">(() => {
     if (forceNew) return "wizard";
@@ -1340,6 +1350,7 @@ export default function AgreementNew() {
         draft={draft}
         contracts={savedContracts}
         onOpenContract={openContract}
+        onBack={() => setLocation("/")}
       />
     );
   }
