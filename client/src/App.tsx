@@ -100,6 +100,7 @@ function ResellRouter() {
   return (
     <div style={{ width: "100%", minHeight: "100dvh", background: "#0a0a14" }}>
       <Switch>
+        <Route path="/" component={ResellDashboard} />
         <Route path="/resell" component={ResellDashboard} />
         <Route path="/resell/add" component={ResellAddProduct} />
         <Route path="/resell/analysis/:id" component={ResellAnalysis} />
@@ -124,8 +125,8 @@ function Router() {
     }
   }, [isAuthenticated, location, setLocation]);
 
-  // Resell Assistant is publicly accessible — no login required
-  if (location === "/resell" || location.startsWith("/resell/")) {
+  // Resell Assistant is publicly accessible at / and /resell/* — no login required
+  if (location === "/" || location === "/resell" || location.startsWith("/resell/")) {
     return <ResellRouter />;
   }
 
