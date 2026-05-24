@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, X, CalendarDays, Repeat, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, CORE_WALLET_CURRENCIES, CURRENCY_SYMBOLS, WALLET_FLAGS } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,14 +28,6 @@ export default function ContactSelection() {
   const { toast } = useToast();
   const pl = lang === "pl";
 
-  // Loan P2P state
-  const [showLoanModal, setShowLoanModal] = useState(searchParams.get("mode") === "loan");
-  const [loanAmount, setLoanAmount] = useState("");
-  const [loanCurrency, setLoanCurrency] = useState("PLN");
-  const [loanDueDate, setLoanDueDate] = useState("");
-  const [loanInstallments, setLoanInstallments] = useState(false);
-  const [loanInstallmentCount, setLoanInstallmentCount] = useState("3");
-  const [loanSent, setLoanSent] = useState(false);
 
   useEffect(() => {
     userSearch.search(searchTerm);
@@ -415,7 +406,7 @@ export default function ContactSelection() {
                 { label: pl ? "Na kartę" : "Card",         sub: pl ? "Numer karty" : "Card number",    icon: <FileText size={20} />,    onClick: () => setLocation(`/transfer/new?to=card${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-card-payout",     span: false },
                 { label: pl ? "Telefon" : "Phone",         sub: pl ? "Numer tel." : "Phone",           icon: <Phone size={20} />,       onClick: () => setLocation(`/transfer/new?to=phone${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-phone-transfer",  span: false },
                 { label: pl ? "Poproś" : "Request",        sub: pl ? "Poproś o przelew" : "Request",   icon: <ArrowUpRight size={20} />, onClick: () => setActiveMode("request"),                                                              testId: "tile-request-from-send", span: false },
-                { label: pl ? "Pożyczka P2P" : "P2P Loan", sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, onClick: () => { setShowLoanModal(true); setLoanSent(false); }, testId: "tile-loan-p2p", span: true },
+                { label: pl ? "Pożyczka P2P" : "P2P Loan", sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, onClick: () => setLocation("/transfer/loan"), testId: "tile-loan-p2p", span: true },
               ].map(tile => (
                 <button
                   key={tile.testId}
@@ -442,10 +433,7 @@ export default function ContactSelection() {
               ))}
             </div>
 
-            {/* Modal Pożyczka P2P — portal do body żeby fixed działało poprawnie */}
-            {createPortal(
-              <AnimatePresence>
-              {showLoanModal && (
+            {false && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -589,8 +577,6 @@ export default function ContactSelection() {
                   </motion.div>
                 </motion.div>
               )}
-            </AnimatePresence>,
-            document.body
             )}
 
           </motion.div>

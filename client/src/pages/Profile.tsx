@@ -128,7 +128,7 @@ export default function Profile() {
   ];
 
   const financialItems = [
-    { icon: Banknote,              label: pl ? "Pożyczka P2P"          : "P2P Loan",            route: "/transfer?mode=loan" },
+    { icon: Banknote,              label: pl ? "Pożyczka P2P"          : "P2P Loan",            route: "/transfer/loan" },
     { icon: SplitSquareHorizontal, label: pl ? "Podziel rachunek"      : "Split Bill",          route: "/split" },
     { icon: RefreshCw,             label: pl ? "Zlecenia stałe"        : "Recurring Payments",  route: "/recurring" },
     { icon: PiggyBank,             label: pl ? "Cele oszczędnościowe"  : "Savings Goals",       route: "/savings" },

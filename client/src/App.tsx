@@ -56,6 +56,7 @@ import RecurringPayments from "@/pages/RecurringPayments";
 import SavingsGoals from "@/pages/SavingsGoals";
 import KYCVerification from "@/pages/KYCVerification";
 import ReferralProgram from "@/pages/ReferralProgram";
+import LoanFlow from "@/pages/LoanFlow";
 
 function AuthSplash() {
   return (
@@ -148,6 +149,7 @@ function Router() {
         <Route path="/users" component={UserDirectory} />
         {isEnabled("admin") && <Route path="/admin" component={AdminDashboard} />}
         <Route path="/wallet/top-up" component={WalletTopUp} />
+        <Route path="/transfer/loan" component={LoanFlow} />
         <Route path="/agreements" component={Agreements} />
         <Route path="/agreements/new" component={AgreementNew} />
         <Route path="/agreements/:id" component={AgreementDetail} />
