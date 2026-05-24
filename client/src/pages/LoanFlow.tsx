@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Banknote, CalendarDays, Repeat, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Banknote, CalendarDays, Repeat, CheckCircle2, User, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, CORE_WALLET_CURRENCIES, WALLET_FLAGS } from "@/lib/store";
 import { useLang } from "@/context/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 
+const ORB_BG = "radial-gradient(circle at 35% 28%, #fff6c0 0%, #f7d84a 28%, #c48a06 65%, #8a5e00 100%)";
+const ORB_SHADOW = "inset 0 2px 4px rgba(255,255,220,0.60), inset 0 -3px 6px rgba(0,0,0,0.28), 0 3px 0 rgba(120,80,0,0.90), 0 10px 28px rgba(200,148,20,0.55), 0 0 0 1px rgba(255,220,80,0.24)";
+
 export default function LoanFlow() {
   const [, setLocation] = useLocation();
-  const { user } = useAppStore();
   const { lang } = useLang();
   const { toast } = useToast();
   const pl = lang === "pl";
 
+  const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("PLN");
   const [dueDate, setDueDate] = useState("");
@@ -21,6 +24,10 @@ export default function LoanFlow() {
   const [sent, setSent] = useState(false);
 
   const handleSend = () => {
+    if (!recipient) {
+      toast({ title: pl ? "Wpisz odbiorcę" : "Enter recipient", variant: "destructive" });
+      return;
+    }
     if (!amount || !dueDate) {
       toast({ title: pl ? "Uzupełnij kwotę i termin spłaty" : "Fill in amount and due date", variant: "destructive" });
       return;
@@ -40,11 +47,11 @@ export default function LoanFlow() {
         </button>
         <div>
           <div style={{ fontSize: 11, fontWeight: 800, color: "var(--primary,#D4A020)", textTransform: "uppercase", letterSpacing: "0.12em" }}>Finlys</div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: "white", margin: 0 }}>{pl ? "Pożyczka P2P" : "P2P Loan"}</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 900, color: "white", margin: 0 }}>{pl ? "Pożyczka znajomemu" : "P2P Loan"}</h1>
         </div>
       </div>
 
-      <div style={{ padding: "0 24px 120px" }}>
+      <div style={{ padding: "0 24px 140px" }}>
         {sent ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -53,6 +60,7 @@ export default function LoanFlow() {
           >
             <CheckCircle2 size={64} style={{ color: "var(--primary,#D4A020)", marginBottom: 20 }} />
             <div style={{ fontSize: 24, fontWeight: 900, color: "white", marginBottom: 8 }}>{pl ? "Umowa wysłana!" : "Loan sent!"}</div>
+            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>{recipient}</div>
             <div style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
               {amount} {currency}
             </div>
@@ -68,6 +76,23 @@ export default function LoanFlow() {
           </motion.div>
         ) : (
           <>
+            {/* Odbiorca */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <User size={13} /> {pl ? "Dla kogo" : "Recipient"}
+              </label>
+              <div style={{ position: "relative" }}>
+                <User size={16} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.30)", pointerEvents: "none" }} />
+                <input
+                  type="text"
+                  placeholder={pl ? "@nick, numer tel. lub BLIK" : "@nick, phone or BLIK"}
+                  value={recipient}
+                  onChange={e => setRecipient(e.target.value)}
+                  style={{ width: "100%", padding: "14px 16px 14px 44px", borderRadius: 16, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 15, fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+
             {/* Kwota + waluta */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 8 }}>
@@ -84,7 +109,6 @@ export default function LoanFlow() {
                 />
                 <span style={{ position: "absolute", right: 18, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 800, color: "var(--primary,#D4A020)" }}>{currency}</span>
               </div>
-              {/* Waluta */}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {CORE_WALLET_CURRENCIES.map(cur => (
                   <button
@@ -118,7 +142,7 @@ export default function LoanFlow() {
             </div>
 
             {/* Sposób spłaty */}
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 36 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                 <Repeat size={13} /> {pl ? "Sposób spłaty" : "Repayment method"}
               </label>
@@ -175,19 +199,27 @@ export default function LoanFlow() {
               </AnimatePresence>
             </div>
 
-            {/* Wyślij */}
-            <button
-              onClick={handleSend}
-              style={{
-                width: "100%", padding: "16px", borderRadius: 18,
-                background: "var(--primary,#D4A020)", color: "#000",
-                border: "none", fontSize: 16, fontWeight: 900, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              }}
-            >
-              <Banknote size={20} />
-              {amount ? `${pl ? "Wyślij" : "Send"} ${amount} ${currency}` : pl ? "Wyślij umowę pożyczki" : "Send loan agreement"}
-            </button>
+            {/* Wyślij — złota kula */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              <button
+                onClick={handleSend}
+                style={{
+                  width: 76, height: 76, borderRadius: "50%",
+                  background: ORB_BG,
+                  boxShadow: ORB_SHADOW,
+                  border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  position: "relative", overflow: "hidden",
+                }}
+              >
+                {/* połysk */}
+                <div style={{ position: "absolute", top: 0, left: "20%", right: "20%", height: "42%", background: "linear-gradient(180deg, rgba(255,255,255,0.28) 0%, transparent 100%)", borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+                <Send size={26} style={{ color: "#1a1400" }} />
+              </button>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.50)", letterSpacing: 1, textTransform: "uppercase" }}>
+                {amount ? `${pl ? "Wyślij" : "Send"} ${amount} ${currency}` : pl ? "Wyślij" : "Send"}
+              </div>
+            </div>
           </>
         )}
       </div>
