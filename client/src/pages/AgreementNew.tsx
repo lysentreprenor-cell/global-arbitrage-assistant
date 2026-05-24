@@ -385,7 +385,7 @@ const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset
     preset: { category: "korepetycje", subcategory: "Matematyka", pricingMethod: "hourly", warranty: false },
   },
   {
-    id: "opieka", icon: "🐾", label: "Opieka", desc: "Zwierzę, dziecko, pomoc domowa",
+    id: "opieka", icon: "🏥", label: "Opieka", desc: "Zwierzę, dziecko, pomoc domowa",
     preset: { category: "opieka", subcategory: "Opieka nad zwierzęciem", pricingMethod: "per_day" },
   },
   {
@@ -745,7 +745,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
           </div>
           {visible.map(c => {
             const badge = deadlineBadge(c);
-            const catIcon: Record<string,string> = { usluga:"🛠️", remont:"🔨", sprzedaz:"🛍️", wynajem:"🏠", wlasna:"📝", wypozyczenie:"🔑", korepetycje:"📚", opieka:"🐾", rezerwacja:"📋" };
+            const catIcon: Record<string,string> = { usluga:"🛠️", remont:"🔨", sprzedaz:"🛍️", wynajem:"🏠", wlasna:"📝", wypozyczenie:"🔑", korepetycje:"📚", opieka:"🏥", rezerwacja:"📋" };
             const otherRole = c.data.myRole === "client"
               ? (c.data.category === "wynajem" ? "Wynajmujący" : c.data.category === "sprzedaz" ? "Sprzedający" : c.data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca")
               : (c.data.category === "wynajem" ? "Najemca" : c.data.category === "sprzedaz" ? "Kupujący" : c.data.category === "wypozyczenie" ? "Pożyczający" : "Zamawiający");
@@ -1695,7 +1695,7 @@ function StepSzczegolyOpieka({ data, update }: { data: WizardData; update: (p: P
 
   return (
     <div>
-      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Szczegóły opieki 🐾</h2>
+      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Szczegóły opieki 🏥</h2>
       <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 18, lineHeight: 1.5 }}>Uzupełnij informacje dotyczące zakresu opieki.</p>
 
       <div style={sectionCard}>
@@ -1938,7 +1938,7 @@ function StepKategoria({ data, update, goNext }: { data: WizardData; update: (p:
     { value: "wlasna", label: "Stwórz własną", icon: "📝" },
     { value: "wypozyczenie", label: "Wypożyczenie", icon: "🔑" },
     { value: "korepetycje", label: "Korepetycje", icon: "📚" },
-    { value: "opieka", label: "Opieka", icon: "🐾" },
+    { value: "opieka", label: "Opieka", icon: "🏥" },
     { value: "rezerwacja", label: "Rezerwacja", icon: "📋" },
   ];
   return (
