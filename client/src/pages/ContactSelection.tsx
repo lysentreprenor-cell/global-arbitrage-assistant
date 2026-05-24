@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, X, CalendarDays, Repeat, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -441,14 +442,15 @@ export default function ContactSelection() {
               ))}
             </div>
 
-            {/* Modal Pożyczka P2P */}
-            <AnimatePresence>
+            {/* Modal Pożyczka P2P — portal do body żeby fixed działało poprawnie */}
+            {createPortal(
+              <AnimatePresence>
               {showLoanModal && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+                  style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.80)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
                   onClick={e => { if (e.target === e.currentTarget) setShowLoanModal(false); }}
                 >
                   <motion.div
@@ -456,7 +458,7 @@ export default function ContactSelection() {
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 80, opacity: 0 }}
                     transition={{ type: "spring", damping: 26, stiffness: 300 }}
-                    style={{ width: "100%", maxWidth: 480, background: "var(--card, #111)", borderRadius: "24px 24px 0 0", padding: "28px 24px 48px", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={{ width: "100%", maxWidth: 480, background: "var(--card, #111)", borderRadius: "24px 24px 0 0", padding: "28px 24px 48px", border: "1px solid rgba(255,255,255,0.08)", maxHeight: "90dvh", overflowY: "auto" }}
                   >
                     {/* Header */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
@@ -587,7 +589,9 @@ export default function ContactSelection() {
                   </motion.div>
                 </motion.div>
               )}
-            </AnimatePresence>
+            </AnimatePresence>,
+            document.body
+            )}
 
           </motion.div>
         )}
