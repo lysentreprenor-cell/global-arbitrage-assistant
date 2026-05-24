@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, Smartphone, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, Send } from "lucide-react";
+import { ArrowLeft, User, Smartphone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, CORE_WALLET_CURRENCIES, CURRENCY_SYMBOLS, WALLET_FLAGS } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,10 +28,9 @@ export default function ContactSelection() {
   const { toast } = useToast();
   const pl = lang === "pl";
 
-  const [selectedMethod, setSelectedMethod] = useState<"bank" | "card" | "phone" | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<"bank" | "card" | null>(null);
   const [bankIban, setBankIban] = useState("");
   const [cardNumber, setCardNumber] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
 
 
   useEffect(() => {
@@ -407,11 +406,10 @@ export default function ContactSelection() {
             {/* 5 metod — zakładki (tabs) */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {([
-                { id: "bank",  label: pl ? "Konto bankowe" : "Bank",    sub: pl ? "IBAN / numer" : "IBAN",          icon: <Building2 size={20} />,    testId: "tile-bank-account",      span: false },
-                { id: "card",  label: "BLIK",                             sub: pl ? "Ma konto w Finlys" : "Finlys user",  icon: <Smartphone size={20} />,  testId: "tile-card-payout",       span: false },
-                { id: "phone", label: pl ? "Telefon" : "Phone",         sub: pl ? "Numer tel." : "Phone",           icon: <Phone size={20} />,        testId: "tile-phone-transfer",    span: false },
-                { id: "req",   label: pl ? "Poproś" : "Request",        sub: pl ? "Poproś o przelew" : "Request",   icon: <ArrowUpRight size={20} />, testId: "tile-request-from-send", span: false },
-                { id: "loan",  label: pl ? "Pożyczka P2P" : "P2P Loan", sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, testId: "tile-loan-p2p", span: true },
+                { id: "bank",  label: pl ? "Konto bankowe" : "Bank",           sub: pl ? "IBAN / numer" : "IBAN",             icon: <Building2 size={20} />,    testId: "tile-bank-account",      span: false },
+                { id: "card",  label: "BLIK",                                  sub: pl ? "Ma konto w Finlys" : "Finlys user",  icon: <Smartphone size={20} />,   testId: "tile-card-payout",       span: false },
+                { id: "loan",  label: pl ? "Pożyczka znajomemu" : "P2P Loan",  sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, testId: "tile-loan-p2p", span: false },
+                { id: "req",   label: pl ? "Poproś" : "Request",               sub: pl ? "Poproś o przelew" : "Request",      icon: <ArrowUpRight size={20} />, testId: "tile-request-from-send", span: false },
               ] as { id: string; label: string; sub: string; icon: ReactNode; testId: string; span: boolean }[]).map(tile => {
                 const active = selectedMethod === tile.id || (tile.id === "req" && activeMode === "request");
                 return (
@@ -482,29 +480,13 @@ export default function ContactSelection() {
                         />
                       </>
                     )}
-                    {selectedMethod === "phone" && (
-                      <>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 8 }}>
-                          {pl ? "Numer telefonu" : "Phone number"}
-                        </label>
-                        <input
-                          type="tel"
-                          inputMode="tel"
-                          placeholder="+48 000 000 000"
-                          value={phoneNumber}
-                          onChange={e => setPhoneNumber(e.target.value)}
-                          style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 16, fontWeight: 600, outline: "none", boxSizing: "border-box" }}
-                        />
-                      </>
-                    )}
                     <button
                       onClick={() => {
                         const amt = requestAmount ? `&amount=${requestAmount}` : "";
                         const cur = sendCurrency !== "PLN" ? `&currency=${sendCurrency}` : "";
                         const detail =
-                          selectedMethod === "bank"  ? (bankIban  ? `&iban=${encodeURIComponent(bankIban)}`   : "") :
-                          selectedMethod === "card"  ? (cardNumber ? `&card=${encodeURIComponent(cardNumber)}` : "") :
-                          selectedMethod === "phone" ? (phoneNumber ? `&phone=${encodeURIComponent(phoneNumber)}` : "") : "";
+                          selectedMethod === "bank" ? (bankIban   ? `&iban=${encodeURIComponent(bankIban)}`   : "") :
+                          selectedMethod === "card" ? (cardNumber ? `&card=${encodeURIComponent(cardNumber)}` : "") : "";
                         setLocation(`/transfer/new?to=${selectedMethod}${amt}${cur}${detail}`);
                       }}
                       style={{
