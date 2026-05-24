@@ -123,6 +123,20 @@ export default function Transfer() {
   const [recipient, setRecipient] = useState("");
   const [mode, setMode] = useState<"send" | "add">("send");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [suggestions, setSuggestions] = useState<{ id: string; displayName: string; host: string | null; avatarUrl?: string | null }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    const q = recipient.trim().replace(/^@/, "");
+    if (q.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
+    const t = setTimeout(() => {
+      fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : { items: [] })
+        .then(data => { const items = data.items || []; setSuggestions(items.slice(0, 5)); setShowSuggestions(items.length > 0); })
+        .catch(() => {});
+    }, 300);
+    return () => clearTimeout(t);
+  }, [recipient]);
 
   const [riskPending, setRiskPending] = useState<{
     riskLevel: string;
@@ -293,19 +307,41 @@ export default function Transfer() {
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-[320px] mb-8"
           >
-            <div className="flex items-center gap-4 p-3 bg-card border border-white/10 rounded-2xl shadow-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
-              <div className="w-10 h-10 bg-secondary text-primary rounded-xl flex items-center justify-center border border-white/5">
-                <User className="w-5 h-5" />
+            <div style={{ position: "relative" }}>
+              <div className="flex items-center gap-4 p-3 bg-card border border-white/10 rounded-2xl shadow-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
+                <div className="w-10 h-10 bg-secondary text-primary rounded-xl flex items-center justify-center border border-white/5">
+                  <User className="w-5 h-5" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Imię, @handle lub IBAN"
+                  className="bg-transparent border-none outline-none flex-1 text-sm font-medium placeholder:text-muted-foreground"
+                  style={{ color: th.textPrimary }}
+                  value={recipient}
+                  onChange={(e) => { setRecipient(e.target.value); }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  data-testid="input-recipient"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Imię, @handle lub IBAN"
-                className="bg-transparent border-none outline-none flex-1 text-sm font-medium placeholder:text-muted-foreground"
-                style={{ color: th.textPrimary }}
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                data-testid="input-recipient"
-              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "var(--color-card)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
+                  {suggestions.map(u => (
+                    <button
+                      key={u.id}
+                      onMouseDown={() => { setRecipient(u.host ? `@${u.host}` : u.displayName); setShowSuggestions(false); }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-secondary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "var(--color-primary)", flexShrink: 0 }}>
+                        {u.avatarUrl ? <img src={u.avatarUrl} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} /> : u.displayName[0]?.toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-foreground)" }}>{u.displayName}</div>
+                        {u.host && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>@{u.host}</div>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         )}

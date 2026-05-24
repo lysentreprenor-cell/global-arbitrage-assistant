@@ -68,6 +68,17 @@ export async function registerRoutes(
     )
   `).catch(() => {});
 
+  // User contracts table (persists AgreementNew wizard data across devices)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_contracts (
+      id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (id, user_id)
+    )
+  `).catch(() => {});
+
   registerAccountEmailRoutes(app);
   registerStripeRoutes(app);
 
@@ -1955,6 +1966,85 @@ export async function registerRoutes(
       res.status(500).json({ message: e.message });
     }
   });
+
+  // --- User Contracts (AgreementNew persistence) ---
+  app.get("/api/contracts", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const { rows } = await pool.query(
+        `SELECT id, data, updated_at FROM user_contracts WHERE user_id=$1 ORDER BY updated_at DESC`,
+        [user.id]
+      );
+      res.json(rows.map(r => ({ ...r.data, id: r.id, updatedAt: r.updated_at })));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/contracts", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const { id } = z.object({ id: z.string().min(1) }).parse(req.body);
+      await pool.query(
+        `INSERT INTO user_contracts (id, user_id, data, updated_at) VALUES ($1,$2,$3,NOW())
+         ON CONFLICT (id, user_id) DO UPDATE SET data=$3, updated_at=NOW()`,
+        [id, user.id, JSON.stringify(req.body)]
+      );
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete("/api/contracts/:id", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      await pool.query(`DELETE FROM user_contracts WHERE id=$1 AND user_id=$2`, [req.params.id, user.id]);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // --- Recurring payments cron (every 5 minutes) ---
+  setInterval(async () => {
+    try {
+      const { rows: due } = await pool.query(
+        `SELECT * FROM recurring_payments WHERE active=TRUE AND next_date <= CURRENT_DATE`
+      );
+      for (const payment of due) {
+        try {
+          const handle = payment.recipient.startsWith("@") ? payment.recipient : `@${payment.recipient}`;
+          const recipient = await storage.getUserByHandle(handle).catch(() => null);
+          if (recipient) {
+            const senderRow = await pool.query(`SELECT wallets FROM app_users WHERE id=$1`, [payment.user_id]);
+            const senderWallets: Record<string, number> = senderRow.rows[0]?.wallets || {};
+            const amt = parseFloat(payment.amount);
+            const bal = senderWallets[payment.currency] ?? 0;
+            if (bal >= amt) {
+              const recipientRow = await pool.query(`SELECT wallets FROM app_users WHERE id=$1`, [recipient.id]);
+              const recipientWallets: Record<string, number> = recipientRow.rows[0]?.wallets || {};
+              const newSender = { ...senderWallets, [payment.currency]: parseFloat((bal - amt).toFixed(2)) };
+              const newRecipient = { ...recipientWallets, [payment.currency]: parseFloat(((recipientWallets[payment.currency] ?? 0) + amt).toFixed(2)) };
+              const client = await pool.connect();
+              try {
+                await client.query("BEGIN");
+                await client.query(`UPDATE app_users SET wallets=$1 WHERE id=$2`, [JSON.stringify(newSender), payment.user_id]);
+                await client.query(`UPDATE app_users SET wallets=$1 WHERE id=$2`, [JSON.stringify(newRecipient), recipient.id]);
+                await client.query("COMMIT");
+              } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+              await storage.createTransaction({ userId: payment.user_id, type: "send", status: "completed", amount: -amt, title: recipient.name, subtitle: payment.title });
+              await storage.createTransaction({ userId: recipient.id, type: "receive", status: "completed", amount: amt, title: `Zlecenie stałe: ${payment.title}`, subtitle: "" });
+            }
+          }
+          // Advance next_date
+          const interval = payment.frequency === "daily" ? "1 day" : payment.frequency === "weekly" ? "7 days" : payment.frequency === "yearly" ? "1 year" : "1 month";
+          await pool.query(`UPDATE recurring_payments SET next_date=next_date + INTERVAL '${interval}' WHERE id=$1`, [payment.id]);
+        } catch (e) {
+          console.error(`[recurring-cron] payment ${payment.id}:`, (e as Error).message);
+        }
+      }
+    } catch (e) {
+      console.error("[recurring-cron]", (e as Error).message);
+    }
+  }, 5 * 60 * 1000);
 
   return httpServer;
 }

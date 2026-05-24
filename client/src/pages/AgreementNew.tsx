@@ -1194,6 +1194,23 @@ export default function AgreementNew() {
   const [savedContracts, setSavedContracts] = useState<SavedContract[]>(() => loadContracts());
   const [draft, setDraft] = useState<{ data: WizardData; stepIndex: number } | null>(() => loadDraft());
 
+  // Sync contracts from backend on mount
+  useEffect(() => {
+    fetch("/api/contracts", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((apiContracts: SavedContract[]) => {
+        if (!apiContracts.length) return;
+        // Merge: API contracts take precedence, keep local-only ones too
+        const merged = [...apiContracts];
+        const apiIds = new Set(apiContracts.map((c: SavedContract) => c.contractId));
+        loadContracts().forEach(local => { if (!apiIds.has(local.contractId)) merged.push(local); });
+        merged.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+        setSavedContracts(merged);
+        if (!forceNew) setView("home");
+      })
+      .catch(() => {});
+  }, []);
+
   const [stepIndex, setStepIndex] = useState(() => loadDraft()?.stepIndex ?? 0);
   const [data, setData] = useState<WizardData>(() => loadDraft()?.data ?? { ...INITIAL, currency: defaultCurrency });
   const [contractPhase, setContractPhase] = useState<
@@ -1225,12 +1242,13 @@ export default function AgreementNew() {
     }
   }, [data, stepIndex, contractId, view, contractPhase]);
 
-  // Save/update contract in localStorage whenever phase changes
+  // Save/update contract in localStorage + backend whenever phase changes
   useEffect(() => {
     if (!contractPhase) return;
     const now = new Date().toISOString();
     const existing = loadContracts();
     const idx = existing.findIndex(c => c.contractId === contractId);
+    let contract: SavedContract;
     if (idx >= 0) {
       existing[idx].phase = contractPhase;
       existing[idx].updatedAt = now;
@@ -1239,10 +1257,11 @@ export default function AgreementNew() {
       if (ev) existing[idx].events.unshift({ ...ev, id: Math.random().toString(36).slice(2), timestamp: now, type: "phase_change" });
       try { localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing)); } catch {}
       setContractEvents([...existing[idx].events]);
+      contract = existing[idx];
     } else {
       const ev = PHASE_EVENTS[contractPhase];
       const initEvents: ActivityEvent[] = ev ? [{ ...ev, id: Math.random().toString(36).slice(2), timestamp: now, type: "phase_change" }] : [];
-      const contract: SavedContract = {
+      contract = {
         id: contractId, contractId, data,
         totalPrice: calcTotal(data),
         phase: contractPhase,
@@ -1252,6 +1271,8 @@ export default function AgreementNew() {
       saveContract(contract);
       setContractEvents(initEvents);
     }
+    // Persist to backend
+    fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(contract) }).catch(() => {});
     clearDraft();
     setDraft(null);
     setSavedContracts(loadContracts());
@@ -4565,6 +4586,7 @@ function RatingScreen({ contractId, data, onDone }: { contractId: string; data: 
         existing[idx].rating = stars;
         existing[idx].ratingNote = note;
         localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
+        fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
       }
     } catch {}
     setSaved(true);
@@ -4726,7 +4748,11 @@ function ContractLifecycle({
     try {
       const existing = loadContracts();
       const idx = existing.findIndex(c => c.contractId === contractId);
-      if (idx >= 0) { existing[idx].paymentSentAt = ts; localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing)); }
+      if (idx >= 0) {
+        existing[idx].paymentSentAt = ts;
+        localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
+        fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
+      }
     } catch {}
     setPaymentSentAt(ts);
     addContractEvent(contractId, { type: "phase_change", icon: "💸", label: "Klient potwierdził wysłanie przelewu" });
@@ -4737,7 +4763,11 @@ function ContractLifecycle({
     try {
       const existing = loadContracts();
       const idx = existing.findIndex(c => c.contractId === contractId);
-      if (idx >= 0) { existing[idx].paymentConfirmedAt = ts; localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing)); }
+      if (idx >= 0) {
+        existing[idx].paymentConfirmedAt = ts;
+        localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
+        fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
+      }
     } catch {}
     addContractEvent(contractId, { type: "phase_change", icon: "✅", label: "Wykonawca potwierdził odbiór przelewu — realizacja rozpoczęta" });
     setPhase("in_progress");
@@ -5183,6 +5213,7 @@ function ContractLifecycle({
               const current = existing[idx].paidStages || [];
               existing[idx].paidStages = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
               localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
+              fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
               addContractEvent(contractId, { type: "phase_change", icon: "💰", label: `Etap zapłacony: ${data.paymentStages.find(s => s.id === id)?.name || id}` });
             }
           } catch {}
