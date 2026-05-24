@@ -15,6 +15,19 @@ import { getAdminDb } from "./lib/firebaseAdmin";
 import { assessRisk } from "./security/riskEngine";
 import { validatePinToken } from "./securityCenter";
 
+const transferRateMap = new Map<string, { count: number; resetAt: number }>();
+function checkTransferRateLimit(userId: string, maxPerHour = 10): boolean {
+  const now = Date.now();
+  const entry = transferRateMap.get(userId);
+  if (!entry || now > entry.resetAt) {
+    transferRateMap.set(userId, { count: 1, resetAt: now + 3_600_000 });
+    return true;
+  }
+  if (entry.count >= maxPerHour) return false;
+  entry.count++;
+  return true;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -748,14 +761,18 @@ export async function registerRoutes(
       const sessionUser = await resolveRequestUser(req);
       if (!sessionUser?.id) return res.status(401).json({ message: "Unauthorized" });
 
+      if (!checkTransferRateLimit(sessionUser.id)) {
+        return res.status(429).json({ message: "Zbyt wiele przelewów. Spróbuj ponownie za godzinę." });
+      }
+
       const currencyCodes = ["NOK", "USD", "EUR", "GBP", "CHF", "PLN"] as const;
       const currencySymbols: Record<string, string> = { NOK: "kr", USD: "$", EUR: "€", GBP: "£", CHF: "₣", PLN: "zł" };
 
       const { senderId, recipientHandle, amount, note, currency, riskAcknowledged, pinToken } = z.object({
         senderId: z.string(),
         recipientHandle: z.string(),
-        amount: z.number().positive(),
-        note: z.string().optional(),
+        amount: z.number().positive().max(1_000_000),
+        note: z.string().max(500).optional(),
         currency: z.enum(currencyCodes).default("USD"),
         riskAcknowledged: z.boolean().optional(),
         pinToken: z.string().optional(),
@@ -902,8 +919,8 @@ export async function registerRoutes(
       const { requesterId, recipientHandle, amount, note, currency } = z.object({
         requesterId: z.string(),
         recipientHandle: z.string(),
-        amount: z.number().positive(),
-        note: z.string().optional(),
+        amount: z.number().positive().max(1_000_000),
+        note: z.string().max(500).optional(),
         currency: z.string().default("PLN"),
       }).parse(req.body);
 

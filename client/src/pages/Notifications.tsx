@@ -195,6 +195,10 @@ export default function Notifications() {
   const savePref = async (category: NotifCategory, patch: Partial<CategoryPref>) => {
     if (!user?.id) return;
     const updated = { ...prefs[category], ...patch };
+    if (updated.quietStart != null && updated.quietEnd != null && updated.quietEnd <= updated.quietStart) {
+      toast({ title: "Nieprawidłowe godziny ciszy — koniec musi być po początku", variant: "destructive" });
+      return;
+    }
     setPrefs(prev => ({ ...prev, [category]: updated }));
     setPrefsLoading(true);
     try {

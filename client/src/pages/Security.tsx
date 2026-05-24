@@ -382,11 +382,6 @@ export default function Security() {
               <AnimatePresence>
                 {twoFaStep === "pending" && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-4 space-y-3 overflow-hidden">
-                    {devCode && (
-                      <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2">
-                        <span className="text-xs font-mono text-amber-400">DEV CODE: {devCode}</span>
-                      </div>
-                    )}
                     <Input
                       placeholder={pl ? "Wpisz 6-cyfrowy kod" : "Enter 6-digit code"}
                       value={twoFaCode}

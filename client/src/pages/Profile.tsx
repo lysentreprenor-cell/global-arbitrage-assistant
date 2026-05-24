@@ -122,7 +122,7 @@ export default function Profile() {
     { icon: CreditCard,  label: pl ? "Karty płatnicze"         : "Payment Cards",          route: "/cards" },
     { icon: History,     label: pl ? "Historia transakcji"     : "Transaction History",    route: "/history" },
     { icon: BadgeCheck,  label: pl ? "Weryfikacja tożsamości"  : "Identity Verification",  route: "/kyc",
-      badge: (() => { try { return localStorage.getItem("finlys_kyc") ? (pl ? "Zweryfikowany ✓" : "Verified ✓") : null; } catch { return null; } })() },
+      badge: user?.kycVerified ? (pl ? "Zweryfikowany ✓" : "Verified ✓") : null },
     { icon: Gift,        label: pl ? "Program poleceń"         : "Referral Program",       route: "/referral" },
     { icon: HelpCircle,  label: pl ? "Pomoc i wsparcie"        : "Help & Support",         route: "/profile/support" },
   ];

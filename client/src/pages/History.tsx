@@ -27,19 +27,39 @@ export default function History() {
   const handlePdfExport = () => {
     const w = window.open("", "_blank");
     if (!w) return;
+    const locale = lang === "pl" ? "pl-PL" : "en-GB";
     const rows = filteredTransactions.map(tx =>
-      `<tr><td>${new Date(tx.date).toLocaleDateString("pl-PL")}</td><td>${tx.title}</td><td style="text-align:right;color:${tx.amount > 0 ? "#16a34a" : "#dc2626"}">${tx.amount > 0 ? "+" : ""}${tx.amount.toFixed(2)} ${(tx as any).currency || "PLN"}</td></tr>`
+      `<tr><td>${new Date(tx.date).toLocaleDateString(locale)}</td><td>${tx.title}</td><td style="text-align:right;color:${tx.amount > 0 ? "#16a34a" : "#dc2626"}">${tx.amount > 0 ? "+" : ""}${tx.amount.toFixed(2)} ${(tx as any).currency || "PLN"}</td></tr>`
     ).join("");
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Historia transakcji</title>
+    const title = pl ? "Historia transakcji" : "Transaction History";
+    const generated = pl ? "Wygenerowano" : "Generated";
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
       <style>body{font-family:system-ui,sans-serif;padding:32px;color:#111}h2{margin-bottom:4px}p{color:#666;margin-bottom:20px;font-size:14px}table{width:100%;border-collapse:collapse;font-size:14px}th{background:#f5f5f5;padding:10px 12px;text-align:left;border-bottom:2px solid #ddd}td{padding:9px 12px;border-bottom:1px solid #eee}tr:last-child td{border-bottom:none}@media print{button{display:none}}</style>
       </head><body>
-      <h2>Historia transakcji</h2>
-      <p>Wygenerowano: ${new Date().toLocaleDateString("pl-PL", { day: "2-digit", month: "long", year: "numeric" })} · ${filteredTransactions.length} transakcji</p>
-      <table><thead><tr><th>Data</th><th>Opis</th><th style="text-align:right">Kwota</th></tr></thead>
+      <h2>${title}</h2>
+      <p>${generated}: ${new Date().toLocaleDateString(locale, { day: "2-digit", month: "long", year: "numeric" })} · ${filteredTransactions.length} ${pl ? "transakcji" : "transactions"}</p>
+      <table><thead><tr><th>${pl ? "Data" : "Date"}</th><th>${pl ? "Opis" : "Description"}</th><th style="text-align:right">${pl ? "Kwota" : "Amount"}</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <script>window.onload=()=>window.print();</script>
       </body></html>`);
     w.document.close();
+    setShowReport(false);
+  };
+
+  const handleCsvExport = () => {
+    const header = pl ? "Data,Opis,Kwota,Waluta" : "Date,Description,Amount,Currency";
+    const locale = lang === "pl" ? "pl-PL" : "en-GB";
+    const rows = filteredTransactions.map(tx =>
+      `${new Date(tx.date).toLocaleDateString(locale)},"${tx.title.replace(/"/g, '""')}",${tx.amount.toFixed(2)},${(tx as any).currency || "PLN"}`
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `finlys-historia-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
     setShowReport(false);
   };
 
@@ -244,12 +264,20 @@ export default function History() {
                 <div style={{ fontSize: 14, fontWeight: 700, color: row.color }}>{row.value}</div>
               </div>
             ))}
-            <button
-              onClick={handlePdfExport}
-              style={{ width: "100%", height: 48, borderRadius: 14, marginTop: 20, background: "var(--color-primary)", color: "var(--color-primary-foreground)", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer" }}
-            >
-              {pl ? "Pobierz PDF" : "Download PDF"}
-            </button>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button
+                onClick={handlePdfExport}
+                style={{ flex: 1, height: 48, borderRadius: 14, background: "var(--color-primary)", color: "var(--color-primary-foreground)", fontWeight: 700, fontSize: 14, border: "none", cursor: "pointer" }}
+              >
+                {pl ? "Pobierz PDF" : "Download PDF"}
+              </button>
+              <button
+                onClick={handleCsvExport}
+                style={{ flex: 1, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.85)", fontWeight: 700, fontSize: 14, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer" }}
+              >
+                {pl ? "Pobierz CSV" : "Download CSV"}
+              </button>
+            </div>
           </div>
         </div>
       )}
