@@ -280,6 +280,14 @@ export default function Preferences() {
   const [offlineMode, setOfflineMode]           = useState(() => {
     try { return localStorage.getItem("finlys_offline_mode") === "true"; } catch { return false; }
   });
+  const [appLock, setAppLock] = useState(() => {
+    try { return localStorage.getItem("finlys_app_lock") === "true"; } catch { return false; }
+  });
+
+  const handleAppLockToggle = (val: boolean) => {
+    setAppLock(val);
+    try { localStorage.setItem("finlys_app_lock", String(val)); } catch { /* ignore */ }
+  };
 
   const handleRoundupToggle = (val: boolean) => {
     setRoundupEnabled(val);
@@ -628,7 +636,7 @@ export default function Preferences() {
                   <p className="text-xs text-muted-foreground mt-0.5">{lt.appLockDesc}</p>
                 </div>
               </div>
-              <Switch checked={true} disabled />
+              <Switch checked={appLock} onCheckedChange={handleAppLockToggle} />
             </div>
           </div>
         </motion.div>

@@ -868,11 +868,21 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Insufficient ${currency} balance` });
       }
 
-      // Update wallet JSONB for both sender and recipient
+      // Update wallet JSONB for both sender and recipient — atomic transaction
       const newSenderWallets = { ...senderWallets, [currency]: parseFloat(((senderWallets[currency] ?? 0) - amount).toFixed(2)) };
       const newRecipientWallets = { ...recipientWallets, [currency]: parseFloat(((recipientWallets[currency] ?? 0) + amount).toFixed(2)) };
-      await pool.query(`UPDATE app_users SET wallets = $1 WHERE id = $2`, [JSON.stringify(newSenderWallets), sender.id]);
-      await pool.query(`UPDATE app_users SET wallets = $1 WHERE id = $2`, [JSON.stringify(newRecipientWallets), recipient.id]);
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`UPDATE app_users SET wallets = $1 WHERE id = $2`, [JSON.stringify(newSenderWallets), sender.id]);
+        await client.query(`UPDATE app_users SET wallets = $1 WHERE id = $2`, [JSON.stringify(newRecipientWallets), recipient.id]);
+        await client.query("COMMIT");
+      } catch (txErr) {
+        await client.query("ROLLBACK");
+        throw txErr;
+      } finally {
+        client.release();
+      }
 
       // Create transactions
       await storage.createTransaction({ userId: sender.id, type: "send", status: "completed", amount: -amount, title: recipient.name, subtitle: note || "Transfer" });
@@ -1503,6 +1513,15 @@ export async function registerRoutes(
   });
 
   // --- Cards ---
+  app.post("/api/cards/request", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      await createNotification(user.id, "system", "Zamówienie karty przyjęte", `Karta fizyczna zostanie wysłana na adres powiązany z kontem ${user.name} w ciągu 3–5 dni roboczych.`, {});
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get("/api/cards", async (req, res) => {
     try {
       const user = await resolveRequestUser(req);

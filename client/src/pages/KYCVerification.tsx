@@ -43,11 +43,19 @@ export default function KYCVerification() {
     if (step < TOTAL_STEPS) setStep(s => s + 1);
   };
 
-  const handleSubmit = () => {
-    localStorage.setItem("finlys_kyc", JSON.stringify({
-      kycStatus: "pending",
-      submittedAt: new Date().toISOString(),
-    }));
+  const handleSubmit = async () => {
+    try {
+      await fetch("/api/kyc/start", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: `${firstName} ${lastName}`.trim(),
+          dateOfBirth: birthDate,
+          documentCountry: nationality,
+          provider: "manual",
+        }),
+      });
+    } catch { /* proceed regardless — status shown on next load */ }
     setStep(5);
   };
 

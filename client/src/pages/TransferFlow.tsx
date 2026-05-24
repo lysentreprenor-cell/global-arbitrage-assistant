@@ -889,7 +889,7 @@ export default function TransferFlow() {
   }, [user]);
 
   const searchParams = new URLSearchParams(window.location.search);
-  const toParam = searchParams.get("to") || "@johndoe";
+  const toParam = searchParams.get("to") || "";
   const isLight = false;
 
   const flowType = toParam === "bank" ? "bank" : toParam === "card" ? "card" : toParam === "phone" ? "phone" : "peer";

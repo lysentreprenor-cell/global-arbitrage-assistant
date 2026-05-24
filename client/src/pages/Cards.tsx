@@ -78,7 +78,14 @@ export default function Cards() {
         </div>
         <button
           data-testid="btn-request-card"
-          onClick={() => toast({ title: lang === "pl" ? "Zamówiono!" : "Requested!", description: lang === "pl" ? "Twoja karta zostanie wysłana w ciągu 3–5 dni" : "Your card will arrive in 3–5 days" })}
+          onClick={async () => {
+            try {
+              await fetch("/api/cards/request", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "physical" }) });
+              toast({ title: lang === "pl" ? "Zamówiono!" : "Requested!", description: lang === "pl" ? "Twoja karta zostanie wysłana w ciągu 3–5 dni" : "Your card will arrive in 3–5 days" });
+            } catch {
+              toast({ title: lang === "pl" ? "Błąd zamówienia" : "Order failed", variant: "destructive" });
+            }
+          }}
           style={{
             display: "flex", alignItems: "center", gap: 6,
             borderRadius: 999, padding: "8px 14px",
