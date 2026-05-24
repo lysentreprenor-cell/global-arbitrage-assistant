@@ -88,7 +88,7 @@ export default function BudgetForecast() {
   }, [transactions, currentBalance, pl]);
 
   const fmt = (n: number) =>
-    n.toLocaleString(pl ? "pl-PL" : "en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+    n.toLocaleString(pl ? "pl-PL" : "en-US", { style: "currency", currency: primaryCurrency || "PLN", maximumFractionDigits: 0 });
 
   return (
     <div className="min-h-screen bg-background pb-24 relative overflow-x-hidden flex flex-col transition-colors duration-500">

@@ -42,6 +42,10 @@ export default function SavingsGoals() {
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addAmount, setAddAmount] = useState("");
 
+  const handleDeleteGoal = (id: string) => {
+    setGoals(prev => { const next = prev.filter(g => g.id !== id); save(next); return next; });
+  };
+
   // Form state
   const [formEmoji, setFormEmoji] = useState("🎯");
   const [formName, setFormName] = useState("");
@@ -279,7 +283,10 @@ export default function SavingsGoals() {
                   transition={{ delay: i * 0.06 }}
                   className="bg-card border border-white/5 rounded-2xl p-4 space-y-3 flex flex-col"
                 >
-                  <div className="text-3xl">{goal.emoji}</div>
+                  <div className="flex items-start justify-between">
+                    <div className="text-3xl">{goal.emoji}</div>
+                    <button onClick={() => handleDeleteGoal(goal.id)} style={{ color: "rgba(255,255,255,0.25)", background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: 16, lineHeight: 1 }}>✕</button>
+                  </div>
                   <div>
                     <p className="font-semibold text-sm text-foreground leading-tight">{goal.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{goal.currency}</p>

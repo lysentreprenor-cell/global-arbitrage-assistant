@@ -24,6 +24,25 @@ export default function History() {
   const filterActive = filterType !== "all" || filterPeriod !== "all";
   const [showReport, setShowReport] = useState(false);
 
+  const handlePdfExport = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const rows = filteredTransactions.map(tx =>
+      `<tr><td>${new Date(tx.date).toLocaleDateString("pl-PL")}</td><td>${tx.title}</td><td style="text-align:right;color:${tx.amount > 0 ? "#16a34a" : "#dc2626"}">${tx.amount > 0 ? "+" : ""}${tx.amount.toFixed(2)} ${(tx as any).currency || "PLN"}</td></tr>`
+    ).join("");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Historia transakcji</title>
+      <style>body{font-family:system-ui,sans-serif;padding:32px;color:#111}h2{margin-bottom:4px}p{color:#666;margin-bottom:20px;font-size:14px}table{width:100%;border-collapse:collapse;font-size:14px}th{background:#f5f5f5;padding:10px 12px;text-align:left;border-bottom:2px solid #ddd}td{padding:9px 12px;border-bottom:1px solid #eee}tr:last-child td{border-bottom:none}@media print{button{display:none}}</style>
+      </head><body>
+      <h2>Historia transakcji</h2>
+      <p>Wygenerowano: ${new Date().toLocaleDateString("pl-PL", { day: "2-digit", month: "long", year: "numeric" })} · ${filteredTransactions.length} transakcji</p>
+      <table><thead><tr><th>Data</th><th>Opis</th><th style="text-align:right">Kwota</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <script>window.onload=()=>window.print();</script>
+      </body></html>`);
+    w.document.close();
+    setShowReport(false);
+  };
+
   const chartData = useMemo(() => {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
     const byCategory: Record<string, number> = {};
@@ -226,7 +245,7 @@ export default function History() {
               </div>
             ))}
             <button
-              onClick={() => { setShowReport(false); }}
+              onClick={handlePdfExport}
               style={{ width: "100%", height: 48, borderRadius: 14, marginTop: 20, background: "var(--color-primary)", color: "var(--color-primary-foreground)", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer" }}
             >
               {pl ? "Pobierz PDF" : "Download PDF"}

@@ -416,8 +416,15 @@ export default function Dashboard() {
                 {balanceVisible ? formattedBalance : maskedBalance}
               </div>
               {ratesUpdatedLabel && !ratesUnavailable && (
-                <div style={{ marginTop: 5, fontSize: 11, color: "rgba(255,255,255,0.28)", letterSpacing: 0.8 }}>
-                  Kursy: {ratesUpdatedLabel}
+                <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", letterSpacing: 0.8 }}>
+                    Kursy: {ratesUpdatedLabel}
+                  </span>
+                  <button
+                    onClick={() => setShowAlertModal(true)}
+                    title={lang === "pl" ? "Ustaw alert kursowy" : "Set rate alert"}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1, color: "rgba(255,255,255,0.35)" }}
+                  >🔔</button>
                 </div>
               )}
               <div style={{ position: "absolute", bottom: -10, left: 0, width: "55%", height: 1,
@@ -875,6 +882,61 @@ export default function Dashboard() {
                 })()
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ——— Modal: Alert kursowy ——— */}
+      {showAlertModal && (
+        <div
+          onClick={() => setShowAlertModal(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "flex-end" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: "100%", background: "var(--background,#0d0d0f)", borderRadius: "24px 24px 0 0", padding: "24px 20px 44px", boxShadow: "0 -8px 40px rgba(0,0,0,0.5)" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h3 style={{ fontWeight: 900, fontSize: 18, color: "white", margin: 0 }}>🔔 {lang === "pl" ? "Alert kursowy" : "Rate Alert"}</h3>
+              <button onClick={() => setShowAlertModal(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", color: "rgba(255,255,255,0.5)", fontSize: 16 }}>×</button>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              {(["EUR","USD","GBP","CHF","NOK"] as const).map(c => (
+                <button key={c} onClick={() => setAlertFrom(c)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1.5px solid ${alertFrom === c ? "rgba(212,160,32,0.5)" : "rgba(255,255,255,0.08)"}`, background: alertFrom === c ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.04)", color: alertFrom === c ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>{c}</button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{lang === "pl" ? "Powiadom gdy kurs" : "Alert when rate is"}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[{ v: "above" as const, l: lang === "pl" ? "Powyżej" : "Above" }, { v: "below" as const, l: lang === "pl" ? "Poniżej" : "Below" }].map(opt => (
+                <button key={opt.v} onClick={() => setAlertCondition(opt.v)} style={{ padding: "10px 0", borderRadius: 12, border: `1.5px solid ${alertCondition === opt.v ? "rgba(212,160,32,0.5)" : "rgba(255,255,255,0.08)"}`, background: alertCondition === opt.v ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.04)", color: alertCondition === opt.v ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{opt.l}</button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{lang === "pl" ? `Próg kursu ${alertFrom}/${alertTo}` : `${alertFrom}/${alertTo} threshold`}</div>
+            <input
+              type="number" inputMode="decimal" step="0.0001"
+              placeholder={`np. ${(fxRates as any)[alertFrom] ? ((fxRates as any)[alertTo] / (fxRates as any)[alertFrom]).toFixed(4) : "4.2500"}`}
+              value={alertThreshold}
+              onChange={e => setAlertThreshold(e.target.value)}
+              style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 16, fontWeight: 700, outline: "none", boxSizing: "border-box", marginBottom: 16 }}
+            />
+
+            <button
+              onClick={() => {
+                if (!alertThreshold) return;
+                const alerts = JSON.parse(localStorage.getItem("itemprise_fx_alerts") || "[]");
+                alerts.push({ from: alertFrom, to: alertTo, threshold: parseFloat(alertThreshold), condition: alertCondition, createdAt: Date.now() });
+                localStorage.setItem("itemprise_fx_alerts", JSON.stringify(alerts));
+                addNotification({ type: "info", title: "🔔 Alert ustawiony", message: `${alertFrom}/${alertTo} ${alertCondition === "above" ? ">" : "<"} ${alertThreshold}` });
+                setAlertThreshold("");
+                setShowAlertModal(false);
+              }}
+              style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(180deg,#fff4b8 0%,#f9d95e 22%,#d4a020 62%,#b8880a 100%)", color: "#1a1400", border: "none", fontSize: 15, fontWeight: 900, cursor: "pointer" }}
+            >
+              {lang === "pl" ? "Zapisz alert" : "Save alert"}
+            </button>
           </div>
         </div>
       )}
