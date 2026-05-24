@@ -112,14 +112,14 @@ function Router() {
 
   if (!isAuthenticated) {
     return (
-      <div className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-x-hidden overflow-y-auto flex flex-col transition-colors duration-500">
+      <div data-scroll-root className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-x-hidden overflow-y-auto flex flex-col transition-colors duration-500">
         <Auth />
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-x-hidden overflow-y-auto flex flex-col transition-colors duration-500">
+    <div data-scroll-root className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-x-hidden overflow-y-auto flex flex-col transition-colors duration-500">
       <Switch>
         <Route path="/auth" component={() => { useEffect(() => setLocation("/"), []); return null; }} />
         <Route path="/" component={Dashboard} />

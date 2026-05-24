@@ -292,7 +292,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col justify-center px-6 relative overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col justify-center px-6 relative overflow-x-hidden">
       <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-secondary/80 rounded-full blur-[100px] pointer-events-none" />
 

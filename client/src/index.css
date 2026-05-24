@@ -232,6 +232,22 @@ main {
   padding-bottom: var(--bottom-safe-space);
 }
 
+/*
+ * ─── SCROLL ROOT PROTECTION ─────────────────────────────────────────────────
+ * [data-scroll-root] is the single vertical-scroll container for the whole app
+ * (see App.tsx). This rule ensures it always scrolls — even if Tailwind's
+ * overflow-hidden is accidentally applied via a class merge.
+ *
+ * DO NOT remove or weaken this rule. Doing so will break page scroll on every
+ * page in the application. Chat pages (Messages, ChatThread) are exempt because
+ * they use their own internal overflow-y-auto on the message list, not the root.
+ */
+[data-scroll-root] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ═══════════════════════════════════════════════════
    FINLYS GLOBAL TYPOGRAPHY SYSTEM
    Mobile-first, Messenger/Revolut-grade readability
