@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Plus, Trash2, RefreshCw, PauseCircle, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,20 +21,6 @@ interface RecurringPayment {
   createdAt: string;
 }
 
-const STORAGE_KEY = "finlys_recurring";
-
-function load(): RecurringPayment[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function save(items: RecurringPayment[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-}
-
 function computeNextDate(startDate: string, frequency: "daily" | "weekly" | "monthly"): string {
   const d = new Date(startDate);
   const now = new Date();
@@ -53,8 +39,17 @@ export default function RecurringPayments() {
   const pl = lang === "pl";
   const { toast } = useToast();
 
-  const [items, setItems] = useState<RecurringPayment[]>(load);
+  const [items, setItems] = useState<RecurringPayment[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/recurring", { credentials: "include" })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setItems(data); })
+      .catch(() => {})
+      .finally(() => setLoadingItems(false));
+  }, []);
 
   const [formRecipient, setFormRecipient] = useState("");
   const [formAmount, setFormAmount] = useState("");
@@ -69,47 +64,40 @@ export default function RecurringPayments() {
     monthly: pl ? "Co miesiąc" : "Monthly",
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formRecipient || !formAmount || !formTitle) {
       toast({ title: pl ? "Uzupełnij pola" : "Fill in all fields" });
       return;
     }
-    const newItem: RecurringPayment = {
-      id: Date.now().toString(),
-      recipient: formRecipient,
-      amount: parseFloat(formAmount),
-      currency: formCurrency,
-      frequency: formFrequency,
-      startDate: formStartDate,
-      nextDate: computeNextDate(formStartDate, formFrequency),
-      title: formTitle,
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [newItem, ...items];
-    setItems(updated);
-    save(updated);
-    setShowForm(false);
-    setFormRecipient("");
-    setFormAmount("");
-    setFormTitle("");
-    toast({
-      title: pl ? "Zlecenie zapisane" : "Payment Saved",
-      description: `${formTitle} — ${parseFloat(formAmount).toFixed(2)} ${formCurrency}`,
-    });
+    const nextDate = computeNextDate(formStartDate, formFrequency);
+    try {
+      const res = await fetch("/api/recurring", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: formTitle, recipient: formRecipient, amount: parseFloat(formAmount), currency: formCurrency, frequency: formFrequency, nextDate }),
+      });
+      const { id } = await res.json();
+      const newItem: RecurringPayment = { id, recipient: formRecipient, amount: parseFloat(formAmount), currency: formCurrency, frequency: formFrequency, startDate: formStartDate, nextDate, title: formTitle, active: true, createdAt: new Date().toISOString() };
+      setItems(prev => [newItem, ...prev]);
+      setShowForm(false);
+      setFormRecipient(""); setFormAmount(""); setFormTitle("");
+      toast({ title: pl ? "Zlecenie zapisane" : "Payment Saved", description: `${formTitle} — ${parseFloat(formAmount).toFixed(2)} ${formCurrency}` });
+    } catch {
+      toast({ title: pl ? "Błąd zapisu" : "Save error", variant: "destructive" });
+    }
   };
 
-  const handleDelete = (id: string) => {
-    const updated = items.filter(i => i.id !== id);
-    setItems(updated);
-    save(updated);
+  const handleDelete = async (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+    await fetch(`/api/recurring/${id}`, { method: "DELETE", credentials: "include" }).catch(() => {});
     toast({ title: pl ? "Usunięto zlecenie" : "Payment deleted" });
   };
 
-  const handleToggle = (id: string) => {
-    const updated = items.map(i => i.id === id ? { ...i, active: !i.active } : i);
-    setItems(updated);
-    save(updated);
+  const handleToggle = async (id: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    setItems(prev => prev.map(i => i.id === id ? { ...i, active: !i.active } : i));
+    await fetch(`/api/recurring/${id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !item.active }) }).catch(() => {});
   };
 
   return (

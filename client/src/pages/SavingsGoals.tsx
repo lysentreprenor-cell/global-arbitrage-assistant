@@ -19,15 +19,7 @@ interface SavingsGoal {
   createdAt: string;
 }
 
-const STORAGE_KEY = "finlys_goals";
 const EMOJIS = ["🏖️", "🏠", "🚗", "✈️", "💍", "🎓", "💻", "🎯"];
-
-function load(): SavingsGoal[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
-}
-function save(goals: SavingsGoal[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(goals));
-}
 
 export default function SavingsGoals() {
   const [, setLocation] = useLocation();
@@ -37,13 +29,23 @@ export default function SavingsGoals() {
   const { lang } = useLang();
   const pl = lang === "pl";
 
-  const [goals, setGoals] = useState<SavingsGoal[]>(load);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addAmount, setAddAmount] = useState("");
 
-  const handleDeleteGoal = (id: string) => {
-    setGoals(prev => { const next = prev.filter(g => g.id !== id); save(next); return next; });
+  useEffect(() => {
+    fetch("/api/goals", { credentials: "include" })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setGoals(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDeleteGoal = async (id: string) => {
+    setGoals(prev => prev.filter(g => g.id !== id));
+    await fetch(`/api/goals/${id}`, { method: "DELETE", credentials: "include" }).catch(() => {});
   };
 
   // Form state
@@ -53,50 +55,44 @@ export default function SavingsGoals() {
   const [formInitial, setFormInitial] = useState("");
   const [formCurrency, setFormCurrency] = useState("PLN");
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!formName || !formTarget) {
       toast({ title: pl ? "Uzupełnij pola" : "Fill in all fields" });
       return;
     }
     const initialDeposit = parseFloat(formInitial) || 0;
-    const newGoal: SavingsGoal = {
-      id: Date.now().toString(),
-      emoji: formEmoji,
-      name: formName,
-      target: parseFloat(formTarget),
-      saved: initialDeposit,
-      currency: formCurrency,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [...goals, newGoal];
-    setGoals(updated);
-    save(updated);
-    setShowForm(false);
-    setFormName("");
-    setFormTarget("");
-    setFormInitial("");
-    setFormEmoji("🎯");
-    toast({ title: pl ? "Cel utworzony!" : "Goal created!", description: `${formEmoji} ${formName}` });
+    try {
+      const res = await fetch("/api/goals", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: formName, emoji: formEmoji, target: parseFloat(formTarget), currency: formCurrency }),
+      });
+      const { id } = await res.json();
+      const newGoal: SavingsGoal = { id, emoji: formEmoji, name: formName, target: parseFloat(formTarget), saved: initialDeposit, currency: formCurrency, createdAt: new Date().toISOString() };
+      if (initialDeposit > 0) {
+        await fetch(`/api/goals/${id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deposit: initialDeposit }) });
+      }
+      setGoals(prev => [...prev, newGoal]);
+      setShowForm(false);
+      setFormName(""); setFormTarget(""); setFormInitial(""); setFormEmoji("🎯");
+      toast({ title: pl ? "Cel utworzony!" : "Goal created!", description: `${formEmoji} ${formName}` });
+    } catch {
+      toast({ title: pl ? "Błąd zapisu" : "Save error", variant: "destructive" });
+    }
   };
 
-  const handleAddFunds = (goalId: string) => {
+  const handleAddFunds = async (goalId: string) => {
     const amount = parseFloat(addAmount);
     if (!amount || amount <= 0) {
       toast({ title: pl ? "Podaj kwotę" : "Enter amount" });
       return;
     }
-    const updated = goals.map(g =>
-      g.id === goalId ? { ...g, saved: Math.min(g.saved + amount, g.target) } : g
-    );
-    setGoals(updated);
-    save(updated);
+    await fetch(`/api/goals/${goalId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deposit: amount }) }).catch(() => {});
+    setGoals(prev => prev.map(g => g.id === goalId ? { ...g, saved: Math.min(g.saved + amount, g.target) } : g));
     setAddingTo(null);
     setAddAmount("");
     const goal = goals.find(g => g.id === goalId);
-    toast({
-      title: pl ? "Środki dodane" : "Funds added",
-      description: `+${amount.toFixed(2)} ${goal?.currency || "PLN"} → ${goal?.name}`,
-    });
+    toast({ title: pl ? "Środki dodane" : "Funds added", description: `+${amount.toFixed(2)} ${goal?.currency || "PLN"} → ${goal?.name}` });
   };
 
   const progressColor = (pct: number) => {

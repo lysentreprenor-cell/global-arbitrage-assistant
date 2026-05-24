@@ -38,6 +38,36 @@ export async function registerRoutes(
     `ALTER TABLE app_users ADD COLUMN IF NOT EXISTS wallets JSONB`
   ).catch(() => {});
 
+  // Savings goals table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS savings_goals (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      emoji TEXT NOT NULL DEFAULT '🎯',
+      target NUMERIC NOT NULL,
+      saved NUMERIC NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'PLN',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+
+  // Recurring payments table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS recurring_payments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      amount NUMERIC NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'PLN',
+      frequency TEXT NOT NULL DEFAULT 'monthly',
+      next_date DATE NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+
   registerAccountEmailRoutes(app);
   registerStripeRoutes(app);
 
@@ -1389,6 +1419,87 @@ export async function registerRoutes(
     } finally {
       client.release();
     }
+  });
+
+  // --- Savings Goals ---
+  app.get("/api/goals", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const { rows } = await pool.query(`SELECT * FROM savings_goals WHERE user_id=$1 ORDER BY created_at ASC`, [user.id]);
+      res.json(rows.map(r => ({ id: r.id, name: r.name, emoji: r.emoji, target: parseFloat(r.target), saved: parseFloat(r.saved), currency: r.currency, createdAt: r.created_at })));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/goals", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const { name, emoji, target, currency } = z.object({ name: z.string().max(80), emoji: z.string().max(8), target: z.number().positive(), currency: z.string().max(8) }).parse(req.body);
+      const id = randomUUID();
+      await pool.query(`INSERT INTO savings_goals (id,user_id,name,emoji,target,currency) VALUES ($1,$2,$3,$4,$5,$6)`, [id, user.id, name, emoji, target, currency]);
+      res.json({ id });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.patch("/api/goals/:id", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const { deposit } = z.object({ deposit: z.number() }).parse(req.body);
+      await pool.query(`UPDATE savings_goals SET saved=LEAST(saved+$1,target) WHERE id=$2 AND user_id=$3`, [deposit, req.params.id, user.id]);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete("/api/goals/:id", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      await pool.query(`DELETE FROM savings_goals WHERE id=$1 AND user_id=$2`, [req.params.id, user.id]);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // --- Recurring Payments ---
+  app.get("/api/recurring", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const { rows } = await pool.query(`SELECT * FROM recurring_payments WHERE user_id=$1 ORDER BY created_at ASC`, [user.id]);
+      res.json(rows.map(r => ({ id: r.id, title: r.title, recipient: r.recipient, amount: parseFloat(r.amount), currency: r.currency, frequency: r.frequency, nextDate: r.next_date, active: r.active })));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/recurring", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const { title, recipient, amount, currency, frequency, nextDate } = z.object({ title: z.string().max(100), recipient: z.string().max(200), amount: z.number().positive().max(1_000_000), currency: z.string().max(8), frequency: z.enum(["daily","weekly","monthly","yearly"]), nextDate: z.string() }).parse(req.body);
+      const id = randomUUID();
+      await pool.query(`INSERT INTO recurring_payments (id,user_id,title,recipient,amount,currency,frequency,next_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [id, user.id, title, recipient, amount, currency, frequency, nextDate]);
+      res.json({ id });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.patch("/api/recurring/:id", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      const patch = z.object({ active: z.boolean().optional(), nextDate: z.string().optional() }).parse(req.body);
+      if (patch.active !== undefined) await pool.query(`UPDATE recurring_payments SET active=$1 WHERE id=$2 AND user_id=$3`, [patch.active, req.params.id, user.id]);
+      if (patch.nextDate) await pool.query(`UPDATE recurring_payments SET next_date=$1 WHERE id=$2 AND user_id=$3`, [patch.nextDate, req.params.id, user.id]);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.delete("/api/recurring/:id", async (req, res) => {
+    try {
+      const user = await resolveRequestUser(req);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      await pool.query(`DELETE FROM recurring_payments WHERE id=$1 AND user_id=$2`, [req.params.id, user.id]);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // --- Cards ---
