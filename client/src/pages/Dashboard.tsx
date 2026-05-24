@@ -468,8 +468,8 @@ export default function Dashboard() {
                 style={{
                   flex: 1, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
                   fontSize: 13, fontWeight: 800, color: "#000", letterSpacing: 0.3,
-                  background: "linear-gradient(135deg, #7c3aed, #d4a020)",
-                  boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.30), inset 0 -2px 0 rgba(0,0,0,0.22), 0 3px 0 rgba(80,20,140,0.90), 0 8px 20px rgba(124,58,237,0.45)",
+                  background: "linear-gradient(135deg, #1e40af, #3b82f6)",
+                  boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.30), inset 0 -2px 0 rgba(0,0,0,0.22), 0 3px 0 rgba(14,42,115,0.90), 0 8px 20px rgba(37,99,235,0.45)",
                   position: "relative", overflow: "hidden",
                   transition: "transform 0.15s ease",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
