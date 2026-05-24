@@ -327,8 +327,8 @@ export default function MessagesPage() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="px-5 sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border">
-        <div className="pt-14 pb-3">
+      <header className="px-6 sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border">
+        <div className="pt-14 pb-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-heading text-foreground tracking-tight">Wiadomości</h1>
@@ -392,7 +392,7 @@ export default function MessagesPage() {
                 <button
                   key={f.key}
                   onClick={() => setFilter(f.key)}
-                  className="flex-1 py-2 rounded-xl text-[13px] font-bold tracking-wider transition-all"
+                  className="flex-1 py-2 rounded-xl text-[12px] font-bold tracking-normal transition-all"
                   style={{
                     background: filter === f.key ? "linear-gradient(135deg,rgba(124,58,237,0.22),rgba(212,160,32,0.18))" : "transparent",
                     color: filter === f.key ? "#d4a020" : "var(--color-muted-foreground)",

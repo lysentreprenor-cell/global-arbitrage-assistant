@@ -208,7 +208,7 @@ export default function Agreements() {
               key={tb.key}
               data-testid={`tab-agree-${tb.key}`}
               onClick={() => setTab(tb.key)}
-              className="flex-1 relative py-2 rounded-xl text-[13px] font-bold tracking-wider transition-all"
+              className="flex-1 relative py-2 rounded-xl text-[12px] font-bold tracking-normal transition-all"
               style={{
                 background: tab === tb.key ? "linear-gradient(135deg,rgba(124,58,237,0.22),rgba(212,160,32,0.18))" : "transparent",
                 color: tab === tb.key ? "#d4a020" : "var(--color-muted-foreground)",
@@ -247,8 +247,8 @@ export default function Agreements() {
             <div className="w-20 h-20 rounded-3xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-5">
               <FileText className="w-8 h-8 text-purple-400" />
             </div>
-            <h3 className="text-lg font-heading text-foreground/80 mb-2">{t.agreeEmpty}</h3>
-            <p className="text-sm text-muted-foreground max-w-[220px]">{t.agreeEmptyDesc}</p>
+            <h3 className="text-xl font-heading text-foreground mb-2">{t.agreeEmpty}</h3>
+            <p className="text-sm text-muted-foreground max-w-[220px] leading-relaxed">{t.agreeEmptyDesc}</p>
             {tab === "active" && (
               <Button
                 onClick={() => setLocation("/agreements/new")}
