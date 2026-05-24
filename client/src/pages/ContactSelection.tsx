@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, Send } from "lucide-react";
+import { ArrowLeft, User, Smartphone, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, CORE_WALLET_CURRENCIES, CURRENCY_SYMBOLS, WALLET_FLAGS } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -408,7 +408,7 @@ export default function ContactSelection() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {([
                 { id: "bank",  label: pl ? "Konto bankowe" : "Bank",    sub: pl ? "IBAN / numer" : "IBAN",          icon: <Building2 size={20} />,    testId: "tile-bank-account",      span: false },
-                { id: "card",  label: pl ? "Na kartę" : "Card",         sub: pl ? "Numer karty" : "Card number",    icon: <FileText size={20} />,     testId: "tile-card-payout",       span: false },
+                { id: "card",  label: "BLIK",                             sub: pl ? "Ma konto w Finlys" : "Finlys user",  icon: <Smartphone size={20} />,  testId: "tile-card-payout",       span: false },
                 { id: "phone", label: pl ? "Telefon" : "Phone",         sub: pl ? "Numer tel." : "Phone",           icon: <Phone size={20} />,        testId: "tile-phone-transfer",    span: false },
                 { id: "req",   label: pl ? "Poproś" : "Request",        sub: pl ? "Poproś o przelew" : "Request",   icon: <ArrowUpRight size={20} />, testId: "tile-request-from-send", span: false },
                 { id: "loan",  label: pl ? "Pożyczka P2P" : "P2P Loan", sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, testId: "tile-loan-p2p", span: true },
@@ -470,16 +470,15 @@ export default function ContactSelection() {
                     {selectedMethod === "card" && (
                       <>
                         <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 8 }}>
-                          {pl ? "Numer karty" : "Card number"}
+                          {pl ? "Numer telefonu odbiorcy (BLIK)" : "Recipient phone (BLIK)"}
                         </label>
                         <input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="0000 0000 0000 0000"
-                          maxLength={19}
+                          type="tel"
+                          inputMode="tel"
+                          placeholder="+48 000 000 000"
                           value={cardNumber}
-                          onChange={e => setCardNumber(e.target.value.replace(/\D/g,"").replace(/(.{4})/g,"$1 ").trim())}
-                          style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 16, fontWeight: 700, outline: "none", boxSizing: "border-box", letterSpacing: 2 }}
+                          onChange={e => setCardNumber(e.target.value)}
+                          style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 16, fontWeight: 600, outline: "none", boxSizing: "border-box" }}
                         />
                       </>
                     )}
