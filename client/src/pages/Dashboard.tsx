@@ -456,7 +456,7 @@ export default function Dashboard() {
                 {t.addFunds}
               </button>
 
-              {/* Niebieski — Nowa umowa */}
+              {/* Ciemny z złotą ramką — Nowa umowa */}
               <button
                 data-testid="btn-new-agreement-pill"
                 onClick={() => setLocation("/agreements/new?new=1")}
@@ -466,19 +466,18 @@ export default function Dashboard() {
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
-                  flex: 1, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 13, fontWeight: 800, color: "#06143a", letterSpacing: 0.3,
-                  background: "linear-gradient(180deg, #93c5fd 0%, #60a5fa 22%, #2563eb 62%, #1d4ed8 100%)",
-                  boxShadow: "0 3px 0 rgba(10,30,120,0.90), 0 8px 20px rgba(37,99,235,0.45)",
+                  flex: 1, height: 52, borderRadius: 999,
+                  border: `1.5px solid ${th.primary}`,
+                  cursor: "pointer",
+                  fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)", letterSpacing: 0.3,
+                  background: "rgba(10,18,40,0.85)",
+                  boxShadow: `0 0 0 1px rgba(212,160,32,0.15), inset 0 1px 0 rgba(255,255,255,0.06)`,
                   position: "relative", overflow: "hidden",
                   transition: "transform 0.15s ease",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 }}
               >
-                <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
-                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                <Plus size={15} />
+                <ArrowUpRight size={15} style={{ color: th.primary }} />
                 {lang === "pl" ? "Nowa umowa" : "New Contract"}
               </button>
             </div>
