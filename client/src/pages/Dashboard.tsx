@@ -264,10 +264,10 @@ export default function Dashboard() {
 
   type QuickAction = { icon: React.ReactNode; label: TileKey; text: string; feature: FeatureKey; onClick: () => void; testId: string };
   const quickActions: QuickAction[] = ([
-    { icon: <Clock size={22} />,          label: "HISTORY"  as TileKey, text: "HISTORIA", feature: "transfer"        as FeatureKey, onClick: () => setLocation("/history"),                                                      testId: "action-history"  },
-    { icon: <Target size={22} />,         label: "GOALS"    as TileKey, text: "CELE",     feature: "transfer"        as FeatureKey, onClick: () => setLocation("/savings"),                                                      testId: "action-goals"    },
-    { icon: <BarChart2 size={22} />,      label: "BUDGET"   as TileKey, text: "BUDŻET",   feature: "budget-forecast" as FeatureKey, onClick: () => setLocation("/budget"),                                                       testId: "action-budget"   },
-    { icon: <ArrowLeftRight size={22} />, label: "EXCHANGE" as TileKey, text: "WYMIANA",  feature: "transfer"        as FeatureKey, onClick: () => { setShowExchange(s => !s); setExResult(null); setExError(null); },           testId: "action-exchange" },
+    { icon: <Clock size={22} />,          label: "HISTORY"  as TileKey, text: lang === "pl" ? "HISTORIA" : "HISTORY",  feature: "transfer"        as FeatureKey, onClick: () => setLocation("/history"),                                            testId: "action-history"  },
+    { icon: <Target size={22} />,         label: "GOALS"    as TileKey, text: lang === "pl" ? "CELE"    : "GOALS",    feature: "transfer"        as FeatureKey, onClick: () => setLocation("/savings"),                                            testId: "action-goals"    },
+    { icon: <BarChart2 size={22} />,      label: "BUDGET"   as TileKey, text: lang === "pl" ? "BUDŻET"  : "BUDGET",   feature: "budget-forecast" as FeatureKey, onClick: () => setLocation("/budget"),                                             testId: "action-budget"   },
+    { icon: <ArrowLeftRight size={22} />, label: "EXCHANGE" as TileKey, text: lang === "pl" ? "WYMIANA" : "EXCHANGE", feature: "transfer"        as FeatureKey, onClick: () => { setShowExchange(s => !s); setExResult(null); setExError(null); }, testId: "action-exchange" },
   ] as QuickAction[]).filter(a => isEnabled(a.feature));
 
   const topCategories = useMemo(() => {
@@ -299,6 +299,12 @@ export default function Dashboard() {
     WebkitTextFillColor: "transparent",
     backgroundClip: "text",
   };
+
+  const hour = new Date().getHours();
+  const greeting = lang === "pl"
+    ? (hour < 12 ? "Dzień dobry" : hour < 18 ? "Dzień dobry" : "Dobry wieczór")
+    : (hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
+  const firstName = user?.name?.split(" ")[0] || "";
 
   const handleExchange = async () => {
     const amt = parseFloat(exAmount);
@@ -354,8 +360,14 @@ export default function Dashboard() {
           }}>
             <CardSheen radius={r.xl} color={th.sheenTop} />
 
+            {firstName && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.42)", letterSpacing: 0.6, marginBottom: 10, position: "relative" }}>
+                {greeting}, {firstName} 👋
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, position: "relative" }}>
-              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 3.6, ...goldStyle }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: th.textMuted, position: "relative" }}>
                 {t.totalWealth}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -460,7 +472,7 @@ export default function Dashboard() {
                   background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
                   borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
                 <Send size={16} />
-                Wyślij
+                {lang === "pl" ? "Wyślij" : "Send"}
               </button>
 
               {/* Niebieski — Nowa umowa */}
@@ -486,7 +498,7 @@ export default function Dashboard() {
                   background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
                   borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
                 <Plus size={16} />
-                Nowa umowa
+                {lang === "pl" ? "Nowa umowa" : "New Contract"}
               </button>
             </div>
           </div>
@@ -509,7 +521,7 @@ export default function Dashboard() {
 
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>Z waluty</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>{lang === "pl" ? "Z waluty" : "From"}</div>
                   <select
                     data-testid="exchange-from"
                     value={exFrom}
@@ -528,8 +540,8 @@ export default function Dashboard() {
                   </select>
                   <div style={{ fontSize: 14, color: (wallets[exFrom] ?? 0) === 0 ? "#ff6060" : th.textMuted, marginTop: 3, fontWeight: 600 }}>
                     {(wallets[exFrom] ?? 0) === 0
-                      ? `Brak środków w ${exFrom}. Wybierz walutę, w której masz saldo.`
-                      : `Dostępne: ${formatMoney(wallets[exFrom] ?? 0, exFrom)}`
+                      ? (lang === "pl" ? `Brak środków w ${exFrom}` : `No funds in ${exFrom}`)
+                      : `${lang === "pl" ? "Dostępne" : "Available"}: ${formatMoney(wallets[exFrom] ?? 0, exFrom)}`
                     }
                   </div>
                 </div>
@@ -537,7 +549,7 @@ export default function Dashboard() {
                   <ArrowLeftRight size={16} color={th.textMuted} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>Na walutę</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>{lang === "pl" ? "Na walutę" : "To"}</div>
                   <select
                     data-testid="exchange-to"
                     value={exTo}
@@ -560,13 +572,13 @@ export default function Dashboard() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontSize: 14, color: th.textMuted, letterSpacing: 0.5 }}>
                   {ratesUnavailable
-                    ? "Kursy walut tymczasowo niedostępne"
+                    ? (lang === "pl" ? "Kursy walut tymczasowo niedostępne" : "Exchange rates temporarily unavailable")
                     : `1 ${exFrom} = ${(fxRates[exTo] / fxRates[exFrom]).toFixed(4)} ${exTo}`
                   }
                 </div>
                 {ratesUpdatedLabel && !ratesUnavailable && (
                   <div style={{ fontSize: 14, color: th.textMuted, letterSpacing: 0.3 }}>
-                    Kursy: {ratesUpdatedLabel}
+                    {lang === "pl" ? "Kursy" : "Rates"}: {ratesUpdatedLabel}
                   </div>
                 )}
               </div>
@@ -614,7 +626,7 @@ export default function Dashboard() {
                   border: "1px solid rgba(36,212,135,0.25)",
                   fontSize: 14, fontWeight: 700, color: "#70f0aa",
                 }}>
-                  ✓ Wymiana zakończona — {formatMoney(exResult.fromAmount, exResult.from)} → {formatMoney(exResult.received, exResult.currency)}
+                  ✓ {lang === "pl" ? "Wymiana zakończona" : "Exchange complete"} — {formatMoney(exResult.fromAmount, exResult.from)} → {formatMoney(exResult.received, exResult.currency)}
                 </div>
               )}
               {exError && (
@@ -628,10 +640,10 @@ export default function Dashboard() {
                   {exError === "Brak wystarczających środków" && exAmount && parseFloat(exAmount) > 0 && (
                     <>
                       <div style={{ marginTop: 4, fontWeight: 600, opacity: 0.85 }}>
-                        Dostępne: {formatMoney(wallets[exFrom] ?? 0, exFrom)}
+                        {lang === "pl" ? "Dostępne" : "Available"}: {formatMoney(wallets[exFrom] ?? 0, exFrom)}
                       </div>
                       <div style={{ fontWeight: 600, opacity: 0.85 }}>
-                        Brakuje: {formatMoney(Math.max(0, parseFloat(exAmount) - (wallets[exFrom] ?? 0)), exFrom)}
+                        {lang === "pl" ? "Brakuje" : "Shortfall"}: {formatMoney(Math.max(0, parseFloat(exAmount) - (wallets[exFrom] ?? 0)), exFrom)}
                       </div>
                     </>
                   )}
@@ -657,9 +669,9 @@ export default function Dashboard() {
 
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, position: "relative" }}>
             {[
-              { label: "Wpływy", value: monthIn, color: "#24d487", sign: "+" },
-              { label: "Wydatki", value: monthOut, color: "#ff8080", sign: "−" },
-              { label: "Bilans miesiąca", value: monthBalance, color: monthBalance >= 0 ? "#24d487" : "#ff8080", sign: monthBalance >= 0 ? "+" : "" },
+              { label: lang === "pl" ? "Wpływy" : "Income",  value: monthIn,     color: "#24d487", sign: "+" },
+              { label: lang === "pl" ? "Wydatki" : "Expenses", value: monthOut,    color: "#ff8080", sign: "−" },
+              { label: lang === "pl" ? "Bilans miesiąca" : "Monthly balance", value: monthBalance, color: monthBalance >= 0 ? "#24d487" : "#ff8080", sign: monthBalance >= 0 ? "+" : "" },
             ].map(({ label, value, color, sign }) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 13, color: th.textMuted, fontWeight: 600 }}>{label}</div>
@@ -680,7 +692,7 @@ export default function Dashboard() {
               background: trendColor === "positive" ? "rgba(35,183,118,0.16)" : "rgba(200,30,80,0.18)",
               border: `1px solid ${trendColor === "positive" ? "rgba(80,225,155,0.24)" : "rgba(200,30,80,0.30)"}`,
             }}>
-              vs. poprzedni miesiąc {trendLabel}
+              {lang === "pl" ? "vs. poprzedni miesiąc" : "vs. prev. month"} {trendLabel}
             </div>
             <button
               onClick={() => setLocation("/history")}
@@ -690,7 +702,7 @@ export default function Dashboard() {
                 cursor: "pointer", textTransform: "uppercase", padding: 0,
               }}
             >
-              HISTORIA →
+              {lang === "pl" ? "HISTORIA" : "HISTORY"} →
             </button>
           </div>
 
@@ -712,7 +724,7 @@ export default function Dashboard() {
             boxShadow: "0 4px 18px rgba(0,0,0,0.32)",
           }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 3, color: th.textMuted, textTransform: "uppercase", marginBottom: 12 }}>
-              Wydatki tego miesiąca
+              {lang === "pl" ? "Wydatki tego miesiąca" : "This month's spending"}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {topCategories.map(([cat, amount], i) => {
@@ -727,7 +739,7 @@ export default function Dashboard() {
                         <span style={{ fontSize: 15 }}>{getCatEmoji(cat)}</span>
                         <span style={{ textTransform: "capitalize" }}>{cat}</span>
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color }}>{amount.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color }}>{amount.toLocaleString(lang === "pl" ? "pl-PL" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeWallet}</span>
                     </div>
                     <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.07)" }}>
                       <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: color, transition: "width 0.6s ease" }} />
@@ -753,7 +765,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 3, color: th.textMuted, textTransform: "uppercase", marginBottom: 4 }}>
-                  Cel oszczędnościowy
+                  {lang === "pl" ? "Cel oszczędnościowy" : "Savings goal"}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <span style={{ fontSize: 20 }}>{topGoal.emoji}</span>

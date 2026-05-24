@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { Plus, Eye, Lock, Settings, Sparkles, ArrowLeft, Landmark } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Eye, EyeOff, Lock, Settings, Sparkles, ArrowLeft, Landmark, Copy, Check, Shield, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -31,6 +31,8 @@ export default function Cards() {
 
   const [isFrozen, setIsFrozen]       = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [revealNumber, setRevealNumber] = useState(false);
+  const [copied, setCopied]           = useState(false);
   const [simCard, setSimCard]         = useState<SimCard | null>(null);
   const [cardStats, setCardStats]     = useState<{ total: number; active: number } | null>(null);
 
@@ -234,6 +236,119 @@ export default function Cards() {
             </div>
           ))}
         </div>
+
+        {/* ── Card Details Panel ── */}
+        <AnimatePresence>
+          {showDetails && (
+            <motion.div
+              key="details-panel"
+              initial={{ opacity: 0, y: -8, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -8, height: 0 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              style={{ overflow: "hidden" }}
+            >
+              <div style={{
+                marginTop: 16, borderRadius: 20, padding: "18px 20px",
+                background: isLight ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${isLight ? "rgba(10,30,90,0.12)" : "rgba(255,255,255,0.10)"}`,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                  <Shield size={13} color={th.textMuted} />
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2.4, color: th.textMuted, textTransform: "uppercase" }}>
+                    {lang === "pl" ? "Szczegóły karty" : "Card details"}
+                  </div>
+                </div>
+
+                {/* Card number */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, letterSpacing: 1.8, color: th.textMuted, fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>
+                    {lang === "pl" ? "Numer karty" : "Card number"}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 17, letterSpacing: "0.18em", fontWeight: 600, color: th.textPrimary }}>
+                      {simCard
+                        ? (revealNumber
+                          ? simCard.cardNumber.replace(/(.{4})/g, "$1  ").trim()
+                          : `••••  ••••  ••••  ${simCard.cardNumber.replace(/\D/g, "").slice(-4)}`)
+                        : "••••  ••••  ••••  ••••"}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => setRevealNumber(r => !r)}
+                        style={{ width: 32, height: 32, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", cursor: "pointer", color: th.textMuted }}
+                      >
+                        {revealNumber ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                      {simCard && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(simCard.cardNumber.replace(/\D/g, "")).catch(() => {});
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                          style={{ width: 32, height: 32, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: copied ? "rgba(36,212,135,0.15)" : "rgba(255,255,255,0.07)", border: `1px solid ${copied ? "rgba(36,212,135,0.30)" : "rgba(255,255,255,0.10)"}`, cursor: "pointer", color: copied ? "#24d487" : th.textMuted, transition: "all 0.2s" }}
+                        >
+                          {copied ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expiry + Type row */}
+                <div style={{ display: "flex", gap: 14 }}>
+                  <div style={{ flex: 1, background: isLight ? "rgba(10,20,60,0.04)" : "rgba(255,255,255,0.04)", borderRadius: 12, padding: "10px 14px", border: `1px solid ${isLight ? "rgba(10,30,90,0.08)" : "rgba(255,255,255,0.07)"}` }}>
+                    <div style={{ fontSize: 9, letterSpacing: 1.8, color: th.textMuted, fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
+                      {lang === "pl" ? "Ważna do" : "Valid thru"}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: th.textPrimary, fontFamily: "monospace", letterSpacing: "0.10em" }}>
+                      {simCard?.expiry ?? "––/––"}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, background: isLight ? "rgba(10,20,60,0.04)" : "rgba(255,255,255,0.04)", borderRadius: 12, padding: "10px 14px", border: `1px solid ${isLight ? "rgba(10,30,90,0.08)" : "rgba(255,255,255,0.07)"}` }}>
+                    <div style={{ fontSize: 9, letterSpacing: 1.8, color: th.textMuted, fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
+                      {lang === "pl" ? "Typ karty" : "Card type"}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <CreditCard size={14} color={th.textMuted} />
+                      <div style={{ fontSize: 13, fontWeight: 700, color: th.textPrimary, textTransform: "uppercase" }}>
+                        {simCard?.cardType ?? "VISA"}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, background: isLight ? "rgba(10,20,60,0.04)" : "rgba(255,255,255,0.04)", borderRadius: 12, padding: "10px 14px", border: `1px solid ${isLight ? "rgba(10,30,90,0.08)" : "rgba(255,255,255,0.07)"}` }}>
+                    <div style={{ fontSize: 9, letterSpacing: 1.8, color: th.textMuted, fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
+                      CVV
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: th.textPrimary, fontFamily: "monospace", letterSpacing: "0.20em" }}>
+                      •••
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 10px", borderRadius: 999,
+                    fontSize: 11, fontWeight: 800, letterSpacing: 1,
+                    color: isFrozen ? "#aaa" : "#7df0ba",
+                    background: isFrozen ? "rgba(255,255,255,0.07)" : "rgba(35,183,118,0.16)",
+                    border: `1px solid ${isFrozen ? "rgba(255,255,255,0.12)" : "rgba(80,225,155,0.24)"}`,
+                  }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: isFrozen ? "#888" : "#24d487" }} />
+                    {isFrozen ? (lang === "pl" ? "ZABLOKOWANA" : "FROZEN") : (lang === "pl" ? "AKTYWNA" : "ACTIVE")}
+                  </div>
+                  <div style={{ fontSize: 11, color: th.textMuted }}>
+                    {lang === "pl" ? "World Elite Mastercard" : "World Elite Mastercard"}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Linked External Cards — not yet available ── */}
         <div style={{ marginTop: 28 }}>
