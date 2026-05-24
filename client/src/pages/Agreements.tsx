@@ -194,7 +194,7 @@ export default function Agreements() {
               data-testid="button-new-agreement"
               onClick={() => setLocation("/agreements/new")}
               className="h-10 px-4 rounded-full text-[13px] font-bold tracking-widest border-none"
-              style={{ background: "linear-gradient(135deg, #7c3aed, #d4a020)", color: "#000", border: "none", fontWeight: 800 }}
+              style={{ background: "linear-gradient(135deg, #7c3aed, #d4a020)", color: "#fff", border: "none", fontWeight: 800 }}
             >
               <Plus className="w-4 h-4 mr-1" />
               {t.agreeNewContract}
@@ -253,7 +253,7 @@ export default function Agreements() {
               <Button
                 onClick={() => setLocation("/agreements/new")}
                 className="mt-6 rounded-xl border-none font-bold"
-                style={{ background: "linear-gradient(135deg, #7c3aed, #d4a020)", color: "#000", border: "none", fontWeight: 800 }}
+                style={{ background: "linear-gradient(135deg, #7c3aed, #d4a020)", color: "#fff", border: "none", fontWeight: 800 }}
               >
                 {t.agreeNewBtn}
               </Button>
