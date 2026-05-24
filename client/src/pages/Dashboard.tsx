@@ -431,7 +431,7 @@ export default function Dashboard() {
                 background: `linear-gradient(90deg, ${th.glow}, transparent)` }} />
             </div>
 
-            <div style={{ marginTop: 28, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ marginTop: 28, display: "flex", flexDirection: "row", gap: 10 }}>
               {/* Żółty — Dodaj Środki */}
               <button
                 data-testid="btn-add-funds"
@@ -442,8 +442,8 @@ export default function Dashboard() {
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
-                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 14, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
+                  flex: "0 0 55%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
                   background: th.primaryGradient,
                   boxShadow: th.primaryBtnShadow,
                   position: "relative", overflow: "hidden",
@@ -466,19 +466,19 @@ export default function Dashboard() {
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
-                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 14, fontWeight: 800, color: "#06143a", letterSpacing: 0.3,
+                  flex: 1, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 800, color: "#06143a", letterSpacing: 0.3,
                   background: "linear-gradient(180deg, #93c5fd 0%, #60a5fa 22%, #2563eb 62%, #1d4ed8 100%)",
                   boxShadow: "0 3px 0 rgba(10,30,120,0.90), 0 8px 20px rgba(37,99,235,0.45)",
                   position: "relative", overflow: "hidden",
                   transition: "transform 0.15s ease",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 }}
               >
                 <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
                   background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
                   borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                <Plus size={16} />
+                <Plus size={15} />
                 {lang === "pl" ? "Nowa umowa" : "New Contract"}
               </button>
             </div>
