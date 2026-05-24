@@ -431,82 +431,37 @@ export default function Dashboard() {
                 background: `linear-gradient(90deg, ${th.glow}, transparent)` }} />
             </div>
 
-            <div style={{ marginTop: 28, display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* Żółty — Dodaj Środki */}
-              <button
-                data-testid="btn-add-funds"
-                onClick={() => setLocation("/wallet/top-up")}
-                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                style={{
-                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 14, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
-                  background: th.primaryGradient,
-                  boxShadow: th.primaryBtnShadow,
-                  position: "relative", overflow: "hidden",
-                  transition: "transform 0.15s ease",
-                }}
-              >
-                <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.24) 0%, transparent 100%)",
-                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                {t.addFunds}
-              </button>
-
-              {/* Zielony — Wyślij */}
-              <button
-                data-testid="btn-hero-send"
-                onClick={() => setLocation("/transfer")}
-                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                style={{
-                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 14, fontWeight: 800, color: "#0a2e12", letterSpacing: 0.3,
-                  background: "linear-gradient(180deg, #6effa0 0%, #34d768 22%, #1aaf48 62%, #0e8535 100%)",
-                  boxShadow: "0 3px 0 rgba(8,72,28,0.90), 0 8px 20px rgba(26,175,72,0.45)",
-                  position: "relative", overflow: "hidden",
-                  transition: "transform 0.15s ease",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}
-              >
-                <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
-                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                <Send size={16} />
-                {lang === "pl" ? "Wyślij" : "Send"}
-              </button>
-
-              {/* Niebieski — Nowa umowa */}
-              <button
-                data-testid="btn-new-agreement-pill"
-                onClick={() => setLocation("/agreements/new?new=1")}
-                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                style={{
-                  width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 14, fontWeight: 800, color: "#06143a", letterSpacing: 0.3,
-                  background: "linear-gradient(180deg, #93c5fd 0%, #60a5fa 22%, #2563eb 62%, #1d4ed8 100%)",
-                  boxShadow: "0 3px 0 rgba(10,30,120,0.90), 0 8px 20px rgba(37,99,235,0.45)",
-                  position: "relative", overflow: "hidden",
-                  transition: "transform 0.15s ease",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}
-              >
-                <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
-                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                <Plus size={16} />
-                {lang === "pl" ? "Nowa umowa" : "New Contract"}
-              </button>
+            <div style={{ marginTop: 28, display: "flex", justifyContent: "space-around", alignItems: "flex-start" }}>
+              {[
+                { icon: <Send size={22} />, label: lang === "pl" ? "Wyślij" : "Send", testId: "btn-card-send", action: () => setLocation("/transfer") },
+                { icon: <ArrowDownLeft size={22} />, label: lang === "pl" ? "Poproś" : "Request", testId: "btn-card-request", action: () => setLocation("/transfer?mode=request") },
+                { icon: <Plus size={22} />, label: lang === "pl" ? "Dodaj" : "Top up", testId: "btn-card-add", action: () => setLocation("/wallet/top-up") },
+                { icon: <ArrowLeftRight size={22} />, label: lang === "pl" ? "Wymiana" : "Exchange", testId: "btn-card-exchange", action: () => { setShowExchange(s => !s); setExResult(null); setExError(null); } },
+              ].map(btn => (
+                <button
+                  key={btn.testId}
+                  data-testid={btn.testId}
+                  onClick={btn.action}
+                  onTouchStart={e => { (e.currentTarget.querySelector(".orb-inner") as HTMLElement | null)?.style && ((e.currentTarget.querySelector(".orb-inner") as HTMLElement).style.transform = "scale(0.92)"); }}
+                  onTouchEnd={e => { (e.currentTarget.querySelector(".orb-inner") as HTMLElement | null)?.style && ((e.currentTarget.querySelector(".orb-inner") as HTMLElement).style.transform = "scale(1)"); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: 0 }}
+                >
+                  <div className="orb-inner" style={{
+                    width: 52, height: 52, borderRadius: "50%",
+                    background: th.secondaryBtnBg || "rgba(255,255,255,0.08)",
+                    border: `1px solid ${th.secondaryBtnBorder || "rgba(255,255,255,0.12)"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "var(--primary,#D4A020)",
+                    transition: "transform 0.15s ease, background 0.15s ease",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+                  }}>
+                    {btn.icon}
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.60)", letterSpacing: 0.2, textAlign: "center" }}>
+                    {btn.label}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -660,67 +615,22 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── Cash Flow Card ── */}
+        {/* ── Cash Flow mini-strip (zamiast dużej karty) ── */}
         <div style={{
-          marginTop: 14, borderRadius: r.lg, padding: "18px 20px",
+          marginTop: 14, borderRadius: r.lg, padding: "14px 18px",
           background: th.cardAltBg, border: `1px solid ${th.border}`,
-          boxShadow: ["0 2px 0 rgba(255,255,255,0.05)", "inset 0 1px 0 rgba(255,255,255,0.06)", "0 16px 48px rgba(0,0,0,0.45)"].join(", "),
-          position: "relative", overflow: "hidden",
-          transition: "background 0.5s ease",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <CardSheen radius={r.lg} color={th.sheenTop} />
-
-          <div style={{ fontSize: 15, letterSpacing: 3.4, fontWeight: 700, color: th.textMuted, position: "relative" }}>
-            {t.cashFlow}
-          </div>
-
-          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, position: "relative" }}>
-            {[
-              { label: lang === "pl" ? "Wpływy" : "Income",  value: monthIn,     color: "#24d487", sign: "+" },
-              { label: lang === "pl" ? "Wydatki" : "Expenses", value: monthOut,    color: "#ff8080", sign: "−" },
-              { label: lang === "pl" ? "Bilans miesiąca" : "Monthly balance", value: monthBalance, color: monthBalance >= 0 ? "#24d487" : "#ff8080", sign: monthBalance >= 0 ? "+" : "" },
-            ].map(({ label, value, color, sign }) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 13, color: th.textMuted, fontWeight: 600 }}>{label}</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color }}>
-                  {sign}{Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 12, height: 1, background: "rgba(255,255,255,0.06)" }} />
-
-          <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
-            <div style={{
-              padding: "3px 9px", borderRadius: 999,
-              fontSize: 12, fontWeight: 700,
-              color: trendColor === "positive" ? "#7df0ba" : "#ff8080",
-              background: trendColor === "positive" ? "rgba(35,183,118,0.16)" : "rgba(200,30,80,0.18)",
-              border: `1px solid ${trendColor === "positive" ? "rgba(80,225,155,0.24)" : "rgba(200,30,80,0.30)"}`,
-            }}>
-              {lang === "pl" ? "vs. poprzedni miesiąc" : "vs. prev. month"} {trendLabel}
+          {[
+            { label: lang === "pl" ? "Wpływy" : "Income",   value: monthIn,      color: "#24d487", sign: "+" },
+            { label: lang === "pl" ? "Wydatki" : "Expenses", value: monthOut,    color: "#ff8080", sign: "−" },
+            { label: lang === "pl" ? "Bilans" : "Balance",   value: monthBalance, color: monthBalance >= 0 ? "#24d487" : "#ff8080", sign: monthBalance >= 0 ? "+" : "−" },
+          ].map(({ label, value, color, sign }, i, arr) => (
+            <div key={label} style={{ flex: 1, textAlign: "center", borderRight: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color }}>{sign}{Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
             </div>
-            <button
-              onClick={() => setLocation("/history")}
-              style={{
-                fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
-                color: th.primary, background: "none", border: "none",
-                cursor: "pointer", textTransform: "uppercase", padding: 0,
-              }}
-            >
-              {lang === "pl" ? "HISTORIA" : "HISTORY"} →
-            </button>
-          </div>
-
-          <div style={{ marginTop: 10, height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
-            <div style={{
-              height: "100%", width: barWidth, borderRadius: 99,
-              background: "linear-gradient(90deg, rgba(36,212,135,0.5), rgba(36,212,135,0.9))",
-              boxShadow: "0 0 8px rgba(36,212,135,0.50)",
-              transition: "width 0.6s ease",
-            }} />
-          </div>
+          ))}
         </div>
 
         {/* ── Top Spending Categories ── */}
