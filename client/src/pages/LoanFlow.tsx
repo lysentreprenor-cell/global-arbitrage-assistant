@@ -22,8 +22,9 @@ export default function LoanFlow() {
   const [installments, setInstallments] = useState(false);
   const [installmentCount, setInstallmentCount] = useState("3");
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!recipient) {
       toast({ title: pl ? "Wpisz odbiorcę" : "Enter recipient", variant: "destructive" });
       return;
@@ -31,6 +32,21 @@ export default function LoanFlow() {
     if (!amount || !dueDate) {
       toast({ title: pl ? "Uzupełnij kwotę i termin spłaty" : "Fill in amount and due date", variant: "destructive" });
       return;
+    }
+    if (recipient.startsWith("@")) {
+      setSending(true);
+      try {
+        const res = await fetch(`/api/users/by-handle?handle=${encodeURIComponent(recipient)}`);
+        if (!res.ok) {
+          toast({ title: pl ? "Nie znaleziono użytkownika" : "User not found", description: recipient, variant: "destructive" });
+          return;
+        }
+      } catch {
+        toast({ title: pl ? "Błąd połączenia" : "Connection error", variant: "destructive" });
+        return;
+      } finally {
+        setSending(false);
+      }
     }
     setSent(true);
   };
@@ -203,11 +219,13 @@ export default function LoanFlow() {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
               <button
                 onClick={handleSend}
+                disabled={sending}
                 style={{
                   width: 76, height: 76, borderRadius: "50%",
                   background: ORB_BG,
                   boxShadow: ORB_SHADOW,
-                  border: "none", cursor: "pointer",
+                  border: "none", cursor: sending ? "not-allowed" : "pointer",
+                  opacity: sending ? 0.6 : 1,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   position: "relative", overflow: "hidden",
                 }}
