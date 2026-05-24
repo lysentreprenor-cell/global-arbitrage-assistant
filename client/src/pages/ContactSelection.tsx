@@ -406,19 +406,21 @@ export default function ContactSelection() {
               </div>
             </div>
 
-            {/* 4 metody — siatka 2×2: Konto | Karta / Telefon | Poproś */}
+            {/* 5 metod — siatka 2×2 + pożyczka na pełnej szerokości */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
-                { label: pl ? "Konto bankowe" : "Bank",  sub: pl ? "IBAN / numer" : "IBAN",        icon: <Building2 size={20} />,    onClick: () => setLocation(`/transfer/new?to=bank${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-bank-account" },
-                { label: pl ? "Na kartę" : "Card",       sub: pl ? "Numer karty" : "Card number",  icon: <FileText size={20} />,      onClick: () => setLocation(`/transfer/new?to=card${requestAmount ? `&amount=${requestAmount}` : ""}`),          testId: "tile-card-payout" },
-                { label: pl ? "Telefon" : "Phone",       sub: pl ? "Numer tel." : "Phone",         icon: <Phone size={20} />,         onClick: () => setLocation(`/transfer/new?to=phone${requestAmount ? `&amount=${requestAmount}` : ""}`),         testId: "tile-phone-transfer" },
-                { label: pl ? "Poproś" : "Request",      sub: pl ? "Poproś o przelew" : "Request", icon: <ArrowUpRight size={20} />,  onClick: () => setActiveMode("request"),                                                                                       testId: "tile-request-from-send" },
+                { label: pl ? "Konto bankowe" : "Bank",    sub: pl ? "IBAN / numer" : "IBAN",          icon: <Building2 size={20} />,   onClick: () => setLocation(`/transfer/new?to=bank${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-bank-account",    span: false },
+                { label: pl ? "Na kartę" : "Card",         sub: pl ? "Numer karty" : "Card number",    icon: <FileText size={20} />,    onClick: () => setLocation(`/transfer/new?to=card${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-card-payout",     span: false },
+                { label: pl ? "Telefon" : "Phone",         sub: pl ? "Numer tel." : "Phone",           icon: <Phone size={20} />,       onClick: () => setLocation(`/transfer/new?to=phone${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-phone-transfer",  span: false },
+                { label: pl ? "Poproś" : "Request",        sub: pl ? "Poproś o przelew" : "Request",   icon: <ArrowUpRight size={20} />, onClick: () => setActiveMode("request"),                                                              testId: "tile-request-from-send", span: false },
+                { label: pl ? "Pożyczka P2P" : "P2P Loan", sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, onClick: () => { setShowLoanModal(true); setLoanSent(false); }, testId: "tile-loan-p2p", span: true },
               ].map(tile => (
                 <button
                   key={tile.testId}
                   data-testid={tile.testId}
                   onClick={tile.onClick}
                   style={{
+                    gridColumn: tile.span ? "1 / -1" : undefined,
                     borderRadius: 18, padding: "16px 8px",
                     background: "rgba(255,255,255,0.04)",
                     border: "1px solid rgba(255,255,255,0.09)",
@@ -437,32 +439,6 @@ export default function ContactSelection() {
                 </button>
               ))}
             </div>
-
-            {/* Pożyczka P2P — pełna szerokość */}
-            <button
-              data-testid="tile-loan-p2p"
-              onClick={() => { setShowLoanModal(true); setLoanSent(false); }}
-              style={{
-                marginTop: 10, width: "100%", borderRadius: 18, padding: "14px 20px",
-                background: "rgba(212,160,32,0.07)",
-                border: "1px solid rgba(212,160,32,0.22)",
-                display: "flex", alignItems: "center", gap: 14,
-                cursor: "pointer", transition: "all 0.15s ease",
-              }}
-              onMouseDown={e => { e.currentTarget.style.background = "rgba(212,160,32,0.13)"; e.currentTarget.style.transform = "scale(0.98)"; }}
-              onMouseUp={e => { e.currentTarget.style.background = "rgba(212,160,32,0.07)"; e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,160,32,0.07)"; e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.background = "rgba(212,160,32,0.13)"; e.currentTarget.style.transform = "scale(0.98)"; }}
-              onTouchEnd={e => { e.currentTarget.style.background = "rgba(212,160,32,0.07)"; e.currentTarget.style.transform = "scale(1)"; }}
-            >
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(212,160,32,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Banknote size={20} style={{ color: "var(--primary, #D4A020)" }} />
-              </div>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.88)" }}>{pl ? "Pożyczka P2P" : "P2P Loan"}</div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.38)" }}>{pl ? "Dla znajomego lub rodziny" : "For a friend or family"}</div>
-              </div>
-            </button>
 
             {/* Modal Pożyczka P2P */}
             <AnimatePresence>
