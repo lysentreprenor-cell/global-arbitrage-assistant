@@ -33,20 +33,28 @@ export default function LoanFlow() {
       toast({ title: pl ? "Uzupełnij kwotę i termin spłaty" : "Fill in amount and due date", variant: "destructive" });
       return;
     }
-    if (recipient.startsWith("@")) {
-      setSending(true);
-      try {
+    setSending(true);
+    try {
+      let found = false;
+      if (recipient.startsWith("@")) {
         const res = await fetch(`/api/users/by-handle?handle=${encodeURIComponent(recipient)}`);
-        if (!res.ok) {
-          toast({ title: pl ? "Nie znaleziono użytkownika" : "User not found", description: recipient, variant: "destructive" });
-          return;
+        found = res.ok;
+      } else {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(recipient)}`);
+        if (res.ok) {
+          const data = await res.json();
+          found = Array.isArray(data.items) && data.items.length > 0;
         }
-      } catch {
-        toast({ title: pl ? "Błąd połączenia" : "Connection error", variant: "destructive" });
-        return;
-      } finally {
-        setSending(false);
       }
+      if (!found) {
+        toast({ title: pl ? "Nie znaleziono użytkownika" : "User not found", description: recipient, variant: "destructive" });
+        return;
+      }
+    } catch {
+      toast({ title: pl ? "Błąd połączenia" : "Connection error", variant: "destructive" });
+      return;
+    } finally {
+      setSending(false);
     }
     setSent(true);
   };
