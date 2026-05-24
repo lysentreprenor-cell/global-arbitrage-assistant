@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote } from "lucide-react";
+import { ArrowLeft, User, FileText, Phone, ArrowUpRight, Calendar, FilePlus, Building2, QrCode, Share2, ChevronRight, ChevronDown, Banknote, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore, CORE_WALLET_CURRENCIES, CURRENCY_SYMBOLS, WALLET_FLAGS } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,6 +27,11 @@ export default function ContactSelection() {
   const { lang } = useLang();
   const { toast } = useToast();
   const pl = lang === "pl";
+
+  const [selectedMethod, setSelectedMethod] = useState<"bank" | "card" | "phone" | null>(null);
+  const [bankIban, setBankIban] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
 
   useEffect(() => {
@@ -399,39 +404,125 @@ export default function ContactSelection() {
               </div>
             </div>
 
-            {/* 5 metod — siatka 2×2 + pożyczka na pełnej szerokości */}
+            {/* 5 metod — zakładki (tabs) */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {[
-                { label: pl ? "Konto bankowe" : "Bank",    sub: pl ? "IBAN / numer" : "IBAN",          icon: <Building2 size={20} />,   onClick: () => setLocation(`/transfer/new?to=bank${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-bank-account",    span: false },
-                { label: pl ? "Na kartę" : "Card",         sub: pl ? "Numer karty" : "Card number",    icon: <FileText size={20} />,    onClick: () => setLocation(`/transfer/new?to=card${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-card-payout",     span: false },
-                { label: pl ? "Telefon" : "Phone",         sub: pl ? "Numer tel." : "Phone",           icon: <Phone size={20} />,       onClick: () => setLocation(`/transfer/new?to=phone${requestAmount ? `&amount=${requestAmount}` : ""}`), testId: "tile-phone-transfer",  span: false },
-                { label: pl ? "Poproś" : "Request",        sub: pl ? "Poproś o przelew" : "Request",   icon: <ArrowUpRight size={20} />, onClick: () => setActiveMode("request"),                                                              testId: "tile-request-from-send", span: false },
-                { label: pl ? "Pożyczka P2P" : "P2P Loan", sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, onClick: () => setLocation("/transfer/loan"), testId: "tile-loan-p2p", span: true },
-              ].map(tile => (
-                <button
-                  key={tile.testId}
-                  data-testid={tile.testId}
-                  onClick={tile.onClick}
-                  style={{
-                    gridColumn: tile.span ? "1 / -1" : undefined,
-                    borderRadius: 18, padding: "16px 8px",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.09)",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
-                    cursor: "pointer", transition: "all 0.15s ease",
-                  }}
-                  onMouseDown={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.96)"; }}
-                  onMouseUp={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
-                  onTouchStart={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.96)"; }}
-                  onTouchEnd={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
-                >
-                  <div style={{ color: "var(--primary, #D4A020)", opacity: 0.85 }}>{tile.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.80)", letterSpacing: 0.1 }}>{tile.label}</div>
-                  <div style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.32)", textAlign: "center" }}>{tile.sub}</div>
-                </button>
-              ))}
+              {([
+                { id: "bank",  label: pl ? "Konto bankowe" : "Bank",    sub: pl ? "IBAN / numer" : "IBAN",          icon: <Building2 size={20} />,    testId: "tile-bank-account",      span: false },
+                { id: "card",  label: pl ? "Na kartę" : "Card",         sub: pl ? "Numer karty" : "Card number",    icon: <FileText size={20} />,     testId: "tile-card-payout",       span: false },
+                { id: "phone", label: pl ? "Telefon" : "Phone",         sub: pl ? "Numer tel." : "Phone",           icon: <Phone size={20} />,        testId: "tile-phone-transfer",    span: false },
+                { id: "req",   label: pl ? "Poproś" : "Request",        sub: pl ? "Poproś o przelew" : "Request",   icon: <ArrowUpRight size={20} />, testId: "tile-request-from-send", span: false },
+                { id: "loan",  label: pl ? "Pożyczka P2P" : "P2P Loan", sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, testId: "tile-loan-p2p", span: true },
+              ] as { id: string; label: string; sub: string; icon: ReactNode; testId: string; span: boolean }[]).map(tile => {
+                const active = selectedMethod === tile.id || (tile.id === "req" && activeMode === "request");
+                return (
+                  <button
+                    key={tile.testId}
+                    data-testid={tile.testId}
+                    onClick={() => {
+                      if (tile.id === "loan") { setLocation("/transfer/loan"); return; }
+                      if (tile.id === "req")  { setActiveMode("request"); setSelectedMethod(null); return; }
+                      setSelectedMethod(prev => prev === tile.id as any ? null : tile.id as any);
+                    }}
+                    style={{
+                      gridColumn: tile.span ? "1 / -1" : undefined,
+                      borderRadius: 18, padding: "16px 8px",
+                      background: active ? "rgba(212,160,32,0.10)" : "rgba(255,255,255,0.04)",
+                      border: `1.5px solid ${active ? "rgba(212,160,32,0.45)" : "rgba(255,255,255,0.09)"}`,
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
+                      cursor: "pointer", transition: "all 0.18s ease",
+                    }}
+                    onTouchStart={e => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                    onTouchEnd={e => { e.currentTarget.style.background = active ? "rgba(212,160,32,0.10)" : "rgba(255,255,255,0.04)"; }}
+                  >
+                    <div style={{ color: active ? "var(--primary,#D4A020)" : "rgba(212,160,32,0.65)" }}>{tile.icon}</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: active ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.80)", letterSpacing: 0.1 }}>{tile.label}</div>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.32)", textAlign: "center" }}>{tile.sub}</div>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Panel szczegółów dla wybranej metody */}
+            <AnimatePresence>
+              {selectedMethod && (
+                <motion.div
+                  key={selectedMethod}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ borderRadius: 18, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", padding: "18px 16px 16px" }}>
+                    {selectedMethod === "bank" && (
+                      <>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 8 }}>
+                          {pl ? "Numer IBAN / konta" : "IBAN / Account number"}
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="PL00 0000 0000 0000 0000 0000 0000"
+                          value={bankIban}
+                          onChange={e => setBankIban(e.target.value)}
+                          style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 14, fontWeight: 600, outline: "none", boxSizing: "border-box", letterSpacing: 0.5 }}
+                        />
+                      </>
+                    )}
+                    {selectedMethod === "card" && (
+                      <>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 8 }}>
+                          {pl ? "Numer karty" : "Card number"}
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0000 0000 0000 0000"
+                          maxLength={19}
+                          value={cardNumber}
+                          onChange={e => setCardNumber(e.target.value.replace(/\D/g,"").replace(/(.{4})/g,"$1 ").trim())}
+                          style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 16, fontWeight: 700, outline: "none", boxSizing: "border-box", letterSpacing: 2 }}
+                        />
+                      </>
+                    )}
+                    {selectedMethod === "phone" && (
+                      <>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 8 }}>
+                          {pl ? "Numer telefonu" : "Phone number"}
+                        </label>
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          placeholder="+48 000 000 000"
+                          value={phoneNumber}
+                          onChange={e => setPhoneNumber(e.target.value)}
+                          style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 16, fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+                        />
+                      </>
+                    )}
+                    <button
+                      onClick={() => {
+                        const amt = requestAmount ? `&amount=${requestAmount}` : "";
+                        const cur = sendCurrency !== "PLN" ? `&currency=${sendCurrency}` : "";
+                        const detail =
+                          selectedMethod === "bank"  ? (bankIban  ? `&iban=${encodeURIComponent(bankIban)}`   : "") :
+                          selectedMethod === "card"  ? (cardNumber ? `&card=${encodeURIComponent(cardNumber)}` : "") :
+                          selectedMethod === "phone" ? (phoneNumber ? `&phone=${encodeURIComponent(phoneNumber)}` : "") : "";
+                        setLocation(`/transfer/new?to=${selectedMethod}${amt}${cur}${detail}`);
+                      }}
+                      style={{
+                        marginTop: 14, width: "100%", padding: "14px", borderRadius: 14,
+                        background: "linear-gradient(180deg,#fff4b8 0%,#f9d95e 22%,#d4a020 62%,#b8880a 100%)",
+                        color: "#1a1400", border: "none", fontSize: 14, fontWeight: 900,
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        boxShadow: "0 3px 0 rgba(140,90,4,0.80)",
+                      }}
+                    >
+                      <Send size={16} />
+                      {requestAmount ? `${pl ? "Wyślij" : "Send"} ${requestAmount} ${sendCurrency}` : pl ? "Wyślij" : "Send"}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
           </motion.div>
         )}
