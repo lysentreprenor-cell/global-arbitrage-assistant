@@ -31,6 +31,7 @@ export default function ContactSelection() {
   // Loan P2P state
   const [showLoanModal, setShowLoanModal] = useState(searchParams.get("mode") === "loan");
   const [loanAmount, setLoanAmount] = useState("");
+  const [loanCurrency, setLoanCurrency] = useState("PLN");
   const [loanDueDate, setLoanDueDate] = useState("");
   const [loanInstallments, setLoanInstallments] = useState(false);
   const [loanInstallmentCount, setLoanInstallmentCount] = useState("3");
@@ -482,19 +483,36 @@ export default function ContactSelection() {
                       </div>
                     ) : (
                       <>
-                        {/* Kwota */}
+                        {/* Kwota + waluta */}
                         <div style={{ marginBottom: 16 }}>
                           <label style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 6 }}>{pl ? "Kwota pożyczki" : "Loan amount"}</label>
-                          <div style={{ position: "relative" }}>
+                          <div style={{ position: "relative", marginBottom: 8 }}>
                             <input
                               type="number"
                               inputMode="decimal"
                               placeholder="0.00"
                               value={loanAmount}
                               onChange={e => setLoanAmount(e.target.value)}
-                              style={{ width: "100%", padding: "14px 48px 14px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 18, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                              style={{ width: "100%", padding: "14px 64px 14px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 18, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
                             />
-                            <span style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.35)" }}>PLN</span>
+                            <span style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 800, color: "var(--primary,#D4A020)" }}>{loanCurrency}</span>
+                          </div>
+                          {/* Picker walut */}
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {CORE_WALLET_CURRENCIES.map(cur => (
+                              <button
+                                key={cur}
+                                onClick={() => setLoanCurrency(cur)}
+                                style={{
+                                  padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                                  background: loanCurrency === cur ? "rgba(212,160,32,0.18)" : "rgba(255,255,255,0.06)",
+                                  border: `1px solid ${loanCurrency === cur ? "rgba(212,160,32,0.40)" : "rgba(255,255,255,0.09)"}`,
+                                  color: loanCurrency === cur ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.50)",
+                                }}
+                              >
+                                {WALLET_FLAGS[cur as keyof typeof WALLET_FLAGS] || ""} {cur}
+                              </button>
+                            ))}
                           </div>
                         </div>
 
@@ -559,9 +577,10 @@ export default function ContactSelection() {
                             }
                             setLoanSent(true);
                           }}
-                          style={{ width: "100%", padding: "15px", borderRadius: 16, background: "var(--primary, #D4A020)", color: "#000", border: "none", fontSize: 15, fontWeight: 900, cursor: "pointer", letterSpacing: 0.3 }}
+                          style={{ width: "100%", padding: "15px", borderRadius: 16, background: "var(--primary, #D4A020)", color: "#000", border: "none", fontSize: 15, fontWeight: 900, cursor: "pointer", letterSpacing: 0.3, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                         >
-                          {pl ? "Wyślij umowę pożyczki" : "Send loan agreement"}
+                          <Banknote size={18} />
+                          {loanAmount ? `${pl ? "Wyślij" : "Send"} ${loanAmount} ${loanCurrency}` : (pl ? "Wyślij umowę pożyczki" : "Send loan agreement")}
                         </button>
                       </>
                     )}
