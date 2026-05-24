@@ -14,7 +14,7 @@ export function BottomNav() {
   const { isEnabled } = useFeatures();
   const { unreadCount } = useMessageBadge();
 
-  if (!user || location === "/auth" || location === "/transfer" || location === "/transfer/new" || location === "/wallet/top-up" || location === "/agreements/new" || location.startsWith("/messages/") || location === "/split" || location === "/recurring" || location === "/savings" || location === "/kyc" || location === "/referral") return null;
+  if (!user || location === "/auth" || location === "/transfer" || location === "/transfer/new" || location === "/wallet/top-up" || location === "/agreements/new" || location.startsWith("/messages/") || location === "/split" || location === "/recurring" || location === "/savings" || location === "/kyc" || location === "/referral" || location.startsWith("/resell/")) return null;
 
   const isHome  = location === "/";
   const isCards = location === "/cards";

@@ -57,6 +57,13 @@ import SavingsGoals from "@/pages/SavingsGoals";
 import KYCVerification from "@/pages/KYCVerification";
 import ReferralProgram from "@/pages/ReferralProgram";
 import LoanFlow from "@/pages/LoanFlow";
+import ResellDashboard from "@/pages/resell/index";
+import ResellAddProduct from "@/pages/resell/AddProduct";
+import ResellAnalysis from "@/pages/resell/Analysis";
+import ResellCalculator from "@/pages/resell/Calculator";
+import ResellCompliance from "@/pages/resell/Compliance";
+import ResellGenerator from "@/pages/resell/GeneratorPage";
+import ResellHistory from "@/pages/resell/HistoryPage";
 
 function AuthSplash() {
   return (
@@ -160,6 +167,13 @@ function Router() {
         <Route path="/kyc" component={KYCVerification} />
         <Route path="/referral" component={ReferralProgram} />
         <Route path="/verify-email" component={VerifyEmail} />
+        <Route path="/resell" component={ResellDashboard} />
+        <Route path="/resell/add" component={ResellAddProduct} />
+        <Route path="/resell/analysis/:id" component={ResellAnalysis} />
+        <Route path="/resell/calculator" component={ResellCalculator} />
+        <Route path="/resell/compliance" component={ResellCompliance} />
+        <Route path="/resell/generator" component={ResellGenerator} />
+        <Route path="/resell/history" component={ResellHistory} />
         <Route component={NotFound} />
       </Switch>
       <BottomNav />

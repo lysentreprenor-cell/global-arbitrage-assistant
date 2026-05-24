@@ -759,6 +759,31 @@ export default function Dashboard() {
 
 
 
+      {/* ── Global Resell Assistant Banner ── */}
+      <div
+        onClick={() => setLocation("/resell")}
+        style={{
+          margin: "18px 20px 0",
+          background: "linear-gradient(135deg, rgba(80,20,120,0.72) 0%, rgba(30,10,60,0.92) 55%, rgba(60,40,0,0.60) 100%)",
+          border: "1px solid rgba(139,92,246,0.30)",
+          borderRadius: 20, padding: "16px 18px",
+          cursor: "pointer", position: "relative", overflow: "hidden",
+          boxShadow: "0 8px 28px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.08)",
+        }}
+      >
+        <div style={{ position: "absolute", top: 0, left: "15%", right: "15%", height: 1, background: "linear-gradient(90deg, transparent, rgba(245,200,66,0.40), transparent)" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 14, flexShrink: 0, background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #f5c842 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(139,92,246,0.45)" }}>
+            <TrendingUp size={20} color="#fff" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#fff", fontSize: 14, fontWeight: 800, marginBottom: 2 }}>Global Resell Assistant</div>
+            <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>Znajdź okazje arbitrażu cenowego Polska → USA</div>
+          </div>
+          <div style={{ color: "#a78bfa", fontSize: 18, fontWeight: 900 }}>›</div>
+        </div>
+      </div>
+
       </div>
 
       {/* ── Currency Picker Modal ── */}
