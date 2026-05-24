@@ -432,10 +432,10 @@ export default function Dashboard() {
             </div>
 
             <div style={{ marginTop: 28, display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* Zielony — Wyślij */}
+              {/* Żółty — Dodaj Środki */}
               <button
-                data-testid="btn-hero-send"
-                onClick={() => setLocation("/transfer")}
+                data-testid="btn-add-funds"
+                onClick={() => setLocation("/wallet/top-up")}
                 onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
@@ -443,19 +443,17 @@ export default function Dashboard() {
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
                   width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 14, fontWeight: 800, color: "#0a2e12", letterSpacing: 0.3,
-                  background: "linear-gradient(180deg, #6effa0 0%, #34d768 22%, #1aaf48 62%, #0e8535 100%)",
-                  boxShadow: "0 3px 0 rgba(8,72,28,0.90), 0 8px 20px rgba(26,175,72,0.45)",
+                  fontSize: 14, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
+                  background: th.primaryGradient,
+                  boxShadow: th.primaryBtnShadow,
                   position: "relative", overflow: "hidden",
                   transition: "transform 0.15s ease",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 }}
               >
                 <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.24) 0%, transparent 100%)",
                   borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                <Send size={16} />
-                {lang === "pl" ? "Wyślij" : "Send"}
+                {t.addFunds}
               </button>
 
               {/* Niebieski — Nowa umowa */}
