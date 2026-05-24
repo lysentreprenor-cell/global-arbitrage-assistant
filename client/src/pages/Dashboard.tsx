@@ -442,7 +442,7 @@ export default function Dashboard() {
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
-                  flex: "0 0 55%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+                  flex: 1, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
                   fontSize: 13, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
                   background: th.primaryGradient,
                   boxShadow: th.primaryBtnShadow,
@@ -471,7 +471,7 @@ export default function Dashboard() {
                   cursor: "pointer",
                   fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)", letterSpacing: 0.3,
                   background: "rgba(10,18,40,0.85)",
-                  boxShadow: `0 0 0 1px rgba(212,160,32,0.15), inset 0 1px 0 rgba(255,255,255,0.06)`,
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 3px 0 rgba(120,80,0,0.60), 0 8px 20px rgba(212,160,32,0.18)`,
                   position: "relative", overflow: "hidden",
                   transition: "transform 0.15s ease",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
