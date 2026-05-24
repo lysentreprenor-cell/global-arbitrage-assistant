@@ -394,8 +394,8 @@ export default function MessagesPage() {
                   onClick={() => setFilter(f.key)}
                   className="flex-1 py-2 rounded-xl text-[13px] font-bold tracking-wider transition-all"
                   style={{
-                    background: filter === f.key ? "rgba(124,58,237,0.18)" : "transparent",
-                    color: filter === f.key ? "#a855f7" : "var(--color-muted-foreground)",
+                    background: filter === f.key ? "linear-gradient(135deg,rgba(124,58,237,0.22),rgba(212,160,32,0.18))" : "transparent",
+                    color: filter === f.key ? "#d4a020" : "var(--color-muted-foreground)",
                   }}
                   data-testid={`filter-${f.key}`}
                 >

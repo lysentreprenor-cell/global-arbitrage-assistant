@@ -210,8 +210,8 @@ export default function Agreements() {
               onClick={() => setTab(tb.key)}
               className="flex-1 relative py-2 rounded-xl text-[13px] font-bold tracking-wider transition-all"
               style={{
-                background: tab === tb.key ? "rgba(168,85,247,0.18)" : "transparent",
-                color: tab === tb.key ? "#a855f7" : "var(--color-muted-foreground)",
+                background: tab === tb.key ? "linear-gradient(135deg,rgba(124,58,237,0.22),rgba(212,160,32,0.18))" : "transparent",
+                color: tab === tb.key ? "#d4a020" : "var(--color-muted-foreground)",
               }}
             >
               {tb.label}
@@ -219,7 +219,7 @@ export default function Agreements() {
                 <span style={{
                   position: "absolute", top: 4, right: 4,
                   minWidth: 14, height: 14, borderRadius: 999,
-                  background: tab === tb.key ? "#a855f7" : "var(--color-muted)",
+                  background: tab === tb.key ? "#d4a020" : "var(--color-muted)",
                   color: tab === tb.key ? "#000" : "var(--color-muted-foreground)",
                   fontSize: 10, fontWeight: 800,
                   display: "flex", alignItems: "center", justifyContent: "center",
