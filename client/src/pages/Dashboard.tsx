@@ -655,7 +655,7 @@ export default function Dashboard() {
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 13, color: th.textMuted, fontWeight: 600 }}>{label}</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color }}>
-                  {sign}{Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {sign}{Math.abs(value ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
             ))}
@@ -702,7 +702,7 @@ export default function Dashboard() {
                         <span style={{ fontSize: 15 }}>{getCatEmoji(cat)}</span>
                         <span style={{ textTransform: "capitalize" }}>{cat}</span>
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color }}>{amount.toLocaleString(lang === "pl" ? "pl-PL" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeWallet}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color }}>{(amount ?? 0).toLocaleString(lang === "pl" ? "pl-PL" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeWallet}</span>
                     </div>
                     <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.07)" }}>
                       <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: color, transition: "width 0.6s ease" }} />
