@@ -12,10 +12,14 @@ import { usePWAInstall, PWAInstallGuide } from "@/components/PWAInstallBanner";
 
 /* language option display names */
 const LANG_OPTIONS: { code: Lang; label: string; flag: string }[] = [
-  { code: "no", label: "Norsk (NO)",    flag: "🇳🇴" },
-  { code: "en", label: "English (US)",  flag: "🇺🇸" },
-  { code: "pl", label: "Polski (PL)",   flag: "🇵🇱" },
-  { code: "es", label: "Español (ES)",  flag: "🇪🇸" },
+  { code: "no", label: "Norsk (NO)",       flag: "🇳🇴" },
+  { code: "en", label: "English (US)",     flag: "🇺🇸" },
+  { code: "pl", label: "Polski (PL)",      flag: "🇵🇱" },
+  { code: "es", label: "Español (ES)",     flag: "🇪🇸" },
+  { code: "de", label: "Deutsch (DE)",     flag: "🇩🇪" },
+  { code: "fr", label: "Français (FR)",    flag: "🇫🇷" },
+  { code: "uk", label: "Українська (UA)", flag: "🇺🇦" },
+  { code: "it", label: "Italiano (IT)",    flag: "🇮🇹" },
 ];
 
 /* ── Psychological luxury theme definitions ── */
