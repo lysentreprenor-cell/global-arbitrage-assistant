@@ -66,7 +66,7 @@ export default function ProductDetail() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[{ label: "Profit Calculator", href: `/resell/profit/${id}`, color: "#34d399" }, { label: "Compliance Check", href: `/resell/compliance/${id}`, color: "#60a5fa" }, { label: "Generate Offer", href: `/resell/offer/${id}`, color: "#a78bfa" }].map(btn => (
               <button key={btn.label} onClick={() => setLocation(btn.href)} style={{
-                padding: "13px 16px", borderRadius: 12, border: "none", cursor: "pointer",
+                padding: "13px 16px", borderRadius: 12, cursor: "pointer",
                 background: `${btn.color}15`, border: `1px solid ${btn.color}25`,
                 color: btn.color, fontWeight: 700, fontSize: 13,
                 display: "flex", alignItems: "center", justifyContent: "space-between",

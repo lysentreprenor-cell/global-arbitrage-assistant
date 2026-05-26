@@ -101,7 +101,7 @@ export default function Dashboard() {
             onClick={triggerScan}
             style={{
               display: "flex", alignItems: "center", gap: 7,
-              padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              padding: "10px 18px", borderRadius: 10, cursor: "pointer",
               background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)",
               color: "#a78bfa", fontWeight: 700, fontSize: 13,
               animation: scanning ? "spin 1s linear infinite" : "none",
