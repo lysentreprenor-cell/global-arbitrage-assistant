@@ -250,12 +250,22 @@ export default function ProductDetail() {
         {/* Action buttons */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {[
-            { label: "📊 Porównaj gdzie sprzedać", href: `/resell/compare`, color: "#f5c842" },
-            { label: "Kalkulator zysku", href: `/resell/profit/${id}`, color: "#34d399" },
-            { label: "Sprawdź zgodność (Compliance)", href: `/resell/compliance/${id}`, color: "#60a5fa" },
-            { label: "Generuj ofertę sprzedaży", href: `/resell/offer/${id}`, color: "#a78bfa" },
+            { label: "🤖 Generuj ofertę sprzedaży (AI)", href: `/resell/offer/${id}`, color: "#a78bfa" },
+            { label: "📊 Porównaj platformy sprzedaży", href: `/resell/compare`, color: "#f5c842" },
+            { label: "💰 Kalkulator zysku", href: `/resell/profit/${id}`, color: "#34d399" },
+            { label: "📦 Dodaj do Dropship Manager", href: null, color: "#60a5fa" },
           ].map(btn => (
-            <button key={btn.label} onClick={() => setLocation(btn.href)} style={{
+            <button key={btn.label} onClick={() => {
+              if (!btn.href) {
+                sessionStorage.setItem("dropship_import", JSON.stringify({
+                  name: p.name, buy: p.buy, sell: p.sell, market: p.market,
+                  category: p.category, sourceUrl: p.sourceUrl ?? "", buyHint: p.buyHint ?? "", sellHint: p.sellHint ?? "",
+                }));
+                setLocation("/resell/dropship");
+              } else {
+                setLocation(btn.href);
+              }
+            }} style={{
               padding: "13px 16px", borderRadius: 12, cursor: "pointer",
               background: `${btn.color}12`, border: `1px solid ${btn.color}30`,
               color: btn.color, fontWeight: 700, fontSize: 13,

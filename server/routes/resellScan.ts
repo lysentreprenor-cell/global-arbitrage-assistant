@@ -525,7 +525,7 @@ Rules:
 
 // ── Offer / listing generator ─────────────────────────────────────────────────
 router.post("/generate-offer", async (req: Request, res: Response) => {
-  const { product, anthropicKey } = req.body ?? {};
+  const { product, anthropicKey, tone = "professional", focus = "balanced" } = req.body ?? {};
   if (!product?.name) return res.json({ error: "No product provided" });
 
   const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
@@ -535,12 +535,37 @@ router.post("/generate-offer", async (req: Request, res: Response) => {
   const platform = p.market ?? "eBay USA";
   const isEtsy = platform.toLowerCase().includes("etsy");
   const isAmazon = platform.toLowerCase().includes("amazon");
+  const isStockX = platform.toLowerCase().includes("stockx");
+  const isVinted = platform.toLowerCase().includes("vinted");
 
-  const platformGuidance = isEtsy
-    ? "Etsy: title max 140 chars, storytelling tone, handmade/vintage feel, emphasize uniqueness. Tags: 13 tags, comma-separated, each max 20 chars."
+  const platformRules = isEtsy
+    ? `Etsy rules: title max 140 chars — storytelling tone, 13 tags each max 20 chars, paragraph prose in description, emphasize handmade/vintage/unique origin. No keyword stuffing in title.`
     : isAmazon
-    ? "Amazon: title max 200 chars, keyword-first, include brand/model/size/color/condition. Bullet points for features."
-    : "eBay: title max 80 chars, keyword-dense, include model/year/condition/size. No punctuation in title.";
+    ? `Amazon rules: title max 200 chars — brand + model + size/color/condition, keyword-first. Description as bullet points. Include item specifics (brand, model number, dimensions, condition).`
+    : isStockX
+    ? `StockX rules: title must match exact product name (style code if known), condition: Deadstock/New/Used, include size. Description minimal — StockX is authenticated, so emphasize condition and authenticity.`
+    : isVinted
+    ? `Vinted rules: short friendly title, casual description, emphasize size/brand/condition, tags short single words.`
+    : `eBay rules: title max 80 chars — keyword-dense, include model/year/condition/size. No punctuation except hyphens. Include item specifics (brand, model, condition, year, country of origin).`;
+
+  const toneGuide = {
+    professional: "Clear, factual, keyword-optimized. Focus on specs and condition.",
+    vintage: "Warm, storytelling. Reference the era, history, patina, authenticity. Make the buyer feel the journey.",
+    luxury: "Premium, aspirational. Use words like rare, curated, collector-grade. Emphasize exclusivity.",
+    urgency: "Create scarcity. Mention rarity, limited availability, high demand. Encourage immediate action.",
+  }[String(tone)] ?? "Clear and professional.";
+
+  const focusGuide = {
+    balanced: "Balance SEO keywords, emotional appeal, and conversion.",
+    seo: "Maximize search visibility — front-load most searched keywords in title and first line of description.",
+    conversion: "Maximize purchase intent — lead with the strongest benefit, add social proof, end with clear call to action.",
+    rarity: "Emphasize how rare and hard-to-find this item is. Why this is a once-in-a-while opportunity.",
+  }[String(focus)] ?? "Balance SEO and conversion.";
+
+  // Fee context for price note
+  const fee = PLATFORM_FEES[platform] ?? 0.13;
+  const ship = AVG_SHIPPING[p.category ?? "General"] ?? 20;
+  const netProfit = p.sell ? Math.round(p.sell * (1 - fee) - (p.buy ?? 0) - ship) : 0;
 
   try {
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -548,42 +573,62 @@ router.post("/generate-offer", async (req: Request, res: Response) => {
       headers: { "x-api-key": aiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1200,
-        system: `You are an expert marketplace listing copywriter specializing in cross-border arbitrage. Platform: ${platform}. ${platformGuidance}`,
+        max_tokens: 1800,
+        system: `You are an expert marketplace listing copywriter specializing in cross-border arbitrage and high-conversion listings.
+Platform: ${platform}. ${platformRules}
+Tone: ${toneGuide}
+Focus: ${focusGuide}`,
         messages: [{
           role: "user",
-          content: `Generate a marketplace listing for this product:
-Name: ${p.name}
+          content: `Create a high-converting ${platform} listing:
+Product: ${p.name}
 Category: ${p.category ?? "General"}
-Buy price: $${p.buy} | Target sell price: $${p.sell}
-Market: ${p.market}
+Buy price: $${p.buy ?? "?"} | Sell price: $${p.sell ?? "?"}
 Route: ${p.flag ?? "International"}
-${p.tip ? `Seller insight: ${p.tip}` : ""}
+${p.tip ? `Market insight: ${p.tip}` : ""}
 ${p.sellHint ? `SEO hint: ${p.sellHint}` : ""}
+${p.buyHint ? `Product context: ${p.buyHint}` : ""}
+Estimated net profit for seller: $${netProfit}
 
-Return ONLY valid JSON (no markdown):
+Return ONLY valid JSON (no markdown fences):
 {
-  "title": "platform-optimized title",
-  "description": "full listing description with bullet points, condition, shipping info",
-  "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7"],
-  "price": ${p.sell},
-  "highlights": ["key selling point 1","key selling point 2","key selling point 3"],
-  "shippingNote": "recommended shipping method and timeframe",
-  "seoKeywords": ["keyword1","keyword2","keyword3"]
+  "title": "platform-optimized title following platform rules",
+  "description": "full listing description — use the tone and focus specified. For eBay: include bullet points and condition. For Etsy: narrative storytelling. Include provenance/origin if known.",
+  "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10","tag11","tag12","tag13"],
+  "price": ${p.sell ?? 0},
+  "highlights": ["strongest selling point","second selling point","third selling point"],
+  "shippingNote": "recommended shipping method, carrier, estimated days and cost",
+  "seoKeywords": ["keyword1","keyword2","keyword3","keyword4","keyword5"],
+  "itemSpecifics": {
+    "Brand": "brand name or 'Handmade' / 'Vintage'",
+    "Model": "specific model or style",
+    "Condition": "New / Used - Excellent / Pre-owned / Vintage",
+    "Year": "decade or specific year if known",
+    "Country/Region of Manufacture": "country",
+    "Material": "primary material if relevant"
+  },
+  "priceNote": "one sentence: is $${p.sell ?? 0} competitive? E.g. '30% below comparable sold listings on ${platform}'",
+  "urgencyNote": "one short phrase to add urgency, e.g. 'Ships within 24h — only 1 available'"
 }`,
         }],
       }),
     });
 
-    if (!aiRes.ok) return res.json({ error: "ai-error", message: `AI returned ${aiRes.status}` });
+    if (!aiRes.ok) {
+      console.error("[generate-offer] AI error:", aiRes.status);
+      return res.json({ error: "ai-error", message: `AI returned ${aiRes.status}` });
+    }
     const aiData = await aiRes.json() as any;
     const rawText: string = aiData?.content?.[0]?.text ?? "";
     const clean = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
     const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) return res.json({ error: "parse-error" });
+    if (!match) {
+      console.error("[generate-offer] parse error, raw:", rawText.slice(0, 200));
+      return res.json({ error: "parse-error" });
+    }
 
     const offer = JSON.parse(match[0]);
-    return res.json({ offer, product: p, platform, source: "ai" });
+    return res.json({ offer, product: p, platform, tone, focus, source: "ai" });
   } catch (err) {
     console.error("[generate-offer] error:", err);
     return res.json({ error: "server-error" });
