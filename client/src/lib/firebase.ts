@@ -1,8 +1,6 @@
-// Konfiguracja Firebase po stronie klienta — używa wyłącznie import.meta.env.VITE_*.
-// Żaden sekret serwera (STRIPE_SECRET_KEY, FIREBASE_SERVICE_ACCOUNT) nie jest tu dostępny ani używany.
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getDatabase } from "firebase/database";
+import { initializeApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getDatabase, type Database } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,8 +12,19 @@ const firebaseConfig = {
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
 };
 
-const app = initializeApp(firebaseConfig);
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let realtimeDb: Database | null = null;
 
-export const auth = getAuth(app);
-export const realtimeDb = getDatabase(app);
+try {
+  if (firebaseConfig.apiKey) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    realtimeDb = getDatabase(app);
+  }
+} catch (e) {
+  console.warn("[firebase] init failed (non-fatal):", e);
+}
+
+export { auth, realtimeDb };
 export default app;
