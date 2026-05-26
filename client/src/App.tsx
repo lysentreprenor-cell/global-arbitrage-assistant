@@ -125,7 +125,7 @@ function Router() {
   }, [isAuthenticated, location, setLocation]);
 
   // Resell app — publicly accessible, full-screen layout
-  if (location === "/resell" || location.startsWith("/resell/")) {
+  if (location === "/" || location === "/resell" || location.startsWith("/resell/")) {
     return <ResellRouter />;
   }
 
