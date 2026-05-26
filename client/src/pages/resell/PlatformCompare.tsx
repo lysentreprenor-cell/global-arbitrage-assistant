@@ -4,6 +4,15 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 
 const CATEGORIES = ["General", "Clothing", "Electronics", "Jewelry", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches", "Books", "Toys"];
 
+const REGIONS = [
+  { id: "world",  label: "Cały Świat",     flag: "🌍", desc: "Wszystkie globalne platformy" },
+  { id: "europe", label: "Europa",          flag: "🇪🇺", desc: "eBay DE, Vinted, Allegro, Leboncoin…" },
+  { id: "usa",    label: "USA / Kanada",    flag: "🇺🇸", desc: "eBay, Etsy, Amazon, Poshmark…" },
+  { id: "africa", label: "Afryka",          flag: "🌍", desc: "Jumia, Jiji, OLX Africa, Kilimall…" },
+  { id: "china",  label: "Chiny / Azja",   flag: "🇨🇳", desc: "Taobao, JD.com, Pinduoduo, Shopee…" },
+  { id: "latam",  label: "Ameryka Łac.",   flag: "🌎", desc: "Mercado Libre, OLX Brazil…" },
+];
+
 const PLATFORM_LINKS: Record<string, string> = {
   "eBay USA": "https://www.ebay.com/sl/sell",
   "Etsy USA": "https://www.etsy.com/sell",
@@ -15,6 +24,13 @@ const PLATFORM_LINKS: Record<string, string> = {
   "Depop": "https://www.depop.com/sell",
   "Poshmark": "https://poshmark.com/sell",
   "Mercari USA": "https://www.mercari.com/sell",
+  "Jumia": "https://www.jumia.com/seller",
+  "Jiji": "https://jiji.ng/post-ad",
+  "Taobao": "https://sell.taobao.com",
+  "Shopee": "https://seller.shopee.com",
+  "Mercado Libre": "https://www.mercadolibre.com/sell",
+  "Allegro": "https://allegro.pl/sprzedaj",
+  "Leboncoin": "https://www.leboncoin.fr/deposer-une-annonce",
 };
 
 const COMPETITION_COLOR: Record<string, string> = { Low: "#4ade80", Medium: "#f5c842", High: "#f87171" };
@@ -31,18 +47,30 @@ export default function PlatformCompare() {
   const [product, setProduct] = useState("");
   const [category, setCategory] = useState("General");
   const [buyPrice, setBuyPrice] = useState("20");
+  const [region, setRegion] = useState("world");
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState("");
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [source, setSource] = useState<string>("");
+  const [activeRegionResult, setActiveRegionResult] = useState<string>("");
 
   const run = async () => {
     if (!product.trim() || scanning) return;
     setScanning(true);
     setPlatforms([]);
 
-    for (let i = 0; i < SCAN_STEPS.length; i++) {
-      setScanStep(SCAN_STEPS[i]);
+    const regionLabel = REGIONS.find(r => r.id === region)?.label || region;
+    const steps = [
+      `Skanuję platformy — ${regionLabel}…`,
+      "Sprawdzam ceny sprzedaży…",
+      "Obliczam prowizje i zyski…",
+      "Porównuję konkurencję…",
+      "Szacuję czas sprzedaży…",
+      "Buduję ranking…",
+    ];
+
+    for (let i = 0; i < steps.length; i++) {
+      setScanStep(steps[i]);
       await new Promise(r => setTimeout(r, 400));
     }
 
@@ -50,11 +78,12 @@ export default function PlatformCompare() {
       const res = await fetch("/api/compare", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ product, category, buyPrice: parseFloat(buyPrice) || 20 }),
+        body: JSON.stringify({ product, category, buyPrice: parseFloat(buyPrice) || 20, region }),
       });
       const data = await res.json();
       setPlatforms(data.platforms || []);
       setSource(data.source || "");
+      setActiveRegionResult(region);
     } catch {
       setPlatforms([]);
     }
@@ -77,8 +106,35 @@ export default function PlatformCompare() {
           </p>
         </div>
 
+        {/* Region selector */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          {REGIONS.map(r => (
+            <button
+              key={r.id}
+              onClick={() => setRegion(r.id)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 14px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 13,
+                background: region === r.id ? "rgba(139,92,246,0.2)" : "rgba(255,255,255,0.05)",
+                color: region === r.id ? "#a78bfa" : "rgba(255,255,255,0.5)",
+                border: `1px solid ${region === r.id ? "rgba(139,92,246,0.4)" : "transparent"}`,
+                fontWeight: region === r.id ? 700 : 500,
+                transition: "all 0.15s",
+              }}
+              title={r.desc}
+            >
+              <span style={{ fontSize: 16 }}>{r.flag}</span>
+              {r.label}
+            </button>
+          ))}
+        </div>
+
         {/* Search form */}
         <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 20, marginBottom: 24 }}>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 14 }}>
+            Region: <strong style={{ color: "#a78bfa" }}>{REGIONS.find(r => r.id === region)?.label}</strong>
+            <span style={{ color: "rgba(255,255,255,0.25)", marginLeft: 8 }}>— {REGIONS.find(r => r.id === region)?.desc}</span>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 120px", gap: 12, marginBottom: 14 }}>
             <div>
               <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>NAZWA PRODUKTU</div>

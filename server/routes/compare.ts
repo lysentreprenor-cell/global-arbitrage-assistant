@@ -2,9 +2,20 @@ import { Router, type Request, type Response } from "express";
 
 const router = Router();
 
-async function compareWithAI(product: string, category: string, buyPrice: number): Promise<any[]> {
+const REGION_PLATFORMS: Record<string, string> = {
+  world:  "eBay USA, Etsy USA, Amazon USA, Amazon UK, eBay DE, Vinted EU, Depop, Poshmark, Mercari USA, Facebook Marketplace",
+  europe: "eBay DE, Vinted EU, Allegro PL, Leboncoin FR, Wallapop ES, Subito IT, Marktplaats NL, Blocket SE, Ricardo CH, OLX EU",
+  usa:    "eBay USA, Etsy USA, Amazon USA, Poshmark, Mercari USA, Depop, Facebook Marketplace, OfferUp, Craigslist, ThredUp",
+  africa: "Jumia Nigeria, Jumia Kenya, Jiji Nigeria, Jiji Kenya, OLX South Africa, Kilimall Kenya, Konga Nigeria, Takealot SA, Facebook Marketplace Africa",
+  china:  "Taobao, JD.com, Pinduoduo, Xianyu (Idle Fish), WeChat Shops, Shopee SEA, Lazada SEA, Tokopedia, Bukalapak",
+  latam:  "Mercado Libre Brazil, Mercado Libre Mexico, OLX Brazil, Enjoei Brazil, Shein Marketplace, Amazon Brazil",
+};
+
+async function compareWithAI(product: string, category: string, buyPrice: number, region = "world"): Promise<any[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return [];
+
+  const platforms = REGION_PLATFORMS[region] || REGION_PLATFORMS.world;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -18,20 +29,20 @@ async function compareWithAI(product: string, category: string, buyPrice: number
       max_tokens: 2000,
       messages: [{
         role: "user",
-        content: `You are a global e-commerce expert. Compare selling platforms for this product:
+        content: `You are a global e-commerce expert. Compare selling platforms for this product in the ${region} region:
 
 Product: "${product}"
 Category: ${category}
 Buy price: $${buyPrice}
+Region focus: ${region.toUpperCase()}
 
-For each platform below, give realistic market data based on actual 2024-2025 prices:
-eBay USA, Etsy USA, Amazon USA, Amazon UK, eBay DE, Vinted EU, Facebook Marketplace, Depop, Poshmark, Mercari USA
+Platforms to compare: ${platforms}
 
-Return ONLY valid JSON array:
+Return ONLY valid JSON array with realistic 2024-2025 data:
 [
   {
-    "platform": "eBay USA",
-    "flag": "🇺🇸",
+    "platform": "platform name",
+    "flag": "country/region flag emoji",
     "avgSellPrice": 85,
     "feePercent": 13,
     "netProfit": 44,
@@ -39,22 +50,22 @@ Return ONLY valid JSON array:
     "competition": "Medium",
     "avgDaysToSell": 7,
     "score": 88,
-    "pros": "Large buyer base, global reach",
-    "cons": "13% fees, high competition",
-    "bestFor": "Electronics, vintage, collectibles"
+    "pros": "main advantage in Polish",
+    "cons": "main disadvantage in Polish",
+    "bestFor": "what categories work best here"
   }
 ]
 
 Rules:
-- avgSellPrice: realistic price for "${product}" on that platform
+- avgSellPrice: realistic price for "${product}" on that specific platform/region
 - feePercent: real platform fee %
-- netProfit = avgSellPrice - (avgSellPrice * feePercent/100) - ${buyPrice}
+- netProfit = round(avgSellPrice * (1 - feePercent/100) - ${buyPrice})
 - netMargin = round((netProfit / avgSellPrice) * 100)
 - competition: "Low" / "Medium" / "High"
-- avgDaysToSell: realistic estimate
-- score: 0-100 overall opportunity score
-- Only include platforms where this product makes sense
-- Skip platforms with netProfit <= 0`,
+- score: 0-100
+- pros/cons: write in Polish (1 short sentence each)
+- Only include platforms where netProfit > 0
+- For Africa/China use local currency converted to USD equivalent`,
       }],
     }),
   });
@@ -79,19 +90,19 @@ function mockCompare(product: string, buyPrice: number): any[] {
 }
 
 router.post("/", async (req: Request, res: Response) => {
-  const { product, category = "General", buyPrice = 20 } = req.body;
+  const { product, category = "General", buyPrice = 20, region = "world" } = req.body;
   if (!product) return res.status(400).json({ error: "product required" });
 
   try {
-    const aiResults = await compareWithAI(product, category, parseFloat(buyPrice));
+    const aiResults = await compareWithAI(product, category, parseFloat(buyPrice), region);
     if (aiResults.length > 0) {
-      return res.json({ platforms: aiResults.sort((a: any, b: any) => b.score - a.score), source: "ai" });
+      return res.json({ platforms: aiResults.sort((a: any, b: any) => b.score - a.score), source: "ai", region });
     }
   } catch (err) {
     console.error("[compare] AI error:", err);
   }
 
-  return res.json({ platforms: mockCompare(product, parseFloat(buyPrice)), source: "cache" });
+  return res.json({ platforms: mockCompare(product, parseFloat(buyPrice)), source: "cache", region });
 });
 
 export default router;
