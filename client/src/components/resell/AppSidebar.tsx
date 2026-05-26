@@ -14,8 +14,8 @@ export function AppSidebar() {
   return (
     <aside style={{
       width: 240, minWidth: 240, height: "100dvh",
-      background: "#0f0f1a",
-      borderRight: "1px solid rgba(139,92,246,0.18)",
+      background: "#001a0a",
+      borderRight: "1px solid rgba(34,197,94,0.25)",
       display: "flex", flexDirection: "column",
       position: "sticky", top: 0, flexShrink: 0,
     }}>
@@ -27,7 +27,7 @@ export function AppSidebar() {
       }}>
         <div style={{
           width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: "linear-gradient(135deg, #8b5cf6, #7c3aed, #f5c842)",
+          background: "linear-gradient(135deg, #16a34a, #15803d, #4ade80)",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 4px 14px rgba(139,92,246,0.4)",
         }}>
@@ -50,11 +50,11 @@ export function AppSidebar() {
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 14px", borderRadius: 10,
-                  background: active ? "rgba(139,92,246,0.22)" : "transparent",
-                  color: active ? "#c4b5fd" : "rgba(255,255,255,0.5)",
+                  background: active ? "rgba(34,197,94,0.18)" : "transparent",
+                  color: active ? "#86efac" : "rgba(255,255,255,0.5)",
                   fontWeight: active ? 700 : 500, fontSize: 13,
                   textDecoration: "none", transition: "all 0.15s",
-                  border: active ? "1px solid rgba(139,92,246,0.3)" : "1px solid transparent",
+                  border: active ? "1px solid rgba(34,197,94,0.3)" : "1px solid transparent",
                 }}
                 onMouseEnter={e => { if (!active) { const el = e.currentTarget as HTMLElement; el.style.background = "rgba(255,255,255,0.05)"; el.style.color = "#fff"; } }}
                 onMouseLeave={e => { if (!active) { const el = e.currentTarget as HTMLElement; el.style.background = "transparent"; el.style.color = "rgba(255,255,255,0.5)"; } }}
