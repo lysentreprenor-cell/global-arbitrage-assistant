@@ -1,6 +1,6 @@
 import React from "react";
 import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, ChevronRight, ShoppingCart, Tag, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronRight, ShoppingCart, Tag, ExternalLink, Link2 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 
 type Opportunity = {
@@ -93,6 +93,22 @@ export default function ProductDetail() {
               <div style={{ color: scoreColor, fontSize: 22, fontWeight: 900 }}>{p.score >= 70 ? "Profitable" : p.score >= 50 ? "Moderate" : "Low Return"}</div>
               <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, marginTop: 4, fontWeight: 600 }}>{p.name}</div>
               {p.tip && <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 4 }}>{p.tip}</div>}
+              {/* Source link */}
+              <a
+                href={buySources[0].url + searchQuery}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  marginTop: 10, padding: "5px 10px", borderRadius: 7,
+                  background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)",
+                  textDecoration: "none", color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 600,
+                }}
+              >
+                <Link2 size={11} />
+                Znaleziono na: {buySources[0].name}
+                <ExternalLink size={10} style={{ opacity: 0.5 }} />
+              </a>
             </div>
             <div style={{ width: 72, height: 72, borderRadius: "50%", border: `3px solid ${scoreColor}60`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: `${scoreColor}12`, flexShrink: 0 }}>
               <div style={{ color: scoreColor, fontSize: 24, fontWeight: 900 }}>{p.score}</div>
