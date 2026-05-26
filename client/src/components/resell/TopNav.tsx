@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings } from "lucide-react";
+import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/resell", label: "Dashboard", icon: LayoutDashboard },
