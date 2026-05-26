@@ -218,8 +218,12 @@ async function runStartupMigrations() {
 }
 
 (async () => {
-  await runStartupMigrations();
-  runStartupBackup().catch(() => {});
+  if (process.env.DATABASE_URL) {
+    await runStartupMigrations().catch((e: unknown) => console.warn("[startup] migrations skipped:", e));
+    runStartupBackup().catch(() => {});
+  } else {
+    console.warn("[startup] No DATABASE_URL — skipping migrations and backup");
+  }
 
   // ── Wersja build (dla auto-update) ─────────────────────────────────────────
   app.get("/api/version", (_req: Request, res: Response) => {
@@ -244,22 +248,22 @@ async function runStartupMigrations() {
   // Health / diagnostics — secrets presence check (no values, public)
   registerHealthSecretsRoute(app);
 
-  await installAuthFix(app).catch((e: unknown) => console.error("[startup] installAuthFix failed:", e));
-  await installRealAuth(app).catch((e: unknown) => console.error("[startup] installRealAuth failed:", e));
-  await installSecurityCenter(app, pool).catch((e: unknown) => console.error("[startup] installSecurityCenter failed:", e));
-  installRealInvestQuotes(app);
-  await installInvestRoutes(app).catch((e: unknown) => console.error("[startup] installInvestRoutes failed:", e));
-
-  app.use("/api/auth", authRouter);
-
-  installChatSafety(app, pool);
-  installMessagesFix(app, pool, httpServer);
-
-  await registerRoutes(httpServer, app).catch((e: unknown) => console.error("[startup] registerRoutes failed:", e));
-
-  app.use("/api/transactions", transactionsRouter);
-  app.use("/api/messages", messagesRouter);
-  app.use("/api/users", usersRouter);
+  if (process.env.DATABASE_URL) {
+    await installAuthFix(app).catch((e: unknown) => console.error("[startup] installAuthFix failed:", e));
+    await installRealAuth(app).catch((e: unknown) => console.error("[startup] installRealAuth failed:", e));
+    await installSecurityCenter(app, pool).catch((e: unknown) => console.error("[startup] installSecurityCenter failed:", e));
+    installRealInvestQuotes(app);
+    await installInvestRoutes(app).catch((e: unknown) => console.error("[startup] installInvestRoutes failed:", e));
+    app.use("/api/auth", authRouter);
+    installChatSafety(app, pool);
+    installMessagesFix(app, pool, httpServer);
+    await registerRoutes(httpServer, app).catch((e: unknown) => console.error("[startup] registerRoutes failed:", e));
+    app.use("/api/transactions", transactionsRouter);
+    app.use("/api/messages", messagesRouter);
+    app.use("/api/users", usersRouter);
+  } else {
+    console.warn("[startup] DATABASE_URL missing — banking routes disabled, RESELL routes active");
+  }
   app.use("/api/resell", resellScanRouter);
   app.use("/api/market", marketScanRouter);
 

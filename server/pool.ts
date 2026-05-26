@@ -1,11 +1,15 @@
 import { Pool } from "pg";
 
-if (!process.env.DATABASE_URL) {
-  console.error("Missing env: DATABASE_URL");
-  process.exit(1);
+let pool: Pool;
+
+if (process.env.DATABASE_URL) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+} else {
+  console.warn("[pool] DATABASE_URL not set — database features disabled");
+  pool = new Pool(); // will fail on first query, caught by callers
 }
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+export { pool };
