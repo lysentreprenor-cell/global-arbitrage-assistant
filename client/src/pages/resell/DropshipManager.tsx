@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Package, ShoppingCart, Zap, ExternalLink, CheckCircle, Clock, AlertCircle, Copy, ChevronDown, X } from "lucide-react";
+import { Plus, Package, ShoppingCart, Zap, ExternalLink, CheckCircle, Clock, AlertCircle, Copy, ChevronDown, X, MapPin } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { getAnthropicKey } from "@/lib/apiKeys";
 
 const PLATFORMS = ["eBay USA", "Etsy USA", "Amazon UK", "eBay DE", "Vinted EU", "Amazon DE"];
 
@@ -98,7 +99,7 @@ export default function DropshipManager() {
     const res = await fetch("/api/dropship/listings", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, anthropicKey: getAnthropicKey() }),
     });
     const data = await res.json();
     setCreating(false);
@@ -226,19 +227,42 @@ export default function DropshipManager() {
             ) : orders.map(o => (
               <div key={o.id} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${o.status === "pending" ? "rgba(245,200,66,0.25)" : "rgba(74,222,128,0.2)"}`, borderRadius: 14, padding: "16px 18px", marginBottom: 10, cursor: "pointer" }}
                 onClick={() => setShowOrderDetail(o)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                       {o.status === "pending" ? <Clock size={14} color="#f5c842" /> : <CheckCircle size={14} color="#4ade80" />}
                       <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{o.productName}</span>
                       <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>— {o.buyerName}</span>
                     </div>
-                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
+                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginBottom: o.buyerAddress ? 8 : 0 }}>
                       Zysk: <strong style={{ color: "#4ade80" }}>+${o.profit}</strong> · {o.platform} · {new Date(o.createdAt).toLocaleDateString()}
                     </div>
+                    {o.buyerAddress && (
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "7px 10px", marginBottom: 8 }}>
+                        <MapPin size={12} color="#60a5fa" style={{ flexShrink: 0, marginTop: 1 }} />
+                        <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, lineHeight: 1.5 }}>{o.buyerAddress}</span>
+                      </div>
+                    )}
+                    {o.sourceUrl && (
+                      <a
+                        href={o.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          padding: "8px 14px", borderRadius: 8,
+                          background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.35)",
+                          color: "#4ade80", fontWeight: 700, fontSize: 12,
+                          textDecoration: "none",
+                        }}
+                      >
+                        <ShoppingCart size={13} /> Kup od źródła
+                      </a>
+                    )}
                   </div>
                   {o.status === "pending" && (
-                    <button onClick={e => { e.stopPropagation(); setShowOrderDetail(o); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #f5c842, #d97706)", color: "#000", fontWeight: 800, fontSize: 12 }}>
+                    <button onClick={e => { e.stopPropagation(); setShowOrderDetail(o); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #f5c842, #d97706)", color: "#000", fontWeight: 800, fontSize: 12, flexShrink: 0 }}>
                       ⚡ Realizuj
                     </button>
                   )}

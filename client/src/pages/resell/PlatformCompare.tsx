@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Search, TrendingUp, RefreshCw, Star, Clock, Users, ChevronDown, ExternalLink } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { getAnthropicKey } from "@/lib/apiKeys";
 
 const CATEGORIES = ["General", "Clothing", "Electronics", "Jewelry", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches", "Books", "Toys"];
 
@@ -78,7 +79,7 @@ export default function PlatformCompare() {
       const res = await fetch("/api/compare", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ product, category, buyPrice: parseFloat(buyPrice) || 20, region }),
+        body: JSON.stringify({ product, category, buyPrice: parseFloat(buyPrice) || 20, region, anthropicKey: getAnthropicKey() }),
       });
       const data = await res.json();
       setPlatforms(data.platforms || []);

@@ -3,7 +3,9 @@ import { useLocation } from "wouter";
 import {
   Search, TrendingUp, TrendingDown, Zap, Globe, BarChart2,
   ArrowRight, RefreshCw, Star, DollarSign, ShoppingBag, Filter,
+  ExternalLink,
 } from "lucide-react";
+import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Cell,
@@ -14,6 +16,8 @@ type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
   margin: number; market: string; category: string; score: number;
   trend: string; flag: string; tip?: string;
+  sourceUrl?: string;
+  imageUrl?: string;
 };
 
 const INITIAL_OPPORTUNITIES: Opportunity[] = [
@@ -69,7 +73,7 @@ export default function Dashboard() {
   const [scanStep, setScanStep] = useState("");
   const [opportunities, setOpportunities] = useState<Opportunity[]>(INITIAL_OPPORTUNITIES);
   const [scannedAt, setScannedAt] = useState<string | null>(null);
-  const [scanSource, setScanSource] = useState<"ai" | "cache" | null>(null);
+  const [scanSource, setScanSource] = useState<"ai" | "cache" | "live" | null>(null);
 
   const filtered = opportunities.filter(o =>
     (activeCategory === "All" || o.category === activeCategory) &&
@@ -91,7 +95,17 @@ export default function Dashboard() {
     }
 
     try {
-      const res = await fetch("/api/resell/scan", { method: "POST" });
+      const ebay = getEbayKeys();
+      const res = await fetch("/api/resell/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anthropicKey: getAnthropicKey(),
+          ebayAppId: ebay.appId,
+          ebayCertId: ebay.certId,
+          etsyApiKey: getEtsyKey(),
+        }),
+      });
       const data = await res.json();
       if (data.opportunities?.length) {
         setOpportunities(data.opportunities);
@@ -137,7 +151,11 @@ export default function Dashboard() {
               {scanStep
                 ? <span style={{ color: "#f5c842" }}>{scanStep}</span>
                 : scannedAt
-                  ? <>Last scan: <span style={{ color: "#86efac" }}>{scannedAt}</span>{scanSource === "ai" && <span style={{ color: "#a78bfa", marginLeft: 6 }}>· AI</span>}</>
+                  ? <>Last scan: <span style={{ color: "#86efac" }}>{scannedAt}</span>
+                      {scanSource === "live" && <span style={{ color: "#4ade80", marginLeft: 6 }}>· 🟢 Live data</span>}
+                      {scanSource === "ai" && <span style={{ color: "#a78bfa", marginLeft: 6 }}>· 🤖 AI</span>}
+                      {scanSource === "cache" && <span style={{ color: "rgba(255,255,255,0.4)", marginLeft: 6 }}>· 📦 Cache</span>}
+                    </>
                   : "Real-time cross-border arbitrage intelligence · 4 markets"
               }
             </p>
@@ -299,7 +317,20 @@ export default function Dashboard() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ width: 28, height: 28, borderRadius: 7, background: `${scoreColor}15`, border: `1px solid ${scoreColor}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: scoreColor, flexShrink: 0 }}>{o.score}</div>
                     <div>
-                      <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{o.name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{o.name}</span>
+                        {o.sourceUrl && (
+                          <a
+                            href={o.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ color: "rgba(139,92,246,0.7)", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, marginLeft: 6 }}
+                          >
+                            <ExternalLink size={9} /> źródło
+                          </a>
+                        )}
+                      </div>
                       <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
                         {o.flag} · {o.category}
                         {o.tip && <span style={{ color: "rgba(139,92,246,0.7)", marginLeft: 6 }}>· {o.tip}</span>}

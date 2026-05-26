@@ -11,8 +11,8 @@ const REGION_PLATFORMS: Record<string, string> = {
   latam:  "Mercado Libre Brazil, Mercado Libre Mexico, OLX Brazil, Enjoei Brazil, Shein Marketplace, Amazon Brazil",
 };
 
-async function compareWithAI(product: string, category: string, buyPrice: number, region = "world"): Promise<any[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+async function compareWithAI(product: string, category: string, buyPrice: number, region = "world", apiKey?: string): Promise<any[]> {
+  if (!apiKey) apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return [];
 
   const platforms = REGION_PLATFORMS[region] || REGION_PLATFORMS.world;
@@ -90,11 +90,12 @@ function mockCompare(product: string, buyPrice: number): any[] {
 }
 
 router.post("/", async (req: Request, res: Response) => {
-  const { product, category = "General", buyPrice = 20, region = "world" } = req.body;
+  const { product, category = "General", buyPrice = 20, region = "world", anthropicKey } = req.body;
   if (!product) return res.status(400).json({ error: "product required" });
+  const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
 
   try {
-    const aiResults = await compareWithAI(product, category, parseFloat(buyPrice), region);
+    const aiResults = await compareWithAI(product, category, parseFloat(buyPrice), region, aiKey);
     if (aiResults.length > 0) {
       return res.json({ platforms: aiResults.sort((a: any, b: any) => b.score - a.score), source: "ai", region });
     }

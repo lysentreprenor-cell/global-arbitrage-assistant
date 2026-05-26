@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Globe, Package, Scale, RefreshCw, ChevronDown, ExternalLink, AlertTriangle, CheckCircle, Truck, ShieldCheck } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { getAnthropicKey } from "@/lib/apiKeys";
 
 const COUNTRIES = [
   "Poland", "USA", "UK", "Germany", "France", "Canada", "Australia",
@@ -90,7 +91,7 @@ export default function MarketScan() {
       const res = await fetch("/api/market/scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fromCountry, toCountry, category, budget: Number(budget) || 100 }),
+        body: JSON.stringify({ fromCountry, toCountry, category, budget: Number(budget) || 100, anthropicKey: getAnthropicKey() }),
       });
       const data = await res.json();
       setResult(data);

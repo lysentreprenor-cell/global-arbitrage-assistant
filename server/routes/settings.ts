@@ -30,6 +30,14 @@ router.post("/test-key", async (req: Request, res: Response) => {
         });
         return res.json({ ok: r.ok });
       }
+      case "allegro": {
+        const token = Buffer.from(`${keys?.clientId}:${keys?.clientSecret}`).toString("base64");
+        const r = await fetch("https://allegro.pl/auth/oauth/token?grant_type=client_credentials", {
+          method: "POST",
+          headers: { Authorization: `Basic ${token}`, "Content-Type": "application/x-www-form-urlencoded" },
+        });
+        return res.json({ ok: r.ok });
+      }
       default:
         return res.json({ ok: true, note: "Manual verification required" });
     }

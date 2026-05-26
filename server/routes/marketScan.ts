@@ -41,8 +41,8 @@ const MOCK: Record<string, any> = {
   },
 };
 
-async function analyzeWithAI(fromCountry: string, toCountry: string, category: string, budget: number): Promise<any> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+async function analyzeWithAI(fromCountry: string, toCountry: string, category: string, budget: number, apiKey?: string): Promise<any> {
+  if (!apiKey) apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -109,10 +109,11 @@ router.get("/countries", (_req: Request, res: Response) => {
 });
 
 router.post("/scan", async (req: Request, res: Response) => {
-  const { fromCountry = "Poland", toCountry = "USA", category = "General", budget = 100 } = req.body;
+  const { fromCountry = "Poland", toCountry = "USA", category = "General", budget = 100, anthropicKey } = req.body;
+  const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
 
   try {
-    const aiResult = await analyzeWithAI(fromCountry, toCountry, category, budget);
+    const aiResult = await analyzeWithAI(fromCountry, toCountry, category, budget, aiKey);
     if (aiResult) {
       return res.json({ ...aiResult, source: "ai", fromCountry, toCountry, category });
     }
