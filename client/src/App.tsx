@@ -57,6 +57,27 @@ import SavingsGoals from "@/pages/SavingsGoals";
 import KYCVerification from "@/pages/KYCVerification";
 import ReferralProgram from "@/pages/ReferralProgram";
 import LoanFlow from "@/pages/LoanFlow";
+import ResellDashboard from "@/pages/resell/Dashboard";
+import ResellAddProduct from "@/pages/resell/AddProduct";
+import ResellProducts from "@/pages/resell/Products";
+import ResellProductDetail from "@/pages/resell/ProductDetail";
+import ResellProfitPage from "@/pages/resell/ProfitPage";
+import ResellCompliancePage from "@/pages/resell/CompliancePage";
+import ResellOfferPage from "@/pages/resell/OfferPage";
+
+function ResellRouter() {
+  return (
+    <Switch>
+      <Route path="/resell" component={ResellDashboard} />
+      <Route path="/resell/add" component={ResellAddProduct} />
+      <Route path="/resell/products" component={ResellProducts} />
+      <Route path="/resell/product/:id" component={ResellProductDetail} />
+      <Route path="/resell/profit/:id" component={ResellProfitPage} />
+      <Route path="/resell/compliance/:id" component={ResellCompliancePage} />
+      <Route path="/resell/offer/:id" component={ResellOfferPage} />
+    </Switch>
+  );
+}
 
 function AuthSplash() {
   return (
@@ -100,6 +121,11 @@ function Router() {
       setLocation("/");
     }
   }, [isAuthenticated, location, setLocation]);
+
+  // Resell app — publicly accessible, full-screen layout
+  if (location === "/resell" || location.startsWith("/resell/")) {
+    return <ResellRouter />;
+  }
 
   // While /api/me is in flight, show a neutral splash so no auth screen flashes.
   // AnimatePresence handles the fade-out when authLoading → false.
