@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, PlusCircle, History, TrendingUp } from "lucide-react";
+import { LayoutDashboard, PlusCircle, History, TrendingUp, Search } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/resell", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/resell/search", label: "AI Search", icon: Search },
   { href: "/resell/add", label: "Add Product", icon: PlusCircle },
   { href: "/resell/products", label: "Product History", icon: History },
 ];

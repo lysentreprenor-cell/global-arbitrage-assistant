@@ -64,11 +64,13 @@ import ResellProductDetail from "@/pages/resell/ProductDetail";
 import ResellProfitPage from "@/pages/resell/ProfitPage";
 import ResellCompliancePage from "@/pages/resell/CompliancePage";
 import ResellOfferPage from "@/pages/resell/OfferPage";
+import ResellSearch from "@/pages/resell/Search";
 
 function ResellRouter() {
   return (
     <Switch>
       <Route path="/resell" component={ResellDashboard} />
+      <Route path="/resell/search" component={ResellSearch} />
       <Route path="/resell/add" component={ResellAddProduct} />
       <Route path="/resell/products" component={ResellProducts} />
       <Route path="/resell/product/:id" component={ResellProductDetail} />
