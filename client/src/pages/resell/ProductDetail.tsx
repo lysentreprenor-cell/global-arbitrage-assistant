@@ -5,8 +5,11 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 
 type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
-  margin: number; market: string; category: string; score: number;
+  netProfit?: number; margin: number; market: string; category: string; score: number;
   trend: string; flag: string; tip?: string;
+  risk?: "low" | "medium" | "high";
+  demandLevel?: "high" | "medium" | "low";
+  buyHint?: string; sellHint?: string; sourceUrl?: string;
 };
 
 const BUY_SOURCES: Record<string, { name: string; url: string; hint: string }[]> = {
@@ -88,14 +91,32 @@ export default function ProductDetail() {
         {/* Score card */}
         <div style={{ background: `${scoreColor}10`, border: `1px solid ${scoreColor}30`, borderRadius: 18, padding: 22, marginBottom: 20 }}>
           <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>PROFITABILITY SCORE</div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ color: scoreColor, fontSize: 22, fontWeight: 900 }}>{p.score >= 70 ? "Profitable" : p.score >= 50 ? "Moderate" : "Low Return"}</div>
-              <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, marginTop: 4, fontWeight: 600 }}>{p.name}</div>
-              {p.tip && <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 4 }}>{p.tip}</div>}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                <div style={{ color: scoreColor, fontSize: 20, fontWeight: 900 }}>{p.score >= 70 ? "Profitable" : p.score >= 50 ? "Moderate" : "Low Return"}</div>
+                {p.risk && (
+                  <span style={{
+                    background: p.risk === "low" ? "rgba(74,222,128,0.15)" : p.risk === "medium" ? "rgba(245,200,66,0.15)" : "rgba(248,113,113,0.15)",
+                    border: `1px solid ${p.risk === "low" ? "rgba(74,222,128,0.3)" : p.risk === "medium" ? "rgba(245,200,66,0.3)" : "rgba(248,113,113,0.3)"}`,
+                    borderRadius: 99, padding: "2px 9px",
+                    color: p.risk === "low" ? "#4ade80" : p.risk === "medium" ? "#f5c842" : "#f87171",
+                    fontSize: 10, fontWeight: 800,
+                  }}>
+                    {p.risk.toUpperCase()} RISK
+                  </span>
+                )}
+                {p.demandLevel && (
+                  <span style={{ color: p.demandLevel === "high" ? "#4ade80" : p.demandLevel === "medium" ? "#60a5fa" : "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: 700 }}>
+                    {p.demandLevel === "high" ? "▲" : p.demandLevel === "medium" ? "◆" : "▼"} {p.demandLevel.toUpperCase()} DEMAND
+                  </span>
+                )}
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, marginTop: 2, fontWeight: 600 }}>{p.name}</div>
+              {p.tip && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>{p.tip}</div>}
               {/* Source link */}
               <a
-                href={buySources[0].url + searchQuery}
+                href={(p.sourceUrl) || (buySources[0].url + searchQuery)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -106,27 +127,49 @@ export default function ProductDetail() {
                 }}
               >
                 <Link2 size={11} />
-                Znaleziono na: {buySources[0].name}
+                Znajdź na: {buySources[0].name}
                 <ExternalLink size={10} style={{ opacity: 0.5 }} />
               </a>
             </div>
-            <div style={{ width: 72, height: 72, borderRadius: "50%", border: `3px solid ${scoreColor}60`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: `${scoreColor}12`, flexShrink: 0 }}>
+            <div style={{ width: 72, height: 72, borderRadius: "50%", border: `3px solid ${scoreColor}60`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: `${scoreColor}12`, flexShrink: 0, marginLeft: 14 }}>
               <div style={{ color: scoreColor, fontSize: 24, fontWeight: 900 }}>{p.score}</div>
               <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 9 }}>/100</div>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 18 }}>
+
+          {/* Finance breakdown */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginTop: 16 }}>
             {[
-              { label: "Kupujesz za", val: `$${p.buy}`, c: "#fff" },
-              { label: "Sprzedajesz za", val: `$${p.sell}`, c: "#4ade80" },
-              { label: "Zysk", val: `+$${p.profit}`, c: "#4ade80" },
+              { label: "Kupujesz za", val: `$${p.buy}`, c: "#fff", sub: "cena zakupu" },
+              { label: "Sprzedajesz za", val: `$${p.sell}`, c: "#86efac", sub: "cena sprzedaży" },
+              { label: "Zysk brutto", val: `+$${p.profit}`, c: "#4ade80", sub: "przed opłatami" },
+              { label: "Zysk netto", val: `+$${p.netProfit ?? p.profit}`, c: "#22c55e", sub: "po opłatach+wysyłka" },
             ].map(x => (
               <div key={x.label} style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, marginBottom: 4 }}>{x.label}</div>
-                <div style={{ color: x.c, fontWeight: 800, fontSize: 15 }}>{x.val}</div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 9, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.4 }}>{x.sub}</div>
+                <div style={{ color: x.c, fontWeight: 900, fontSize: 16 }}>{x.val}</div>
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, marginTop: 1 }}>{x.label}</div>
               </div>
             ))}
           </div>
+
+          {/* Buy hint & Sell hint */}
+          {(p.buyHint || p.sellHint) && (
+            <div style={{ display: "grid", gridTemplateColumns: p.buyHint && p.sellHint ? "1fr 1fr" : "1fr", gap: 8, marginTop: 12 }}>
+              {p.buyHint && (
+                <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 8, padding: "8px 12px" }}>
+                  <div style={{ color: "#f5c842", fontSize: 10, fontWeight: 700, marginBottom: 3 }}>🛒 GDZIE KUPIĆ</div>
+                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>{p.buyHint}</div>
+                </div>
+              )}
+              {p.sellHint && (
+                <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 8, padding: "8px 12px" }}>
+                  <div style={{ color: "#4ade80", fontSize: 10, fontWeight: 700, marginBottom: 3 }}>📝 TYTUŁ OGŁOSZENIA</div>
+                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontStyle: "italic" }}>{p.sellHint}</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* BUY section */}

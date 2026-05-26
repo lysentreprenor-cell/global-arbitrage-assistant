@@ -3,14 +3,14 @@ import { Router, type Request, type Response } from "express";
 const router = Router();
 
 const FALLBACK = [
-  { id: 1, name: "Levi's 501 W32 L32 — vintage wash", buy: 28, sell: 82, profit: 54, netProfit: 41, margin: 66, market: "eBay USA", category: "Clothing", score: 93, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Vintage wash 501s sell 2-3× faster than regular — US buyers pay premium", sourceUrl: "https://allegro.pl/listing?string=levis+501+vintage+w32", imageUrl: "" },
-  { id: 2, name: "Baltic Amber Pendant — raw natural", buy: 45, sell: 265, profit: 220, netProfit: 192, margin: 83, market: "Etsy USA", category: "Jewelry", score: 97, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Raw Baltic amber sells for 4-6× Polish retail price on Etsy — no competition from Asia", sourceUrl: "https://allegro.pl/listing?string=bursztyn+baltycki+wisiorek+naturalny", imageUrl: "" },
-  { id: 3, name: "Leica M3 Camera — working, clean", buy: 380, sell: 920, profit: 540, netProfit: 421, margin: 59, market: "eBay USA", category: "Electronics", score: 89, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", tip: "Kleinanzeigen.de prices 40% below US eBay — German sellers don't know US demand", sourceUrl: "https://www.kleinanzeigen.de/s-leica-m3/k0", imageUrl: "" },
-  { id: 4, name: "Adidas Samba OG — EU exclusive colorway", buy: 70, sell: 155, profit: 85, netProfit: 61, margin: 55, market: "StockX USA", category: "Sneakers", score: 84, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "EU-exclusive Samba colorways unavailable in US — StockX premium 2x retail", sourceUrl: "https://allegro.pl/listing?string=adidas+samba+og", imageUrl: "" },
-  { id: 5, name: "Meissen Porcelain Figure — 1950s", buy: 75, sell: 320, profit: 245, netProfit: 202, margin: 77, market: "Etsy USA", category: "Antiques", score: 91, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", tip: "East German porcelain massively undervalued at local auctions vs US collector market", sourceUrl: "https://www.kleinanzeigen.de/s-meissen-figur/k0", imageUrl: "" },
-  { id: 6, name: "Zorki-4 Camera — 1960s working", buy: 22, sell: 74, profit: 52, netProfit: 40, margin: 70, market: "Etsy USA", category: "Collectibles", score: 85, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Soviet film cameras: cult following in US — Etsy vintage buyers pay 3x Polish price", sourceUrl: "https://allegro.pl/listing?string=aparat+zorki+4+dzialajacy", imageUrl: "" },
-  { id: 7, name: "Nikka From The Barrel Whisky", buy: 88, sell: 195, profit: 107, netProfit: 78, margin: 55, market: "Amazon UK", category: "Spirits", score: 78, risk: "high", demandLevel: "medium", trend: "stable", flag: "🇯🇵→🇬🇧", tip: "Japanese whisky shortage drives UK premiums — verify shipping restrictions first", sourceUrl: "https://www.amazon.co.jp/s?k=nikka+from+the+barrel", imageUrl: "" },
-  { id: 8, name: "Vintage Omega Seamaster 1960s", buy: 220, sell: 680, profit: 460, netProfit: 371, margin: 68, market: "eBay USA", category: "Watches", score: 94, risk: "medium", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Pre-1970 Omega watches: Polish flea markets 30% below European average — US demand very high", sourceUrl: "https://allegro.pl/listing?string=omega+seamaster+vintage+zegarek", imageUrl: "" },
+  { id: 1, name: "Levi's 501 W32 L32 — vintage wash", buy: 28, sell: 82, profit: 54, netProfit: 41, margin: 66, market: "eBay USA", category: "Clothing", score: 93, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Vintage wash 501s sell 2-3× faster than regular — US buyers pay premium", sourceUrl: "https://allegro.pl/listing?string=levis+501+vintage+w32", buyHint: "Allegro PL / OLX — szukaj W30-W34 Made in EU", sellHint: "Levi's 501 Vintage Wash W32 L32 Made in Europe — Original", imageUrl: "" },
+  { id: 2, name: "Baltic Amber Pendant — raw natural", buy: 45, sell: 265, profit: 220, netProfit: 192, margin: 83, market: "Etsy USA", category: "Jewelry", score: 97, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Raw Baltic amber sells for 4-6× Polish retail price on Etsy — no competition from Asia", sourceUrl: "https://allegro.pl/listing?string=bursztyn+baltycki+wisiorek+naturalny", buyHint: "Allegro PL lub targi bałtyckie — szukaj z inkluzjami", sellHint: "Baltic Amber Raw Pendant Natural Inclusion Genuine Sterling Silver", imageUrl: "" },
+  { id: 3, name: "Leica M3 Camera — working, clean", buy: 380, sell: 920, profit: 540, netProfit: 421, margin: 59, market: "eBay USA", category: "Electronics", score: 89, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", tip: "Kleinanzeigen.de prices 40% below US eBay — German sellers don't know US demand", sourceUrl: "https://www.kleinanzeigen.de/s-leica-m3/k0", buyHint: "Kleinanzeigen.de Bawaria/Niemcy — 'Leica M3 verkaufen'", sellHint: "Leica M3 Double Stroke Camera Body Working Tested CLA Ready", imageUrl: "" },
+  { id: 4, name: "Adidas Samba OG — EU exclusive colorway", buy: 70, sell: 155, profit: 85, netProfit: 61, margin: 55, market: "StockX USA", category: "Sneakers", score: 84, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "EU-exclusive Samba colorways unavailable in US — StockX premium 2x retail", sourceUrl: "https://allegro.pl/listing?string=adidas+samba+og", buyHint: "Allegro PL lub Footshop.eu — EU exclusive dropy, rozmiar 41-44", sellHint: "Adidas Samba OG EU Exclusive [Colorway] Size US — Deadstock", imageUrl: "" },
+  { id: 5, name: "Meissen Porcelain Figure — 1950s", buy: 75, sell: 320, profit: 245, netProfit: 202, margin: 77, market: "Etsy USA", category: "Antiques", score: 91, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", tip: "East German porcelain massively undervalued at local auctions vs US collector market", sourceUrl: "https://www.kleinanzeigen.de/s-meissen-figur/k0", buyHint: "Aukcje eBay.de / Dresdner Auktionshaus — 'Meissen Figur'", sellHint: "Meissen Porcelain Figurine 1950s Handpainted Vintage Crossed Swords", imageUrl: "" },
+  { id: 6, name: "Zorki-4 Camera — 1960s working", buy: 22, sell: 74, profit: 52, netProfit: 40, margin: 70, market: "Etsy USA", category: "Collectibles", score: 85, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Soviet film cameras: cult following in US — Etsy vintage buyers pay 3x Polish price", sourceUrl: "https://allegro.pl/listing?string=aparat+zorki+4+dzialajacy", buyHint: "Allegro PL / OLX — filtruj 'sprawny', budżet do 80 PLN", sellHint: "Zorki 4 Soviet Rangefinder Camera Working 1960s Film Photography", imageUrl: "" },
+  { id: 7, name: "Nikka From The Barrel Whisky", buy: 88, sell: 195, profit: 107, netProfit: 78, margin: 55, market: "Amazon UK", category: "Spirits", score: 78, risk: "high", demandLevel: "medium", trend: "stable", flag: "🇯🇵→🇬🇧", tip: "Japanese whisky shortage drives UK premiums — verify shipping restrictions first", sourceUrl: "https://www.amazon.co.jp/s?k=nikka+from+the+barrel", buyHint: "Yahoo Auctions JP lub Mercari JP — sprawdź przepisy importowe", sellHint: "Nikka From The Barrel 500ml Japanese Blended Whisky UK Import", imageUrl: "" },
+  { id: 8, name: "Vintage Omega Seamaster 1960s", buy: 220, sell: 680, profit: 460, netProfit: 371, margin: 68, market: "eBay USA", category: "Watches", score: 94, risk: "medium", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Pre-1970 Omega watches: Polish flea markets 30% below European average — US demand very high", sourceUrl: "https://allegro.pl/listing?string=omega+seamaster+vintage+zegarek", buyHint: "Targi niedzielne Warszawa/Kraków — pytaj o 'zegarki vintage'", sellHint: "Omega Seamaster Vintage 1960s Automatic Cal.285 Original Dial Working", imageUrl: "" },
 ];
 
 // ── eBay OAuth ────────────────────────────────────────────────────────────────
@@ -31,11 +31,15 @@ async function getEbayToken(appId: string, certId: string): Promise<string | nul
 // ── eBay Browse ───────────────────────────────────────────────────────────────
 async function ebaySearch(token: string, query: string, maxPrice: number, marketplace = "EBAY_US"): Promise<any[]> {
   try {
-    const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${encodeURIComponent(query)}&filter=price:[1..${maxPrice}],conditionIds:{3000|4000|5000|6000}&limit=8&sort=price`;
+    // fieldgroups=EXTENDED unlocks watchCount (requires eBay app permission for watchCount data)
+    const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${encodeURIComponent(query)}&fieldgroups=EXTENDED&filter=price:[1..${maxPrice}],conditionIds:{3000|4000|5000|6000}&limit=8&sort=price`;
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, "X-EBAY-C-MARKETPLACE-ID": marketplace },
     });
-    if (!r.ok) return [];
+    if (!r.ok) {
+      console.error(`[eBay] HTTP ${r.status} for query="${query}"`);
+      return [];
+    }
     const d = await r.json() as any;
     return (d.itemSummaries ?? []).map((i: any) => ({
       title: i.title,
@@ -44,10 +48,13 @@ async function ebaySearch(token: string, query: string, maxPrice: number, market
       url: i.itemWebUrl ?? "",
       image: i.image?.imageUrl ?? "",
       condition: i.condition ?? "",
-      watchCount: i.watchCount ?? 0,
+      watchCount: i.watchCount ?? i.legacyItemId ? 1 : 0,
       marketplace,
     }));
-  } catch { return []; }
+  } catch (err) {
+    console.error("[eBay] fetch error:", err);
+    return [];
+  }
 }
 
 // ── Etsy ──────────────────────────────────────────────────────────────────────
@@ -55,18 +62,24 @@ async function etsySearch(apiKey: string, query: string): Promise<any[]> {
   try {
     const url = `https://openapi.etsy.com/v3/application/listings/active?keywords=${encodeURIComponent(query)}&limit=8&sort_on=price&sort_order=desc`;
     const r = await fetch(url, { headers: { "x-api-key": apiKey } });
-    if (!r.ok) return [];
+    if (!r.ok) {
+      console.error(`[Etsy] HTTP ${r.status} for query="${query}"`);
+      return [];
+    }
     const d = await r.json() as any;
     return (d.results ?? []).map((i: any) => ({
       title: i.title,
       price: (i.price?.amount ?? 0) / (i.price?.divisor ?? 100),
       currency: i.price?.currency_code ?? "USD",
-      url: i.url ?? "",
+      url: i.url ?? `https://www.etsy.com/listing/${i.listing_id}`,
       image: i.images?.[0]?.url_570xN ?? "",
-      views: i.views ?? 0,
+      views: i.num_favorers ?? i.views ?? 0,  // num_favorers = current v3 field
       marketplace: "ETSY_US",
     }));
-  } catch { return []; }
+  } catch (err) {
+    console.error("[Etsy] fetch error:", err);
+    return [];
+  }
 }
 
 // ── Platform fees & shipping estimates ───────────────────────────────────────
@@ -209,9 +222,14 @@ Rules:
     return [];
   }
   const data = await res.json() as any;
-  const text: string = data?.content?.[0]?.text ?? "";
-  const match = text.match(/\[[\s\S]*\]/);
-  if (!match) return [];
+  const rawText: string = data?.content?.[0]?.text ?? "";
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const text = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+  const match = text.match(/\[[\s\S]*?\]/s);
+  if (!match) {
+    console.error("[resell/scan] No JSON array found in AI response");
+    return [];
+  }
 
   try {
     const parsed = JSON.parse(match[0]) as any[];
@@ -301,6 +319,110 @@ router.post("/scan", async (req: Request, res: Response) => {
   // Fallback
   const shuffled = [...FALLBACK].sort(() => Math.random() - 0.5);
   return res.json({ opportunities: shuffled, source: "cache", scannedAt: new Date().toISOString() });
+});
+
+// ── Product-specific search ───────────────────────────────────────────────────
+router.post("/product-search", async (req: Request, res: Response) => {
+  const { query, anthropicKey, ebayAppId, ebayCertId, etsyApiKey } = req.body ?? {};
+  if (!query?.trim()) return res.json({ results: [], source: "empty" });
+
+  const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  const ebayApp: string = ebayAppId || process.env.EBAY_APP_ID || "";
+  const ebayCert: string = ebayCertId || process.env.EBAY_CERT_ID || "";
+  const etsyKey: string = etsyApiKey || process.env.ETSY_API_KEY || "";
+
+  const q = String(query).trim();
+
+  // Try live eBay search for the specific product
+  let realEbay: any[] = [];
+  if (ebayApp && ebayCert) {
+    const token = await getEbayToken(ebayApp, ebayCert);
+    if (token) realEbay = await ebaySearch(token, q, 999);
+  }
+
+  // Try Etsy
+  let realEtsy: any[] = [];
+  if (etsyKey) {
+    realEtsy = await etsySearch(etsyKey, q);
+  }
+
+  if (!aiKey) {
+    // Minimal fallback without AI
+    return res.json({ results: [], source: "no-key", message: "Add Anthropic API key in Settings to get AI results" });
+  }
+
+  const now = new Date();
+  const month = now.toLocaleString("en-US", { month: "long" });
+  const season = ["December","January","February"].includes(month) ? "Winter"
+    : ["March","April","May"].includes(month) ? "Spring"
+    : ["June","July","August"].includes(month) ? "Summer" : "Autumn";
+
+  const feeContext = Object.entries(PLATFORM_FEES).map(([p, f]) => `${p}: ${(f * 100).toFixed(1)}%`).join(", ");
+
+  let liveContext = "";
+  if (realEbay.length > 0) {
+    liveContext += `\nReal eBay listings found for "${q}":\n${realEbay.slice(0, 10).map(i =>
+      `  • "${i.title}" — $${i.price.toFixed(2)} | ${i.condition} | watches:${i.watchCount} | ${i.url}`
+    ).join("\n")}`;
+  }
+  if (realEtsy.length > 0) {
+    liveContext += `\nReal Etsy listings for "${q}":\n${realEtsy.slice(0, 10).map(i =>
+      `  • "${i.title}" — $${i.price.toFixed(2)} | favorers:${i.views} | ${i.url}`
+    ).join("\n")}`;
+  }
+
+  try {
+    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": aiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 3000,
+        system: `You are an elite cross-border arbitrage analyst. Today: ${now.toLocaleDateString("en-US")}, Season: ${season}. Platform fees: ${feeContext}. Shipping estimates: Clothing $12, Jewelry $18, Electronics $28, Collectibles $22, Sneakers $25, Spirits $35, Antiques $40, Watches $30.`,
+        messages: [{
+          role: "user",
+          content: `User searches for: "${q}"${liveContext ? `\n${liveContext}` : ""}
+
+Generate 4-6 specific arbitrage opportunities related to "${q}".
+${liveContext ? "Use the real listing data above where relevant." : "Use your knowledge of typical market prices."}
+
+Return ONLY a valid JSON array:
+[{
+  "id": 1, "name": "specific product with model/variant",
+  "buyMarket": "Allegro PL", "sellMarket": "eBay USA",
+  "buy": 35, "sell": 110,
+  "profit": 75, "netProfit": 52, "margin": 68,
+  "score": 88, "risk": "low", "demandLevel": "high",
+  "flag": "🇵🇱→🇺🇸",
+  "buyHint": "where exactly to buy cheap",
+  "sellHint": "SEO listing title",
+  "tip": "one sentence on why this arbitrage exists",
+  "sourceUrl": "https://allegro.pl/listing?string=..."
+}]
+Rules: netProfit = sell*(1-fee) - buy - shipping. Sort by netProfit desc.`,
+        }],
+      }),
+    });
+
+    if (!aiRes.ok) return res.json({ results: [], source: "ai-error" });
+    const aiData = await aiRes.json() as any;
+    const rawText: string = aiData?.content?.[0]?.text ?? "";
+    const cleanText = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+    const match = cleanText.match(/\[[\s\S]*?\]/s);
+    if (!match) return res.json({ results: [], source: "parse-error" });
+
+    const parsed = JSON.parse(match[0]) as any[];
+    const results = parsed.map((o: any, i: number) => ({
+      ...o,
+      id: i + 1,
+      netProfit: o.netProfit ?? calcNetProfit(o.sell, o.buy, o.sellMarket, o.category ?? "General"),
+    }));
+    const source = realEbay.length > 0 || realEtsy.length > 0 ? "live" : "ai";
+    return res.json({ results, source, query: q });
+  } catch (err) {
+    console.error("[product-search] error:", err);
+    return res.json({ results: [], source: "error" });
+  }
 });
 
 export default router;
