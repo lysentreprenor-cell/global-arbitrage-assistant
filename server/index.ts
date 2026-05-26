@@ -286,20 +286,7 @@ async function runStartupMigrations() {
     return res.status(status).json({ message });
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
-  }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // ── Bind port FIRST so Replit/health checks see it immediately ───────────────
   const port = parseInt(process.env.PORT || "3000", 10);
 
   let retries = 0;
@@ -317,16 +304,20 @@ async function runStartupMigrations() {
     }
   });
 
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+    log(`serving on port ${port}`);
+  });
+
+  // ── Serve frontend — prefer pre-built dist, fall back to Vite dev middleware ─
+  const distIndex = path.resolve(process.cwd(), "dist", "public", "index.html");
+  if (process.env.NODE_ENV === "production" || fs.existsSync(distIndex)) {
+    serveStatic(app);
+    log("serving pre-built client from dist/public");
+  } else {
+    const { setupVite } = await import("./vite");
+    await setupVite(httpServer, app);
+    log("serving client via Vite dev middleware");
+  }
 
   function shutdown(signal: string) {
     log(`${signal} received — closing server gracefully`);
