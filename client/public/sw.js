@@ -11,7 +11,7 @@
  * → aplikacja robi window.location.reload() bez pytania.
  */
 
-const BUILD_TS = "20260523-1230";          // zastępowane przy deploy (można ręcznie zmieniać)
+const BUILD_TS = "__BUILD_TS__";           // injected by server/index.ts on each restart
 const CACHE_SHELL   = `finlys-shell-${BUILD_TS}`;
 const CACHE_ASSETS  = `finlys-assets-${BUILD_TS}`;
 const CACHE_IMAGES  = `finlys-images-v1`;  // obrazy są content-hashed, cache-first
