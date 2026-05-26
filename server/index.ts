@@ -23,6 +23,7 @@ import resellScanRouter from "./routes/resellScan";
 import marketScanRouter from "./routes/marketScan";
 import dropshipRouter from "./routes/dropship";
 import compareRouter from "./routes/compare";
+import settingsRouter from "./routes/settings";
 
 const app = express();
 const httpServer = createServer(app);
@@ -270,6 +271,7 @@ async function runStartupMigrations() {
   app.use("/api/market", marketScanRouter);
   app.use("/api/dropship", dropshipRouter);
   app.use("/api/compare", compareRouter);
+  app.use("/api/settings", settingsRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

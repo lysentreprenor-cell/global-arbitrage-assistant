@@ -15,6 +15,7 @@ import ResellOfferPage from "@/pages/resell/OfferPage";
 import MarketScan from "@/pages/resell/MarketScan";
 import DropshipManager from "@/pages/resell/DropshipManager";
 import PlatformCompare from "@/pages/resell/PlatformCompare";
+import Settings from "@/pages/resell/Settings";
 
 function RedirectToResell() {
   const [, setLocation] = useLocation();
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/resell/market-scan" component={MarketScan} />
         <Route path="/resell/dropship" component={DropshipManager} />
         <Route path="/resell/compare" component={PlatformCompare} />
+        <Route path="/resell/settings" component={Settings} />
       </Switch>
       <Toaster />
     </QueryClientProvider>

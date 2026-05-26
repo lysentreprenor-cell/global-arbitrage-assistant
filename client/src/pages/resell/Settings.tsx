@@ -1,0 +1,326 @@
+import React, { useState, useEffect } from "react";
+import { Settings as SettingsIcon, Key, Eye, EyeOff, Check, ExternalLink, Trash2, Plus, AlertCircle, CheckCircle } from "lucide-react";
+import { ResellLayout } from "@/components/resell/ResellLayout";
+
+type ApiEntry = {
+  id: string;
+  name: string;
+  logo: string;
+  color: string;
+  description: string;
+  docsUrl: string;
+  keyLabel: string;
+  secretLabel?: string;
+  fields: { key: string; label: string; placeholder: string }[];
+  status?: "active" | "error" | "untested";
+};
+
+const PLATFORM_APIS: ApiEntry[] = [
+  {
+    id: "anthropic",
+    name: "Anthropic AI",
+    logo: "🤖",
+    color: "#a78bfa",
+    description: "Wymagane do AI skanowania, porównań i generowania opisów ogłoszeń",
+    docsUrl: "https://console.anthropic.com/settings/keys",
+    keyLabel: "API Key",
+    fields: [{ key: "apiKey", label: "ANTHROPIC_API_KEY", placeholder: "sk-ant-..." }],
+  },
+  {
+    id: "ebay",
+    name: "eBay",
+    logo: "🛒",
+    color: "#f5c842",
+    description: "Prawdziwe ceny sprzedaży, aktywne aukcje, historia transakcji",
+    docsUrl: "https://developer.ebay.com/my/keys",
+    keyLabel: "App ID",
+    fields: [
+      { key: "appId", label: "App ID (Client ID)", placeholder: "YourApp-xxxxx-PRD-xxxxxxxx" },
+      { key: "certId", label: "Cert ID (Client Secret)", placeholder: "PRD-xxxxxxxxxxxxxxxx" },
+    ],
+  },
+  {
+    id: "etsy",
+    name: "Etsy",
+    logo: "🧶",
+    color: "#f97316",
+    description: "Ceny na Etsy, popularne listingi, trendy kategorii",
+    docsUrl: "https://www.etsy.com/developers/your-apps",
+    keyLabel: "API Key",
+    fields: [{ key: "apiKey", label: "Keystring (API Key)", placeholder: "xxxxxxxxxxxxxxxxxxxx" }],
+  },
+  {
+    id: "amazon",
+    name: "Amazon (PA API)",
+    logo: "📦",
+    color: "#34d399",
+    description: "Ceny Amazon, bestsellery, ASIN lookup",
+    docsUrl: "https://affiliate-program.amazon.com/assoc_credentials/home",
+    keyLabel: "Access Key",
+    fields: [
+      { key: "accessKey", label: "Access Key ID", placeholder: "AKIAIOSFODNN7EXAMPLE" },
+      { key: "secretKey", label: "Secret Access Key", placeholder: "wJalrXUtnFEMI/..." },
+      { key: "associateTag", label: "Associate Tag", placeholder: "mytag-20" },
+    ],
+  },
+  {
+    id: "allegro",
+    name: "Allegro",
+    logo: "🇵🇱",
+    color: "#f87171",
+    description: "Ceny na Allegro, aktualne oferty, kategorie PL",
+    docsUrl: "https://apps.developer.allegro.pl/",
+    keyLabel: "Client ID",
+    fields: [
+      { key: "clientId", label: "Client ID", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" },
+      { key: "clientSecret", label: "Client Secret", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxx" },
+    ],
+  },
+  {
+    id: "aliexpress",
+    name: "AliExpress",
+    logo: "🇨🇳",
+    color: "#f59e0b",
+    description: "Ceny hurtowe z Chin, dostępność, koszty wysyłki",
+    docsUrl: "https://portals.aliexpress.com",
+    keyLabel: "App Key",
+    fields: [
+      { key: "appKey", label: "App Key", placeholder: "12345678" },
+      { key: "appSecret", label: "App Secret", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    ],
+  },
+  {
+    id: "rapidapi",
+    name: "RapidAPI Hub",
+    logo: "⚡",
+    color: "#60a5fa",
+    description: "Dostęp do setek API: Jumia, Shopee, Mercado Libre i innych",
+    docsUrl: "https://rapidapi.com/developer/dashboard",
+    keyLabel: "API Key",
+    fields: [{ key: "apiKey", label: "X-RapidAPI-Key", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }],
+  },
+  {
+    id: "custom",
+    name: "Własne API",
+    logo: "🔧",
+    color: "#94a3b8",
+    description: "Dodaj dowolne API — podaj nazwę, URL i klucz",
+    docsUrl: "",
+    keyLabel: "API Key",
+    fields: [
+      { key: "name", label: "Nazwa sklepu/API", placeholder: "np. Zalando, Shopee, Temu..." },
+      { key: "baseUrl", label: "Base URL", placeholder: "https://api.example.com/v1" },
+      { key: "apiKey", label: "API Key / Token", placeholder: "Bearer xxxxxxxx" },
+    ],
+  },
+];
+
+const STORAGE_KEY = "resell_api_keys";
+
+function loadKeys(): Record<string, Record<string, string>> {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
+}
+function saveKeys(keys: Record<string, Record<string, string>>) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+}
+
+export default function Settings() {
+  const [keys, setKeys] = useState<Record<string, Record<string, string>>>(loadKeys);
+  const [visible, setVisible] = useState<Record<string, boolean>>({});
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [testResult, setTestResult] = useState<Record<string, "ok" | "fail" | null>>({});
+  const [customApis, setCustomApis] = useState<{ id: string; name: string; baseUrl: string; apiKey: string }[]>(() => {
+    try { return JSON.parse(localStorage.getItem("resell_custom_apis") || "[]"); } catch { return []; }
+  });
+
+  const update = (platformId: string, field: string, value: string) => {
+    setKeys(prev => {
+      const next = { ...prev, [platformId]: { ...(prev[platformId] || {}), [field]: value } };
+      saveKeys(next);
+      return next;
+    });
+  };
+
+  const saveAndNotify = (platformId: string) => {
+    saveKeys(keys);
+    setSaved(prev => ({ ...prev, [platformId]: true }));
+    setTimeout(() => setSaved(prev => ({ ...prev, [platformId]: false })), 2000);
+  };
+
+  const clearPlatform = (platformId: string) => {
+    setKeys(prev => {
+      const next = { ...prev };
+      delete next[platformId];
+      saveKeys(next);
+      return next;
+    });
+    setTestResult(prev => ({ ...prev, [platformId]: null }));
+  };
+
+  const testKey = async (platformId: string) => {
+    setTesting(prev => ({ ...prev, [platformId]: true }));
+    setTestResult(prev => ({ ...prev, [platformId]: null }));
+    try {
+      const res = await fetch("/api/settings/test-key", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ platformId, keys: keys[platformId] }),
+      });
+      const data = await res.json();
+      setTestResult(prev => ({ ...prev, [platformId]: data.ok ? "ok" : "fail" }));
+    } catch {
+      setTestResult(prev => ({ ...prev, [platformId]: "fail" }));
+    }
+    setTesting(prev => ({ ...prev, [platformId]: false }));
+  };
+
+  const hasKeys = (platformId: string) => {
+    const k = keys[platformId];
+    return k && Object.values(k).some(v => v.trim().length > 0);
+  };
+
+  const activeCount = PLATFORM_APIS.filter(p => hasKeys(p.id)).length;
+
+  return (
+    <ResellLayout>
+      <div style={{ padding: "28px 24px 60px", maxWidth: 720 }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <SettingsIcon size={18} color="#a78bfa" />
+          </div>
+          <div>
+            <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>Ustawienia API</h1>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: 0 }}>Dodaj klucze API sklepów — app użyje prawdziwych danych zamiast AI</p>
+          </div>
+        </div>
+
+        {/* Status bar */}
+        <div style={{ background: activeCount > 0 ? "rgba(74,222,128,0.08)" : "rgba(245,200,66,0.08)", border: `1px solid ${activeCount > 0 ? "rgba(74,222,128,0.2)" : "rgba(245,200,66,0.2)"}`, borderRadius: 12, padding: "12px 16px", marginBottom: 28, display: "flex", alignItems: "center", gap: 10 }}>
+          {activeCount > 0 ? <CheckCircle size={15} color="#4ade80" /> : <AlertCircle size={15} color="#f5c842" />}
+          <span style={{ color: activeCount > 0 ? "#86efac" : "#fde68a", fontSize: 13 }}>
+            {activeCount > 0
+              ? `${activeCount} platform${activeCount === 1 ? "a" : "y"} podłączone — app używa prawdziwych danych`
+              : "Brak kluczy API — app używa danych AI (mniej dokładne)"}
+          </span>
+        </div>
+
+        {/* API Cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {PLATFORM_APIS.map(platform => {
+            const hasKey = hasKeys(platform.id);
+            const result = testResult[platform.id];
+            return (
+              <div key={platform.id} style={{
+                background: hasKey ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                border: `1px solid ${hasKey ? `${platform.color}25` : "rgba(255,255,255,0.07)"}`,
+                borderRadius: 16, overflow: "hidden",
+              }}>
+                {/* Card header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: `${platform.color}15`, border: `1px solid ${platform.color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                      {platform.logo}
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{platform.name}</span>
+                        {hasKey && (
+                          result === "ok"
+                            ? <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 99, padding: "1px 8px", color: "#4ade80", fontSize: 10, fontWeight: 700 }}>✓ Aktywne</span>
+                            : result === "fail"
+                              ? <span style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 99, padding: "1px 8px", color: "#f87171", fontSize: 10, fontWeight: 700 }}>✗ Błąd</span>
+                              : <span style={{ background: `${platform.color}15`, border: `1px solid ${platform.color}30`, borderRadius: 99, padding: "1px 8px", color: platform.color, fontSize: 10, fontWeight: 700 }}>Dodano</span>
+                        )}
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>{platform.description}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {platform.docsUrl && (
+                      <a href={platform.docsUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", fontSize: 11, textDecoration: "none" }}>
+                        Docs <ExternalLink size={10} />
+                      </a>
+                    )}
+                    {hasKey && (
+                      <button onClick={() => clearPlatform(platform.id)} style={{ padding: "5px 8px", borderRadius: 7, background: "rgba(248,113,113,0.1)", border: "none", cursor: "pointer", color: "#f87171" }}>
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fields */}
+                <div style={{ padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {platform.fields.map(field => (
+                    <div key={field.key}>
+                      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{field.label}</div>
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type={visible[`${platform.id}_${field.key}`] ? "text" : "password"}
+                          value={keys[platform.id]?.[field.key] || ""}
+                          onChange={e => update(platform.id, field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          style={{
+                            width: "100%", background: "rgba(0,0,0,0.3)",
+                            border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
+                            padding: "9px 38px 9px 12px", color: "#fff", fontSize: 13,
+                            fontFamily: "monospace", boxSizing: "border-box",
+                          }}
+                        />
+                        <button
+                          onClick={() => setVisible(v => ({ ...v, [`${platform.id}_${field.key}`]: !v[`${platform.id}_${field.key}`] }))}
+                          style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 0 }}
+                        >
+                          {visible[`${platform.id}_${field.key}`] ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <button
+                      onClick={() => saveAndNotify(platform.id)}
+                      style={{
+                        flex: 1, padding: "9px", borderRadius: 8, border: "none", cursor: "pointer",
+                        background: saved[platform.id] ? "rgba(74,222,128,0.2)" : `${platform.color}20`,
+                        color: saved[platform.id] ? "#4ade80" : platform.color,
+                        fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      }}
+                    >
+                      {saved[platform.id] ? <><Check size={13} /> Zapisano!</> : <><Key size={13} /> Zapisz klucz</>}
+                    </button>
+                    {hasKey && (
+                      <button
+                        onClick={() => testKey(platform.id)}
+                        disabled={testing[platform.id]}
+                        style={{
+                          padding: "9px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                          background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)",
+                          fontWeight: 700, fontSize: 13,
+                        }}
+                      >
+                        {testing[platform.id] ? "Testuję…" : "Testuj"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Info box */}
+        <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 12, padding: "14px 16px", marginTop: 20 }}>
+          <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>🔐 Bezpieczeństwo</div>
+          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.6 }}>
+            Klucze są zapisywane lokalnie w przeglądarce (localStorage). Nie są wysyłane na zewnętrzne serwery.
+            Przy każdym żądaniu API klucz jest przesyłany tylko do Twojego własnego serwera.
+          </div>
+        </div>
+      </div>
+    </ResellLayout>
+  );
+}
