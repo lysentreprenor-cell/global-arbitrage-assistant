@@ -17,7 +17,7 @@ const SECTIONS = [
     title: "ANALYZE",
     items: [
       { href: "/resell/compare", label: "Platform Compare", icon: GitCompare },
-      { href: "/resell/market",  label: "Market Scan",      icon: Globe },
+      { href: "/resell/market-scan",  label: "Market Scan",      icon: Globe },
       { href: "/resell/profit/0",label: "Profit Calc",      icon: DollarSign },
     ],
   },

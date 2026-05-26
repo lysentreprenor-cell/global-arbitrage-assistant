@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, TrendingUp, TrendingDown, Zap, Globe, BarChart2,
   ArrowRight, RefreshCw, Star, DollarSign, ShoppingBag, Filter,
-  ExternalLink,
+  ExternalLink, Boxes,
 } from "lucide-react";
 import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
 import {
@@ -275,7 +275,7 @@ export default function Dashboard() {
 
         {/* ── Opportunities table ── */}
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 36px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 64px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             {["PRODUCT", "BUY", "SELL", "NET PROFIT", "RISK", "MARKET", ""].map(h => (
               <div key={h} style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{h}</div>
             ))}
@@ -306,7 +306,7 @@ export default function Dashboard() {
               <div
                 key={o.id}
                 style={{
-                  display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 36px",
+                  display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 64px",
                   gap: 0, padding: "13px 18px",
                   borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
                   cursor: "pointer", transition: "background 0.12s",
@@ -367,7 +367,22 @@ export default function Dashboard() {
                 </div>
                 {/* MARKET */}
                 <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{o.market}</div>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, alignItems: "center" }}>
+                  <button
+                    title="Import to Dropship Manager"
+                    onClick={e => {
+                      e.stopPropagation();
+                      sessionStorage.setItem("dropship_import", JSON.stringify(o));
+                      setLocation("/resell/dropship");
+                    }}
+                    style={{
+                      background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)",
+                      borderRadius: 6, padding: "3px 5px", cursor: "pointer", color: "#a78bfa",
+                      display: "flex", alignItems: "center",
+                    }}
+                  >
+                    <Boxes size={12} />
+                  </button>
                   <ArrowRight size={14} color="rgba(255,255,255,0.2)" />
                 </div>
               </div>
