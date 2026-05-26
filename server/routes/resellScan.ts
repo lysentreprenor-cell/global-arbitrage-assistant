@@ -425,4 +425,71 @@ Rules: netProfit = sell*(1-fee) - buy - shipping. Sort by netProfit desc.`,
   }
 });
 
+// ── Offer / listing generator ─────────────────────────────────────────────────
+router.post("/generate-offer", async (req: Request, res: Response) => {
+  const { product, anthropicKey } = req.body ?? {};
+  if (!product?.name) return res.json({ error: "No product provided" });
+
+  const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!aiKey) return res.json({ error: "no-key", message: "Add Anthropic API key in Settings" });
+
+  const p = product;
+  const platform = p.market ?? "eBay USA";
+  const isEtsy = platform.toLowerCase().includes("etsy");
+  const isAmazon = platform.toLowerCase().includes("amazon");
+
+  const platformGuidance = isEtsy
+    ? "Etsy: title max 140 chars, storytelling tone, handmade/vintage feel, emphasize uniqueness. Tags: 13 tags, comma-separated, each max 20 chars."
+    : isAmazon
+    ? "Amazon: title max 200 chars, keyword-first, include brand/model/size/color/condition. Bullet points for features."
+    : "eBay: title max 80 chars, keyword-dense, include model/year/condition/size. No punctuation in title.";
+
+  try {
+    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": aiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1200,
+        system: `You are an expert marketplace listing copywriter specializing in cross-border arbitrage. Platform: ${platform}. ${platformGuidance}`,
+        messages: [{
+          role: "user",
+          content: `Generate a marketplace listing for this product:
+Name: ${p.name}
+Category: ${p.category ?? "General"}
+Buy price: $${p.buy} | Target sell price: $${p.sell}
+Market: ${p.market}
+Route: ${p.flag ?? "International"}
+${p.tip ? `Seller insight: ${p.tip}` : ""}
+${p.sellHint ? `SEO hint: ${p.sellHint}` : ""}
+
+Return ONLY valid JSON (no markdown):
+{
+  "title": "platform-optimized title",
+  "description": "full listing description with bullet points, condition, shipping info",
+  "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7"],
+  "price": ${p.sell},
+  "highlights": ["key selling point 1","key selling point 2","key selling point 3"],
+  "shippingNote": "recommended shipping method and timeframe",
+  "seoKeywords": ["keyword1","keyword2","keyword3"]
+}`,
+        }],
+      }),
+    });
+
+    if (!aiRes.ok) return res.json({ error: "ai-error", message: `AI returned ${aiRes.status}` });
+    const aiData = await aiRes.json() as any;
+    const rawText: string = aiData?.content?.[0]?.text ?? "";
+    const clean = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) return res.json({ error: "parse-error" });
+
+    const offer = JSON.parse(match[0]);
+    return res.json({ offer, product: p, platform, source: "ai" });
+  } catch (err) {
+    console.error("[generate-offer] error:", err);
+    return res.json({ error: "server-error" });
+  }
+});
+
 export default router;
