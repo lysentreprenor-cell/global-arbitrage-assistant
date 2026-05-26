@@ -20,6 +20,7 @@ import transactionsRouter from "./routes/transactions";
 import messagesRouter from "./routes/messages";
 import usersRouter from "./routes/users";
 import resellScanRouter from "./routes/resellScan";
+import marketScanRouter from "./routes/marketScan";
 
 const app = express();
 const httpServer = createServer(app);
@@ -260,6 +261,7 @@ async function runStartupMigrations() {
   app.use("/api/messages", messagesRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/resell", resellScanRouter);
+  app.use("/api/market", marketScanRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
