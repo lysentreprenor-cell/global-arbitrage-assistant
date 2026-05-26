@@ -289,7 +289,10 @@ export default function Dashboard() {
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                onClick={() => setLocation(`/resell/product/${o.id}`)}
+                onClick={() => {
+                  sessionStorage.setItem("resell_opportunity", JSON.stringify(o));
+                  setLocation(`/resell/product/${o.id}`);
+                }}
               >
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
