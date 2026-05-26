@@ -19,7 +19,7 @@ export default function ProductDetail() {
   return (
     <ResellLayout>
       <div style={{ padding: "36px 32px", maxWidth: 820 }}>
-        <button onClick={() => setLocation("/resell/products")} style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.45)", background: "none", border: "none", cursor: "pointer", fontSize: 13, marginBottom: 28 }}>
+        <button onClick={() => setLocation("/resell/products")} style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.75)", background: "none", border: "none", cursor: "pointer", fontSize: 13, marginBottom: 28 }}>
           <ArrowLeft size={15} /> Product History
         </button>
 
@@ -27,21 +27,21 @@ export default function ProductDetail() {
           {/* Left */}
           <div>
             <div style={{ background: `${scoreColor}10`, border: `1px solid ${scoreColor}25`, borderRadius: 18, padding: 24, marginBottom: 20 }}>
-              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, marginBottom: 6 }}>PROFITABILITY SCORE</div>
+              <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>PROFITABILITY SCORE</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ color: scoreColor, fontSize: 22, fontWeight: 900 }}>{p.score >= 70 ? "Profitable" : p.score >= 50 ? "Moderate" : "Low Return"}</div>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>{p.name}</div>
+                  <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, marginTop: 4 }}>{p.name}</div>
                 </div>
                 <div style={{ width: 72, height: 72, borderRadius: "50%", border: `3px solid ${scoreColor}50`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: `${scoreColor}10` }}>
                   <div style={{ color: scoreColor, fontSize: 24, fontWeight: 900 }}>{p.score}</div>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9 }}>/100</div>
+                  <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 9 }}>/100</div>
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 20 }}>
                 {[{ label: "Buy price", val: p.buyPrice, c: "#fff" }, { label: "Avg sell", val: p.avgSell, c: "#4ade80" }, { label: "Est. profit", val: p.profit, c: "#4ade80" }].map(x => (
                   <div key={x.label} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 12px" }}>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 4 }}>{x.label}</div>
+                    <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, marginBottom: 4 }}>{x.label}</div>
                     <div style={{ color: x.c, fontWeight: 700, fontSize: 14 }}>{x.val}</div>
                   </div>
                 ))}
@@ -49,15 +49,15 @@ export default function ProductDetail() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>RISKS</div>
+              <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>RISKS</div>
               {p.risks.map((r, i) => (
-                <div key={i} style={{ background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.15)", borderRadius: 8, padding: "8px 12px", color: "#fca5a5", fontSize: 12, marginBottom: 6 }}>⚠ {r}</div>
+                <div key={i} style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 8, padding: "8px 12px", color: "#fca5a5", fontSize: 12, marginBottom: 6 }}>⚠ {r}</div>
               ))}
             </div>
             <div>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>OPPORTUNITIES</div>
+              <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>OPPORTUNITIES</div>
               {p.opportunities.map((o, i) => (
-                <div key={i} style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.15)", borderRadius: 8, padding: "8px 12px", color: "#86efac", fontSize: 12, marginBottom: 6 }}>✓ {o}</div>
+                <div key={i} style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 8, padding: "8px 12px", color: "#86efac", fontSize: 12, marginBottom: 6 }}>✓ {o}</div>
               ))}
             </div>
           </div>
