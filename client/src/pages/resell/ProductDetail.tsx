@@ -191,6 +191,7 @@ export default function ProductDetail() {
         {/* Action buttons */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {[
+            { label: "📊 Porównaj gdzie sprzedać", href: `/resell/compare`, color: "#f5c842" },
             { label: "Kalkulator zysku", href: `/resell/profit/${id}`, color: "#34d399" },
             { label: "Sprawdź zgodność (Compliance)", href: `/resell/compliance/${id}`, color: "#60a5fa" },
             { label: "Generuj ofertę sprzedaży", href: `/resell/offer/${id}`, color: "#a78bfa" },

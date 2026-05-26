@@ -291,6 +291,7 @@ export default function Dashboard() {
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 onClick={() => {
                   sessionStorage.setItem("resell_opportunity", JSON.stringify(o));
+                  sessionStorage.setItem("compare_product", JSON.stringify({ name: o.name, buyPrice: o.buy, category: o.category }));
                   setLocation(`/resell/product/${o.id}`);
                 }}
               >
