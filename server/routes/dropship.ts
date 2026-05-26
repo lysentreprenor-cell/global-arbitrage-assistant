@@ -88,7 +88,7 @@ router.get("/listings", (_req: Request, res: Response) => {
 
 // PATCH /api/dropship/listings/:id/status
 router.patch("/listings/:id/status", (req: Request, res: Response) => {
-  const listing = listings.find(l => l.id === parseInt(req.params.id));
+  const listing = listings.find(l => l.id === parseInt(String(req.params.id)));
   if (!listing) return res.status(404).json({ error: "Not found" });
   listing.status = req.body.status;
   return res.json({ listing });
@@ -130,7 +130,7 @@ router.get("/orders", (_req: Request, res: Response) => {
 
 // PATCH /api/dropship/orders/:id/process — mark as processed
 router.patch("/orders/:id/process", (req: Request, res: Response) => {
-  const order = orders.find(o => o.id === parseInt(req.params.id));
+  const order = orders.find(o => o.id === parseInt(String(req.params.id)));
   if (!order) return res.status(404).json({ error: "Not found" });
   order.status = "processed";
   order.processedAt = new Date().toISOString();

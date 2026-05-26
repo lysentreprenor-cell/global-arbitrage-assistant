@@ -4,23 +4,16 @@
  * Add auth headers, request logging, or retry logic here in one place.
  */
 
-import { getAccessToken } from "./authToken";
-
-// ─── apiFetch — universal fetch with Bearer token + session cookie ─────────────
+// ─── apiFetch — universal fetch with session cookie ──────────────────────────
 
 export async function apiFetch<T>(
   input: string,
   init: RequestInit = {}
 ): Promise<T> {
   const headers = new Headers(init.headers || {});
-  const token = getAccessToken();
 
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
-  }
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const response = await fetch(input, {

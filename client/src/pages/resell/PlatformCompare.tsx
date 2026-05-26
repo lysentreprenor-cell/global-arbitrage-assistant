@@ -115,7 +115,7 @@ export default function PlatformCompare() {
               onClick={() => setRegion(r.id)}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 14px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 13,
+                padding: "8px 14px", borderRadius: 10, cursor: "pointer", fontSize: 13,
                 background: region === r.id ? "rgba(139,92,246,0.2)" : "rgba(255,255,255,0.05)",
                 color: region === r.id ? "#a78bfa" : "rgba(255,255,255,0.5)",
                 border: `1px solid ${region === r.id ? "rgba(139,92,246,0.4)" : "transparent"}`,
