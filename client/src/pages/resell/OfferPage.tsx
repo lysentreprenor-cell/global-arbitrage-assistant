@@ -109,6 +109,10 @@ export default function OfferPage() {
   // Manual entry mode (no sessionStorage product)
   const [manualMode, setManualMode] = useState(false);
   const [manualForm, setManualForm] = useState({ name: "", buy: "", sell: "", category: "General" });
+  const [regenCooldown, setRegenCooldown] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  const DRAFT_KEY = "offer_draft_last";
 
   useEffect(() => {
     try {
@@ -117,6 +121,16 @@ export default function OfferPage() {
         const p = JSON.parse(stored);
         setProduct(p);
         setPlatform(p.market ?? "eBay USA");
+      } else {
+        // No new product — try loading last saved draft
+        const draft = localStorage.getItem(DRAFT_KEY);
+        if (draft) {
+          const d = JSON.parse(draft);
+          if (d.product) { setProduct(d.product); setPlatform(d.platform ?? "eBay USA"); }
+          if (d.tone)    setTone(d.tone);
+          if (d.focus)   setFocus(d.focus);
+          if (d.offer)   { setOffer(d.offer); setDraftRestored(true); }
+        }
       }
     } catch {}
   }, []);
@@ -129,11 +143,12 @@ export default function OfferPage() {
       category: manualForm.category,
       market: targetPlatform,
     } : null);
-    if (!p) return;
+    if (!p || regenCooldown) return;
     setLoading(true);
     setError(null);
     setOffer(null);
     setEdited({});
+    setDraftRestored(false);
     try {
       const res = await fetch("/api/resell/generate-offer", {
         method: "POST",
@@ -146,12 +161,25 @@ export default function OfferPage() {
         }),
       });
       const data = await res.json();
-      if (data.offer) setOffer(data.offer);
-      else setError(data.message ?? "Generation failed — check your Anthropic API key in Settings.");
+      if (data.offer) {
+        setOffer(data.offer);
+        // Auto-save draft to localStorage
+        try {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            offer: data.offer, product: p,
+            platform: targetPlatform, tone: targetTone, focus: targetFocus,
+          }));
+        } catch {}
+      } else {
+        setError(data.message ?? "Generation failed — check your Anthropic API key in Settings.");
+      }
     } catch {
       setError("Connection error — server unavailable.");
     }
     setLoading(false);
+    // 6-second cooldown to prevent API spam
+    setRegenCooldown(true);
+    setTimeout(() => setRegenCooldown(false), 6000);
   };
 
   useEffect(() => {
@@ -194,6 +222,15 @@ export default function OfferPage() {
           style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer", fontSize: 13, marginBottom: 22 }}>
           <ArrowLeft size={15} /> Back
         </button>
+
+        {/* Draft restored banner */}
+        {draftRestored && (
+          <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10, padding: "9px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            <Sparkles size={13} color="#a78bfa" />
+            <span style={{ color: "#c4b5fd", fontSize: 12 }}>Draft restored from last session — regenerate for a fresh version</span>
+            <button onClick={() => setDraftRestored(false)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 2 }}><X size={12} /></button>
+          </div>
+        )}
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>

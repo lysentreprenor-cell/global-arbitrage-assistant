@@ -13,8 +13,14 @@ const FALLBACK = [
   { id: 8, name: "Vintage Omega Seamaster 1960s", buy: 220, sell: 680, profit: 460, netProfit: 371, margin: 68, priceGapPct: 209, confidence: "estimated", market: "eBay USA", category: "Watches", score: 94, risk: "medium", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Pre-1970 Omega watches: Polish flea markets 30% below European average — US demand very high", sourceUrl: "https://allegro.pl/listing?string=omega+seamaster+vintage+zegarek", sellUrl: "https://www.ebay.com/sch/i.html?_nkw=omega+seamaster+vintage+1960s&LH_Sold=1&LH_Complete=1", buyHint: "Targi niedzielne Warszawa/Kraków — pytaj o 'zegarki vintage'", sellHint: "Omega Seamaster Vintage 1960s Automatic Cal.285 Original Dial Working" },
 ];
 
-// ── eBay OAuth ────────────────────────────────────────────────────────────────
+// ── eBay OAuth (with in-memory token cache) ──────────────────────────────────
+const _tokenCache = new Map<string, { token: string; expiresAt: number }>();
+
 async function getEbayToken(appId: string, certId: string): Promise<string | null> {
+  const cacheKey = `${appId}:${certId}`;
+  const cached = _tokenCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) return cached.token;
+
   try {
     const encoded = Buffer.from(`${appId}:${certId}`).toString("base64");
     const r = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
@@ -24,7 +30,12 @@ async function getEbayToken(appId: string, certId: string): Promise<string | nul
     });
     if (!r.ok) return null;
     const d = await r.json() as any;
-    return d.access_token ?? null;
+    const token = d.access_token ?? null;
+    if (token) {
+      // Cache for 55 minutes (tokens valid ~2h; leave buffer)
+      _tokenCache.set(cacheKey, { token, expiresAt: Date.now() + 55 * 60 * 1000 });
+    }
+    return token;
   } catch { return null; }
 }
 
