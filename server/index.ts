@@ -242,28 +242,18 @@ async function runStartupMigrations() {
   // Health / diagnostics — secrets presence check (no values, public)
   registerHealthSecretsRoute(app);
 
-  // New auth — register/login/logout/me/profile/admin-users, cookie sessions
-  await installAuthFix(app);
-
-  // Remaining specialized routes (OTP, KYC, bank accounts, chat, files, health)
-  await installRealAuth(app);
-
-  // Security Center — settings, 2FA, sessions, devices, events
-  await installSecurityCenter(app, pool);
-
-  // Live quotes override — CoinGecko (or deterministic fallback if no API key)
-  // Must be registered BEFORE installInvestRoutes so Express first-match wins.
+  await installAuthFix(app).catch((e: unknown) => console.error("[startup] installAuthFix failed:", e));
+  await installRealAuth(app).catch((e: unknown) => console.error("[startup] installRealAuth failed:", e));
+  await installSecurityCenter(app, pool).catch((e: unknown) => console.error("[startup] installSecurityCenter failed:", e));
   installRealInvestQuotes(app);
-
-  // Investment module — demo quotes, portfolio holdings (DB-backed), buy
-  await installInvestRoutes(app);
+  await installInvestRoutes(app).catch((e: unknown) => console.error("[startup] installInvestRoutes failed:", e));
 
   app.use("/api/auth", authRouter);
 
   installChatSafety(app, pool);
   installMessagesFix(app, pool, httpServer);
 
-  await registerRoutes(httpServer, app);
+  await registerRoutes(httpServer, app).catch((e: unknown) => console.error("[startup] registerRoutes failed:", e));
 
   app.use("/api/transactions", transactionsRouter);
   app.use("/api/messages", messagesRouter);
