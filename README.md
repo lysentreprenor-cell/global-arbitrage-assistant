@@ -1,22 +1,37 @@
-# ItemPrise – Contract Wizard
+# Global Arbitrage Assistant
 
-React Native / Expo app with a 6-step contract creation wizard.
+Full-stack web app combining a personal finance banking platform with an AI-powered resell opportunity scanner.
 
-## Quick start
+## Features
+
+### Banking App (`/`)
+- Account dashboard with balance, transactions, cards
+- P2P transfers, contract invites, split bills
+- Investment portfolio (live crypto/stock quotes via CoinGecko)
+- Savings goals, recurring payments, loan flow
+- KYC verification, 2FA, push notifications
+- Admin dashboard
+
+### RESELLASSIST (`/resell`)
+- AI Market Scanner — finds arbitrage opportunities across global markets
+- Real-time profit margin analysis (eBay USA/DE, Etsy, Amazon, Vinted)
+- Product history with AI scoring
+- Profit calculator (shipping, duty, platform fees)
+- Legal compliance checklist
+- AI-generated offer builder
+
+## Tech Stack
+
+- **Frontend**: React + TypeScript, Wouter, Tailwind CSS, shadcn/ui, Recharts
+- **Backend**: Node.js + Express, PostgreSQL
+- **Auth**: Cookie sessions with bcrypt
+- **Real-time**: WebSockets
+
+## Quick Start
 
 ```bash
-git clone https://github.com/lysentreprenor-cell/item-prise-2_8_1.git
-cd item-prise-2_8_1
-npm install --legacy-peer-deps
-npx expo start
+npm install
+npm run dev
 ```
 
-Scan the QR code in **Expo Go** (Android/iOS).
-
-## Steps
-1. Podstawy – contract type, category, pricing method, deadline  
-2. Zakres prac – rooms with per-room scope, electrical/plumbing/materials  
-3. Wycena – per-m², lump-sum or hourly; live auto-sum  
-4. Płatność – four payment-split models with live breakdown  
-5. Warunki – proofs, conditions, acceptance protocol, deadlines  
-6. Podsumowanie – full summary, warnings, final amount, edit-any-step links  
+App runs on port 3000.
