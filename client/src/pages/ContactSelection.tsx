@@ -411,7 +411,7 @@ export default function ContactSelection() {
                 { id: "loan",  label: pl ? "Pożyczka znajomemu" : "P2P Loan",  sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, testId: "tile-loan-p2p", span: false },
                 { id: "req",   label: pl ? "Poproś" : "Request",               sub: pl ? "Poproś o przelew" : "Request",      icon: <ArrowUpRight size={20} />, testId: "tile-request-from-send", span: false },
               ] as { id: string; label: string; sub: string; icon: ReactNode; testId: string; span: boolean }[]).map(tile => {
-                const active = selectedMethod === tile.id || (tile.id === "req" && activeMode === "request");
+                const active = selectedMethod === tile.id || (tile.id === "req" && (activeMode as string) === "request");
                 return (
                   <button
                     key={tile.testId}

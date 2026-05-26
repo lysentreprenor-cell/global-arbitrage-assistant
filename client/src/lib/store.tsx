@@ -86,6 +86,7 @@ export type User = {
   balance: number;
   settings: UserSettings;
   emailVerified?: boolean;
+  kycVerified?: boolean;
   language?: "en" | "pl" | "no" | "es" | null;
 };
 
