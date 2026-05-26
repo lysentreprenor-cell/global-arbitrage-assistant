@@ -1,0 +1,59 @@
+{
+  "name": "Finlys — Private Banking",
+  "short_name": "Finlys",
+  "description": "Premium multi-currency banking app",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#c9a84c",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/opengraph.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Finlys Dashboard"
+    }
+  ],
+  "categories": ["finance"],
+  "lang": "pl",
+  "shortcuts": [
+    {
+      "name": "Wyślij pieniądze",
+      "short_name": "Wyślij",
+      "description": "Szybki przelew",
+      "url": "/transfer",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Moje umowy",
+      "short_name": "Umowy",
+      "description": "Przeglądaj aktywne umowy",
+      "url": "/agreements",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Podziel rachunek",
+      "short_name": "Podziel",
+      "description": "Podziel rachunek z grupą",
+      "url": "/split",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
