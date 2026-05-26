@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -12,18 +13,25 @@ import ResellProfitPage from "@/pages/resell/ProfitPage";
 import ResellCompliancePage from "@/pages/resell/CompliancePage";
 import ResellOfferPage from "@/pages/resell/OfferPage";
 
+function RedirectToResell() {
+  const [, setLocation] = useLocation();
+  useEffect(() => { setLocation("/resell"); }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Switch>
-        <Route path="/" component={ResellDashboard} />
-        <Route path="/search" component={ResellSearch} />
-        <Route path="/add" component={ResellAddProduct} />
-        <Route path="/products" component={ResellProducts} />
-        <Route path="/product/:id" component={ResellProductDetail} />
-        <Route path="/profit/:id" component={ResellProfitPage} />
-        <Route path="/compliance/:id" component={ResellCompliancePage} />
-        <Route path="/offer/:id" component={ResellOfferPage} />
+        <Route path="/" component={RedirectToResell} />
+        <Route path="/resell" component={ResellDashboard} />
+        <Route path="/resell/search" component={ResellSearch} />
+        <Route path="/resell/add" component={ResellAddProduct} />
+        <Route path="/resell/products" component={ResellProducts} />
+        <Route path="/resell/product/:id" component={ResellProductDetail} />
+        <Route path="/resell/profit/:id" component={ResellProfitPage} />
+        <Route path="/resell/compliance/:id" component={ResellCompliancePage} />
+        <Route path="/resell/offer/:id" component={ResellOfferPage} />
       </Switch>
       <Toaster />
     </QueryClientProvider>
