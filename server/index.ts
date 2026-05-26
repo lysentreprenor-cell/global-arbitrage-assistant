@@ -265,14 +265,12 @@ async function runStartupMigrations() {
 
   await registerRoutes(httpServer, app);
 
+  app.use("/api/transactions", transactionsRouter);
+  app.use("/api/messages", messagesRouter);
+  app.use("/api/users", usersRouter);
+
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-app.use("/api/transactions", transactionsRouter);
-app.use("/api/messages", messagesRouter);
-app.use("/api/users", usersRouter);
-
-
-
     const message = err.message || "Internal Server Error";
 
     console.error("Internal Server Error:", err);
