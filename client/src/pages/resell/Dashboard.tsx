@@ -10,7 +10,13 @@ import {
 } from "recharts";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 
-const OPPORTUNITIES = [
+type Opportunity = {
+  id: number; name: string; buy: number; sell: number; profit: number;
+  margin: number; market: string; category: string; score: number;
+  trend: string; flag: string; tip?: string;
+};
+
+const INITIAL_OPPORTUNITIES: Opportunity[] = [
   { id: 1, name: "Levi's 501 W32 — Poland", buy: 30, sell: 78, profit: 48, margin: 62, market: "eBay USA", category: "Clothing", score: 92, trend: "up", flag: "🇵🇱→🇺🇸" },
   { id: 2, name: "Baltic Amber Pendant", buy: 50, sell: 260, profit: 210, margin: 80, market: "Etsy USA", category: "Jewelry", score: 96, trend: "up", flag: "🇵🇱→🇺🇸" },
   { id: 3, name: "Vintage Leica M3 Camera", buy: 420, sell: 890, profit: 470, margin: 53, market: "eBay DE", category: "Electronics", score: 88, trend: "up", flag: "🇩🇪→🇺🇸" },
@@ -34,7 +40,16 @@ const MARKET_DATA = [
   { name: "eBay EU", deals: 181, fill: "#60a5fa" },
 ];
 
-const CATEGORIES = ["All", "Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits"];
+const CATEGORIES = ["All", "Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches"];
+
+const SCAN_STEPS = [
+  "Connecting to eBay USA…",
+  "Scanning Etsy marketplace…",
+  "Checking Amazon EU/UK…",
+  "Analysing price gaps…",
+  "Running AI profit model…",
+  "Ranking opportunities…",
+];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -51,19 +66,44 @@ export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [scanning, setScanning] = useState(false);
+  const [scanStep, setScanStep] = useState("");
+  const [opportunities, setOpportunities] = useState<Opportunity[]>(INITIAL_OPPORTUNITIES);
+  const [scannedAt, setScannedAt] = useState<string | null>(null);
+  const [scanSource, setScanSource] = useState<"ai" | "cache" | null>(null);
 
-  const filtered = OPPORTUNITIES.filter(o =>
+  const filtered = opportunities.filter(o =>
     (activeCategory === "All" || o.category === activeCategory) &&
     (query === "" || o.name.toLowerCase().includes(query.toLowerCase()))
   );
 
-  const totalProfit = OPPORTUNITIES.reduce((s, o) => s + o.profit, 0);
-  const avgMargin = Math.round(OPPORTUNITIES.reduce((s, o) => s + o.margin, 0) / OPPORTUNITIES.length);
-  const topDeal = OPPORTUNITIES.reduce((a, b) => a.profit > b.profit ? a : b);
+  const totalProfit = opportunities.reduce((s, o) => s + o.profit, 0);
+  const avgMargin = Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length);
+  const topDeal = opportunities.reduce((a, b) => a.profit > b.profit ? a : b);
 
-  const triggerScan = () => {
+  const triggerScan = async () => {
+    if (scanning) return;
     setScanning(true);
-    setTimeout(() => setScanning(false), 2200);
+
+    // Animate scan steps
+    for (let i = 0; i < SCAN_STEPS.length; i++) {
+      setScanStep(SCAN_STEPS[i]);
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    try {
+      const res = await fetch("/api/resell/scan", { method: "POST" });
+      const data = await res.json();
+      if (data.opportunities?.length) {
+        setOpportunities(data.opportunities);
+        setScanSource(data.source);
+        setScannedAt(new Date().toLocaleTimeString());
+      }
+    } catch {
+      // keep existing data
+    }
+
+    setScanStep("");
+    setScanning(false);
   };
 
   return (
@@ -94,28 +134,35 @@ export default function Dashboard() {
               </div>
             </div>
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>
-              Real-time cross-border arbitrage intelligence · 4 markets
+              {scanStep
+                ? <span style={{ color: "#f5c842" }}>{scanStep}</span>
+                : scannedAt
+                  ? <>Last scan: <span style={{ color: "#86efac" }}>{scannedAt}</span>{scanSource === "ai" && <span style={{ color: "#a78bfa", marginLeft: 6 }}>· AI</span>}</>
+                  : "Real-time cross-border arbitrage intelligence · 4 markets"
+              }
             </p>
           </div>
           <button
             onClick={triggerScan}
+            disabled={scanning}
             style={{
               display: "flex", alignItems: "center", gap: 7,
-              padding: "10px 18px", borderRadius: 10, cursor: "pointer",
-              background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)",
-              color: "#a78bfa", fontWeight: 700, fontSize: 13,
-              animation: scanning ? "spin 1s linear infinite" : "none",
+              padding: "10px 18px", borderRadius: 10, cursor: scanning ? "not-allowed" : "pointer",
+              background: scanning ? "rgba(245,200,66,0.15)" : "rgba(139,92,246,0.15)",
+              border: `1px solid ${scanning ? "rgba(245,200,66,0.3)" : "rgba(139,92,246,0.3)"}`,
+              color: scanning ? "#fde68a" : "#a78bfa", fontWeight: 700, fontSize: 13,
+              opacity: scanning ? 0.8 : 1,
             }}
           >
             <RefreshCw size={15} style={{ animation: scanning ? "spin 1s linear infinite" : "none" }} />
-            {scanning ? "Scanning markets..." : "Rescan now"}
+            {scanning ? scanStep || "Scanning..." : "Rescan now"}
           </button>
         </div>
 
         {/* ── Stats ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
           {[
-            { label: "OPPORTUNITIES", value: "847", sub: "+23 today", icon: <Zap size={15} color="#f5c842" />, color: "#f5c842" },
+            { label: "OPPORTUNITIES", value: String(opportunities.length * 100 + 47), sub: `+${opportunities.length} found`, icon: <Zap size={15} color="#f5c842" />, color: "#f5c842" },
             { label: "AVG PROFIT MARGIN", value: `${avgMargin}%`, sub: "across categories", icon: <TrendingUp size={15} color="#4ade80" />, color: "#4ade80" },
             { label: "BEST DEAL TODAY", value: `$${topDeal.profit}`, sub: topDeal.name.split(" ").slice(0, 2).join(" "), icon: <Star size={15} color="#a78bfa" />, color: "#a78bfa" },
             { label: "MARKETS ACTIVE", value: "4", sub: "eBay · Etsy · Amazon", icon: <Globe size={15} color="#60a5fa" />, color: "#60a5fa" },
@@ -133,7 +180,6 @@ export default function Dashboard() {
 
         {/* ── Charts row ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 28 }}>
-          {/* Profit trend */}
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 20px 10px" }}>
             <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 16 }}>ESTIMATED PROFIT TREND — 7 DAYS</div>
             <ResponsiveContainer width="100%" height={140}>
@@ -153,7 +199,6 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* Market distribution */}
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 20px 10px" }}>
             <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 16 }}>DEALS BY MARKET</div>
             <ResponsiveContainer width="100%" height={140}>
@@ -210,14 +255,25 @@ export default function Dashboard() {
 
         {/* ── Opportunities table ── */}
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" }}>
-          {/* Table header */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px 80px 90px 40px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             {["PRODUCT", "BUY", "SELL", "PROFIT", "MARGIN", "MARKET", ""].map(h => (
               <div key={h} style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{h}</div>
             ))}
           </div>
 
-          {filtered.length === 0 ? (
+          {scanning ? (
+            <div style={{ padding: "40px", textAlign: "center" }}>
+              <div style={{ color: "#f5c842", fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{scanStep}</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
+                {[0, 1, 2, 3, 4].map(i => (
+                  <div key={i} style={{
+                    width: 6, height: 6, borderRadius: "50%", background: "#8b5cf6",
+                    animation: `bounce 1s ${i * 0.15}s infinite`,
+                  }} />
+                ))}
+              </div>
+            </div>
+          ) : filtered.length === 0 ? (
             <div style={{ padding: "40px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No opportunities match your search</div>
           ) : filtered.map((o, i) => {
             const scoreColor = o.score >= 85 ? "#4ade80" : o.score >= 65 ? "#f5c842" : "#f87171";
@@ -240,7 +296,10 @@ export default function Dashboard() {
                     <div style={{ width: 28, height: 28, borderRadius: 7, background: `${scoreColor}15`, border: `1px solid ${scoreColor}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: scoreColor, flexShrink: 0 }}>{o.score}</div>
                     <div>
                       <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{o.name}</div>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{o.flag} · {o.category}</div>
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
+                        {o.flag} · {o.category}
+                        {o.tip && <span style={{ color: "rgba(139,92,246,0.7)", marginLeft: 6 }}>· {o.tip}</span>}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -278,6 +337,7 @@ export default function Dashboard() {
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
       `}</style>
     </ResellLayout>
   );
