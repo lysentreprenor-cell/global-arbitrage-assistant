@@ -15,9 +15,9 @@ export const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "lysenteprenor@gmai
 const APP_SESSION_COOKIE = "app_session";
 const SESSION_DAYS = 30;
 
-if (!DATABASE_URL) { console.error("Missing env: DATABASE_URL"); process.exit(1); }
-
-const db = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const db = DATABASE_URL
+  ? new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  : null as unknown as Pool;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
