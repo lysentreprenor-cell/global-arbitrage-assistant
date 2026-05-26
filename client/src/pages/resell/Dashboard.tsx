@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Search, TrendingUp, TrendingDown, Zap, Globe, BarChart2,
   ArrowRight, RefreshCw, Star, DollarSign, ShoppingBag, Filter,
-  ExternalLink, Boxes,
+  ExternalLink, Boxes, AlertCircle, X,
 } from "lucide-react";
 import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
 import {
@@ -68,15 +68,24 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const SCAN_TS_KEY = "resell_last_scan_ts";
+const SCAN_DATA_KEY = "resell_scan_data";
+const AUTOSCAN_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+
+function loadCachedOpportunities(): Opportunity[] | null {
+  try { return JSON.parse(localStorage.getItem(SCAN_DATA_KEY) || "null"); } catch { return null; }
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState("");
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(INITIAL_OPPORTUNITIES);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>(() => loadCachedOpportunities() ?? INITIAL_OPPORTUNITIES);
   const [scannedAt, setScannedAt] = useState<string | null>(null);
   const [scanSource, setScanSource] = useState<"ai" | "cache" | "live" | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const filtered = opportunities.filter(o =>
     (activeCategory === "All" || o.category === activeCategory) &&
@@ -87,11 +96,22 @@ export default function Dashboard() {
   const avgMargin = Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length);
   const topDeal = opportunities.reduce((a, b) => (a.netProfit ?? a.profit) > (b.netProfit ?? b.profit) ? a : b);
 
+  // Auto-scan on mount if data is stale
+  useEffect(() => {
+    const lastTs = parseInt(localStorage.getItem(SCAN_TS_KEY) ?? "0", 10);
+    const stale = Date.now() - lastTs > AUTOSCAN_THRESHOLD_MS;
+    const hasKeys = !!getAnthropicKey();
+    if (stale && hasKeys) {
+      triggerScan();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const triggerScan = async () => {
     if (scanning) return;
     setScanning(true);
+    setScanError(null);
 
-    // Animate scan steps
     for (let i = 0; i < SCAN_STEPS.length; i++) {
       setScanStep(SCAN_STEPS[i]);
       await new Promise(r => setTimeout(r, 400));
@@ -113,10 +133,15 @@ export default function Dashboard() {
       if (data.opportunities?.length) {
         setOpportunities(data.opportunities);
         setScanSource(data.source);
-        setScannedAt(new Date().toLocaleTimeString());
+        const ts = new Date().toLocaleTimeString();
+        setScannedAt(ts);
+        localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
+        localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
+      } else if (data.error || data.message) {
+        setScanError(data.error ?? data.message);
       }
     } catch {
-      // keep existing data
+      setScanError("Connection error — scan failed. Showing cached data.");
     }
 
     setScanStep("");
@@ -179,6 +204,17 @@ export default function Dashboard() {
             {scanning ? scanStep || "Scanning..." : "Rescan now"}
           </button>
         </div>
+
+        {/* ── Scan error banner ── */}
+        {scanError && (
+          <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10 }}>
+            <AlertCircle size={14} color="#f87171" style={{ flexShrink: 0 }} />
+            <span style={{ color: "#fca5a5", fontSize: 12, flex: 1 }}>{scanError}</span>
+            <button onClick={() => setScanError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 2 }}>
+              <X size={13} />
+            </button>
+          </div>
+        )}
 
         {/* ── Stats ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>

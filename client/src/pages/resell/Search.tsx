@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, Zap, ArrowRight, X, AlertCircle, Bookmark,
   BookmarkCheck, SlidersHorizontal, TrendingUp, DollarSign,
-  ExternalLink, Boxes, FileText, ChevronDown, ChevronUp,
+  ExternalLink, Boxes, FileText, ChevronDown, ChevronUp, Clock, Trash2,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
@@ -50,6 +50,25 @@ const STAGES = [
 
 const RISK_ORDER = { low: 0, medium: 1, high: 2 };
 
+const FILTER_KEY = "resell_search_filters";
+const HISTORY_KEY = "resell_search_history";
+
+function loadFilters() {
+  try { return JSON.parse(localStorage.getItem(FILTER_KEY) || "{}"); } catch { return {}; }
+}
+function loadHistory(): string[] {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+}
+function addToHistory(q: string): string[] {
+  const h = loadHistory().filter(x => x !== q);
+  const next = [q, ...h].slice(0, 10);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  return next;
+}
+function clearHistory() {
+  localStorage.removeItem(HISTORY_KEY);
+}
+
 function savedKey() { return "resell_saved_opportunities"; }
 function loadSaved(): number[] {
   try { return JSON.parse(sessionStorage.getItem(savedKey()) || "[]"); } catch { return []; }
@@ -69,14 +88,21 @@ export default function SearchPage() {
   const [source, setSource] = useState<string | null>(null);
   const [stage, setStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [searchHistory, setSearchHistory] = useState<string[]>(loadHistory);
 
-  // Filters
+  // Filters — initialize from localStorage
+  const _saved = loadFilters();
   const [showFilters, setShowFilters] = useState(false);
-  const [maxBudget, setMaxBudget] = useState("");
-  const [catFilter, setCatFilter] = useState("All");
-  const [riskFilter, setRiskFilter] = useState("All risks");
-  const [sortKey, setSortKey] = useState("netProfit");
+  const [maxBudget, setMaxBudget] = useState<string>(_saved.maxBudget ?? "");
+  const [catFilter, setCatFilter] = useState<string>(_saved.catFilter ?? "All");
+  const [riskFilter, setRiskFilter] = useState<string>(_saved.riskFilter ?? "All risks");
+  const [sortKey, setSortKey] = useState<string>(_saved.sortKey ?? "netProfit");
   const [savedIds, setSavedIds] = useState<number[]>(loadSaved);
+
+  // Persist filters whenever they change
+  useEffect(() => {
+    localStorage.setItem(FILTER_KEY, JSON.stringify({ maxBudget, catFilter, riskFilter, sortKey }));
+  }, [maxBudget, catFilter, riskFilter, sortKey]);
 
   const handleSearch = async (q = query) => {
     if (!q.trim() || loading) return;
@@ -85,6 +111,7 @@ export default function SearchPage() {
     setError(null);
     setLoading(true);
     setStage(0);
+    setSearchHistory(addToHistory(q.trim()));
 
     const stageTimer = setInterval(() => {
       setStage(s => s < STAGES.length - 1 ? s + 1 : s);
@@ -141,6 +168,8 @@ export default function SearchPage() {
   })();
 
   const bestDeal = filtered.length > 0 ? filtered.reduce((a, b) => (a.netProfit ?? a.profit) > (b.netProfit ?? b.profit) ? a : b) : null;
+
+  const showHistoryPanel = !results && !loading && !error && searchHistory.length > 0;
 
   return (
     <ResellLayout>
@@ -263,9 +292,38 @@ export default function SearchPage() {
           </div>
         )}
 
+        {/* ── Search history ── */}
+        {showHistoryPanel && (
+          <div style={{ marginBottom: 20, marginTop: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Clock size={12} color="rgba(255,255,255,0.3)" />
+                <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>RECENT SEARCHES</span>
+              </div>
+              <button
+                onClick={() => { clearHistory(); setSearchHistory([]); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.2)", fontSize: 11, padding: 0 }}
+              >
+                <Trash2 size={11} /> Clear
+              </button>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {searchHistory.map(h => (
+                <button key={h} onClick={() => handleSearch(h)}
+                  style={{ padding: "5px 13px", borderRadius: 99, border: "1px solid rgba(139,92,246,0.25)", background: "rgba(139,92,246,0.08)", color: "rgba(167,139,250,0.8)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(139,92,246,0.5)"; (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(139,92,246,0.25)"; (e.currentTarget as HTMLElement).style.color = "rgba(167,139,250,0.8)"; }}
+                >
+                  <Clock size={10} /> {h}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Suggestions ── */}
         {!results && !loading && !error && (
-          <div style={{ marginBottom: 32, marginTop: 10 }}>
+          <div style={{ marginBottom: 32, marginTop: showHistoryPanel ? 0 : 10 }}>
             <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}>POPULAR SEARCHES</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
               {SUGGESTIONS.map(s => (
@@ -445,21 +503,18 @@ export default function SearchPage() {
 
                       {/* Action bar */}
                       <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "8px 14px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        {/* Source link */}
                         {r.sourceUrl && (
                           <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer"
                             style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", color: "#4ade80", fontSize: 11, fontWeight: 600, textDecoration: "none" }}>
                             <ExternalLink size={11} /> Search source
                           </a>
                         )}
-                        {/* Sell link */}
                         {r.sellUrl && (
                           <a href={r.sellUrl} target="_blank" rel="noopener noreferrer"
                             style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", color: "#a78bfa", fontSize: 11, fontWeight: 600, textDecoration: "none" }}>
                             <ExternalLink size={11} /> Sell on {r.sellMarket}
                           </a>
                         )}
-                        {/* Make Offer */}
                         <button
                           onClick={() => {
                             const opp = { ...r, market: r.sellMarket, category: r.category ?? "General" };
@@ -469,7 +524,6 @@ export default function SearchPage() {
                           style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(245,200,66,0.1)", border: "1px solid rgba(245,200,66,0.25)", color: "#f5c842", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           <FileText size={11} /> Make Offer
                         </button>
-                        {/* Dropship */}
                         <button
                           onClick={() => {
                             const imp = { name: r.name, buy: r.buy, sell: r.sell, market: r.sellMarket, category: r.category ?? "General", sourceUrl: r.sourceUrl ?? "", buyHint: r.buyHint ?? "", sellHint: r.sellHint ?? "" };
@@ -479,7 +533,6 @@ export default function SearchPage() {
                           style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)", color: "#60a5fa", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           <Boxes size={11} /> Dropship
                         </button>
-                        {/* Save */}
                         <button
                           onClick={() => setSavedIds(toggleSave(r.id))}
                           style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: isSaved ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${isSaved ? "rgba(139,92,246,0.3)" : "rgba(255,255,255,0.08)"}`, color: isSaved ? "#c4b5fd" : "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>

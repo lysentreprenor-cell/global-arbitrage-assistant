@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Globe, Package, Scale, RefreshCw, ChevronDown, ExternalLink, AlertTriangle, CheckCircle, Truck, ShieldCheck } from "lucide-react";
+import { Globe, Package, Scale, RefreshCw, ChevronDown, ExternalLink, AlertTriangle, CheckCircle, Truck, ShieldCheck, Zap } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 
@@ -76,11 +76,13 @@ export default function MarketScan() {
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState("");
   const [result, setResult] = useState<MarketResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const runScan = async () => {
     if (scanning) return;
     setScanning(true);
     setResult(null);
+    setError(null);
 
     for (let i = 0; i < SCAN_STEPS.length; i++) {
       setScanStep(SCAN_STEPS[i]);
@@ -94,9 +96,13 @@ export default function MarketScan() {
         body: JSON.stringify({ fromCountry, toCountry, category, budget: Number(budget) || 100, anthropicKey: getAnthropicKey() }),
       });
       const data = await res.json();
-      setResult(data);
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setResult(data);
+      }
     } catch {
-      // keep null
+      setError("Connection error — check your internet connection.");
     }
 
     setScanStep("");
@@ -109,11 +115,16 @@ export default function MarketScan() {
 
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
-          <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: "0 0 6px", letterSpacing: -0.5 }}>
-            Skanuj Rynki
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #60a5fa, #3b82f6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Globe size={18} color="#fff" />
+            </div>
+            <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
+              Market Scanner
+            </h1>
+          </div>
           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, margin: 0 }}>
-            Wybierz kraj i kategorię — AI sprawdzi sklepy, wysyłkę, prawo i politykę zwrotów
+            Choose buy/sell countries and category — AI checks marketplaces, shipping, customs law, and returns policy.
           </p>
         </div>
 
@@ -122,7 +133,7 @@ export default function MarketScan() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 120px", gap: 12, marginBottom: 16 }}>
             {/* From */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>KRAJ ZAKUPU</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>BUY FROM</div>
               <div style={{ position: "relative" }}>
                 <select
                   value={fromCountry}
@@ -141,7 +152,7 @@ export default function MarketScan() {
 
             {/* To */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>KRAJ SPRZEDAŻY</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>SELL TO</div>
               <div style={{ position: "relative" }}>
                 <select
                   value={toCountry}
@@ -160,7 +171,7 @@ export default function MarketScan() {
 
             {/* Category */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>KATEGORIA</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>CATEGORY</div>
               <div style={{ position: "relative" }}>
                 <select
                   value={category}
@@ -179,7 +190,7 @@ export default function MarketScan() {
 
             {/* Budget */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>BUDŻET ($)</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>BUDGET ($)</div>
               <input
                 type="number"
                 value={budget}
@@ -198,7 +209,7 @@ export default function MarketScan() {
             <div style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 8, padding: "6px 14px", color: "#a78bfa", fontSize: 13, fontWeight: 700 }}>{fromCountry}</div>
             <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 18 }}>→</div>
             <div style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 8, padding: "6px 14px", color: "#4ade80", fontSize: 13, fontWeight: 700 }}>{toCountry}</div>
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>· {category}</div>
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>· {category} · budget ${budget}</div>
           </div>
 
           <button
@@ -213,11 +224,11 @@ export default function MarketScan() {
             }}
           >
             <RefreshCw size={15} style={{ animation: scanning ? "spin 1s linear infinite" : "none" }} />
-            {scanning ? scanStep : "🔍 Sprawdź nowe sklepy"}
+            {scanning ? scanStep : "🔍 Scan Markets"}
           </button>
         </div>
 
-        {/* Loading dots */}
+        {/* Loading */}
         {scanning && (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
             <div style={{ color: "#f5c842", fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{scanStep}</div>
@@ -229,27 +240,69 @@ export default function MarketScan() {
           </div>
         )}
 
+        {/* Error */}
+        {error && !scanning && (
+          <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
+            <AlertTriangle size={15} color="#f87171" style={{ flexShrink: 0, marginTop: 1 }} />
+            <div style={{ color: "#fca5a5", fontSize: 13 }}>{error}</div>
+          </div>
+        )}
+
         {/* Results */}
         {result && !scanning && (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
               <CheckCircle size={16} color="#4ade80" />
               <span style={{ color: "#4ade80", fontWeight: 700, fontSize: 14 }}>
-                Wyniki dla {result.fromCountry} → {result.toCountry} · {result.category}
+                Results for {result.fromCountry} → {result.toCountry} · {result.category}
               </span>
               {result.source === "ai" && <span style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.4)", borderRadius: 99, padding: "2px 10px", color: "#a78bfa", fontSize: 11, fontWeight: 700 }}>AI</span>}
             </div>
 
+            {/* TL;DR summary strip */}
+            <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 14, padding: "14px 18px", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+                <Zap size={13} color="#4ade80" />
+                <span style={{ color: "#86efac", fontSize: 11, fontWeight: 800, letterSpacing: 0.7 }}>QUICK SUMMARY</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>BEST PLATFORM</div>
+                  <div style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>{result.marketplaces[0]?.name ?? "—"}</div>
+                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Fee: {result.marketplaces[0]?.fee ?? "—"}</div>
+                </div>
+                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>FASTEST SHIPPING</div>
+                  <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 13 }}>{result.shipping.services[0]?.name ?? "—"}</div>
+                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{result.shipping.services[0]?.time ?? "—"} · {result.shipping.services[0]?.cost ?? "—"}</div>
+                </div>
+                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>IMPORT DUTY</div>
+                  <div style={{ color: "#fca5a5", fontWeight: 700, fontSize: 13 }}>{result.legal.importDuty}</div>
+                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{result.legal.vatNote}</div>
+                </div>
+                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>SHIPPING OK?</div>
+                  <div style={{ color: result.shipping.feasible ? "#4ade80" : "#f87171", fontWeight: 700, fontSize: 13 }}>
+                    {result.shipping.feasible ? "✓ Feasible" : "✗ Restricted"}
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>
+                    {result.shipping.restrictions.length > 0 ? `${result.shipping.restrictions.length} restriction(s)` : "No restrictions"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Marketplaces */}
-            <Section icon={<Globe size={15} color="#f5c842" />} title="SKLEPY I PLATFORMY SPRZEDAŻY" color="#f5c842">
+            <Section icon={<Globe size={15} color="#f5c842" />} title="MARKETPLACES &amp; SELLING PLATFORMS" color="#f5c842">
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {result.marketplaces.map((m, i) => (
                   <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", textDecoration: "none" }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 14 }}>{m.name}</span>
-                        <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 99, padding: "1px 8px", color: "#86efac", fontSize: 10, fontWeight: 700 }}>Prowizja: {m.fee}</span>
-                        <span style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: 99, padding: "1px 8px", color: "#93c5fd", fontSize: 10 }}>Ruch: {m.traffic}</span>
+                        <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 99, padding: "1px 8px", color: "#86efac", fontSize: 10, fontWeight: 700 }}>Fee: {m.fee}</span>
+                        <span style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: 99, padding: "1px 8px", color: "#93c5fd", fontSize: 10 }}>Traffic: {m.traffic}</span>
                       </div>
                       <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 4 }}>{m.note}</div>
                     </div>
@@ -260,7 +313,7 @@ export default function MarketScan() {
             </Section>
 
             {/* Shipping */}
-            <Section icon={<Truck size={15} color="#60a5fa" />} title="WYSYŁKA I POCZTA" color="#60a5fa">
+            <Section icon={<Truck size={15} color="#60a5fa" />} title="SHIPPING &amp; POSTAL SERVICES" color="#60a5fa">
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{
                   padding: "4px 12px", borderRadius: 99,
@@ -268,7 +321,7 @@ export default function MarketScan() {
                   border: `1px solid ${result.shipping.feasible ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}`,
                   color: result.shipping.feasible ? "#4ade80" : "#f87171", fontWeight: 700, fontSize: 12,
                 }}>
-                  {result.shipping.feasible ? "✓ Wysyłka możliwa" : "✗ Wysyłka niemożliwa lub ograniczona"}
+                  {result.shipping.feasible ? "✓ Shipping feasible" : "✗ Shipping impossible or heavily restricted"}
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
@@ -287,7 +340,7 @@ export default function MarketScan() {
               </div>
               {result.shipping.restrictions.length > 0 && (
                 <div>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>OGRANICZENIA WYSYŁKI</div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>SHIPPING RESTRICTIONS</div>
                   {result.shipping.restrictions.map((r, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "#fcd34d", fontSize: 12, marginBottom: 5 }}>
                       <AlertTriangle size={12} style={{ flexShrink: 0, marginTop: 2 }} /> {r}
@@ -298,25 +351,25 @@ export default function MarketScan() {
             </Section>
 
             {/* Legal */}
-            <Section icon={<Scale size={15} color="#f87171" />} title="PRAWO I CELNINA" color="#f87171">
+            <Section icon={<Scale size={15} color="#f87171" />} title="CUSTOMS &amp; LEGAL" color="#f87171">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                 <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>CŁO IMPORTOWE</div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>IMPORT DUTY</div>
                   <div style={{ color: "#fca5a5", fontWeight: 700, fontSize: 14 }}>{result.legal.importDuty}</div>
                 </div>
                 <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>VAT / PODATKI</div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>VAT / TAXES</div>
                   <div style={{ color: "#fca5a5", fontWeight: 700, fontSize: 13 }}>{result.legal.vatNote}</div>
                 </div>
               </div>
               <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 6 }}>DOKUMENTY WYMAGANE</div>
+                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 6 }}>REQUIRED DOCUMENTS</div>
                 <div style={{ display: "flex", flexWrap: "wrap" }}>
                   {result.legal.documentation.map((d, i) => <Pill key={i} text={d} color="#f87171" />)}
                 </div>
               </div>
               <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 6 }}>PRZEDMIOTY ZAKAZANE</div>
+                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 6 }}>BANNED / RESTRICTED ITEMS</div>
                 <div style={{ display: "flex", flexWrap: "wrap" }}>
                   {result.legal.banned.map((b, i) => <Pill key={i} text={b} color="#f59e0b" />)}
                 </div>
@@ -328,12 +381,12 @@ export default function MarketScan() {
             </Section>
 
             {/* Returns */}
-            <Section icon={<ShieldCheck size={15} color="#34d399" />} title="GWARANCJA I ZWROTY" color="#34d399">
+            <Section icon={<ShieldCheck size={15} color="#34d399" />} title="RETURNS &amp; BUYER PROTECTION" color="#34d399">
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
                 {[
-                  { label: "Obowiązek sprzedawcy", val: result.returns.sellerObligation },
-                  { label: "Ochrona kupującego", val: result.returns.buyerProtection },
-                  { label: "Gwarancja", val: result.returns.warranty },
+                  { label: "Seller obligation", val: result.returns.sellerObligation },
+                  { label: "Buyer protection", val: result.returns.buyerProtection },
+                  { label: "Warranty",          val: result.returns.warranty },
                 ].map(x => (
                   <div key={x.label} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>{x.label.toUpperCase()}</div>
@@ -342,7 +395,7 @@ export default function MarketScan() {
                 ))}
               </div>
               <div>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>PORADY PRAKTYCZNE</div>
+                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>PRACTICAL TIPS</div>
                 {result.returns.tips.map((t, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "#6ee7b7", fontSize: 12, marginBottom: 6 }}>
                     <CheckCircle size={12} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
@@ -353,9 +406,9 @@ export default function MarketScan() {
           </>
         )}
 
-        {!result && !scanning && (
+        {!result && !scanning && !error && (
           <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
-            Wybierz kraje i kliknij „Sprawdź nowe sklepy"
+            Select countries and click "Scan Markets" to analyse the route
           </div>
         )}
       </div>
@@ -363,6 +416,8 @@ export default function MarketScan() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        select option { background: #1a1a2e; color: #fff; }
+        input::placeholder { color: rgba(255,255,255,0.2); }
       `}</style>
     </ResellLayout>
   );
