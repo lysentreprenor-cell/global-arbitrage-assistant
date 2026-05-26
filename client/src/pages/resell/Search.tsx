@@ -19,6 +19,8 @@ type SearchResult = {
   buyHint?: string; sellHint?: string; tip?: string;
   sourceUrl?: string; sellUrl?: string;
   category?: string;
+  priceGapPct?: number;
+  confidence?: "live" | "estimated";
 };
 
 const SUGGESTIONS = [
@@ -419,11 +421,25 @@ export default function SearchPage() {
                           )}
                         </div>
 
-                        {/* Profit display */}
-                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        {/* Profit + gap display */}
+                        <div style={{ textAlign: "right", flexShrink: 0, minWidth: 80 }}>
                           <div style={{ color: "#4ade80", fontWeight: 900, fontSize: 22, lineHeight: 1 }}>+${netP}</div>
-                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 3 }}>net profit</div>
-                          <div style={{ background: `${scoreColor}15`, borderRadius: 99, padding: "1px 8px", color: scoreColor, fontSize: 11, fontWeight: 700, textAlign: "center" }}>{r.margin}%</div>
+                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 4 }}>net profit</div>
+                          <div style={{ background: `${scoreColor}15`, borderRadius: 99, padding: "1px 8px", color: scoreColor, fontSize: 11, fontWeight: 700, textAlign: "center", marginBottom: 4 }}>{r.margin}% margin</div>
+                          {r.priceGapPct && r.priceGapPct > 0 ? (
+                            <div style={{
+                              background: r.priceGapPct > 200 ? "rgba(74,222,128,0.15)" : r.priceGapPct > 80 ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.06)",
+                              border: `1px solid ${r.priceGapPct > 200 ? "rgba(74,222,128,0.3)" : r.priceGapPct > 80 ? "rgba(245,200,66,0.25)" : "rgba(255,255,255,0.1)"}`,
+                              borderRadius: 99, padding: "2px 8px", textAlign: "center", marginBottom: 3,
+                              color: r.priceGapPct > 200 ? "#4ade80" : r.priceGapPct > 80 ? "#f5c842" : "rgba(255,255,255,0.4)",
+                              fontSize: 10, fontWeight: 800,
+                            }}>+{r.priceGapPct}% gap</div>
+                          ) : null}
+                          {r.confidence && (
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: r.confidence === "live" ? "#4ade80" : "rgba(255,255,255,0.2)", textAlign: "right" }}>
+                              {r.confidence === "live" ? "🟢 LIVE" : "~ ESTIM"}
+                            </div>
+                          )}
                         </div>
                       </div>
 

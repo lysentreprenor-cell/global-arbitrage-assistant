@@ -19,7 +19,8 @@ type Opportunity = {
   risk?: "low" | "medium" | "high";
   demandLevel?: "high" | "medium" | "low";
   buyHint?: string; sellHint?: string;
-  sourceUrl?: string; imageUrl?: string;
+  sourceUrl?: string; sellUrl?: string; imageUrl?: string;
+  priceGapPct?: number; confidence?: "live" | "estimated";
 };
 
 const INITIAL_OPPORTUNITIES: Opportunity[] = [
@@ -358,7 +359,13 @@ export default function Dashboard() {
                 {/* NET PROFIT — after platform fees + shipping */}
                 <div>
                   <div style={{ color: "#4ade80", fontWeight: 800, fontSize: 14 }}>+${netP}</div>
-                  <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>after fees</div>
+                  {o.priceGapPct && o.priceGapPct > 0 ? (
+                    <div style={{ color: o.priceGapPct > 200 ? "#4ade80" : o.priceGapPct > 80 ? "#f5c842" : "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700 }}>
+                      +{o.priceGapPct}% gap
+                    </div>
+                  ) : (
+                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>after fees</div>
+                  )}
                 </div>
                 {/* RISK */}
                 <div>
