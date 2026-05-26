@@ -14,21 +14,23 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 
 type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
-  margin: number; market: string; category: string; score: number;
+  netProfit?: number; margin: number; market: string; category: string; score: number;
   trend: string; flag: string; tip?: string;
-  sourceUrl?: string;
-  imageUrl?: string;
+  risk?: "low" | "medium" | "high";
+  demandLevel?: "high" | "medium" | "low";
+  buyHint?: string; sellHint?: string;
+  sourceUrl?: string; imageUrl?: string;
 };
 
 const INITIAL_OPPORTUNITIES: Opportunity[] = [
-  { id: 1, name: "Levi's 501 W32 — Poland", buy: 30, sell: 78, profit: 48, margin: 62, market: "eBay USA", category: "Clothing", score: 92, trend: "up", flag: "🇵🇱→🇺🇸" },
-  { id: 2, name: "Baltic Amber Pendant", buy: 50, sell: 260, profit: 210, margin: 80, market: "Etsy USA", category: "Jewelry", score: 96, trend: "up", flag: "🇵🇱→🇺🇸" },
-  { id: 3, name: "Vintage Leica M3 Camera", buy: 420, sell: 890, profit: 470, margin: 53, market: "eBay DE", category: "Electronics", score: 88, trend: "up", flag: "🇩🇪→🇺🇸" },
-  { id: 4, name: "Japanese Whisky Nikka 12y", buy: 95, sell: 210, profit: 115, margin: 55, market: "Amazon UK", category: "Spirits", score: 79, trend: "up", flag: "🇯🇵→🇬🇧" },
-  { id: 5, name: "Soviet Zorki-4 Camera", buy: 25, sell: 68, profit: 43, margin: 63, market: "Etsy USA", category: "Collectibles", score: 84, trend: "up", flag: "🇵🇱→🇺🇸" },
-  { id: 6, name: "Adidas Handball Spezial PL", buy: 65, sell: 140, profit: 75, margin: 54, market: "eBay USA", category: "Sneakers", score: 77, trend: "stable", flag: "🇵🇱→🇺🇸" },
-  { id: 7, name: "Meissen Porcelain Figurine", buy: 80, sell: 310, profit: 230, margin: 74, market: "Etsy USA", category: "Collectibles", score: 91, trend: "up", flag: "🇩🇪→🇺🇸" },
-  { id: 8, name: "Nokia 3310 2017 NIB", buy: 21, sell: 33, profit: 12, margin: 36, market: "Amazon DE", category: "Electronics", score: 41, trend: "down", flag: "🇵🇱→🇩🇪" },
+  { id: 1, name: "Levi's 501 W32 — vintage wash", buy: 28, sell: 82, profit: 54, netProfit: 41, margin: 66, market: "eBay USA", category: "Clothing", score: 93, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Vintage wash 501s sell 2-3× faster — US buyers pay premium", sourceUrl: "https://allegro.pl/listing?string=levis+501+vintage+w32", buyHint: "Allegro PL / local second-hand — search for W30-W34 sizes", sellHint: "Levi's 501 Vintage Wash W32 L32 — Made in USA / Europe" },
+  { id: 2, name: "Baltic Amber Pendant — raw natural", buy: 45, sell: 265, profit: 220, netProfit: 192, margin: 83, market: "Etsy USA", category: "Jewelry", score: 97, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Raw Baltic amber sells 4-6× Polish retail on Etsy — no Asian competition", sourceUrl: "https://allegro.pl/listing?string=bursztyn+baltycki+wisiorek", buyHint: "Allegro PL or Baltic coast artisan markets — look for raw inclusions", sellHint: "Baltic Amber Pendant Raw Natural Inclusion Genuine Sterling Silver" },
+  { id: 3, name: "Leica M3 — working, clean body", buy: 380, sell: 920, profit: 540, netProfit: 421, margin: 59, market: "eBay USA", category: "Electronics", score: 89, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", tip: "Kleinanzeigen.de 40% below US eBay — German sellers don't know US demand", sourceUrl: "https://www.kleinanzeigen.de/s-leica-m3/k0", buyHint: "Kleinanzeigen.de — search 'Leica M3 verkaufen', filter Bavaria/Germany", sellHint: "Leica M3 Double Stroke Camera Body Working Tested — CLA Ready" },
+  { id: 4, name: "Vintage Omega Seamaster 1960s", buy: 220, sell: 680, profit: 460, netProfit: 371, margin: 68, market: "eBay USA", category: "Watches", score: 94, risk: "medium", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Polish flea markets 30% below European average — US demand very high", sourceUrl: "https://allegro.pl/listing?string=omega+seamaster+vintage", buyHint: "Sunday flea markets (Warszawa, Kraków) — ask dealers for 'zegarki vintage'", sellHint: "Omega Seamaster Vintage 1960s Automatic Cal.285 Original Dial" },
+  { id: 5, name: "Zorki-4 Camera — 1960s working", buy: 22, sell: 74, profit: 52, netProfit: 40, margin: 70, market: "Etsy USA", category: "Collectibles", score: 85, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "Soviet film cameras: cult Etsy following — 3x Polish price", sourceUrl: "https://allegro.pl/listing?string=aparat+zorki+4+dzialajacy", buyHint: "Allegro PL / OLX — filter 'sprawny', budget under 80 PLN", sellHint: "Zorki 4 Soviet Rangefinder Camera Working 1960s Film Photography" },
+  { id: 6, name: "Adidas Samba OG — EU exclusive colorway", buy: 70, sell: 155, profit: 85, netProfit: 61, margin: 55, market: "StockX USA", category: "Sneakers", score: 84, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", tip: "EU-exclusive Samba colorways unavailable in US — StockX premium 2x retail", sourceUrl: "https://allegro.pl/listing?string=adidas+samba+og", buyHint: "Allegro PL or Footshop.eu for EU-exclusive drops — sizes 41-44 best sellers", sellHint: "Adidas Samba OG EU Exclusive [Colorway] Size US — Deadstock" },
+  { id: 7, name: "Meissen Porcelain Figure — 1950s", buy: 75, sell: 320, profit: 245, netProfit: 202, margin: 77, market: "Etsy USA", category: "Antiques", score: 91, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", tip: "East German porcelain undervalued at local auctions vs US collector market", sourceUrl: "https://www.kleinanzeigen.de/s-meissen-figur/k0", buyHint: "German estate auctions (Ebay.de / Dresdner Auktionshaus) — look for 'Meissen Figur'", sellHint: "Meissen Porcelain Figurine 1950s Handpainted Vintage Crossed Swords Mark" },
+  { id: 8, name: "Nikka From The Barrel Whisky", buy: 88, sell: 195, profit: 107, netProfit: 78, margin: 55, market: "Amazon UK", category: "Spirits", score: 78, risk: "high", demandLevel: "medium", trend: "stable", flag: "🇯🇵→🇬🇧", tip: "Japanese whisky shortage drives UK premiums — verify shipping restrictions first", sourceUrl: "https://www.amazon.co.jp/s?k=nikka+from+the+barrel", buyHint: "Japanese Yahoo Auctions or Mercari JP — check import rules before buying", sellHint: "Nikka From The Barrel 500ml Japanese Blended Whisky — UK Import" },
 ];
 
 const PROFIT_TREND = [
@@ -80,9 +82,9 @@ export default function Dashboard() {
     (query === "" || o.name.toLowerCase().includes(query.toLowerCase()))
   );
 
-  const totalProfit = opportunities.reduce((s, o) => s + o.profit, 0);
+  const totalProfit = opportunities.reduce((s, o) => s + (o.netProfit ?? o.profit), 0);
   const avgMargin = Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length);
-  const topDeal = opportunities.reduce((a, b) => a.profit > b.profit ? a : b);
+  const topDeal = opportunities.reduce((a, b) => (a.netProfit ?? a.profit) > (b.netProfit ?? b.profit) ? a : b);
 
   const triggerScan = async () => {
     if (scanning) return;
@@ -182,7 +184,7 @@ export default function Dashboard() {
           {[
             { label: "OPPORTUNITIES", value: String(opportunities.length * 100 + 47), sub: `+${opportunities.length} found`, icon: <Zap size={15} color="#f5c842" />, color: "#f5c842" },
             { label: "AVG PROFIT MARGIN", value: `${avgMargin}%`, sub: "across categories", icon: <TrendingUp size={15} color="#4ade80" />, color: "#4ade80" },
-            { label: "BEST DEAL TODAY", value: `$${topDeal.profit}`, sub: topDeal.name.split(" ").slice(0, 2).join(" "), icon: <Star size={15} color="#a78bfa" />, color: "#a78bfa" },
+            { label: "BEST NET PROFIT", value: `$${topDeal.netProfit ?? topDeal.profit}`, sub: topDeal.name.split(" ").slice(0, 2).join(" "), icon: <Star size={15} color="#a78bfa" />, color: "#a78bfa" },
             { label: "MARKETS ACTIVE", value: "4", sub: "eBay · Etsy · Amazon", icon: <Globe size={15} color="#60a5fa" />, color: "#60a5fa" },
           ].map(s => (
             <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px" }}>
@@ -273,8 +275,8 @@ export default function Dashboard() {
 
         {/* ── Opportunities table ── */}
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px 80px 90px 40px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            {["PRODUCT", "BUY", "SELL", "PROFIT", "MARGIN", "MARKET", ""].map(h => (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 36px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            {["PRODUCT", "BUY", "SELL", "NET PROFIT", "RISK", "MARKET", ""].map(h => (
               <div key={h} style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{h}</div>
             ))}
           </div>
@@ -295,11 +297,16 @@ export default function Dashboard() {
             <div style={{ padding: "40px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No opportunities match your search</div>
           ) : filtered.map((o, i) => {
             const scoreColor = o.score >= 85 ? "#4ade80" : o.score >= 65 ? "#f5c842" : "#f87171";
+            const riskColor = o.risk === "low" ? "#4ade80" : o.risk === "medium" ? "#f5c842" : "#f87171";
+            const riskLabel = o.risk === "low" ? "LOW" : o.risk === "medium" ? "MED" : o.risk === "high" ? "HIGH" : "—";
+            const demandColor = o.demandLevel === "high" ? "#4ade80" : o.demandLevel === "medium" ? "#60a5fa" : "rgba(255,255,255,0.3)";
+            const demandIcon = o.demandLevel === "high" ? "▲" : o.demandLevel === "medium" ? "◆" : "▼";
+            const netP = o.netProfit ?? o.profit;
             return (
               <div
                 key={o.id}
                 style={{
-                  display: "grid", gridTemplateColumns: "1fr 80px 80px 80px 80px 90px 40px",
+                  display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 36px",
                   gap: 0, padding: "13px 18px",
                   borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
                   cursor: "pointer", transition: "background 0.12s",
@@ -313,38 +320,53 @@ export default function Dashboard() {
                   setLocation(`/resell/product/${o.id}`);
                 }}
               >
+                {/* Product column */}
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ width: 28, height: 28, borderRadius: 7, background: `${scoreColor}15`, border: `1px solid ${scoreColor}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: scoreColor, flexShrink: 0 }}>{o.score}</div>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                         <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{o.name}</span>
+                        {o.demandLevel && (
+                          <span title={`Demand: ${o.demandLevel}`} style={{ color: demandColor, fontSize: 10, fontWeight: 700, marginLeft: 2 }}>
+                            {demandIcon} {o.demandLevel?.toUpperCase()}
+                          </span>
+                        )}
                         {o.sourceUrl && (
                           <a
                             href={o.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={e => e.stopPropagation()}
-                            style={{ color: "rgba(139,92,246,0.7)", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, marginLeft: 6 }}
+                            style={{ color: "rgba(139,92,246,0.6)", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, marginLeft: 4, textDecoration: "none" }}
                           >
-                            <ExternalLink size={9} /> źródło
+                            <ExternalLink size={9} /> source
                           </a>
                         )}
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 340 }}>
                         {o.flag} · {o.category}
-                        {o.tip && <span style={{ color: "rgba(139,92,246,0.7)", marginLeft: 6 }}>· {o.tip}</span>}
+                        {o.buyHint && <span style={{ color: "rgba(139,92,246,0.55)", marginLeft: 6 }}>· {o.buyHint}</span>}
                       </div>
                     </div>
                   </div>
                 </div>
+                {/* BUY */}
                 <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>${o.buy}</div>
+                {/* SELL */}
                 <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>${o.sell}</div>
-                <div style={{ color: "#4ade80", fontWeight: 700, fontSize: 13 }}>+${o.profit}</div>
+                {/* NET PROFIT — after platform fees + shipping */}
                 <div>
-                  <div style={{ background: `${scoreColor}15`, border: `1px solid ${scoreColor}25`, borderRadius: 99, padding: "2px 8px", display: "inline-block", color: scoreColor, fontSize: 11, fontWeight: 700 }}>{o.margin}%</div>
+                  <div style={{ color: "#4ade80", fontWeight: 800, fontSize: 14 }}>+${netP}</div>
+                  <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>after fees</div>
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>{o.market}</div>
+                {/* RISK */}
+                <div>
+                  <div style={{ background: `${riskColor}18`, border: `1px solid ${riskColor}35`, borderRadius: 99, padding: "2px 8px", display: "inline-block", color: riskColor, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 }}>{riskLabel}</div>
+                  <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 2 }}>{o.margin}% margin</div>
+                </div>
+                {/* MARKET */}
+                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{o.market}</div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <ArrowRight size={14} color="rgba(255,255,255,0.2)" />
                 </div>
