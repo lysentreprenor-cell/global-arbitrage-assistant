@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev:client": "vite dev --port 5000",
-    "dev": "fuser -k 3000/tcp 2>/dev/null; npx vite build --mode development && NODE_ENV=production tsx server/index.ts",
+    "dev": "npx kill-port 3000 2>/dev/null; npx vite build --mode development && NODE_ENV=production npx tsx server/index.ts",
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
