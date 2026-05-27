@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+import { FulfillmentModal } from "@/components/resell/FulfillmentModal";
 
 const PLATFORMS = ["eBay USA", "Etsy USA", "Amazon UK", "eBay DE", "Vinted EU", "Amazon DE", "StockX USA", "Depop"];
 const CATEGORIES = ["Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches", "General"];
@@ -109,6 +110,7 @@ export default function DropshipManager() {
   const [showNewOrder, setShowNewOrder] = useState<Listing | null>(null);
   const [showDetail, setShowDetail] = useState<Listing | null>(null);
   const [showOrderDetail, setShowOrderDetail] = useState<Order | null>(null);
+  const [fulfillOrder, setFulfillOrder] = useState<Order | null>(null);
   const [creating, setCreating] = useState(false);
 
   const [form, setForm] = useState({
@@ -340,7 +342,7 @@ export default function DropshipManager() {
               </div>
             ) : orders.map(o => (
               <div key={o.id} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${o.status === "pending" ? "rgba(245,200,66,0.2)" : "rgba(74,222,128,0.15)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}
-                onClick={() => { setShowOrderDetail(o); setTrackingInput(o.trackingNumber || ""); setOrderNotes(o.notes || ""); }}>
+                onClick={() => { if (o.status === "pending") { setFulfillOrder(o); } else { setShowOrderDetail(o); setTrackingInput(o.trackingNumber || ""); setOrderNotes(o.notes || ""); } }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
@@ -362,9 +364,9 @@ export default function DropshipManager() {
                     )}
                   </div>
                   {o.status === "pending" && (
-                    <button onClick={e => { e.stopPropagation(); setShowOrderDetail(o); setTrackingInput(""); setOrderNotes(""); }}
+                    <button onClick={e => { e.stopPropagation(); setFulfillOrder(o); }}
                       style={{ padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #f5c842, #d97706)", color: "#000", fontWeight: 800, fontSize: 12, flexShrink: 0 }}>
-                      ⚡ Process
+                      ⚡ Fulfill
                     </button>
                   )}
                 </div>
@@ -659,6 +661,27 @@ export default function DropshipManager() {
       )}
 
       <style>{`option { background: #0d0d1a; } textarea,input { outline: none; } textarea:focus,input:focus { border-color: rgba(139,92,246,0.5) !important; }`}</style>
+
+      {/* Fulfillment modal */}
+      {fulfillOrder && (
+        <FulfillmentModal
+          order={{
+            orderId: fulfillOrder.id,
+            listingId: fulfillOrder.listingId,
+            productName: fulfillOrder.productName,
+            buyerName: fulfillOrder.buyerName,
+            buyerAddress: fulfillOrder.buyerAddress,
+            buyerEmail: fulfillOrder.buyerEmail,
+            sourceUrl: fulfillOrder.sourceUrl,
+            buyPrice: fulfillOrder.sourcePriceUSD,
+            sellPrice: fulfillOrder.sellPrice,
+            profit: fulfillOrder.profit,
+            platform: fulfillOrder.platform,
+          }}
+          onClose={() => setFulfillOrder(null)}
+          onProcessed={async () => { setFulfillOrder(null); await load(); }}
+        />
+      )}
     </ResellLayout>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Bell, BellRing, X, CheckCheck, Package, Zap, ShoppingCart, Info, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { FulfillmentModal } from "@/components/resell/FulfillmentModal";
 
 interface AppNotification {
   id: string;
@@ -30,6 +31,8 @@ export function NotificationBell() {
   const prevUnread = useRef(0);
   // Track which listingIds have been published (id → "loading" | "done")
   const [publishedIds, setPublishedIds] = useState<Record<number, "loading" | "done">>({});
+  // Fulfillment modal state
+  const [fulfillmentOrder, setFulfillmentOrder] = useState<AppNotification | null>(null);
 
   const fetchNotifications = async () => {
     try {
@@ -221,7 +224,10 @@ export function NotificationBell() {
                 cursor: n.type === "fulfillment" || n.type === "order" ? "pointer" : "default",
               }}
               onClick={() => {
-                if (n.orderId || n.listingId) {
+                if (n.type === "fulfillment" && (n.orderId || n.listingId)) {
+                  setOpen(false);
+                  setFulfillmentOrder(n);
+                } else if (n.orderId || n.listingId) {
                   setOpen(false);
                   setLocation("/resell/dropship");
                 }
@@ -297,6 +303,25 @@ export function NotificationBell() {
           80% { transform: rotate(10deg); }
         }
       `}</style>
+
+      {/* Fulfillment modal */}
+      {fulfillmentOrder && (
+        <FulfillmentModal
+          order={{
+            orderId: fulfillmentOrder.orderId,
+            listingId: fulfillmentOrder.listingId,
+            productName: fulfillmentOrder.productName,
+            buyerName: fulfillmentOrder.buyerName,
+            buyerAddress: fulfillmentOrder.buyerAddress,
+            sourceUrl: fulfillmentOrder.sourceUrl,
+            buyPrice: fulfillmentOrder.buyPrice,
+            sellPrice: fulfillmentOrder.sellPrice,
+            profit: fulfillmentOrder.profit,
+          }}
+          onClose={() => setFulfillmentOrder(null)}
+          onProcessed={() => { setFulfillmentOrder(null); fetchNotifications(); }}
+        />
+      )}
     </div>
   );
 }
