@@ -17,6 +17,7 @@ import DropshipManager from "@/pages/resell/DropshipManager";
 import PlatformCompare from "@/pages/resell/PlatformCompare";
 import Settings from "@/pages/resell/Settings";
 import ResellSavedPage from "@/pages/resell/SavedPage";
+import AutopilotPage from "@/pages/resell/AutopilotPage";
 
 function RedirectToResell() {
   const [, setLocation] = useLocation();
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/resell/dropship" component={DropshipManager} />
         <Route path="/resell/compare" component={PlatformCompare} />
         <Route path="/resell/saved" component={ResellSavedPage} />
+        <Route path="/resell/autopilot" component={AutopilotPage} />
         <Route path="/resell/settings" component={Settings} />
       </Switch>
       <Toaster />

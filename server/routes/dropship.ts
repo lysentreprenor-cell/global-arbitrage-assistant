@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { emitNotification } from "./notifications";
 
 const router = Router();
 
@@ -188,6 +189,39 @@ router.post("/orders", (req: Request, res: Response) => {
     }
   } else {
     listing.status = "active";
+  }
+
+  // Emit fulfillment notification to owner
+  emitNotification({
+    type: "order",
+    title: `💰 New Order: ${listing.productName.slice(0, 45)}`,
+    body: `Buyer: ${buyerName} · Qty: ${qty} · Profit: +$${order.profit}`,
+    profit: order.profit,
+    productName: listing.productName,
+    buyerName,
+    buyerAddress,
+    sourceUrl: listing.sourceUrl,
+    buyPrice: listing.sourcePriceUSD,
+    sellPrice: listing.sellPrice,
+    listingId: listing.id,
+    orderId: order.id,
+  });
+
+  // Emit fulfillment instruction
+  if (listing.sourceUrl) {
+    emitNotification({
+      type: "fulfillment",
+      title: `🛒 ACTION: Buy & Ship "${listing.productName.slice(0, 40)}"`,
+      body: `1. Buy from source: ${listing.sourceUrl}\n2. Ship to: ${buyerName}, ${buyerAddress}\n3. Profit: +$${order.profit}`,
+      profit: order.profit,
+      productName: listing.productName,
+      buyerName,
+      buyerAddress,
+      sourceUrl: listing.sourceUrl,
+      buyPrice: listing.sourcePriceUSD,
+      sellPrice: listing.sellPrice,
+      orderId: order.id,
+    });
   }
 
   return res.json({ order, stockRemaining: listing.stockQuantity ?? null, autoArchived: listing.status === "sold" });

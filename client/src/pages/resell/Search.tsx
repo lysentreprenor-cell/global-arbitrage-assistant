@@ -113,6 +113,7 @@ export default function SearchPage() {
   // Filters — initialize from localStorage
   const _saved = loadFilters();
   const [showFilters, setShowFilters] = useState(false);
+  const [minBudget, setMinBudget] = useState<string>(_saved.minBudget ?? "");
   const [maxBudget, setMaxBudget] = useState<string>(_saved.maxBudget ?? "");
   const [catFilter, setCatFilter] = useState<string>(_saved.catFilter ?? "All");
   const [riskFilter, setRiskFilter] = useState<string>(_saved.riskFilter ?? "All risks");
@@ -121,8 +122,8 @@ export default function SearchPage() {
 
   // Persist filters whenever they change
   useEffect(() => {
-    localStorage.setItem(FILTER_KEY, JSON.stringify({ maxBudget, catFilter, riskFilter, sortKey }));
-  }, [maxBudget, catFilter, riskFilter, sortKey]);
+    localStorage.setItem(FILTER_KEY, JSON.stringify({ minBudget, maxBudget, catFilter, riskFilter, sortKey }));
+  }, [minBudget, maxBudget, catFilter, riskFilter, sortKey]);
 
   const handleSearch = async (q = query) => {
     if (!q.trim() || loading) return;
@@ -144,6 +145,7 @@ export default function SearchPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: q,
+          minBudget: minBudget ? parseFloat(minBudget) : undefined,
           maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
           category: catFilter !== "All" ? catFilter : undefined,
           anthropicKey: getAnthropicKey(),
@@ -175,6 +177,7 @@ export default function SearchPage() {
     if (!results) return [];
     let r = [...results];
     if (catFilter !== "All") r = r.filter(x => x.category === catFilter);
+    if (minBudget) r = r.filter(x => x.buy >= parseFloat(minBudget));
     if (maxBudget) r = r.filter(x => x.buy <= parseFloat(maxBudget));
     if (riskFilter === "Low only") r = r.filter(x => x.risk === "low");
     if (riskFilter === "Low + Medium") r = r.filter(x => x.risk !== "high");
@@ -265,14 +268,24 @@ export default function SearchPage() {
         {showFilters && (
           <div style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.18)", borderRadius: 12, padding: "14px 18px", marginBottom: 14, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end" }}>
             <div>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>MAX BUY BUDGET ($)</div>
-              <input
-                value={maxBudget}
-                onChange={e => setMaxBudget(e.target.value)}
-                placeholder="no limit"
-                type="number"
-                style={{ width: 100, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "inherit" }}
-              />
+              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>BUY PRICE RANGE ($)</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  value={minBudget}
+                  onChange={e => setMinBudget(e.target.value)}
+                  placeholder="min"
+                  type="number"
+                  style={{ width: 72, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                />
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>–</span>
+                <input
+                  value={maxBudget}
+                  onChange={e => setMaxBudget(e.target.value)}
+                  placeholder="max"
+                  type="number"
+                  style={{ width: 72, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                />
+              </div>
             </div>
             <div>
               <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>CATEGORY</div>

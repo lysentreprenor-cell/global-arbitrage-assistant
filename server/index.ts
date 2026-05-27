@@ -24,6 +24,8 @@ import marketScanRouter from "./routes/marketScan";
 import dropshipRouter from "./routes/dropship";
 import compareRouter from "./routes/compare";
 import settingsRouter from "./routes/settings";
+import notificationsRouter from "./routes/notifications";
+import autopilotRouter from "./routes/autopilot";
 
 const app = express();
 const httpServer = createServer(app);
@@ -267,6 +269,8 @@ async function runStartupMigrations() {
   } else {
     console.warn("[startup] DATABASE_URL missing — banking routes disabled, RESELL routes active");
   }
+  app.use("/api/notifications", notificationsRouter);
+  app.use("/api/autopilot", autopilotRouter);
   app.use("/api/resell", resellScanRouter);
   app.use("/api/market", marketScanRouter);
   app.use("/api/dropship", dropshipRouter);

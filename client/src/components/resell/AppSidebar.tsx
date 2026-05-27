@@ -2,8 +2,9 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Search, TrendingUp, Globe,
   GitCompare, BarChart2, PlusCircle, Package, Settings,
-  Boxes, DollarSign, Bookmark,
+  Boxes, DollarSign, Bookmark, Zap,
 } from "lucide-react";
+import { NotificationBell } from "@/components/resell/NotificationBell";
 
 const SECTIONS = [
   {
@@ -25,9 +26,10 @@ const SECTIONS = [
   {
     title: "MANAGE",
     items: [
-      { href: "/resell/dropship",label: "Dropship Mgr",     icon: Boxes },
-      { href: "/resell/add",     label: "Add Product",      icon: PlusCircle },
-      { href: "/resell/products",label: "My Products",      icon: Package },
+      { href: "/resell/autopilot",label: "Autopilot",       icon: Zap },
+      { href: "/resell/dropship", label: "Dropship Mgr",    icon: Boxes },
+      { href: "/resell/add",      label: "Add Product",     icon: PlusCircle },
+      { href: "/resell/products", label: "My Products",     icon: Package },
     ],
   },
   {
@@ -110,13 +112,14 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* Footer with notification bell */}
       <div style={{
         padding: "10px 16px",
         borderTop: "1px solid rgba(139,92,246,0.1)",
-        color: "rgba(255,255,255,0.15)", fontSize: 10, textAlign: "center",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
-        AI Arbitrage v2.0
+        <span style={{ color: "rgba(255,255,255,0.15)", fontSize: 10 }}>AI Arbitrage v2.0</span>
+        <NotificationBell />
       </div>
     </aside>
   );

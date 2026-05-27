@@ -603,7 +603,7 @@ router.post("/scan", async (req: Request, res: Response) => {
 
 // ── POST /api/resell/product-search ──────────────────────────────────────────
 router.post("/product-search", async (req: Request, res: Response) => {
-  const { query, anthropicKey, ebayAppId, ebayCertId, etsyApiKey, maxBudget, category, userLocation } = req.body ?? {};
+  const { query, anthropicKey, ebayAppId, ebayCertId, etsyApiKey, minBudget, maxBudget, category, userLocation } = req.body ?? {};
   if (!query?.trim()) return res.json({ results: [], source: "empty" });
 
   const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
@@ -616,6 +616,7 @@ router.post("/product-search", async (req: Request, res: Response) => {
   console.log(`[product-search] User location: ${locCode} → buy marketplace: ${locCfg.buyEbayMarketplace}`);
 
   const q = String(query).trim();
+  const minPrice = minBudget ? parseFloat(String(minBudget)) : 0;
   const budget = maxBudget ? parseFloat(String(maxBudget)) : 500;
 
   // Real local→US gap detection for this specific product
@@ -719,7 +720,7 @@ USER LOCATION: ${locCfg.localSources.split(",")[0].trim()} area (${locCode}). ${
 LOCAL BUY MARKETS available to this user: ${sourceMarkets}.
 Platform fees: ${feeContext}.
 Shipping estimates (USD): Clothing $12, Jewelry $18, Electronics $28, Collectibles $22, Sneakers $25, Spirits $35, Antiques $40, Watches $30.
-User max budget: $${budget}.
+User price range: ${minPrice > 0 ? `$${minPrice}` : "any"} – $${budget < 9999 ? budget : "no limit"} (buy price). Only generate items within this range.
 
 ACCURACY RULES:
 1. buy price = 20th percentile of what this user can actually find in their LOCAL market (${locCfg.localSources.split(",")[0].trim()})
@@ -786,7 +787,12 @@ FINAL CHECK: netProfit = sell × (1 − fee%) − buy − shipping. Only include
     const parsed = JSON.parse(match[0]) as any[];
     const hasLive = gapResult.gapPct > 0 || realEtsy.length > 0;
     const enriched = parsed
-      .filter((o: any) => o.buy > 0 && o.sell > o.buy) // basic sanity check
+      .filter((o: any) => {
+        if (o.buy <= 0 || o.sell <= o.buy) return false;
+        if (minPrice > 0 && o.buy < minPrice) return false;    // min price range filter
+        if (budget < 9999 && o.buy > budget) return false;     // max price range filter
+        return true;
+      })
       .map((o: any, i: number) => ({
         ...o,
         id: i + 1,
