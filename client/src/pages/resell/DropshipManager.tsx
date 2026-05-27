@@ -35,8 +35,8 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "#f59e0b", processed: "#4ade80",
 };
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Szkic", active: "Aktywne", sold: "Sprzedane",
-  pending: "Oczekuje", processed: "Zrealizowane",
+  draft: "Draft", active: "Active", sold: "Sold",
+  pending: "Pending", processed: "Processed",
 };
 
 type Listing = {
@@ -95,7 +95,7 @@ function CopyBtn({ text }: { text: string }) {
   return (
     <button onClick={() => { navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 2000); }}
       style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: done ? "#4ade80" : "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
-      {done ? <><Check size={10} /> Skopiowano</> : <><Copy size={10} /> Kopiuj</>}
+      {done ? <><Check size={10} /> Copied</> : <><Copy size={10} /> Copy</>}
     </button>
   );
 }
@@ -209,7 +209,7 @@ export default function DropshipManager() {
   };
 
   const deleteListing = async (id: number) => {
-    if (!confirm("Usunąć ogłoszenie?")) return;
+    if (!confirm("Delete listing?")) return;
     await fetch(`/api/dropship/listings/${id}`, { method: "DELETE" });
     await load();
     setShowDetail(null);
@@ -232,11 +232,11 @@ export default function DropshipManager() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: "0 0 4px" }}>Dropship Manager</h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>Wystawiaj ogłoszenia · AI pisze opisy · Zamawiaj do klienta · Zarabiaj marżę</p>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>Create listings · AI writes descriptions · Order for customer · Earn margin</p>
           </div>
           <button onClick={() => setShowNewListing(true)}
             style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 700, fontSize: 13, boxShadow: "0 4px 14px rgba(139,92,246,0.3)" }}>
-            <Plus size={15} /> Nowe ogłoszenie
+            <Plus size={15} /> New Listing
           </button>
         </div>
 
@@ -244,11 +244,11 @@ export default function DropshipManager() {
         {stats && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, marginBottom: 24 }}>
             {[
-              { label: "OGŁOSZENIA", val: stats.totalListings,   color: "#f5c842" },
-              { label: "AKTYWNE",    val: stats.activeListings,  color: "#4ade80" },
-              { label: "ZAMÓWIENIA", val: stats.totalOrders,     color: "#60a5fa" },
-              { label: "OCZEKUJE",   val: stats.pendingOrders,   color: "#f59e0b" },
-              { label: "ZYSK NETTO", val: `$${stats.totalProfit.toFixed(0)}`, color: "#a78bfa" },
+              { label: "LISTINGS",    val: stats.totalListings,   color: "#f5c842" },
+              { label: "ACTIVE",     val: stats.activeListings,  color: "#4ade80" },
+              { label: "ORDERS",     val: stats.totalOrders,     color: "#60a5fa" },
+              { label: "PENDING",    val: stats.pendingOrders,   color: "#f59e0b" },
+              { label: "NET PROFIT", val: `$${stats.totalProfit.toFixed(0)}`, color: "#a78bfa" },
             ].map(s => (
               <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{s.label}</div>
@@ -267,7 +267,7 @@ export default function DropshipManager() {
               borderBottom: tab === t ? "2px solid #a78bfa" : "2px solid transparent",
               marginBottom: -1,
             }}>
-              {t === "listings" ? `📋 Ogłoszenia (${listings.length})` : `📦 Zamówienia (${orders.length})`}
+              {t === "listings" ? `📋 Listings (${listings.length})` : `📦 Orders (${orders.length})`}
             </button>
           ))}
         </div>
@@ -278,7 +278,7 @@ export default function DropshipManager() {
             {listings.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
                 <Package size={36} style={{ margin: "0 auto 12px", opacity: 0.2, display: "block" }} />
-                Brak ogłoszeń — kliknij „Nowe ogłoszenie" lub importuj z Dashboardu
+                No listings — click "New Listing" or import from Dashboard
               </div>
             ) : listings.map(l => {
               const sc = STATUS_COLORS[l.status] || "#888";
@@ -296,16 +296,16 @@ export default function DropshipManager() {
                       </div>
                       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                         <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Kupno: <strong style={{ color: "#fff" }}>${l.sourcePriceUSD}</strong>
+                          Buy: <strong style={{ color: "#fff" }}>${l.sourcePriceUSD}</strong>
                         </span>
                         <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Sprzedaż: <strong style={{ color: "#4ade80" }}>${l.sellPrice}</strong>
+                          Sell: <strong style={{ color: "#4ade80" }}>${l.sellPrice}</strong>
                         </span>
                         <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Opłata: <strong style={{ color: "#f87171" }}>{l.feePercent ?? "?"}%</strong>
+                          Fee: <strong style={{ color: "#f87171" }}>{l.feePercent ?? "?"}%</strong>
                         </span>
                         <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Zysk netto: <strong style={{ color: "#4ade80" }}>+${l.profit}</strong>
+                          Net profit: <strong style={{ color: "#4ade80" }}>+${l.profit}</strong>
                           <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginLeft: 4 }}>({l.margin}%)</span>
                         </span>
                       </div>
@@ -316,7 +316,7 @@ export default function DropshipManager() {
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                       <button onClick={() => setShowNewOrder(l)}
                         style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: "rgba(74,222,128,0.15)", color: "#4ade80", fontWeight: 700, fontSize: 11 }}>
-                        + Zamówienie
+                        + Order
                       </button>
                       <button onClick={() => deleteListing(l.id)}
                         style={{ padding: "6px 8px", borderRadius: 8, border: "none", cursor: "pointer", background: "rgba(248,113,113,0.1)", color: "#f87171" }}>
@@ -336,7 +336,7 @@ export default function DropshipManager() {
             {orders.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
                 <ShoppingCart size={36} style={{ margin: "0 auto 12px", opacity: 0.2, display: "block" }} />
-                Brak zamówień — dodaj ręcznie lub poczekaj na klienta
+                No orders — add manually or wait for customers
               </div>
             ) : orders.map(o => (
               <div key={o.id} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${o.status === "pending" ? "rgba(245,200,66,0.2)" : "rgba(74,222,128,0.15)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}
@@ -349,7 +349,7 @@ export default function DropshipManager() {
                       <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>— {o.buyerName}</span>
                     </div>
                     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12 }}>
-                      <span style={{ color: "rgba(255,255,255,0.45)" }}>Zysk: <strong style={{ color: "#4ade80" }}>+${o.profit}</strong></span>
+                      <span style={{ color: "rgba(255,255,255,0.45)" }}>Profit: <strong style={{ color: "#4ade80" }}>+${o.profit}</strong></span>
                       <span style={{ color: "rgba(255,255,255,0.45)" }}>{o.platform}</span>
                       <span style={{ color: "rgba(255,255,255,0.3)" }}>{new Date(o.createdAt).toLocaleDateString()}</span>
                       {o.trackingNumber && <span style={{ color: "#60a5fa" }}>📦 {o.trackingNumber}</span>}
@@ -364,7 +364,7 @@ export default function DropshipManager() {
                   {o.status === "pending" && (
                     <button onClick={e => { e.stopPropagation(); setShowOrderDetail(o); setTrackingInput(""); setOrderNotes(""); }}
                       style={{ padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #f5c842, #d97706)", color: "#000", fontWeight: 800, fontSize: 12, flexShrink: 0 }}>
-                      ⚡ Realizuj
+                      ⚡ Process
                     </button>
                   )}
                 </div>
@@ -376,14 +376,14 @@ export default function DropshipManager() {
 
       {/* ── MODAL: New Listing ── */}
       {showNewListing && (
-        <Modal title="Nowe ogłoszenie dropship" onClose={() => setShowNewListing(false)} wide>
+        <Modal title="New Dropship Listing" onClose={() => setShowNewListing(false)} wide>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div style={{ gridColumn: "1/-1" }}>
-              <Field label="NAZWA PRODUKTU *">
-                <input style={inp} value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} placeholder="np. Omega Seamaster Vintage 1965" />
+              <Field label="PRODUCT NAME *">
+                <input style={inp} value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} placeholder="e.g. Omega Seamaster Vintage 1965" />
               </Field>
             </div>
-            <Field label="PLATFORMA SPRZEDAŻY *">
+            <Field label="SELLING PLATFORM *">
               <div style={{ position: "relative" }}>
                 <select value={form.platform} onChange={e => setForm(f => ({ ...f, platform: e.target.value }))}
                   style={{ ...inp, appearance: "none", paddingRight: 30, cursor: "pointer" }}>
@@ -392,7 +392,7 @@ export default function DropshipManager() {
                 <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
               </div>
             </Field>
-            <Field label="KATEGORIA">
+            <Field label="CATEGORY">
               <div style={{ position: "relative" }}>
                 <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                   style={{ ...inp, appearance: "none", paddingRight: 30, cursor: "pointer" }}>
@@ -404,13 +404,13 @@ export default function DropshipManager() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 2 }}>
-            <Field label="CENA ZAKUPU (USD) *">
+            <Field label="BUY PRICE (USD) *">
               <input style={inp} type="number" min="0" value={form.sourcePriceUSD} onChange={e => setForm(f => ({ ...f, sourcePriceUSD: e.target.value }))} placeholder="22" />
             </Field>
-            <Field label="CENA ZAKUPU (PLN)">
+            <Field label="BUY PRICE (PLN)">
               <input style={inp} type="number" min="0" value={form.sourcePricePLN} onChange={e => setForm(f => ({ ...f, sourcePricePLN: e.target.value }))} placeholder="88" />
             </Field>
-            <Field label="CENA SPRZEDAŻY ($) *">
+            <Field label="SELL PRICE ($) *">
               <input style={inp} type="number" min="0" value={form.sellPrice} onChange={e => setForm(f => ({ ...f, sellPrice: e.target.value }))} placeholder="74" />
             </Field>
           </div>
@@ -419,49 +419,49 @@ export default function DropshipManager() {
           {sell > 0 && (
             <div style={{ background: formProfit > 0 ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)", border: `1px solid ${formProfit > 0 ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
               <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 12 }}>
-                <span style={{ color: "rgba(255,255,255,0.5)" }}>Zysk netto: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>${formProfit.toFixed(2)}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.5)" }}>Marża: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>{formMargin}%</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.35)" }}>Opłata {form.platform}: {fee}% (${feeAmt.toFixed(2)})</span>
-                <span style={{ color: "rgba(255,255,255,0.35)" }}>Wysyłka est: ${ship}</span>
+                <span style={{ color: "rgba(255,255,255,0.5)" }}>Net profit: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>${formProfit.toFixed(2)}</strong></span>
+                <span style={{ color: "rgba(255,255,255,0.5)" }}>Margin: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>{formMargin}%</strong></span>
+                <span style={{ color: "rgba(255,255,255,0.35)" }}>Fee {form.platform}: {fee}% (${feeAmt.toFixed(2)})</span>
+                <span style={{ color: "rgba(255,255,255,0.35)" }}>Ship est: ${ship}</span>
               </div>
             </div>
           )}
 
-          <Field label="LINK DO ŹRÓDŁA (gdzie kupujesz)">
+          <Field label="SOURCE LINK (where you buy)">
             <input style={inp} value={form.sourceUrl} onChange={e => setForm(f => ({ ...f, sourceUrl: e.target.value }))} placeholder="https://allegro.pl/oferta/..." />
           </Field>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="WSKAZÓWKA ZAKUPU">
-              <input style={inp} value={form.buyHint} onChange={e => setForm(f => ({ ...f, buyHint: e.target.value }))} placeholder="np. Allegro PL, budżet do 80 PLN" />
+            <Field label="BUY HINT">
+              <input style={inp} value={form.buyHint} onChange={e => setForm(f => ({ ...f, buyHint: e.target.value }))} placeholder="e.g. Allegro PL, budget up to 80 PLN" />
             </Field>
-            <Field label="HINT SEO (tytuł)">
-              <input style={inp} value={form.sellHint} onChange={e => setForm(f => ({ ...f, sellHint: e.target.value }))} placeholder="np. Zorki 4 Soviet Camera Working" />
+            <Field label="SEO HINT (title)">
+              <input style={inp} value={form.sellHint} onChange={e => setForm(f => ({ ...f, sellHint: e.target.value }))} placeholder="e.g. Zorki 4 Soviet Camera Working" />
             </Field>
           </div>
 
-          <Field label="OPIS (opcjonalnie — AI uzupełni)">
-            <textarea style={{ ...inp, height: 60, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Dodatkowe info o produkcie..." />
+          <Field label="DESCRIPTION (optional — AI will fill)">
+            <textarea style={{ ...inp, height: 60, resize: "vertical" }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Additional product info..." />
           </Field>
 
           <button onClick={createListing} disabled={creating || !form.productName || !form.sellPrice}
             style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: creating || !form.productName || !form.sellPrice ? "not-allowed" : "pointer", background: creating ? "rgba(139,92,246,0.3)" : "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 800, fontSize: 14, opacity: !form.productName || !form.sellPrice ? 0.5 : 1 }}>
-            {creating ? "🤖 AI generuje ogłoszenie…" : "✚ Utwórz ogłoszenie"}
+            {creating ? "🤖 AI generating listing…" : "✚ Create Listing"}
           </button>
         </Modal>
       )}
 
       {/* ── MODAL: Listing Detail ── */}
       {showDetail && (
-        <Modal title="Szczegóły ogłoszenia" onClose={() => setShowDetail(null)} wide>
+        <Modal title="Listing Details" onClose={() => setShowDetail(null)} wide>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div>
               <div style={{ color: "#fff", fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{showDetail.productName}</div>
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12 }}>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Kupno: <strong style={{ color: "#fff" }}>${showDetail.sourcePriceUSD}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Sprzedaż: <strong style={{ color: "#4ade80" }}>${showDetail.sellPrice}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Zysk netto: <strong style={{ color: "#4ade80" }}>+${showDetail.profit}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Marża: <strong style={{ color: "#4ade80" }}>{showDetail.margin}%</strong></span>
+                <span style={{ color: "rgba(255,255,255,0.45)" }}>Buy: <strong style={{ color: "#fff" }}>${showDetail.sourcePriceUSD}</strong></span>
+                <span style={{ color: "rgba(255,255,255,0.45)" }}>Sell: <strong style={{ color: "#4ade80" }}>${showDetail.sellPrice}</strong></span>
+                <span style={{ color: "rgba(255,255,255,0.45)" }}>Net profit: <strong style={{ color: "#4ade80" }}>+${showDetail.profit}</strong></span>
+                <span style={{ color: "rgba(255,255,255,0.45)" }}>Margin: <strong style={{ color: "#4ade80" }}>{showDetail.margin}%</strong></span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -479,7 +479,7 @@ export default function DropshipManager() {
               {/* Title */}
               <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10, padding: 14, marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700 }}>TYTUŁ (AI)</span>
+                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700 }}>TITLE (AI)</span>
                   <CopyBtn text={showDetail.aiContent.title} />
                 </div>
                 <div style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>{showDetail.aiContent.title}</div>
@@ -499,7 +499,7 @@ export default function DropshipManager() {
               {/* Description */}
               <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10, padding: 14, marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700 }}>OPIS (AI)</span>
+                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700 }}>DESCRIPTION (AI)</span>
                   <CopyBtn text={showDetail.aiContent.description} />
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, lineHeight: 1.6 }}>{showDetail.aiContent.description}</div>
@@ -508,7 +508,7 @@ export default function DropshipManager() {
               {/* Shipping note */}
               {showDetail.aiContent.shippingNote && (
                 <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
-                  <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700 }}>📦 WYSYŁKA</span>
+                  <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700 }}>📦 SHIPPING</span>
                   <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 4 }}>{showDetail.aiContent.shippingNote}</div>
                 </div>
               )}
@@ -522,66 +522,66 @@ export default function DropshipManager() {
             </>
           ) : (
             <div style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 10, padding: 12, marginBottom: 14, color: "#fde68a", fontSize: 12 }}>
-              Dodaj klucz Anthropic w Ustawieniach API żeby AI generowało opisy
+              Add Anthropic API key in Settings to let AI generate descriptions
             </div>
           )}
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <a href={PLATFORM_LINKS[showDetail.platform]} target="_blank" rel="noopener noreferrer"
               style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 10, padding: "10px 14px", textDecoration: "none" }}>
-              <span style={{ color: "#4ade80", fontWeight: 700, fontSize: 13 }}>🚀 Wystaw na {showDetail.platform}</span>
+              <span style={{ color: "#4ade80", fontWeight: 700, fontSize: 13 }}>🚀 List on {showDetail.platform}</span>
               <ExternalLink size={13} color="#4ade80" />
             </a>
             {showDetail.sourceUrl && (
               <a href={showDetail.sourceUrl} target="_blank" rel="noopener noreferrer"
                 style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 10, padding: "10px 14px", textDecoration: "none" }}>
-                <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>🛒 Źródło zakupu</span>
+                <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>🛒 Buy source</span>
                 <ExternalLink size={13} color="#fde68a" />
               </a>
             )}
           </div>
           <button onClick={() => deleteListing(showDetail.id)}
             style={{ marginTop: 10, width: "100%", padding: "8px", borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#f87171", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-            <Trash2 size={13} style={{ marginRight: 6 }} />Usuń ogłoszenie
+            <Trash2 size={13} style={{ marginRight: 6 }} />Delete listing
           </button>
         </Modal>
       )}
 
       {/* ── MODAL: New Order ── */}
       {showNewOrder && (
-        <Modal title={`Nowe zamówienie — ${showNewOrder.productName}`} onClose={() => setShowNewOrder(null)}>
+        <Modal title={`New Order — ${showNewOrder.productName}`} onClose={() => setShowNewOrder(null)}>
           <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.18)", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-            Klient płaci <strong style={{ color: "#4ade80" }}>${showNewOrder.sellPrice}</strong>
-            {" · "}Zamawiasz za <strong style={{ color: "#fff" }}>${showNewOrder.sourcePriceUSD}</strong>
-            {" · "}Zysk netto: <strong style={{ color: "#4ade80" }}>+${showNewOrder.profit}</strong>
+            Customer pays <strong style={{ color: "#4ade80" }}>${showNewOrder.sellPrice}</strong>
+            {" · "}You order for <strong style={{ color: "#fff" }}>${showNewOrder.sourcePriceUSD}</strong>
+            {" · "}Net profit: <strong style={{ color: "#4ade80" }}>+${showNewOrder.profit}</strong>
           </div>
-          <Field label="IMIĘ I NAZWISKO KUPUJĄCEGO *">
-            <input style={inp} value={orderForm.buyerName} onChange={e => setOrderForm(f => ({ ...f, buyerName: e.target.value }))} placeholder="Jan Kowalski" />
+          <Field label="BUYER NAME *">
+            <input style={inp} value={orderForm.buyerName} onChange={e => setOrderForm(f => ({ ...f, buyerName: e.target.value }))} placeholder="John Smith" />
           </Field>
-          <Field label="ADRES DOSTAWY *">
+          <Field label="DELIVERY ADDRESS *">
             <textarea style={{ ...inp, height: 70, resize: "vertical" }} value={orderForm.buyerAddress} onChange={e => setOrderForm(f => ({ ...f, buyerAddress: e.target.value }))} placeholder={"123 Main St\nNew York, NY 10001\nUSA"} />
           </Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="EMAIL KUPUJĄCEGO">
+            <Field label="BUYER EMAIL">
               <input style={inp} value={orderForm.buyerEmail} onChange={e => setOrderForm(f => ({ ...f, buyerEmail: e.target.value }))} placeholder="customer@email.com" />
             </Field>
-            <Field label="ILOŚĆ">
+            <Field label="QUANTITY">
               <input style={inp} type="number" min="1" value={orderForm.quantity} onChange={e => setOrderForm(f => ({ ...f, quantity: e.target.value }))} />
             </Field>
           </div>
-          <Field label="NOTATKI (opcjonalnie)">
-            <input style={inp} value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} placeholder="np. preferuje paczkomat, kolor zielony..." />
+          <Field label="NOTES (optional)">
+            <input style={inp} value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. prefers express shipping, color green..." />
           </Field>
           <button onClick={createOrder} disabled={!orderForm.buyerName || !orderForm.buyerAddress}
             style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #f5c842, #d97706)", color: "#000", fontWeight: 800, fontSize: 14, opacity: !orderForm.buyerName || !orderForm.buyerAddress ? 0.5 : 1 }}>
-            ✚ Dodaj zamówienie
+            ✚ Add Order
           </button>
         </Modal>
       )}
 
       {/* ── MODAL: Order Detail / Process ── */}
       {showOrderDetail && (
-        <Modal title="Realizacja zamówienia" onClose={() => setShowOrderDetail(null)}>
+        <Modal title="Process Order" onClose={() => setShowOrderDetail(null)}>
           <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
             <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{showOrderDetail.productName}</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
@@ -608,13 +608,13 @@ export default function DropshipManager() {
           {showOrderDetail.status === "pending" ? (
             <>
               <div style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 10, padding: 14, marginBottom: 14 }}>
-                <div style={{ color: "#fde68a", fontWeight: 700, fontSize: 12, marginBottom: 8 }}>⚡ KROKI DO REALIZACJI:</div>
+                <div style={{ color: "#fde68a", fontWeight: 700, fontSize: 12, marginBottom: 8 }}>⚡ STEPS TO COMPLETE:</div>
                 {[
-                  "Otwórz źródło zakupu poniżej",
-                  `Dodaj do koszyka i wpisz adres klienta`,
-                  `Zapłać $${showOrderDetail.sourcePriceUSD} — zarabiasz +$${showOrderDetail.profit}`,
-                  "Wpisz numer śledzenia paczki",
-                  "Kliknij „Oznacz jako zrealizowane”",
+                  "Open the buy source link below",
+                  `Add to cart and enter customer's delivery address`,
+                  `Pay $${showOrderDetail.sourcePriceUSD} — you earn +$${showOrderDetail.profit}`,
+                  "Enter the shipment tracking number",
+                  `Click "Mark as Processed"`,
                 ].map((step, i) => (
                   <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4, color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
                     <span style={{ color: "#f5c842", fontWeight: 700, width: 14, flexShrink: 0 }}>{i + 1}.</span>
@@ -625,27 +625,27 @@ export default function DropshipManager() {
               {showOrderDetail.sourceUrl && (
                 <a href={showOrderDetail.sourceUrl} target="_blank" rel="noopener noreferrer"
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(245,200,66,0.1)", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 10, padding: "10px 14px", textDecoration: "none", marginBottom: 10 }}>
-                  <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>🛒 Otwórz źródło i zamów</span>
+                  <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>🛒 Open source and order</span>
                   <ExternalLink size={13} color="#fde68a" />
                 </a>
               )}
               <div style={{ marginBottom: 10 }}>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NUMER ŚLEDZENIA (opcjonalnie)</div>
-                <input style={inp} value={trackingInput} onChange={e => setTrackingInput(e.target.value)} placeholder="DHL 1234567890 / InPost 123..." />
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>TRACKING NUMBER (optional)</div>
+                <input style={inp} value={trackingInput} onChange={e => setTrackingInput(e.target.value)} placeholder="DHL 1234567890 / FedEx 123..." />
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NOTATKA</div>
-                <input style={inp} value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="np. wysłano 26.05, paczkomat POP-1234" />
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NOTE</div>
+                <input style={inp} value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="e.g. shipped 26.05, DHL Express..." />
               </div>
               <button onClick={() => processOrder(showOrderDetail)}
                 style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #16a34a, #15803d)", color: "#fff", fontWeight: 800, fontSize: 14 }}>
-                ✓ Oznacz jako zrealizowane
+                ✓ Mark as Processed
               </button>
             </>
           ) : (
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#4ade80", fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
-                <CheckCircle size={18} /> Zrealizowane · {showOrderDetail.processedAt && new Date(showOrderDetail.processedAt).toLocaleString()}
+                <CheckCircle size={18} /> Processed · {showOrderDetail.processedAt && new Date(showOrderDetail.processedAt).toLocaleString()}
               </div>
               {showOrderDetail.trackingNumber && (
                 <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

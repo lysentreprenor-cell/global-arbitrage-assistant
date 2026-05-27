@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Search, TrendingUp, Globe,
   GitCompare, BarChart2, PlusCircle, Package, Settings,
-  Boxes, DollarSign,
+  Boxes, DollarSign, Bookmark,
 } from "lucide-react";
 
 const SECTIONS = [
@@ -11,6 +11,7 @@ const SECTIONS = [
     items: [
       { href: "/resell",         label: "Dashboard",        icon: LayoutDashboard },
       { href: "/resell/search",  label: "AI Search",        icon: Search },
+      { href: "/resell/saved",   label: "Saved Opps",       icon: Bookmark },
     ],
   },
   {

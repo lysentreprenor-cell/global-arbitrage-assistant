@@ -69,14 +69,15 @@ function clearHistory() {
   localStorage.removeItem(HISTORY_KEY);
 }
 
-function savedKey() { return "resell_saved_opportunities"; }
-function loadSaved(): number[] {
-  try { return JSON.parse(sessionStorage.getItem(savedKey()) || "[]"); } catch { return []; }
+const SAVED_KEY = "resell_saved_opps";
+function loadSaved(): SearchResult[] {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"); } catch { return []; }
 }
-function toggleSave(id: number): number[] {
+function toggleSave(result: SearchResult): SearchResult[] {
   const cur = loadSaved();
-  const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
-  sessionStorage.setItem(savedKey(), JSON.stringify(next));
+  const exists = cur.some(x => x.id === result.id);
+  const next = exists ? cur.filter(x => x.id !== result.id) : [...cur, result];
+  localStorage.setItem(SAVED_KEY, JSON.stringify(next));
   return next;
 }
 
@@ -97,7 +98,7 @@ export default function SearchPage() {
   const [catFilter, setCatFilter] = useState<string>(_saved.catFilter ?? "All");
   const [riskFilter, setRiskFilter] = useState<string>(_saved.riskFilter ?? "All risks");
   const [sortKey, setSortKey] = useState<string>(_saved.sortKey ?? "netProfit");
-  const [savedIds, setSavedIds] = useState<number[]>(loadSaved);
+  const [saved, setSaved] = useState<SearchResult[]>(loadSaved);
 
   // Persist filters whenever they change
   useEffect(() => {
@@ -394,10 +395,18 @@ export default function SearchPage() {
                   </div>
                 )}
               </div>
-              <button onClick={() => handleSearch()}
-                style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                Rescan
-              </button>
+              <div style={{ display: "flex", gap: 6 }}>
+                {saved.length > 0 && (
+                  <button onClick={() => setLocation("/resell/saved")}
+                    style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)", color: "#c4b5fd", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                    <BookmarkCheck size={12} /> Saved ({saved.length})
+                  </button>
+                )}
+                <button onClick={() => handleSearch()}
+                  style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  Rescan
+                </button>
+              </div>
             </div>
 
             {filtered.length === 0 ? (
@@ -412,7 +421,7 @@ export default function SearchPage() {
                   const riskBg = r.risk === "low" ? "rgba(74,222,128,0.1)" : r.risk === "medium" ? "rgba(245,200,66,0.1)" : "rgba(248,113,113,0.1)";
                   const demandColor = r.demandLevel === "high" ? "#4ade80" : r.demandLevel === "medium" ? "#60a5fa" : "rgba(255,255,255,0.3)";
                   const netP = r.netProfit ?? r.profit;
-                  const isSaved = savedIds.includes(r.id);
+                  const isSaved = saved.some(x => x.id === r.id);
 
                   return (
                     <div key={r.id}
@@ -534,7 +543,7 @@ export default function SearchPage() {
                           <Boxes size={11} /> Dropship
                         </button>
                         <button
-                          onClick={() => setSavedIds(toggleSave(r.id))}
+                          onClick={() => setSaved(toggleSave(r))}
                           style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: isSaved ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${isSaved ? "rgba(139,92,246,0.3)" : "rgba(255,255,255,0.08)"}`, color: isSaved ? "#c4b5fd" : "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           {isSaved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
                           {isSaved ? "Saved" : "Save"}

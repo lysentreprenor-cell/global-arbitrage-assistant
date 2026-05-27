@@ -50,9 +50,9 @@ Return ONLY valid JSON array with realistic 2024-2025 data:
     "competition": "Medium",
     "avgDaysToSell": 7,
     "score": 88,
-    "pros": "main advantage in Polish",
-    "cons": "main disadvantage in Polish",
-    "bestFor": "what categories work best here"
+    "pros": "main advantage in English (1 short sentence)",
+    "cons": "main disadvantage in English (1 short sentence)",
+    "bestFor": "what categories work best here (in English)"
   }
 ]
 
@@ -63,7 +63,8 @@ Rules:
 - netMargin = round((netProfit / avgSellPrice) * 100)
 - competition: "Low" / "Medium" / "High"
 - score: 0-100
-- pros/cons: write in Polish (1 short sentence each)
+- pros/cons: write in English (1 short sentence each)
+- bestFor: write in English
 - Only include platforms where netProfit > 0
 - For Africa/China use local currency converted to USD equivalent`,
       }],
@@ -81,11 +82,11 @@ Rules:
 function mockCompare(product: string, buyPrice: number): any[] {
   const b = buyPrice || 20;
   return [
-    { platform: "eBay USA", flag: "🇺🇸", avgSellPrice: b * 3.2, feePercent: 13, netProfit: Math.round(b * 3.2 * 0.87 - b), netMargin: 58, competition: "Medium", avgDaysToSell: 7, score: 87, pros: "Duża baza kupujących, wysyłka globalna", cons: "13% prowizja, duża konkurencja", bestFor: "Elektronika, vintage, kolekcje" },
-    { platform: "Etsy USA", flag: "🇺🇸", avgSellPrice: b * 4.1, feePercent: 6.5, netProfit: Math.round(b * 4.1 * 0.935 - b), netMargin: 68, competition: "Low", avgDaysToSell: 14, score: 92, pros: "Niska prowizja, premium ceny", cons: "Tylko vintage/handmade, wolniejsza sprzedaż", bestFor: "Biżuteria, odzież vintage, unikaty" },
-    { platform: "Amazon UK", flag: "🇬🇧", avgSellPrice: b * 2.8, feePercent: 15, netProfit: Math.round(b * 2.8 * 0.85 - b), netMargin: 50, competition: "High", avgDaysToSell: 3, score: 72, pros: "Szybka sprzedaż, Prime buyers", cons: "15% prowizja + FBA fees", bestFor: "Nowe produkty, elektronika" },
-    { platform: "eBay DE", flag: "🇩🇪", avgSellPrice: b * 2.5, feePercent: 12, netProfit: Math.round(b * 2.5 * 0.88 - b), netMargin: 44, competition: "Medium", avgDaysToSell: 10, score: 68, pros: "Rynek niemiecki — wysokie ceny", cons: "Mniejszy zasięg niż eBay USA", bestFor: "Vintage, kamery, antyki" },
-    { platform: "Vinted EU", flag: "🇪🇺", avgSellPrice: b * 1.8, feePercent: 0, netProfit: Math.round(b * 1.8 - b), netMargin: 44, competition: "High", avgDaysToSell: 5, score: 61, pros: "0% prowizji dla sprzedawcy!", cons: "Tylko odzież, niskie ceny", bestFor: "Odzież, buty, akcesoria" },
+    { platform: "eBay USA", flag: "🇺🇸", avgSellPrice: b * 3.2, feePercent: 13, netProfit: Math.round(b * 3.2 * 0.87 - b), netMargin: 58, competition: "Medium", avgDaysToSell: 7, score: 87, pros: "Massive buyer base, global shipping reach", cons: "13% fee + high competition in most niches", bestFor: "Electronics, vintage, collectibles" },
+    { platform: "Etsy USA", flag: "🇺🇸", avgSellPrice: b * 4.1, feePercent: 6.5, netProfit: Math.round(b * 4.1 * 0.935 - b), netMargin: 68, competition: "Low", avgDaysToSell: 14, score: 92, pros: "Low fees, premium pricing, niche loyal buyers", cons: "Vintage/handmade only, slower sales pace", bestFor: "Jewelry, vintage clothing, handmade uniques" },
+    { platform: "Amazon UK", flag: "🇬🇧", avgSellPrice: b * 2.8, feePercent: 15, netProfit: Math.round(b * 2.8 * 0.85 - b), netMargin: 50, competition: "High", avgDaysToSell: 3, score: 72, pros: "Fast sales, Prime buyers pay more", cons: "15% fee + potential FBA costs", bestFor: "New products, electronics, consumables" },
+    { platform: "eBay DE", flag: "🇩🇪", avgSellPrice: b * 2.5, feePercent: 12, netProfit: Math.round(b * 2.5 * 0.88 - b), netMargin: 44, competition: "Medium", avgDaysToSell: 10, score: 68, pros: "German market pays premium for quality", cons: "Smaller reach than eBay USA", bestFor: "Vintage cameras, antiques, German collectibles" },
+    { platform: "Vinted EU", flag: "🇪🇺", avgSellPrice: b * 1.8, feePercent: 0, netProfit: Math.round(b * 1.8 - b), netMargin: 44, competition: "High", avgDaysToSell: 5, score: 61, pros: "0% seller fee — keep all your margin", cons: "Clothing only, lower price expectations", bestFor: "Clothing, shoes, fashion accessories" },
   ].map(p => ({ ...p, avgSellPrice: Math.round(p.avgSellPrice) })).sort((a, b) => b.score - a.score);
 }
 
