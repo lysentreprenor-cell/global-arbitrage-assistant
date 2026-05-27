@@ -3,10 +3,11 @@ import { useLocation } from "wouter";
 import {
   Search, Zap, ArrowRight, X, AlertCircle, Bookmark,
   BookmarkCheck, SlidersHorizontal, TrendingUp, DollarSign,
-  ExternalLink, Boxes, FileText, ChevronDown, ChevronUp, Clock, Trash2,
+  ExternalLink, Boxes, FileText, ChevronDown, ChevronUp, Clock, Trash2, PlusCircle,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
+import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
 
 type SearchResult = {
   id: number; name: string;
@@ -105,6 +106,7 @@ export default function SearchPage() {
   const [stage, setStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>(loadHistory);
+  const [offerResult, setOfferResult] = useState<SearchResult | null>(null);
 
   // Filters — initialize from localStorage
   const _saved = loadFilters();
@@ -554,12 +556,17 @@ export default function SearchPage() {
                           <FileText size={11} /> Make Offer
                         </button>
                         <button
+                          onClick={() => setOfferResult(r)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)", color: "#60a5fa", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                          <PlusCircle size={11} /> Create Offer
+                        </button>
+                        <button
                           onClick={() => {
                             const imp = { name: r.name, buy: r.buy, sell: r.sell, market: r.sellMarket, category: r.category ?? "General", sourceUrl: r.sourceUrl ?? "", buyHint: r.buyHint ?? "", sellHint: r.sellHint ?? "" };
                             sessionStorage.setItem("dropship_import", JSON.stringify(imp));
                             setLocation("/resell/dropship");
                           }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)", color: "#60a5fa", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           <Boxes size={11} /> Dropship
                         </button>
                         <button
@@ -577,6 +584,14 @@ export default function SearchPage() {
           </div>
         )}
       </div>
+
+      {offerResult && (
+        <QuickCreateOfferModal
+          opportunity={offerResult}
+          onClose={() => setOfferResult(null)}
+          onCreated={() => { /* listing created */ }}
+        />
+      )}
 
       <style>{`
         input::placeholder { color: rgba(255,255,255,0.2); }

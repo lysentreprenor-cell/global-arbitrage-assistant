@@ -79,7 +79,7 @@ router.post("/listings", async (req: Request, res: Response) => {
   const {
     productName, sourceUrl, sourcePricePLN, sourcePriceUSD, sellPrice,
     platform, description, category, anthropicKey,
-    buyHint, sellHint, sourceMarket,
+    buyHint, sellHint, sourceMarket, stockQuantity,
   } = req.body;
 
   if (!productName || !sellPrice || !platform) {
@@ -88,6 +88,7 @@ router.post("/listings", async (req: Request, res: Response) => {
 
   const buy = parseFloat(sourcePriceUSD || 0);
   const sell = parseFloat(sellPrice);
+  const qty = parseInt(String(stockQuantity || "1")) || 1;
   const fee = PLATFORM_FEES[platform] ?? 0.13;
   const ship = AVG_SHIPPING[category] ?? 15;
   const feeAmt = sell * fee;
@@ -116,6 +117,8 @@ router.post("/listings", async (req: Request, res: Response) => {
     buyHint: buyHint || "",
     sellHint: sellHint || "",
     sourceMarket: sourceMarket || "",
+    stockQuantity: qty,     // ← stock management
+    totalSold: 0,
     status: "draft",
     createdAt: new Date().toISOString(),
     aiContent,
@@ -173,8 +176,21 @@ router.post("/orders", (req: Request, res: Response) => {
   };
 
   orders.push(order);
-  listing.status = "active";
-  return res.json({ order });
+
+  // Stock management: decrement stock and auto-archive when sold out
+  if (typeof listing.stockQuantity === "number") {
+    listing.stockQuantity = Math.max(0, listing.stockQuantity - qty);
+    listing.totalSold = (listing.totalSold || 0) + qty;
+    if (listing.stockQuantity <= 0) {
+      listing.status = "sold"; // auto-archive — no stock left
+    } else {
+      listing.status = "active";
+    }
+  } else {
+    listing.status = "active";
+  }
+
+  return res.json({ order, stockRemaining: listing.stockQuantity ?? null, autoArchived: listing.status === "sold" });
 });
 
 // GET /api/dropship/orders

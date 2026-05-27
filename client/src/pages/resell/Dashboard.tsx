@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, TrendingUp, TrendingDown, Zap, Globe, BarChart2,
   ArrowRight, RefreshCw, Star, DollarSign, ShoppingBag, Filter,
-  ExternalLink, Boxes, AlertCircle, X,
+  ExternalLink, Boxes, AlertCircle, X, PlusCircle,
 } from "lucide-react";
 import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
 import {
@@ -11,6 +11,7 @@ import {
   ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
 
 type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
@@ -87,6 +88,7 @@ export default function Dashboard() {
   const [scannedAt, setScannedAt] = useState<string | null>(null);
   const [scanSource, setScanSource] = useState<"ai" | "cache" | "live" | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [offerOpp, setOfferOpp] = useState<Opportunity | null>(null);
 
   const filtered = opportunities.filter(o =>
     (activeCategory === "All" || o.category === activeCategory) &&
@@ -313,7 +315,7 @@ export default function Dashboard() {
 
         {/* ── Opportunities table ── */}
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 64px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 100px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             {["PRODUCT", "BUY", "SELL", "NET PROFIT", "RISK", "MARKET", ""].map(h => (
               <div key={h} style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{h}</div>
             ))}
@@ -344,7 +346,7 @@ export default function Dashboard() {
               <div
                 key={o.id}
                 style={{
-                  display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 64px",
+                  display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 100px",
                   gap: 0, padding: "13px 18px",
                   borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
                   cursor: "pointer", transition: "background 0.12s",
@@ -414,7 +416,18 @@ export default function Dashboard() {
                   <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{o.market}</div>
                   {o.daysToSell && <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 1 }}>~{o.daysToSell}d</div>}
                 </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, alignItems: "center" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, alignItems: "center" }}>
+                  <button
+                    title="Create a listing others can buy"
+                    onClick={e => { e.stopPropagation(); setOfferOpp(o); }}
+                    style={{
+                      background: "rgba(96,165,250,0.13)", border: "1px solid rgba(96,165,250,0.28)",
+                      borderRadius: 7, padding: "4px 8px", cursor: "pointer", color: "#60a5fa",
+                      display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700,
+                    }}
+                  >
+                    <PlusCircle size={11} /> List
+                  </button>
                   <button
                     title="Import to Dropship Manager"
                     onClick={e => {
@@ -423,14 +436,13 @@ export default function Dashboard() {
                       setLocation("/resell/dropship");
                     }}
                     style={{
-                      background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)",
-                      borderRadius: 6, padding: "3px 5px", cursor: "pointer", color: "#a78bfa",
+                      background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
+                      borderRadius: 6, padding: "4px 5px", cursor: "pointer", color: "#a78bfa",
                       display: "flex", alignItems: "center",
                     }}
                   >
                     <Boxes size={12} />
                   </button>
-                  <ArrowRight size={14} color="rgba(255,255,255,0.2)" />
                 </div>
               </div>
             );
@@ -452,6 +464,14 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {offerOpp && (
+        <QuickCreateOfferModal
+          opportunity={offerOpp}
+          onClose={() => setOfferOpp(null)}
+          onCreated={() => { /* listing created */ }}
+        />
+      )}
 
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
