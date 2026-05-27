@@ -30,6 +30,7 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [copiedTracking, setCopiedTracking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const formattedAddress = [order.buyerName, order.buyerAddress]
     .filter(Boolean).join("\n");
@@ -42,24 +43,33 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
   };
 
   const openSource = () => {
-    if (order.sourceUrl) window.open(order.sourceUrl, "_blank");
-    // Move to tracking step after they've gone to buy
-    setTimeout(() => setStep("tracking"), 1500);
+    if (order.sourceUrl) {
+      window.open(order.sourceUrl, "_blank");
+      // Move to tracking step after they've gone to buy
+      setTimeout(() => setStep("tracking"), 1500);
+    }
   };
 
   const submitTracking = async () => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       if (order.orderId) {
-        await fetch(`/api/dropship/orders/${order.orderId}/process`, {
+        const res = await fetch(`/api/dropship/orders/${order.orderId}/process`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ trackingNumber: trackingNumber.trim() }),
         });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error((errData as any).error || `Server error ${res.status}`);
+        }
       }
       setStep("done");
       onProcessed?.();
-    } catch { /* ignore */ } finally { setSubmitting(false); }
+    } catch (err: any) {
+      setSubmitError(err.message || "Failed to save — please try again");
+    } finally { setSubmitting(false); }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -236,6 +246,11 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
               <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, lineHeight: 1.5 }}>{formattedAddress}</div>
             </div>
 
+            {submitError && (
+              <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 9, padding: "10px 14px", marginBottom: 12, color: "#f87171", fontSize: 12, fontWeight: 600 }}>
+                ⚠ {submitError}
+              </div>
+            )}
             <button onClick={submitTracking} disabled={submitting}
               style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: "linear-gradient(135deg, #4ade80, #22c55e)", color: "#000", fontWeight: 800, fontSize: 14, cursor: submitting ? "default" : "pointer" }}>
               {submitting ? "Saving…" : trackingNumber ? "Save Tracking & Mark Done ✓" : "Mark as Fulfilled ✓"}
@@ -258,7 +273,7 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
                 Tracking: <strong style={{ color: "#fff" }}>{trackingNumber}</strong>
               </div>
             )}
-            <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "10px 16px", display: "inline-flex" }}>
+            <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "10px 16px" }}>
               <DollarSign size={14} color="#4ade80" />
               <span style={{ color: "#4ade80", fontWeight: 800, fontSize: 14 }}>+${order.profit} profit earned</span>
             </div>

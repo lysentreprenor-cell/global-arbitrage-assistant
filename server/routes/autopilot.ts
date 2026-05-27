@@ -188,7 +188,9 @@ router.get("/status", (_req: Request, res: Response) => {
     enabled: config.enabled,
     isScanning,
     lastScanAt,
-    nextScanIn: timer ? config.intervalMinutes * 60 : null,
+    nextScanIn: (timer && lastScanAt)
+      ? Math.max(0, Math.round((new Date(lastScanAt).getTime() + config.intervalMinutes * 60 * 1000 - Date.now()) / 1000))
+      : null,
     config: { ...config, anthropicKey: config.anthropicKey ? "***" : "" },
     log: log.slice(0, 30),
     stats: { totalCreated, totalProfit: Math.round(totalProfit * 100) / 100 },

@@ -24,7 +24,6 @@ interface AppNotification {
 export function NotificationBell() {
   const [, setLocation] = useLocation();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const [shake, setShake] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,20 +33,24 @@ export function NotificationBell() {
   // Fulfillment modal state
   const [fulfillmentOrder, setFulfillmentOrder] = useState<AppNotification | null>(null);
 
+  // Derive unread from list — avoids SSE reconnect inflation
+  const unread = notifications.filter(n => !n.read).length;
+
   const fetchNotifications = async () => {
     try {
       const res = await fetch("/api/notifications");
       if (!res.ok) return;
       const data = await res.json() as { notifications: AppNotification[]; unread: number };
-      setNotifications(data.notifications ?? []);
-      setUnread(data.unread ?? 0);
+      const notifs = data.notifications ?? [];
+      const currentUnread = notifs.filter(n => !n.read).length;
 
       // Trigger shake animation if new unread appeared
-      if ((data.unread ?? 0) > prevUnread.current && prevUnread.current > 0) {
+      if (currentUnread > prevUnread.current && prevUnread.current >= 0) {
         setShake(true);
         setTimeout(() => setShake(false), 600);
       }
-      prevUnread.current = data.unread ?? 0;
+      prevUnread.current = currentUnread;
+      setNotifications(notifs);
     } catch { /* ignore */ }
   };
 
@@ -64,12 +67,16 @@ export function NotificationBell() {
         if (!event.data || event.data === "connected") return;
         try {
           const n: AppNotification = JSON.parse(event.data);
-          setNotifications(prev => [n, ...prev.filter(x => x.id !== n.id)]);
-          setUnread(prev => prev + 1);
-          // Bell shake
-          setShake(true);
-          setTimeout(() => setShake(false), 600);
-          prevUnread.current += 1;
+          setNotifications(prev => {
+            // Only trigger shake & update counter for genuinely new notifications
+            const isNew = !prev.some(x => x.id === n.id);
+            if (isNew && !n.read) {
+              setShake(true);
+              setTimeout(() => setShake(false), 600);
+              prevUnread.current += 1;
+            }
+            return [n, ...prev.filter(x => x.id !== n.id)];
+          });
         } catch { /* ignore */ }
       };
     } catch { /* SSE not supported */ }
@@ -89,14 +96,17 @@ export function NotificationBell() {
   const markAllRead = async () => {
     await fetch("/api/notifications/mark-read", { method: "POST" });
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    setUnread(0);
     prevUnread.current = 0;
+  };
+
+  const markOneRead = (id: string) => {
+    fetch(`/api/notifications/mark-read/${id}`, { method: "POST" }).catch(() => {});
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
   const clearAll = async () => {
     await fetch("/api/notifications", { method: "DELETE" });
     setNotifications([]);
-    setUnread(0);
     prevUnread.current = 0;
   };
 
@@ -149,7 +159,7 @@ export function NotificationBell() {
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
-        onClick={() => { setOpen(o => !o); if (!open && unread > 0) markAllRead(); }}
+        onClick={() => { setOpen(o => !o); }}
         style={{
           position: "relative", background: "none", border: "none",
           cursor: "pointer", color: unread > 0 ? "#f5c842" : "rgba(255,255,255,0.35)",
@@ -221,13 +231,16 @@ export function NotificationBell() {
                 background: n.read ? "transparent" : typeColor(n.type),
                 borderBottom: "1px solid rgba(255,255,255,0.04)",
                 borderLeft: n.read ? "none" : `3px solid ${typeBorder(n.type)}`,
-                cursor: n.type === "fulfillment" || n.type === "order" ? "pointer" : "default",
+                cursor: n.type === "fulfillment" || n.type === "order" || n.type === "autopilot" ? "pointer" : "default",
               }}
               onClick={() => {
-                if (n.type === "fulfillment" && (n.orderId || n.listingId)) {
+                // Mark individual notification as read
+                if (!n.read) markOneRead(n.id);
+                // Order or fulfillment with orderId → open Fulfillment Assistant
+                if ((n.type === "fulfillment" || n.type === "order") && n.orderId) {
                   setOpen(false);
                   setFulfillmentOrder(n);
-                } else if (n.orderId || n.listingId) {
+                } else if (n.type === "autopilot" && n.listingId) {
                   setOpen(false);
                   setLocation("/resell/dropship");
                 }

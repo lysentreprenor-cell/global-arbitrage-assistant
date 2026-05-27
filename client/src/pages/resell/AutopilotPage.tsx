@@ -10,6 +10,7 @@ interface StatusData {
   enabled: boolean;
   isScanning: boolean;
   lastScanAt: string | null;
+  nextScanIn: number | null;
   config: {
     intervalMinutes: number;
     minProfit: number;
@@ -25,22 +26,37 @@ interface StatusData {
   stats: { totalCreated: number; totalProfit: number };
 }
 
+const CONFIG_KEY = "autopilot_config_v1";
+
+function loadSavedConfig() {
+  try { return JSON.parse(localStorage.getItem(CONFIG_KEY) || "null"); } catch { return null; }
+}
+
 export default function AutopilotPage() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(false);
   const [scanNowLoading, setScanNowLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "config" | "log">("overview");
+  const [countdown, setCountdown] = useState<number | null>(null);
 
-  // Config state (editable)
-  const [intervalMinutes, setIntervalMinutes] = useState(30);
-  const [minProfit, setMinProfit] = useState(30);
-  const [minMargin, setMinMargin] = useState(25);
-  const [minBuyPrice, setMinBuyPrice] = useState(5);
-  const [maxBuyPrice, setMaxBuyPrice] = useState(300);
-  const [selCategories, setSelCategories] = useState<string[]>([]);
-  const [riskLevels, setRiskLevels] = useState<string[]>(["low", "medium"]);
-  const [sellPlatform, setSellPlatform] = useState("eBay USA");
-  const [autoCreate, setAutoCreate] = useState(true);
+  // Config state — seed from localStorage so settings survive page reload
+  const saved = loadSavedConfig() ?? {};
+  const [intervalMinutes, setIntervalMinutes] = useState<number>(saved.intervalMinutes ?? 30);
+  const [minProfit, setMinProfit] = useState<number>(saved.minProfit ?? 30);
+  const [minMargin, setMinMargin] = useState<number>(saved.minMargin ?? 25);
+  const [minBuyPrice, setMinBuyPrice] = useState<number>(saved.minBuyPrice ?? 5);
+  const [maxBuyPrice, setMaxBuyPrice] = useState<number>(saved.maxBuyPrice ?? 300);
+  const [selCategories, setSelCategories] = useState<string[]>(saved.selCategories ?? []);
+  const [riskLevels, setRiskLevels] = useState<string[]>(saved.riskLevels ?? ["low", "medium"]);
+  const [sellPlatform, setSellPlatform] = useState<string>(saved.sellPlatform ?? "eBay USA");
+  const [autoCreate, setAutoCreate] = useState<boolean>(saved.autoCreate ?? true);
+
+  const saveConfig = () => {
+    localStorage.setItem(CONFIG_KEY, JSON.stringify({
+      intervalMinutes, minProfit, minMargin, minBuyPrice, maxBuyPrice,
+      selCategories, riskLevels, sellPlatform, autoCreate,
+    }));
+  };
 
   const fetchStatus = async () => {
     try {
@@ -48,16 +64,20 @@ export default function AutopilotPage() {
       if (!res.ok) return;
       const data = await res.json() as StatusData;
       setStatus(data);
-      // Sync config from server
-      setIntervalMinutes(data.config.intervalMinutes);
-      setMinProfit(data.config.minProfit);
-      setMinMargin(data.config.minMargin);
-      setMinBuyPrice(data.config.minBuyPrice);
-      setMaxBuyPrice(data.config.maxBuyPrice);
-      setSelCategories(data.config.categories);
-      setRiskLevels(data.config.riskLevels);
-      setSellPlatform(data.config.sellPlatform);
-      setAutoCreate(data.config.autoCreate);
+      // Sync config from server only while running (so local edits aren't stomped when stopped)
+      if (data.enabled) {
+        setIntervalMinutes(data.config.intervalMinutes);
+        setMinProfit(data.config.minProfit);
+        setMinMargin(data.config.minMargin);
+        setMinBuyPrice(data.config.minBuyPrice);
+        setMaxBuyPrice(data.config.maxBuyPrice);
+        setSelCategories(data.config.categories);
+        setRiskLevels(data.config.riskLevels);
+        setSellPlatform(data.config.sellPlatform);
+        setAutoCreate(data.config.autoCreate);
+      }
+      // Reset countdown from server's authoritative remaining time
+      if (data.nextScanIn != null) setCountdown(data.nextScanIn);
     } catch { /* ignore */ }
   };
 
@@ -67,10 +87,24 @@ export default function AutopilotPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Live countdown ticker — counts down every second between server polls
+  useEffect(() => {
+    if (countdown == null || countdown <= 0) return;
+    const t = setTimeout(() => setCountdown(c => (c != null && c > 0) ? c - 1 : 0), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
+
+  const fmtCountdown = (secs: number) => {
+    if (secs <= 0) return "soon…";
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m > 0 ? `${m}m ${s.toString().padStart(2, "0")}s` : `${s}s`;
+  };
+
   const handleStart = async () => {
     const aiKey = getAnthropicKey();
     if (!aiKey) { alert("Add Anthropic API key in Settings first"); return; }
     setLoading(true);
+    saveConfig(); // Persist to localStorage before starting
     try {
       await fetch("/api/autopilot/start", {
         method: "POST",
@@ -171,15 +205,20 @@ export default function AutopilotPage() {
 
         {/* Stats */}
         {status && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
             {[
-              { label: "LISTINGS CREATED", val: status.stats.totalCreated, color: "#a78bfa" },
+              { label: "LISTINGS CREATED", val: String(status.stats.totalCreated), color: "#a78bfa" },
               { label: "ESTIMATED PROFIT", val: `+$${status.stats.totalProfit}`, color: "#4ade80" },
               { label: "LAST SCAN", val: status.lastScanAt ? new Date(status.lastScanAt).toLocaleTimeString() : "Never", color: "#f5c842" },
+              {
+                label: "NEXT SCAN IN",
+                val: isScanning ? "scanning…" : (countdown != null ? fmtCountdown(countdown) : (isRunning ? "—" : "stopped")),
+                color: isScanning ? "#4ade80" : (countdown != null && countdown < 60) ? "#f87171" : "#60a5fa",
+              },
             ].map(s => (
               <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "12px 16px" }}>
                 <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>{s.label}</div>
-                <div style={{ color: s.color, fontSize: 20, fontWeight: 900 }}>{s.val}</div>
+                <div style={{ color: s.color, fontSize: 18, fontWeight: 900 }}>{s.val}</div>
               </div>
             ))}
           </div>
@@ -312,13 +351,19 @@ export default function AutopilotPage() {
               </div>
             </div>
 
-            {/* Save button */}
-            {isRunning && (
-              <button onClick={handleStart}
-                style={{ padding: "12px", borderRadius: 11, border: "none", background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
-                Apply & Restart
+            {/* Save / start buttons */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => { saveConfig(); alert("Settings saved!"); }}
+                style={{ flex: 1, padding: "12px", borderRadius: 11, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.6)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                💾 Save Settings
               </button>
-            )}
+              {isRunning && (
+                <button onClick={handleStart}
+                  style={{ flex: 2, padding: "12px", borderRadius: 11, border: "none", background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  ⚡ Apply & Restart
+                </button>
+              )}
+            </div>
           </div>
         )}
 
