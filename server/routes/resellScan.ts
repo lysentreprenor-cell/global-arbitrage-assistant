@@ -104,12 +104,12 @@ interface GapResult {
   confidence: "live" | "no_data";
 }
 
-async function detectGap(token: string, query: string, maxBuyPrice: number): Promise<GapResult> {
+async function detectGap(token: string, query: string, maxBuyPrice: number, buyMarketplace = "EBAY_DE"): Promise<GapResult> {
   const empty: GapResult = { euListings: [], usListings: [], medianEU: 0, medianUS: 0, gapPct: 0, gapMultiplier: 0, confidence: "no_data" };
   try {
     const [euListings, usListings] = await Promise.all([
-      ebaySearch(token, query, maxBuyPrice, "EBAY_DE", "price"),     // cheapest EU listed price-asc
-      ebaySearch(token, query, 9999, "EBAY_US", "-price"),           // most expensive US price-desc
+      ebaySearch(token, query, maxBuyPrice, buyMarketplace, "price"), // cheapest local listed price-asc
+      ebaySearch(token, query, 9999, "EBAY_US", "-price"),            // most expensive US price-desc
     ]);
     if (euListings.length === 0 || usListings.length === 0) return { ...empty, euListings, usListings };
 
@@ -213,6 +213,128 @@ function filterAndEnrich(opps: any[], hasLiveData: boolean): any[] {
     .sort((a, b) => (b.netProfit ?? 0) - (a.netProfit ?? 0));
 }
 
+// ── Location helpers ──────────────────────────────────────────────────────────
+// Map user's country → best eBay buy-side marketplace + local source hints
+interface LocationConfig {
+  buyEbayMarketplace: string;   // eBay API marketplace ID
+  currencyNote: string;         // for AI context
+  localSources: string;         // human-readable local buy markets
+  localSourcesMap: Record<string, string>;  // per-category overrides
+}
+
+const LOCATION_CONFIG: Record<string, LocationConfig> = {
+  PL: {
+    buyEbayMarketplace: "EBAY_DE", // eBay.pl doesn't exist — use DE as proxy
+    currencyNote: "Local prices in PLN (≈ EUR×0.23). Allegro/OLX are the main Polish buy markets.",
+    localSources: "Allegro PL, OLX PL, Vinted PL, Polish flea markets (Warsaw/Kraków/Wrocław), Sprzedajemy PL",
+    localSourcesMap: {
+      Clothing:    "Allegro PL, OLX PL, Vinted PL, Polish thrift stores",
+      Jewelry:     "Allegro PL, Baltic coast artisan markets, OLX PL, Polish estate sales",
+      Electronics: "Allegro PL, OLX PL, Kleinanzeigen.de (Germany is close), Polish electronics shops",
+      Collectibles:"Allegro PL, OLX PL, Polish flea markets",
+      Sneakers:    "Allegro PL, Vinted PL, Footshop PL, KicksNow PL",
+      Watches:     "Polish Sunday flea markets (Warsaw/Kraków), Allegro PL, OLX PL",
+      Antiques:    "Polish antique markets, Allegro PL, Dom Aukcyjny Rempex",
+      Spirits:     "Polish supermarkets, Eurocash PL (wholesale)",
+    },
+  },
+  DE: {
+    buyEbayMarketplace: "EBAY_DE",
+    currencyNote: "Local prices in EUR. Kleinanzeigen.de is the main German classifieds market.",
+    localSources: "Kleinanzeigen.de, eBay.de, Rebuy.de, Momox, Stuffle, German flea markets",
+    localSourcesMap: {
+      Clothing:    "Kleinanzeigen.de, Vinted DE, Momox Fashion, German thrift stores (Second-Hand)",
+      Jewelry:     "Kleinanzeigen.de, German estate auctions, eBay.de",
+      Electronics: "Kleinanzeigen.de, Rebuy.de, eBay.de, MediaMarkt Gebraucht",
+      Collectibles:"Kleinanzeigen.de, eBay.de, German flea markets (Flohmarkt)",
+      Sneakers:    "Kleinanzeigen.de, Vinted DE, eBay.de",
+      Watches:     "Kleinanzeigen.de, eBay.de, German watchmaker shops, Chrono24.de",
+      Antiques:    "Kleinanzeigen.de, Dresdner Auktionshaus, German Flohmarkt",
+      Spirits:     "METRO DE (wholesale), German supermarkets, Rewe/Edeka",
+    },
+  },
+  FR: {
+    buyEbayMarketplace: "EBAY_FR",
+    currencyNote: "Local prices in EUR. Leboncoin.fr is the main French classifieds.",
+    localSources: "Leboncoin FR, Vinted FR, eBay.fr, Rakuten FR, French vide-greniers",
+    localSourcesMap: {
+      Clothing:    "Vinted FR, Leboncoin FR, French brocantes",
+      Jewelry:     "Leboncoin FR, French antique dealers, eBay.fr",
+      Electronics: "Leboncoin FR, eBay.fr, Backmarket FR",
+      Collectibles:"Leboncoin FR, French vide-greniers, eBay.fr",
+      Watches:     "Leboncoin FR, eBay.fr, French watchmakers",
+      Antiques:    "Leboncoin FR, French brocantes, Drouot auction house",
+    },
+  },
+  CZ: {
+    buyEbayMarketplace: "EBAY_DE", // No EBAY_CZ — use DE
+    currencyNote: "Local prices in CZK (≈ EUR×0.04). Bazos.cz and OLX.cz are main Czech buy markets.",
+    localSources: "Bazos.cz, OLX.cz, Sbazar.cz, Czech flea markets (burzy)",
+    localSourcesMap: {
+      Clothing:    "Vinted CZ, Bazos.cz, OLX.cz",
+      Collectibles:"Bazos.cz, Czech flea markets, Aukro.cz",
+      Antiques:    "Czech antique fairs, Bazos.cz, Aukro.cz (Czech auction house)",
+      Jewelry:     "Bazos.cz, Czech glass/crystal workshops",
+    },
+  },
+  GB: {
+    buyEbayMarketplace: "EBAY_GB",
+    currencyNote: "Local prices in GBP. eBay.co.uk and Gumtree are main UK buy markets.",
+    localSources: "eBay.co.uk, Gumtree, Facebook Marketplace UK, UK car boot sales, Vinted UK",
+    localSourcesMap: {
+      Clothing:    "Vinted UK, eBay.co.uk, Depop, UK charity shops",
+      Watches:     "eBay.co.uk, Gumtree, UK watch dealers, Chrono24.co.uk",
+      Collectibles:"eBay.co.uk, UK car boot sales, British antique fairs",
+      Antiques:    "Gumtree, eBay.co.uk, British auction houses (Bonhams, Christie's)",
+    },
+  },
+  ES: {
+    buyEbayMarketplace: "EBAY_ES",
+    currencyNote: "Local prices in EUR. Wallapop and Milanuncios are main Spanish markets.",
+    localSources: "Wallapop ES, Milanuncios, eBay.es, Vibbo ES, Spanish rastros",
+    localSourcesMap: {
+      Clothing:    "Wallapop ES, Vinted ES, Spanish mercadillos",
+      Collectibles:"Wallapop ES, Spanish rastros (flea markets), Milanuncios",
+    },
+  },
+  IT: {
+    buyEbayMarketplace: "EBAY_IT",
+    currencyNote: "Local prices in EUR. Subito.it is the main Italian classifieds.",
+    localSources: "Subito.it, eBay.it, Vinted IT, Italian antique markets",
+    localSourcesMap: {
+      Collectibles:"Subito.it, Italian antique fairs, eBay.it",
+      Antiques:    "Subito.it, Italian portici antichi",
+    },
+  },
+  NL: {
+    buyEbayMarketplace: "EBAY_NL",
+    currencyNote: "Local prices in EUR. Marktplaats is the main Dutch classifieds.",
+    localSources: "Marktplaats.nl, eBay.nl, Vinted NL, Dutch vlooienmarkt",
+    localSourcesMap: {},
+  },
+  JP: {
+    buyEbayMarketplace: "EBAY_US", // eBay.co.jp closed; will use Yahoo Auctions JP via AI
+    currencyNote: "Local prices in JPY (≈ USD×0.0067). Yahoo Auctions JP and Mercari JP are main buy markets. Use Buyee/Zenmarket as proxy services.",
+    localSources: "Yahoo Auctions JP (via Buyee/Zenmarket), Mercari JP, Book-Off JP, Hard-Off JP",
+    localSourcesMap: {
+      Electronics: "Yahoo Auctions JP, Mercari JP, Hard-Off JP (second-hand electronics)",
+      Collectibles:"Yahoo Auctions JP, Mandarake JP (collectibles/toys)",
+      Watches:     "Yahoo Auctions JP, Mercari JP, Japanese watch dealers",
+      Cameras:     "Yahoo Auctions JP, Map Camera Tokyo, Yodobashi Camera used",
+    },
+  },
+  US: {
+    buyEbayMarketplace: "EBAY_US",
+    currencyNote: "Local prices in USD. User is US-based — opportunities are reverse: buy US cheap, sell EU/JP high.",
+    localSources: "eBay USA, Facebook Marketplace US, Craigslist, Goodwill Auctions, Estate sales",
+    localSourcesMap: {},
+  },
+};
+
+function getLocationConfig(countryCode: string): LocationConfig {
+  return LOCATION_CONFIG[countryCode?.toUpperCase()] ?? LOCATION_CONFIG["PL"];
+}
+
 // ── URL helpers ───────────────────────────────────────────────────────────────
 function sellUrlForMarket(market: string, productName: string): string {
   const q = encodeURIComponent(productName);
@@ -247,7 +369,8 @@ function sourceUrlForMarket(market: string, productName: string): string {
 async function scanWithAI(
   apiKey: string,
   gapData: Array<{ query: string; gap: GapResult }> = [],
-  realEtsy: any[] = []
+  realEtsy: any[] = [],
+  locCfg?: LocationConfig
 ): Promise<any[]> {
   const now = new Date();
   const month = now.toLocaleString("en-US", { month: "long" });
@@ -288,13 +411,15 @@ async function scanWithAI(
       max_tokens: 5000,
       system: `You are an elite cross-border arbitrage analyst with deep knowledge of EU→USA/UK/JP price gaps.
 Today: ${now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}, Season: ${season}.
+${locCfg ? `\nUSER LOCATION: ${locCfg.localSources.split(",")[0].trim()} area. ${locCfg.currencyNote}\nLocal buy markets available: ${locCfg.localSources}.\nTailor buy-side suggestions to items actually findable in this location.` : ""}
 
 ACCURACY RULES — FOLLOW STRICTLY:
-1. buy price = 20th percentile of real EU/JP listings RIGHT NOW (what a buyer can actually find)
+1. buy price = 20th percentile of real local/EU/JP listings RIGHT NOW (what a buyer in user's location can actually find)
 2. sell price = completed/sold listings on target platform (what buyers ACTUALLY paid, not asking price)
 3. EU prices are in EUR — already converted to USD in the gap data below at EUR×1.10 rate
 4. netProfit = sell × (1 − fee%) − buy − shipping. Hard reject: netProfit < $15, margin < 20%
 5. Never generate hallucinated prices — if you're unsure about a gap, use conservative estimates
+6. sourceUrl must point to actual local buy market (Allegro PL for Poland, Kleinanzeigen.de for Germany, etc.)
 
 Platform fees: ${feeContext}.
 Shipping (USD): Clothing $12, Jewelry $18, Electronics $28, Collectibles $22, Sneakers $25, Spirits $35, Antiques $40, Watches $30.
@@ -416,12 +541,16 @@ const GAP_QUERIES = [
 
 // ── POST /api/resell/scan ─────────────────────────────────────────────────────
 router.post("/scan", async (req: Request, res: Response) => {
-  const { anthropicKey, ebayAppId, ebayCertId, etsyApiKey } = req.body ?? {};
+  const { anthropicKey, ebayAppId, ebayCertId, etsyApiKey, userLocation } = req.body ?? {};
 
   const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   const ebayApp: string = ebayAppId || process.env.EBAY_APP_ID || "";
   const ebayCert: string = ebayCertId || process.env.EBAY_CERT_ID || "";
   const etsyKey: string = etsyApiKey || process.env.ETSY_API_KEY || "";
+
+  const locCode: string = (userLocation?.country ?? "PL").toUpperCase();
+  const locCfg = getLocationConfig(locCode);
+  console.log(`[resell/scan] User location: ${locCode} → buy marketplace: ${locCfg.buyEbayMarketplace}`);
 
   let gapData: Array<{ query: string; gap: GapResult }> = [];
   let realEtsy: any[] = [];
@@ -431,7 +560,10 @@ router.post("/scan", async (req: Request, res: Response) => {
       const token = await getEbayToken(ebayApp, ebayCert);
       if (token) {
         const gaps = await Promise.all(
-          GAP_QUERIES.map(async q => ({ query: q.query, gap: await detectGap(token, q.query, q.maxBuyPrice) }))
+          GAP_QUERIES.map(async q => ({
+            query: q.query,
+            gap: await detectGap(token, q.query, q.maxBuyPrice, locCfg.buyEbayMarketplace),
+          }))
         );
         gapData = gaps.filter(g => g.gap.euListings.length > 0 || g.gap.usListings.length > 0);
         const confirmedGaps = gapData.filter(g => g.gap.gapPct > 30);
@@ -456,7 +588,7 @@ router.post("/scan", async (req: Request, res: Response) => {
 
   if (aiKey) {
     try {
-      const aiResults = await scanWithAI(aiKey, gapData, realEtsy);
+      const aiResults = await scanWithAI(aiKey, gapData, realEtsy, locCfg);
       const filtered = filterAndEnrich(aiResults, gapData.some(g => g.gap.gapPct > 0));
       if (filtered.length > 0) {
         const hasLive = gapData.some(g => g.gap.confidence === "live");
@@ -471,7 +603,7 @@ router.post("/scan", async (req: Request, res: Response) => {
 
 // ── POST /api/resell/product-search ──────────────────────────────────────────
 router.post("/product-search", async (req: Request, res: Response) => {
-  const { query, anthropicKey, ebayAppId, ebayCertId, etsyApiKey, maxBudget, category } = req.body ?? {};
+  const { query, anthropicKey, ebayAppId, ebayCertId, etsyApiKey, maxBudget, category, userLocation } = req.body ?? {};
   if (!query?.trim()) return res.json({ results: [], source: "empty" });
 
   const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
@@ -479,10 +611,14 @@ router.post("/product-search", async (req: Request, res: Response) => {
   const ebayCert: string = ebayCertId || process.env.EBAY_CERT_ID || "";
   const etsyKey: string = etsyApiKey || process.env.ETSY_API_KEY || "";
 
+  const locCode: string = (userLocation?.country ?? "PL").toUpperCase();
+  const locCfg = getLocationConfig(locCode);
+  console.log(`[product-search] User location: ${locCode} → buy marketplace: ${locCfg.buyEbayMarketplace}`);
+
   const q = String(query).trim();
   const budget = maxBudget ? parseFloat(String(maxBudget)) : 500;
 
-  // Real EU→US gap detection for this specific product
+  // Real local→US gap detection for this specific product
   let gapResult: GapResult = { euListings: [], usListings: [], medianEU: 0, medianUS: 0, gapPct: 0, gapMultiplier: 0, confidence: "no_data" };
   let gbListings: any[] = [];
   let realEtsy: any[] = [];
@@ -492,7 +628,7 @@ router.post("/product-search", async (req: Request, res: Response) => {
       const token = await getEbayToken(ebayApp, ebayCert);
       if (token) {
         [gapResult, gbListings] = await Promise.all([
-          detectGap(token, q, budget),
+          detectGap(token, q, budget, locCfg.buyEbayMarketplace),
           ebaySearch(token, q, 9999, "EBAY_GB", "-price"),  // UK pricing too
         ]);
       }
@@ -558,22 +694,16 @@ router.post("/product-search", async (req: Request, res: Response) => {
     ).join("\n");
   }
 
-  const sourceMarketMap: Record<string, string> = {
-    Clothing: "Allegro PL, OLX PL, Vinted EU (Poland/France/Spain), thrift stores, Kleinanzeigen.de, Leboncoin FR",
-    Jewelry: "Allegro PL, Baltic coast artisan markets, OLX PL, estate sales, Kleinanzeigen.de",
-    Electronics: "Kleinanzeigen.de (Germany), eBay.de, Allegro PL, Leboncoin FR, OLX Romania",
-    Collectibles: "Allegro PL, OLX PL, flea markets, eBay.de, Kleinanzeigen.de",
-    Sneakers: "Allegro PL, Vinted EU, Footshop.eu, eBay.de, Solebox EU",
-    Watches: "Polish Sunday flea markets, Kleinanzeigen.de, eBay.de, Allegro PL, Yahoo Auctions JP",
-    Antiques: "Kleinanzeigen.de, eBay.de, Polish antique markets, Dresdner Auktionshaus, OLX CZ",
-    Spirits: "Yahoo Auctions JP, Mercari JP (verify import rules before buying)",
-  };
-  const sourceMarkets = category ? (sourceMarketMap[String(category)] ?? "Allegro PL, Kleinanzeigen.de, OLX PL, Vinted EU, Leboncoin FR") : "Allegro PL, Kleinanzeigen.de, OLX PL, Vinted EU, Leboncoin FR, Yahoo Auctions JP";
+  // Use location-specific source markets
+  const cat = category ? String(category) : null;
+  const sourceMarkets = cat
+    ? (locCfg.localSourcesMap[cat] ?? locCfg.localSources)
+    : locCfg.localSources;
 
-  // Live context header — tell AI if EU prices are EUR-converted
+  // Live context header — tell AI which buy marketplace was queried + currency note
   const hasLiveGap = gapResult.gapPct > 0;
   if (hasLiveGap) {
-    liveContext = `EU prices already converted from EUR to USD (×${EUR_TO_USD} rate).` + liveContext;
+    liveContext = `Local buy prices from ${locCfg.buyEbayMarketplace} — ${locCfg.currencyNote}` + liveContext;
   }
 
   try {
@@ -585,17 +715,19 @@ router.post("/product-search", async (req: Request, res: Response) => {
         max_tokens: 4000,
         system: `You are an elite cross-border arbitrage analyst specializing in EU/JP→USA/UK price gaps.
 Today: ${now.toLocaleDateString("en-US")}, Season: ${season}.
+USER LOCATION: ${locCfg.localSources.split(",")[0].trim()} area (${locCode}). ${locCfg.currencyNote}
+LOCAL BUY MARKETS available to this user: ${sourceMarkets}.
 Platform fees: ${feeContext}.
 Shipping estimates (USD): Clothing $12, Jewelry $18, Electronics $28, Collectibles $22, Sneakers $25, Spirits $35, Antiques $40, Watches $30.
-Best source markets for this search: ${sourceMarkets}.
 User max budget: $${budget}.
 
 ACCURACY RULES:
-1. buy price = 20th percentile of real EU/JP listings (cheapest achievable, not median)
+1. buy price = 20th percentile of what this user can actually find in their LOCAL market (${locCfg.localSources.split(",")[0].trim()})
 2. sell price = COMPLETED/SOLD listings on target platform (what buyers actually paid)
-3. EU prices are in EUR; convert ×${EUR_TO_USD} to USD for fair comparison
+3. Local prices may be in EUR/GBP/PLN/JPY — convert to USD. ${locCfg.currencyNote}
 4. Hard reject: netProfit < $15, margin < 20%, buy price >= sell price
 5. daysToSell = realistic days to complete sale based on platform activity
+6. sourceUrl = links to LOCAL buy markets (${locCfg.localSources.split(",")[0].trim()}, etc.)
 
 Available sell platforms (pick best for category):
 - eBay USA: electronics, cameras, watches, vintage clothing, collectibles
@@ -607,10 +739,11 @@ Available sell platforms (pick best for category):
 - Vinted EU: second-hand clothing (0% seller fee, fast sell)`,
         messages: [{
           role: "user",
-          content: `Find arbitrage opportunities for: "${q}"${category ? ` (category: ${category})` : ""}${liveContext ? `\n\nLIVE MARKET DATA:${liveContext}\n\nUSE the live data above to set realistic buy/sell prices. Do NOT invent prices if live data is available.` : "\n\nNo live data available — use conservative knowledge of typical EU/US price gaps."}
+          content: `Find arbitrage opportunities for: "${q}"${category ? ` (category: ${category})` : ""}
+User location: ${locCode} — they buy from: ${sourceMarkets}.${liveContext ? `\n\nLIVE MARKET DATA from ${locCfg.buyEbayMarketplace}:${liveContext}\n\nUSE the live data above to set realistic buy/sell prices. Do NOT invent prices if live data is available.` : "\n\nNo live data available — use conservative knowledge of local→US price gaps for this user's location."}
 
 Generate 5-7 specific buy-cheap / sell-high opportunities for "${q}".
-buyMarket = cheap European/Japanese source. sellMarket = high-demand US/UK destination.
+buyMarket = local source in user's area (${locCode}). sellMarket = high-demand US/UK destination.
 
 Return ONLY a valid JSON array sorted by netProfit descending:
 [{

@@ -6,8 +6,9 @@ import {
   ExternalLink, Boxes, FileText, ChevronDown, ChevronUp, Clock, Trash2, PlusCircle,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
-import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
+import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib/apiKeys";
 import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
+import { LocationPicker } from "@/components/resell/LocationPicker";
 
 type SearchResult = {
   id: number; name: string;
@@ -107,6 +108,7 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>(loadHistory);
   const [offerResult, setOfferResult] = useState<SearchResult | null>(null);
+  const [userLoc, setUserLoc] = useState(getUserLocation);
 
   // Filters — initialize from localStorage
   const _saved = loadFilters();
@@ -148,6 +150,7 @@ export default function SearchPage() {
           ebayAppId: ebay.appId,
           ebayCertId: ebay.certId,
           etsyApiKey: getEtsyKey(),
+          userLocation: getUserLocation(),
         }),
       });
       const data = await res.json();
@@ -195,14 +198,17 @@ export default function SearchPage() {
 
         {/* ── Header ── */}
         <div style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Zap size={18} color="#fff" />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Zap size={18} color="#fff" />
+              </div>
+              <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>AI Opportunity Search</h1>
             </div>
-            <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>AI Opportunity Search</h1>
+            <LocationPicker onChange={loc => setUserLoc(loc)} />
           </div>
           <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>
-            Enter a product, category, or keyword — AI finds where to buy cheap and where to sell for profit.
+            Enter a product, category, or keyword — AI finds where to buy cheap in <span style={{ color: "#93c5fd" }}>{userLoc.flag} {userLoc.label}</span> and where to sell for profit.
           </p>
         </div>
 

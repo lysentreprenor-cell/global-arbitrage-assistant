@@ -5,13 +5,14 @@ import {
   ArrowRight, RefreshCw, Star, DollarSign, ShoppingBag, Filter,
   ExternalLink, Boxes, AlertCircle, X, PlusCircle,
 } from "lucide-react";
-import { getAnthropicKey, getEbayKeys, getEtsyKey } from "@/lib/apiKeys";
+import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib/apiKeys";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
+import { LocationPicker } from "@/components/resell/LocationPicker";
 
 type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
@@ -89,6 +90,7 @@ export default function Dashboard() {
   const [scanSource, setScanSource] = useState<"ai" | "cache" | "live" | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [offerOpp, setOfferOpp] = useState<Opportunity | null>(null);
+  const [userLoc, setUserLoc] = useState(getUserLocation);
 
   const filtered = opportunities.filter(o =>
     (activeCategory === "All" || o.category === activeCategory) &&
@@ -130,6 +132,7 @@ export default function Dashboard() {
           ebayAppId: ebay.appId,
           ebayCertId: ebay.certId,
           etsyApiKey: getEtsyKey(),
+          userLocation: getUserLocation(),
         }),
       });
       const data = await res.json();
@@ -191,21 +194,24 @@ export default function Dashboard() {
               }
             </p>
           </div>
-          <button
-            onClick={triggerScan}
-            disabled={scanning}
-            style={{
-              display: "flex", alignItems: "center", gap: 7,
-              padding: "10px 18px", borderRadius: 10, cursor: scanning ? "not-allowed" : "pointer",
-              background: scanning ? "rgba(245,200,66,0.15)" : "rgba(139,92,246,0.15)",
-              border: `1px solid ${scanning ? "rgba(245,200,66,0.3)" : "rgba(139,92,246,0.3)"}`,
-              color: scanning ? "#fde68a" : "#a78bfa", fontWeight: 700, fontSize: 13,
-              opacity: scanning ? 0.8 : 1,
-            }}
-          >
-            <RefreshCw size={15} style={{ animation: scanning ? "spin 1s linear infinite" : "none" }} />
-            {scanning ? scanStep || "Scanning..." : "Rescan now"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <LocationPicker onChange={loc => { setUserLoc(loc); }} />
+            <button
+              onClick={triggerScan}
+              disabled={scanning}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 18px", borderRadius: 10, cursor: scanning ? "not-allowed" : "pointer",
+                background: scanning ? "rgba(245,200,66,0.15)" : "rgba(139,92,246,0.15)",
+                border: `1px solid ${scanning ? "rgba(245,200,66,0.3)" : "rgba(139,92,246,0.3)"}`,
+                color: scanning ? "#fde68a" : "#a78bfa", fontWeight: 700, fontSize: 13,
+                opacity: scanning ? 0.8 : 1,
+              }}
+            >
+              <RefreshCw size={15} style={{ animation: scanning ? "spin 1s linear infinite" : "none" }} />
+              {scanning ? scanStep || "Scanning..." : "Rescan now"}
+            </button>
+          </div>
         </div>
 
         {/* ── Scan error banner ── */}
