@@ -28,6 +28,8 @@ export function NotificationBell() {
   const [shake, setShake] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const prevUnread = useRef(0);
+  // Track which listingIds have been published (id → "loading" | "done")
+  const [publishedIds, setPublishedIds] = useState<Record<number, "loading" | "done">>({});
 
   const fetchNotifications = async () => {
     try {
@@ -114,6 +116,21 @@ export function NotificationBell() {
     if (type === "fulfillment") return "rgba(245,200,66,0.2)";
     if (type === "autopilot") return "rgba(139,92,246,0.2)";
     return "rgba(96,165,250,0.15)";
+  };
+
+  const publishListing = async (e: React.MouseEvent, listingId: number) => {
+    e.stopPropagation();
+    setPublishedIds(prev => ({ ...prev, [listingId]: "loading" }));
+    try {
+      await fetch(`/api/dropship/listings/${listingId}/status`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
+      setPublishedIds(prev => ({ ...prev, [listingId]: "done" }));
+    } catch {
+      setPublishedIds(prev => { const n = { ...prev }; delete n[listingId]; return n; });
+    }
   };
 
   const timeAgo = (iso: string) => {
@@ -218,10 +235,37 @@ export function NotificationBell() {
                     {n.profit != null && n.profit > 0 && (
                       <div style={{ color: "#4ade80", fontWeight: 800, fontSize: 11, marginTop: 3 }}>+${n.profit} profit</div>
                     )}
+
+                    {/* One-click publish for autopilot draft listings */}
+                    {n.type === "autopilot" && n.listingId != null && (() => {
+                      const pubState = publishedIds[n.listingId];
+                      if (pubState === "done") {
+                        return (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 7, background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.25)", color: "#4ade80", fontSize: 10, fontWeight: 700 }}>
+                            ✓ Published & Live
+                          </div>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={e => publishListing(e, n.listingId!)}
+                          disabled={pubState === "loading"}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
+                            padding: "5px 12px", borderRadius: 7, border: "none", cursor: pubState === "loading" ? "default" : "pointer",
+                            background: pubState === "loading" ? "rgba(139,92,246,0.1)" : "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                            color: "#fff", fontSize: 11, fontWeight: 800,
+                          }}>
+                          {pubState === "loading" ? "Publishing…" : "⚡ Publish Listing"}
+                        </button>
+                      );
+                    })()}
+
+                    {/* Buy now link for fulfillment notifications */}
                     {n.sourceUrl && n.type === "fulfillment" && (
                       <a href={n.sourceUrl} target="_blank" rel="noopener noreferrer"
                         onClick={e => e.stopPropagation()}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "3px 8px", borderRadius: 6, background: "rgba(245,200,66,0.15)", border: "1px solid rgba(245,200,66,0.3)", color: "#f5c842", fontSize: 10, fontWeight: 700, textDecoration: "none" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 7, background: "rgba(245,200,66,0.15)", border: "1px solid rgba(245,200,66,0.3)", color: "#f5c842", fontSize: 10, fontWeight: 700, textDecoration: "none" }}>
                         🛒 Buy Now
                       </a>
                     )}

@@ -151,8 +151,8 @@ async function runScan() {
 
           emitNotification({
             type: "autopilot",
-            title: `🤖 Listing Created: ${opp.name.slice(0, 50)}`,
-            body: `Platform: ${opp.market ?? config.sellPlatform} · Buy: $${opp.buy} → Sell: $${opp.sell} · Net: +$${opp.netProfit ?? opp.profit}`,
+            title: `🤖 Ready to publish: ${opp.name.slice(0, 45)}`,
+            body: `${opp.market ?? config.sellPlatform} · Buy $${opp.buy} → Sell $${opp.sell} · Net +$${opp.netProfit ?? opp.profit}\nTap ⚡ Publish below to go live`,
             profit: opp.netProfit ?? opp.profit,
             productName: opp.name,
             listingId: listData.listing?.id,
