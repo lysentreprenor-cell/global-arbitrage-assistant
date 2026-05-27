@@ -18,6 +18,7 @@ type SearchResult = {
   sourceUrl?: string; sellUrl?: string;
   category?: string;
   priceGapPct?: number;
+  daysToSell?: number;
   confidence?: "live" | "estimated";
 };
 

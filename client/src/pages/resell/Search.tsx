@@ -20,16 +20,31 @@ type SearchResult = {
   sourceUrl?: string; sellUrl?: string;
   category?: string;
   priceGapPct?: number;
+  daysToSell?: number;
   confidence?: "live" | "estimated";
 };
 
 const SUGGESTIONS = [
-  "vintage cameras Poland", "amber jewelry Baltic",
-  "Levi's 501 vintage", "Soviet cameras Zorki Zenit",
-  "mechanical watches Omega Seiko", "Meissen porcelain",
-  "Adidas Samba EU exclusive", "Polish folk art handmade",
-  "vintage denim European", "sneakers limited edition",
-  "hunting military surplus", "vintage electronics retro",
+  // High-confidence EU→US gaps
+  "Omega Seiko vintage watch",
+  "Levi's 501 vintage EU made",
+  "Soviet cameras Zorki Zenit",
+  "Baltic amber jewelry",
+  "Adidas Samba EU exclusive",
+  "Meissen Rosenthal porcelain",
+  // Photography niche
+  "Polaroid SX-70 vintage",
+  "Leica rangefinder camera",
+  "Agfa folding camera vintage",
+  // Fashion
+  "Polish folk embroidery",
+  "vintage Levi's trucker jacket",
+  "Vans Sk8-Hi EU exclusive",
+  // Collectibles
+  "Vostok Amphibia military watch",
+  "Polish jazz vinyl records",
+  "Czech Bohemian crystal glass",
+  "Seiko 5 military dial Japan",
 ];
 
 const CATEGORIES = ["All", "Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches"];
@@ -502,6 +517,11 @@ export default function SearchPage() {
                               fontSize: 10, fontWeight: 800,
                             }}>+{r.priceGapPct}% gap</div>
                           ) : null}
+                          {r.daysToSell && (
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.2, color: "rgba(255,255,255,0.3)", textAlign: "right" }}>
+                              ~{r.daysToSell}d sell
+                            </div>
+                          )}
                           {r.confidence && (
                             <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: r.confidence === "live" ? "#4ade80" : "rgba(255,255,255,0.2)", textAlign: "right" }}>
                               {r.confidence === "live" ? "🟢 LIVE" : "~ ESTIM"}
