@@ -3,18 +3,23 @@ import fs from "fs";
 import path from "path";
 
 export function serveStatic(app: Express) {
-  // In CJS output (dist/index.cjs), __dirname is the dist/ folder itself.
-  // In ESM, import.meta.dirname is the dist/ folder.
-  // Either way: the public assets live at <that dir>/public.
+  // Try candidate locations in order of preference:
+  // 1. <__dirname>/public  — correct when running from compiled dist/index.cjs
+  // 2. <cwd>/dist/public   — correct when running via tsx server/index.ts from project root
   const base: string = typeof __dirname !== "undefined"
     ? __dirname
     : (import.meta as any).dirname ?? process.cwd();
 
-  const distPath = path.resolve(base, "public");
+  const candidates = [
+    path.resolve(base, "public"),
+    path.resolve(process.cwd(), "dist", "public"),
+  ];
 
-  if (!fs.existsSync(distPath)) {
+  const distPath = candidates.find(p => fs.existsSync(p));
+
+  if (!distPath) {
     throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      `Could not find the build directory (tried: ${candidates.join(", ")}), make sure to build the client first`,
     );
   }
 
