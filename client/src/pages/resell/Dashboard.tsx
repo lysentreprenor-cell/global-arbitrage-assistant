@@ -92,6 +92,8 @@ export default function Dashboard() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [offerOpp, setOfferOpp] = useState<Opportunity | null>(null);
   const [userLoc, setUserLoc] = useState(getUserLocation);
+  const [previewImg, setPreviewImg] = useState<{ opp: Opportunity; rect: DOMRect } | null>(null);
+  const [enrichedData, setEnrichedData] = useState<Record<number, { imageUrl: string; sourceUrl: string }>>({});
 
   const filtered = opportunities
     .filter(o =>
@@ -109,6 +111,30 @@ export default function Dashboard() {
   const totalProfit = opportunities.reduce((s, o) => s + (o.netProfit ?? o.profit), 0);
   const avgMargin = Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length);
   const topDeal = opportunities.reduce((a, b) => (a.netProfit ?? a.profit) > (b.netProfit ?? b.profit) ? a : b);
+
+  // Lazy-load images + direct URLs for opportunities missing imageUrl
+  useEffect(() => {
+    const ebay = getEbayKeys();
+    if (!ebay.appId || !ebay.certId) return;
+    const toEnrich = opportunities.filter(o => !o.imageUrl && !enrichedData[o.id]);
+    if (!toEnrich.length) return;
+    toEnrich.forEach((opp, idx) => {
+      setTimeout(async () => {
+        try {
+          const r = await fetch("/api/resell/enrich-opportunity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: opp.name, flag: opp.flag, ebayAppId: ebay.appId, ebayCertId: ebay.certId }),
+          });
+          const data = await r.json();
+          if (data.imageUrl || data.sourceUrl) {
+            setEnrichedData(prev => ({ ...prev, [opp.id]: data }));
+          }
+        } catch { /* silent */ }
+      }, idx * 350);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opportunities]);
 
   // Auto-scan on mount if data is stale
   useEffect(() => {
@@ -421,6 +447,29 @@ export default function Dashboard() {
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ width: 28, height: 28, borderRadius: 7, background: `${scoreColor}15`, border: `1px solid ${scoreColor}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: scoreColor, flexShrink: 0 }}>{o.score}</div>
+                    {/* Product thumbnail */}
+                    {(enrichedData[o.id]?.imageUrl || o.imageUrl) && (() => {
+                      const imgUrl = enrichedData[o.id]?.imageUrl || o.imageUrl!;
+                      const linkUrl = enrichedData[o.id]?.sourceUrl || o.sourceUrl;
+                      return (
+                        <a
+                          href={linkUrl || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ flexShrink: 0, display: "block", lineHeight: 0 }}
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={o.name}
+                            style={{ width: 42, height: 42, objectFit: "cover", borderRadius: 7, border: "1px solid rgba(255,255,255,0.12)", cursor: "zoom-in", display: "block" }}
+                            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            onMouseEnter={e => setPreviewImg({ opp: { ...o, imageUrl: imgUrl }, rect: e.currentTarget.getBoundingClientRect() })}
+                            onMouseLeave={() => setPreviewImg(null)}
+                          />
+                        </a>
+                      );
+                    })()}
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                         <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{o.name}</span>
@@ -429,19 +478,25 @@ export default function Dashboard() {
                             {demandIcon} {o.demandLevel?.toUpperCase()}
                           </span>
                         )}
-                        {o.sourceUrl && (
-                          <a
-                            href={o.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            style={{ color: "rgba(139,92,246,0.6)", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, marginLeft: 4, textDecoration: "none" }}
-                          >
-                            <ExternalLink size={9} /> source
-                          </a>
-                        )}
+                        {(() => {
+                          const url = enrichedData[o.id]?.sourceUrl || o.sourceUrl;
+                          if (!url) return null;
+                          const isDirect = url.includes("/itm/") || url.includes("/s-anzeige/") || url.includes("/listing/");
+                          return (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              style={{ color: isDirect ? "rgba(74,222,128,0.7)" : "rgba(139,92,246,0.6)", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, marginLeft: 4, textDecoration: "none" }}
+                              title={isDirect ? "Direct product listing" : "Search results page"}
+                            >
+                              <ExternalLink size={9} /> {isDirect ? "listing" : "source"}
+                            </a>
+                          );
+                        })()}
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 340 }}>
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 300 }}>
                         {o.flag} · {o.category}
                         {o.buyHint && <span style={{ color: "rgba(139,92,246,0.55)", marginLeft: 6 }}>· {o.buyHint}</span>}
                       </div>
@@ -521,6 +576,36 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Hover image preview */}
+      {previewImg && (
+        <div
+          style={{
+            position: "fixed",
+            left: Math.min(previewImg.rect.right + 12, window.innerWidth - 240),
+            top: Math.max(8, Math.min(previewImg.rect.top - 60, window.innerHeight - 300)),
+            zIndex: 9999,
+            background: "#0d0d1f",
+            border: "1px solid rgba(139,92,246,0.45)",
+            borderRadius: 14,
+            padding: 12,
+            boxShadow: "0 16px 48px rgba(0,0,0,0.85)",
+            pointerEvents: "none",
+            width: 220,
+          }}
+        >
+          <img
+            src={previewImg.opp.imageUrl}
+            alt={previewImg.opp.name}
+            style={{ width: 196, height: 170, objectFit: "contain", display: "block", borderRadius: 8, background: "rgba(255,255,255,0.04)" }}
+          />
+          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 8, lineHeight: 1.4 }}>{previewImg.opp.name}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+            <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 800 }}>+${previewImg.opp.netProfit ?? previewImg.opp.profit} profit</span>
+            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>{previewImg.opp.market}</span>
+          </div>
+        </div>
+      )}
 
       {offerOpp && (
         <QuickCreateOfferModal

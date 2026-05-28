@@ -79,6 +79,7 @@ async function ebaySearch(
       price: parseFloat(i.price?.value ?? "0"),
       currency: i.price?.currency ?? "USD",
       url: i.itemWebUrl ?? "",
+      imageUrl: i.image?.imageUrl ?? i.thumbnailImages?.[0]?.imageUrl ?? "",
       condition: i.condition ?? "",
       watchCount: i.watchCount ?? 0,   // fixed: was using ?? with ternary causing wrong precedence
       marketplace,
@@ -217,6 +218,28 @@ function filterAndEnrich(opps: any[], hasLiveData: boolean): any[] {
       };
     })
     .sort((a, b) => (b.netProfit ?? 0) - (a.netProfit ?? 0));
+}
+
+// ── Enrich opportunities with real eBay listing URLs + images ────────────────
+function enrichWithRealListings(
+  opps: any[],
+  listings: Array<{ title: string; url: string; imageUrl: string }>
+): any[] {
+  if (!listings.length) return opps;
+  return opps.map(opp => {
+    if (opp.imageUrl) return opp;
+    const words = (opp.name ?? "").toLowerCase().split(/[\s—\-]+/).filter((w: string) => w.length > 4);
+    const matched = listings.find(l => {
+      const t = l.title.toLowerCase();
+      return words.filter((w: string) => t.includes(w)).length >= 2;
+    });
+    if (!matched) return opp;
+    return {
+      ...opp,
+      sourceUrl: matched.url || opp.sourceUrl,
+      imageUrl: matched.imageUrl || "",
+    };
+  });
 }
 
 // ── Location helpers ──────────────────────────────────────────────────────────
@@ -597,8 +620,12 @@ router.post("/scan", async (req: Request, res: Response) => {
       const aiResults = await scanWithAI(aiKey, gapData, realEtsy, locCfg);
       const filtered = filterAndEnrich(aiResults, gapData.some(g => g.gap.gapPct > 0));
       if (filtered.length > 0) {
+        const allEuListings = gapData.flatMap(g =>
+          g.gap.euListings.filter((l: any) => l.url && l.imageUrl)
+        );
+        const enriched = enrichWithRealListings(filtered, allEuListings);
         const hasLive = gapData.some(g => g.gap.confidence === "live");
-        return res.json({ opportunities: filtered, source: hasLive ? "live" : "ai", scannedAt: new Date().toISOString() });
+        return res.json({ opportunities: enriched, source: hasLive ? "live" : "ai", scannedAt: new Date().toISOString() });
       }
     } catch (err) { console.error("[resell/scan] AI:", err); }
   }
@@ -811,7 +838,12 @@ FINAL CHECK: netProfit = sell × (1 − fee%) − buy − shipping. Only include
       }));
 
     const filtered = filterAndEnrich(enriched, hasLive);
-    return res.json({ results: filtered, source: hasLive ? "live" : "ai", query: q });
+    const allListings = [
+      ...gapResult.euListings.filter((l: any) => l.url && l.imageUrl),
+      ...gapResult.usListings.filter((l: any) => l.url && l.imageUrl),
+    ];
+    const enrichedFiltered = enrichWithRealListings(filtered, allListings);
+    return res.json({ results: enrichedFiltered, source: hasLive ? "live" : "ai", query: q });
   } catch (err) {
     console.error("[product-search] error:", err);
     return res.json({ results: [], source: "error" });
@@ -919,6 +951,29 @@ Return ONLY valid JSON (no markdown fences):
   } catch (err) {
     console.error("[generate-offer] error:", err);
     return res.json({ error: "server-error" });
+  }
+});
+
+// ── POST /api/resell/enrich-opportunity — lazy-load image + direct URL ────────
+router.post("/enrich-opportunity", async (req: Request, res: Response) => {
+  const { name, flag, ebayAppId, ebayCertId } = req.body ?? {};
+  const appId: string = ebayAppId || process.env.EBAY_APP_ID || "";
+  const certId: string = ebayCertId || process.env.EBAY_CERT_ID || "";
+  if (!appId || !certId || !name) return res.json({ imageUrl: "", sourceUrl: "" });
+
+  const isEU = typeof flag === "string" &&
+    (flag.includes("🇵🇱") || flag.includes("🇩🇪") || flag.includes("🇨🇿") ||
+     flag.includes("🇫🇷") || flag.includes("🇮🇹") || flag.includes("🇳🇱"));
+  const marketplace = isEU ? "EBAY_DE" : "EBAY_US";
+
+  try {
+    const token = await getEbayToken(appId, certId);
+    if (!token) return res.json({ imageUrl: "", sourceUrl: "" });
+    const listings = await ebaySearch(token, String(name), 9999, marketplace, "price");
+    const first = listings.find(l => l.imageUrl && l.url) ?? listings[0];
+    return res.json({ imageUrl: first?.imageUrl ?? "", sourceUrl: first?.url ?? "" });
+  } catch {
+    return res.json({ imageUrl: "", sourceUrl: "" });
   }
 });
 
