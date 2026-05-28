@@ -83,6 +83,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [sortKey, setSortKey] = useState<"score" | "profit" | "sell_desc" | "sell_asc" | "buy_asc">("score");
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState("");
   const [opportunities, setOpportunities] = useState<Opportunity[]>(() => loadCachedOpportunities() ?? INITIAL_OPPORTUNITIES);
@@ -92,10 +93,18 @@ export default function Dashboard() {
   const [offerOpp, setOfferOpp] = useState<Opportunity | null>(null);
   const [userLoc, setUserLoc] = useState(getUserLocation);
 
-  const filtered = opportunities.filter(o =>
-    (activeCategory === "All" || o.category === activeCategory) &&
-    (query === "" || o.name.toLowerCase().includes(query.toLowerCase()))
-  );
+  const filtered = opportunities
+    .filter(o =>
+      (activeCategory === "All" || o.category === activeCategory) &&
+      (query === "" || o.name.toLowerCase().includes(query.toLowerCase()))
+    )
+    .sort((a, b) => {
+      if (sortKey === "profit") return (b.netProfit ?? b.profit) - (a.netProfit ?? a.profit);
+      if (sortKey === "sell_desc") return b.sell - a.sell;
+      if (sortKey === "sell_asc") return a.sell - b.sell;
+      if (sortKey === "buy_asc") return a.buy - b.buy;
+      return b.score - a.score; // default: AI score
+    });
 
   const totalProfit = opportunities.reduce((s, o) => s + (o.netProfit ?? o.profit), 0);
   const avgMargin = Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length);
@@ -319,11 +328,53 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── Sort bar ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+          <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.5, flexShrink: 0 }}>SORT:</span>
+          {([
+            { key: "score",     label: "⭐ AI Score" },
+            { key: "profit",    label: "💰 Best Profit" },
+            { key: "sell_desc", label: "↑ Highest Price" },
+            { key: "sell_asc",  label: "↓ Lowest Price" },
+            { key: "buy_asc",   label: "🏷 Cheapest Buy" },
+          ] as const).map(({ key, label }) => (
+            <button key={key} onClick={() => setSortKey(key)}
+              style={{
+                padding: "5px 11px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, transition: "all 0.12s",
+                background: sortKey === key ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "rgba(255,255,255,0.06)",
+                color: sortKey === key ? "#fff" : "rgba(255,255,255,0.4)",
+                boxShadow: sortKey === key ? "0 2px 8px rgba(139,92,246,0.35)" : "none",
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* ── Opportunities table ── */}
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 100px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            {["PRODUCT", "BUY", "SELL", "NET PROFIT", "RISK", "MARKET", ""].map(h => (
-              <div key={h} style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{h}</div>
+            {([
+              { label: "PRODUCT", sk: null },
+              { label: "BUY",        sk: "buy_asc"   as const },
+              { label: "SELL ↕",     sk: sortKey === "sell_asc" ? "sell_desc" as const : "sell_asc" as const },
+              { label: "NET PROFIT", sk: "profit"    as const },
+              { label: "RISK",       sk: null },
+              { label: "MARKET",     sk: null },
+              { label: "",           sk: null },
+            ]).map(({ label, sk }) => (
+              <div key={label}
+                onClick={() => sk && setSortKey(sk)}
+                style={{
+                  color: sk && sortKey === sk ? "#c4b5fd" : "rgba(255,255,255,0.25)",
+                  fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+                  cursor: sk ? "pointer" : "default",
+                  userSelect: "none",
+                  display: "flex", alignItems: "center", gap: 3,
+                }}>
+                {label}
+                {sk === "buy_asc" && sortKey === "buy_asc" && <span style={{ color: "#c4b5fd" }}>↑</span>}
+                {sk === "profit" && sortKey === "profit" && <span style={{ color: "#c4b5fd" }}>↓</span>}
+              </div>
             ))}
           </div>
 
