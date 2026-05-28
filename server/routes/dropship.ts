@@ -193,6 +193,87 @@ Currency detection rules:
   }
 });
 
+// POST /api/dropship/photo-to-listings
+router.post("/photo-to-listings", async (req: Request, res: Response) => {
+  const { imageData, mimeType = "image/jpeg", anthropicKey } = req.body;
+  if (!imageData) return res.status(400).json({ error: "imageData required" });
+  const key = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const prompt = `You are a professional resell market analyst. Analyze this product image and generate a complete market opportunity report.
+
+Return ONLY a valid JSON object (no markdown) with this exact structure:
+{
+  "product": {
+    "name": "full product name",
+    "category": one of ["Clothing","Jewelry","Electronics","Collectibles","Sneakers","Spirits","Antiques","Watches","General"],
+    "specs": ["spec1","spec2","spec3","spec4"],
+    "sourcePriceMin": number (lowest realistic USD wholesale/AliExpress price),
+    "sourcePriceMax": number (highest realistic USD wholesale price),
+    "sourcePriceNote": "e.g. AliExpress/Alibaba wholesale, typical drop-ship source"
+  },
+  "markets": [
+    {
+      "platform": "eBay USA",
+      "country": "US",
+      "currency": "USD",
+      "recommendedPrice": number (competitive selling price),
+      "sourcePriceUSD": number (mid-range source price),
+      "estimatedProfit": number (profit after fees and source cost, in USD),
+      "margin": number (profit margin as integer percent),
+      "confidence": "high" or "medium" or "low"
+    }
+  ],
+  "listings": {
+    "eBay USA": {
+      "title": "keyword-dense eBay title max 80 chars",
+      "description": "2-3 sentence product description",
+      "tags": ["tag1","tag2","tag3","tag4","tag5"]
+    }
+  },
+  "sellingTip": "one sentence about best selling opportunity"
+}
+
+Include ALL these platforms in markets[] and listings{}:
+- "eBay USA" (USD, 13.25% fee)
+- "Etsy USA" (USD, 9.5% fee) — only if handmade/vintage/art applicable
+- "Amazon USA" (USD, 15% fee)
+- "eBay UK" (GBP, 12.8% fee)
+- "Amazon UK" (GBP, 15% fee)
+- "eBay DE" (EUR, 12% fee)
+- "Depop" (GBP, 10% fee) — only if fashion/clothing/shoes
+- "Vinted EU" (EUR, 0% fee) — only if clothing/shoes
+
+For each platform's estimatedProfit: price - (price * feePercent/100) - sourcePriceUSD - 12 (shipping estimate).
+Set confidence: high = you know this product sells well on this platform; medium = likely but uncertain; low = possible but niche.`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 3500,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: mimeType, data: imageData } },
+          { type: "text", text: prompt },
+        ]}]
+      })
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      return res.status(502).json({ error: (err as any).error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 300) });
+    return res.json(JSON.parse(jsonMatch[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
 // GET /api/dropship/listings
 router.get("/listings", (_req: Request, res: Response) => {
   res.json({ listings: [...listings].reverse() });
