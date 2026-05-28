@@ -200,7 +200,7 @@ router.post("/photo-to-listings", async (req: Request, res: Response) => {
   const key = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
 
-  const prompt = `You are a professional resell market analyst. Analyze this product image and generate a complete market opportunity report.
+  const prompt = `You are a professional resell market analyst specializing in Polish and European markets. Analyze this product image and generate a complete market opportunity report.
 
 Return ONLY a valid JSON object (no markdown) with this exact structure:
 {
@@ -212,40 +212,54 @@ Return ONLY a valid JSON object (no markdown) with this exact structure:
     "sourcePriceMax": number (highest realistic USD wholesale price),
     "sourcePriceNote": "e.g. AliExpress/Alibaba wholesale, typical drop-ship source"
   },
+  "recommendation": {
+    "topPlatform": "platform name from the list below",
+    "reason": "1-2 zdania PO POLSKU dlaczego ta platforma jest najlepsza dla tego produktu",
+    "expectedSaleTime": "e.g. 1-3 dni / 1-2 tygodnie / 2-4 tygodnie",
+    "rankingTop3": ["platform1", "platform2", "platform3"],
+    "avoidPlatforms": ["platform"] (optional — platforms where this item would sell poorly),
+    "avoidReason": "dlaczego unikać tych platform (po polsku, opcjonalne)"
+  },
   "markets": [
     {
-      "platform": "eBay USA",
-      "country": "US",
-      "currency": "USD",
-      "recommendedPrice": number (competitive selling price),
-      "sourcePriceUSD": number (mid-range source price),
-      "estimatedProfit": number (profit after fees and source cost, in USD),
-      "margin": number (profit margin as integer percent),
+      "platform": "Allegro PL",
+      "country": "PL",
+      "currency": "PLN",
+      "recommendedPrice": number,
+      "sourcePriceUSD": number,
+      "estimatedProfit": number,
+      "margin": number,
       "confidence": "high" or "medium" or "low"
     }
   ],
   "listings": {
-    "eBay USA": {
-      "title": "keyword-dense eBay title max 80 chars",
-      "description": "2-3 sentence product description",
+    "Allegro PL": {
+      "title": "title in Polish max 75 chars",
+      "description": "2-3 sentences in Polish",
       "tags": ["tag1","tag2","tag3","tag4","tag5"]
     }
   },
-  "sellingTip": "one sentence about best selling opportunity"
+  "sellingTip": "one sentence in Polish about best selling opportunity"
 }
 
-Include ALL these platforms in markets[] and listings{}:
-- "eBay USA" (USD, 13.25% fee)
-- "Etsy USA" (USD, 9.5% fee) — only if handmade/vintage/art applicable
-- "Amazon USA" (USD, 15% fee)
+Include these platforms in markets[] and listings{} (include ALL that make sense for the product):
+- "Allegro PL" (PLN, 7% fee) — Poland's biggest marketplace, ideal for most products
+- "OLX PL" (PLN, 0% fee) — Polish classifieds, best for used/local items
+- "Vinted PL" (PLN, 0% seller fee) — only if clothing/shoes/accessories
+- "eBay DE" (EUR, 12% fee) — Germany/Europe
 - "eBay UK" (GBP, 12.8% fee)
-- "Amazon UK" (GBP, 15% fee)
-- "eBay DE" (EUR, 12% fee)
+- "eBay USA" (USD, 13.25% fee)
+- "Etsy USA" (USD, 9.5% fee) — only if handmade/vintage/art/jewelry
+- "Amazon DE" (EUR, 15% fee) — only if new/sealed product
+- "StockX USA" (USD, 9.5% fee) — only if sneakers/streetwear/watches
 - "Depop" (GBP, 10% fee) — only if fashion/clothing/shoes
 - "Vinted EU" (EUR, 0% fee) — only if clothing/shoes
 
-For each platform's estimatedProfit: price - (price * feePercent/100) - sourcePriceUSD - 12 (shipping estimate).
-Set confidence: high = you know this product sells well on this platform; medium = likely but uncertain; low = possible but niche.`;
+PLN conversion: 1 USD ≈ 4.0 PLN. Use realistic Polish market prices.
+For estimatedProfit: price - (price * feePercent/100) - sourcePriceUSD*4 (if PLN) or sourcePriceUSD - 12 (shipping).
+confidence: high = strong demand on this platform for this product type; medium = likely; low = niche/uncertain.
+
+IMPORTANT for recommendation.topPlatform: Pick the single BEST platform considering: demand, profit margin, ease of sale, target audience. For most everyday products in Poland, Allegro PL is the top choice. For luxury/branded items, consider StockX or eBay. For clothing, Vinted PL. Be specific and honest.`;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
