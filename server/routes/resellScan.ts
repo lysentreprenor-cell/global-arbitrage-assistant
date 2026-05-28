@@ -42,17 +42,31 @@ async function ebaySearch(
     });
     if (!r.ok) return [];
     const d = await r.json() as any;
-    return (d.itemSummaries ?? []).map((i: any) => ({
-      title: i.title ?? "",
-      price: parseFloat(i.price?.value ?? "0"),
-      currency: i.price?.currency ?? "USD",
-      url: i.itemWebUrl ?? "",
-      imageUrl: i.image?.imageUrl ?? i.thumbnailImages?.[0]?.imageUrl ?? "",
-      condition: i.condition ?? "",
-      watchCount: i.watchCount ?? 0,   // fixed: was using ?? with ternary causing wrong precedence
-      marketplace,
-    }));
+    return (d.itemSummaries ?? [])
+      .map((i: any) => ({
+        title: i.title ?? "",
+        price: parseFloat(i.price?.value ?? "0"),
+        currency: i.price?.currency ?? "USD",
+        url: i.itemWebUrl ?? "",
+        imageUrl: i.image?.imageUrl ?? i.thumbnailImages?.[0]?.imageUrl ?? "",
+        condition: i.condition ?? "",
+        watchCount: i.watchCount ?? 0,
+        marketplace,
+      }))
+      .filter((i: any) => i.url.startsWith("https://") && i.price > 0); // only valid listings
   } catch { return []; }
+}
+
+// Generate a guaranteed eBay search URL as fallback when no direct listing is found
+function ebaySearchFallbackUrl(productName: string, marketplace: string): string {
+  const q = encodeURIComponent(productName);
+  if (marketplace === "EBAY_DE") return `https://www.ebay.de/sch/i.html?_nkw=${q}&_sop=15`;
+  if (marketplace === "EBAY_GB") return `https://www.ebay.co.uk/sch/i.html?_nkw=${q}&_sop=15`;
+  if (marketplace === "EBAY_FR") return `https://www.ebay.fr/sch/i.html?_nkw=${q}&_sop=15`;
+  if (marketplace === "EBAY_ES") return `https://www.ebay.es/sch/i.html?_nkw=${q}&_sop=15`;
+  if (marketplace === "EBAY_IT") return `https://www.ebay.it/sch/i.html?_nkw=${q}&_sop=15`;
+  if (marketplace === "EBAY_NL") return `https://www.ebay.nl/sch/i.html?_nkw=${q}&_sop=15`;
+  return `https://www.ebay.com/sch/i.html?_nkw=${q}&_sop=15`;
 }
 
 // EUR→USD conversion rate (approximate 2025)
@@ -191,22 +205,40 @@ function filterAndEnrich(opps: any[], hasLiveData: boolean): any[] {
 // ── Enrich opportunities with real eBay listing URLs + images ────────────────
 function enrichWithRealListings(
   opps: any[],
-  listings: Array<{ title: string; url: string; imageUrl: string }>
+  listings: Array<{ title: string; url: string; imageUrl: string }>,
+  buyMarketplace = "EBAY_DE"
 ): any[] {
-  if (!listings.length) return opps;
+  // Only use listings that have both a valid URL and an image
+  const validListings = listings.filter(l => l.url.startsWith("https://") && l.imageUrl.startsWith("https://"));
+
   return opps.map(opp => {
-    if (opp.imageUrl) return opp;
-    const words = (opp.name ?? "").toLowerCase().split(/[\s—\-]+/).filter((w: string) => w.length > 4);
-    const matched = listings.find(l => {
+    // Already has a real image — skip enrichment
+    if (opp.imageUrl?.startsWith("https://")) return opp;
+
+    const words = (opp.name ?? "").toLowerCase().split(/[\s—\-,()]+/).filter((w: string) => w.length > 3);
+    const longWords = words.filter((w: string) => w.length > 5);
+
+    // Try strict match first: ≥2 long words
+    let matched = validListings.find(l => {
       const t = l.title.toLowerCase();
-      return words.filter((w: string) => t.includes(w)).length >= 2;
+      return longWords.filter((w: string) => t.includes(w)).length >= 2;
     });
-    if (!matched) return opp;
-    return {
-      ...opp,
-      sourceUrl: matched.url || opp.sourceUrl,
-      imageUrl: matched.imageUrl || "",
-    };
+
+    // Relax to any 1 long word + 1 short word if strict fails
+    if (!matched) {
+      matched = validListings.find(l => {
+        const t = l.title.toLowerCase();
+        const longHits = longWords.filter((w: string) => t.includes(w)).length;
+        const anyHits = words.filter((w: string) => t.includes(w)).length;
+        return longHits >= 1 && anyHits >= 2;
+      });
+    }
+
+    // Ensure sourceUrl is always a valid link — fallback to eBay search if no listing matched
+    const sourceUrl = matched?.url || (opp.sourceUrl?.startsWith("https://") ? opp.sourceUrl : ebaySearchFallbackUrl(opp.name, buyMarketplace));
+    const imageUrl = matched?.imageUrl || opp.imageUrl || "";
+
+    return { ...opp, sourceUrl, imageUrl };
   });
 }
 
@@ -647,12 +679,22 @@ router.post("/scan", async (req: Request, res: Response) => {
       const aiResults = await scanWithAI(aiKey, gapData, realEtsy, locCfg);
       const filtered = filterAndEnrich(aiResults, gapData.some(g => g.gap.gapPct > 0));
       if (filtered.length > 0) {
-        const allEuListings = gapData.flatMap(g =>
-          g.gap.euListings.filter((l: any) => l.url && l.imageUrl)
-        );
-        const enriched = enrichWithRealListings(filtered, allEuListings);
+        const allEuListings = gapData.flatMap(g => g.gap.euListings);
+        const enriched = enrichWithRealListings(filtered, allEuListings, locCfg.buyEbayMarketplace);
+
+        // Final pass: ensure every opportunity has valid buy + sell URLs
+        const withUrls = enriched.map(o => ({
+          ...o,
+          sourceUrl: o.sourceUrl?.startsWith("https://")
+            ? o.sourceUrl
+            : ebaySearchFallbackUrl(o.name, locCfg.buyEbayMarketplace),
+          sellUrl: o.sellUrl?.startsWith("https://")
+            ? o.sellUrl
+            : sellUrlForMarket(o.market ?? "", o.name ?? ""),
+        }));
+
         const hasLive = gapData.some(g => g.gap.confidence === "live");
-        return res.json({ opportunities: enriched, source: hasLive ? "live" : "ai", scannedAt: new Date().toISOString() });
+        return res.json({ opportunities: withUrls, source: hasLive ? "live" : "ai", scannedAt: new Date().toISOString() });
       }
     } catch (err) { console.error("[resell/scan] AI:", err); }
   }
@@ -985,21 +1027,32 @@ router.post("/enrich-opportunity", async (req: Request, res: Response) => {
   const { name, flag, ebayAppId, ebayCertId } = req.body ?? {};
   const appId: string = ebayAppId || process.env.EBAY_APP_ID || "";
   const certId: string = ebayCertId || process.env.EBAY_CERT_ID || "";
-  if (!appId || !certId || !name) return res.json({ imageUrl: "", sourceUrl: "" });
 
   const isEU = typeof flag === "string" &&
     (flag.includes("🇵🇱") || flag.includes("🇩🇪") || flag.includes("🇨🇿") ||
-     flag.includes("🇫🇷") || flag.includes("🇮🇹") || flag.includes("🇳🇱"));
+     flag.includes("🇫🇷") || flag.includes("🇮🇹") || flag.includes("🇳🇱") || flag.includes("🇪🇺"));
   const marketplace = isEU ? "EBAY_DE" : "EBAY_US";
+
+  // Always return at least a valid search URL — never an empty string
+  const fallbackUrl = ebaySearchFallbackUrl(String(name ?? ""), marketplace);
+
+  if (!appId || !certId || !name) return res.json({ imageUrl: "", sourceUrl: fallbackUrl });
 
   try {
     const token = await getEbayToken(appId, certId);
-    if (!token) return res.json({ imageUrl: "", sourceUrl: "" });
+    if (!token) return res.json({ imageUrl: "", sourceUrl: fallbackUrl });
+
     const listings = await ebaySearch(token, String(name), 9999, marketplace, "price");
-    const first = listings.find(l => l.imageUrl && l.url) ?? listings[0];
-    return res.json({ imageUrl: first?.imageUrl ?? "", sourceUrl: first?.url ?? "" });
+    // Prefer a listing with both image and URL; fall back to one with just URL
+    const best = listings.find(l => l.imageUrl.startsWith("https://") && l.url.startsWith("https://"))
+      ?? listings.find(l => l.url.startsWith("https://"));
+
+    return res.json({
+      imageUrl: best?.imageUrl ?? "",
+      sourceUrl: best?.url ?? fallbackUrl,  // always a valid URL
+    });
   } catch {
-    return res.json({ imageUrl: "", sourceUrl: "" });
+    return res.json({ imageUrl: "", sourceUrl: fallbackUrl });
   }
 });
 
