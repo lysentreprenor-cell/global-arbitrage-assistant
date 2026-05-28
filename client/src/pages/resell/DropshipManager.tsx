@@ -115,7 +115,12 @@ export default function DropshipManager() {
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
-  const [fxRates, setFxRates] = useState<Record<string, number>>({ USD: 1, PLN: 4.06, EUR: 0.92, GBP: 0.79, CZK: 23.5, JPY: 149.5, SEK: 10.52, DKK: 6.89 });
+  const [fxRates, setFxRates] = useState<Record<string, number>>({
+    USD: 1, PLN: 4.06, EUR: 0.92, GBP: 0.79, CZK: 23.5, JPY: 149.5,
+    SEK: 10.52, DKK: 6.89, NOK: 10.74, CAD: 1.36, AUD: 1.55,
+    ZAR: 18.5, NGN: 1600, KES: 130, EGP: 50, GHS: 15, MAD: 10,
+    TRY: 32, BRL: 5.1, INR: 83, CNY: 7.24, HKD: 7.82,
+  });
   const [fxSource, setFxSource] = useState("fallback");
   const [buyLocalRaw, setBuyLocalRaw] = useState("");
 
@@ -229,8 +234,13 @@ export default function DropshipManager() {
       if (!res.ok) { setScreenshotError(data.error || "Analysis failed"); return; }
 
       const e = data.extracted ?? {};
-      // Use PLN price if available (most accurate for Polish market), else USD
-      if (e.sourcePricePLN != null) {
+      // Use raw price + detected currency from AI, convert via live rates
+      if (e.sourcePrice != null && e.sourceCurrency) {
+        const cur = String(e.sourceCurrency).toUpperCase();
+        const knownCurrencies = ["PLN","EUR","GBP","USD","CZK","JPY","SEK","DKK","NOK","ZAR","NGN","KES","EGP","GHS","MAD","TRY","BRL","INR","CNY","HKD","CAD","AUD"];
+        const safeCur = knownCurrencies.includes(cur) ? cur : "USD";
+        handleBuyPrice(String(Math.round(e.sourcePrice * 100) / 100), safeCur);
+      } else if (e.sourcePricePLN != null) {
         handleBuyPrice(String(Math.round(e.sourcePricePLN)), "PLN");
       } else if (e.sourcePriceUSD != null) {
         handleBuyPrice(String(Math.round(e.sourcePriceUSD * 100) / 100), "USD");
@@ -536,7 +546,7 @@ export default function DropshipManager() {
                   value={form.sourceCurrency}
                   onChange={e => handleBuyPrice(buyLocalRaw, e.target.value)}
                   style={{ ...inp, width: 74, padding: "10px 6px", appearance: "none", textAlign: "center", flexShrink: 0, cursor: "pointer" }}>
-                  {["PLN","EUR","GBP","USD","CZK","JPY","SEK","DKK"].map(c => <option key={c} value={c}>{c}</option>)}
+                  {["PLN","EUR","GBP","USD","CZK","JPY","SEK","DKK","NOK","ZAR","NGN","KES","EGP","GHS","MAD","TRY","BRL","INR","CNY"].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               {form.sourceCurrency !== "USD" && form.sourcePriceUSD && (

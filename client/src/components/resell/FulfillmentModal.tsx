@@ -30,7 +30,11 @@ type Step = "buy" | "tracking" | "done";
 
 function detectBuyerCountry(address: string): string | null {
   const a = address.toUpperCase();
+  // Americas
   if (/\bUSA\b|\bUNITED STATES\b|\bU\.S\.A\b/.test(a)) return "US";
+  if (/\bCANADA\b/.test(a)) return "CA";
+  if (/\bBRAZIL\b|\bBRASIL\b/.test(a)) return "BR";
+  // Europe
   if (/\bUK\b|\bUNITED KINGDOM\b|\bENGLAND\b|\bSCOTLAND\b|\bWALES\b/.test(a)) return "GB";
   if (/\bGERMANY\b|\bDEUTSCHLAND\b/.test(a)) return "DE";
   if (/\bPOLAND\b|\bPOLSKA\b/.test(a)) return "PL";
@@ -38,10 +42,27 @@ function detectBuyerCountry(address: string): string | null {
   if (/\bITALY\b|\bITALIA\b/.test(a)) return "IT";
   if (/\bSPAIN\b|\bESPA[NÑ]A\b/.test(a)) return "ES";
   if (/\bNETHERLANDS\b|\bHOLLAND\b/.test(a)) return "NL";
-  if (/\bJAPAN\b|\bJAPONIA\b/.test(a)) return "JP";
-  if (/\bCANADA\b/.test(a)) return "CA";
-  if (/\bAUSTRALIA\b/.test(a)) return "AU";
   if (/\bNORWAY\b|\bNORGE\b/.test(a)) return "NO";
+  if (/\bSWEDEN\b|\bSVERIGE\b/.test(a)) return "SE";
+  if (/\bDENMARK\b|\bDANMARK\b/.test(a)) return "DK";
+  // Asia-Pacific
+  if (/\bJAPAN\b|\bJAPONIA\b/.test(a)) return "JP";
+  if (/\bAUSTRALIA\b/.test(a)) return "AU";
+  if (/\bCHINA\b|\bCHINY\b/.test(a)) return "CN";
+  if (/\bINDIA\b|\bINDIE\b/.test(a)) return "IN";
+  // Africa
+  if (/\bNIGERIA\b|\bNIGERII\b/.test(a)) return "NG";
+  if (/\bSOUTH AFRICA\b|\bPOŁUDNIOWA AFRYKA\b|\bRSA\b/.test(a)) return "ZA";
+  if (/\bKENYA\b/.test(a)) return "KE";
+  if (/\bEGYPT\b|\bEGIPT\b|\bMISR\b/.test(a)) return "EG";
+  if (/\bGHANA\b/.test(a)) return "GH";
+  if (/\bMOROCCO\b|\bMAROKO\b|\bMAROC\b/.test(a)) return "MA";
+  if (/\bTANZANIA\b/.test(a)) return "TZ";
+  if (/\bUGANDA\b/.test(a)) return "UG";
+  if (/\bETHIOPIA\b/.test(a)) return "ET";
+  if (/\bSENEGAL\b/.test(a)) return "SN";
+  if (/\bCOTE D.IVOIRE\b|\bIVORY COAST\b/.test(a)) return "CI";
+  if (/\bCAMEROON\b|\bKAMERUN\b/.test(a)) return "CM";
   // Postal code patterns
   if (/\b[A-Z]{1,2}\d{1,2}[A-Z]?\s\d[A-Z]{2}\b/.test(a)) return "GB";
   if (/\b\d{2}-\d{3}\b/.test(a)) return "PL";
@@ -50,6 +71,7 @@ function detectBuyerCountry(address: string): string | null {
 
 function detectSourceCountry(url = "", market = ""): string | null {
   const u = url.toLowerCase(), m = market.toLowerCase();
+  // Europe
   if (u.includes("allegro.pl") || u.includes("olx.pl")) return "PL";
   if (u.includes("kleinanzeigen.de") || u.includes("ebay.de")) return "DE";
   if (u.includes("ebay.fr") || u.includes("leboncoin.fr")) return "FR";
@@ -57,8 +79,27 @@ function detectSourceCountry(url = "", market = ""): string | null {
   if (u.includes("marktplaats.nl") || u.includes("ebay.nl")) return "NL";
   if (u.includes("wallapop") || u.includes("ebay.es")) return "ES";
   if (u.includes("subito.it") || u.includes("ebay.it")) return "IT";
+  if (u.includes("avito.ru")) return "RU";
+  // Asia-Pacific
   if (u.includes("yahoo.co.jp") || u.includes(".co.jp")) return "JP";
-  if (u.includes("ebay.com") || u.includes("craigslist")) return "US";
+  if (u.includes("taobao") || u.includes("1688.com") || u.includes("alibaba")) return "CN";
+  // Americas
+  if (u.includes("ebay.com") || u.includes("craigslist") || u.includes("amazon.com")) return "US";
+  // Africa
+  if (u.includes("jiji.ng") || u.includes("konga.com") || u.includes("olx.com.ng")) return "NG";
+  if (u.includes("jiji.com.gh") || u.includes("olx.com.gh") || u.includes("tonaton.com")) return "GH";
+  if (u.includes("jiji.co.ke") || u.includes("olx.co.ke") || u.includes("pigiame.co.ke")) return "KE";
+  if (u.includes("opensooq.com") || u.includes("olx.com.eg") || u.includes("dubizzle.com.eg")) return "EG";
+  if (u.includes("takealot.com") || u.includes("olx.co.za") || u.includes("gumtree.co.za")) return "ZA";
+  if (u.includes("avito.ma") || u.includes("marocannonces") || u.includes("jumia.ma")) return "MA";
+  if (u.includes("jumia.")) return "NG"; // jumia operates across Africa, default Nigeria
+  // market string fallbacks
+  if (m.includes("ng") || m.includes("nigeria")) return "NG";
+  if (m.includes("za") || m.includes("south africa")) return "ZA";
+  if (m.includes("ke") || m.includes("kenya")) return "KE";
+  if (m.includes("eg") || m.includes("egypt")) return "EG";
+  if (m.includes("gh") || m.includes("ghana")) return "GH";
+  if (m.includes("ma") || m.includes("morocco")) return "MA";
   if (m.includes("pl")) return "PL";
   if (m.includes("de")) return "DE";
   if (m.includes("gb") || m.includes("uk")) return "GB";
@@ -69,12 +110,26 @@ function detectSourceCountry(url = "", market = ""): string | null {
 }
 
 const EU = ["PL","DE","FR","IT","ES","NL","CZ","AT","BE","SE","DK","FI","PT","HU","RO"];
+const AFRICA = ["NG","ZA","KE","EG","GH","MA","TZ","UG","ET","SN","CI","CM"];
 
 function estimateShipping(src: string | null, dst: string | null, category = ""): { cost: number; days: string } {
-  if (!src || !dst) return { cost: 22, days: "7–21" };
+  if (!src || !dst) return { cost: 25, days: "7–21" };
   if (src === dst) return { cost: 5, days: "2–4" };
   const heavy = ["Electronics","Antiques","Spirits"].includes(category);
   const base = heavy ? 15 : 0;
+  const srcAf = AFRICA.includes(src), dstAf = AFRICA.includes(dst);
+  // Within Africa cross-border
+  if (srcAf && dstAf) return { cost: 20 + base, days: "7–14" };
+  // EU → Africa (DHL/FedEx)
+  if (EU.includes(src) && dstAf) return { cost: 45 + base, days: "7–14" };
+  // US/CA → Africa
+  if ((src === "US" || src === "CA") && dstAf) return { cost: 55 + base, days: "10–18" };
+  // Africa → EU
+  if (srcAf && EU.includes(dst)) return { cost: 40 + base, days: "10–21" };
+  // Africa → US/CA
+  if (srcAf && (dst === "US" || dst === "CA")) return { cost: 50 + base, days: "12–21" };
+  // Africa → anywhere else
+  if (srcAf || dstAf) return { cost: 45 + base, days: "14–30" };
   // EU → US / CA
   if (EU.includes(src) && (dst === "US" || dst === "CA")) return { cost: 28 + base, days: "7–14" };
   // EU → GB
@@ -89,40 +144,71 @@ function estimateShipping(src: string | null, dst: string | null, category = "")
   if (src === "US" && (EU.includes(dst) || dst === "GB")) return { cost: 30 + base, days: "7–14" };
   // JP → anywhere
   if (src === "JP") return { cost: dst === "US" ? 22 : 30, days: "5–12" };
-  return { cost: 25 + base, days: "10–21" };
+  return { cost: 28 + base, days: "10–21" };
 }
+
+const AFRICA_NAMES: Record<string,string> = { NG:"Nigeria",ZA:"RPA",KE:"Kenia",EG:"Egipt",GH:"Ghana",MA:"Maroko",TZ:"Tanzania",UG:"Uganda" };
 
 function getShippingWarning(src: string | null, dst: string | null, url = ""): { level: "warn" | "ok" | "check"; text: string } | null {
   if (!src || !dst) return null;
-  // Same country — no issue
   if (src === dst) return { level: "ok", text: "Wysyłka krajowa — bez problemu." };
-  // Allegro: many sellers domestic only
-  if (url.includes("allegro.pl") || url.includes("olx.pl")) {
-    return { level: "warn", text: `Uwaga: większość sprzedawców na Allegro wysyła TYLKO w Polsce. Przed zakupem sprawdź opcje wysyłki i zapytaj sprzedawcę o wysyłkę do ${dst}.` };
+
+  const dstName = AFRICA_NAMES[dst] ?? dst;
+  const srcAf = AFRICA.includes(src), dstAf = AFRICA.includes(dst);
+
+  // African local classifieds — mostly pickup only
+  if (url.includes("jiji.") || url.includes("olx.com.ng") || url.includes("olx.co.ke") || url.includes("olx.com.gh") || url.includes("pigiame") || url.includes("tonaton")) {
+    return { level: "warn", text: `Uwaga: Jiji/OLX w Afryce to głównie sprzedaż lokalna — odbiór osobisty. Bardzo rzadko sprzedawcy wysyłają paczki, a wysyłka zagraniczna jest wyjątkiem.` };
   }
-  // Kleinanzeigen: mostly local pickup
+  // Jumia — ships within country only
+  if (url.includes("jumia.")) {
+    return { level: "warn", text: `Uwaga: Jumia wysyła TYLKO w obrębie jednego kraju. Nie obsługuje wysyłki zagranicznej — musisz zamówić przez lokalnego spedytora.` };
+  }
+  // Konga — Nigeria only
+  if (url.includes("konga.com")) {
+    return { level: "warn", text: "Uwaga: Konga.com działa wyłącznie w Nigerii i nie oferuje wysyłki zagranicznej." };
+  }
+  // Takealot — South Africa only
+  if (url.includes("takealot.com")) {
+    return { level: "warn", text: "Uwaga: Takealot wysyła tylko na terenie RPA. Brak opcji wysyłki zagranicznej." };
+  }
+  // Africa to Africa cross-border
+  if (srcAf && dstAf) {
+    return { level: "check", text: `Wysyłka wewnątrz Afryki (${src}→${dst}): użyj DHL lub FedEx — poczta lokalna jest bardzo zawodna. Cło i odprawy celne mogą znacznie opóźnić przesyłkę.` };
+  }
+  // EU/US → Africa
+  if (!srcAf && dstAf) {
+    return { level: "check", text: `Wysyłka do ${dstName}: użyj DHL/FedEx (~7–14 dni). Uwaga: cła importowe w Afryce mogą być wysokie (np. Nigeria 20–75%). Wlicz je do kalkulacji zysku.` };
+  }
+  // Africa → EU/US (sourcing from Africa)
+  if (srcAf && !dstAf) {
+    return { level: "check", text: `Zakup z Afryki (${src}→${dst}): większość lokalnych sprzedawców nie wysyła zagranicznie. Rozważ usługę spedytora lub sprawdź czy platforma oferuje shipping worldwide.` };
+  }
+  // European local classifieds
+  if (url.includes("allegro.pl") || url.includes("olx.pl")) {
+    return { level: "warn", text: `Uwaga: większość sprzedawców na Allegro wysyła TYLKO w Polsce. Sprawdź opcje wysyłki i zapytaj sprzedawcę o wysyłkę do ${dstName}.` };
+  }
   if (url.includes("kleinanzeigen.de")) {
     return { level: "warn", text: "Uwaga: Kleinanzeigen.de to głównie sprzedaż lokalna (odbiór osobisty). Wielu sprzedawców nie wysyła paczek — sprawdź ogłoszenie dokładnie." };
   }
-  // Vinted: domestic only
   if (url.includes("vinted.")) {
     return { level: "warn", text: "Uwaga: Vinted zazwyczaj obsługuje tylko wysyłkę krajową. Upewnij się że sprzedawca wysyła za granicę." };
   }
-  // Facebook Marketplace
   if (url.includes("facebook.com") || url.includes("fb.com")) {
     return { level: "warn", text: "Uwaga: Facebook Marketplace to głównie sprzedaż lokalna. Wysyłka zależy wyłącznie od sprzedawcy." };
   }
-  // eBay — generally ships internationally
   if (url.includes("ebay.")) {
-    return { level: "check", text: `Sprawdź na stronie oferty czy sprzedawca wysyła do ${dst} (opcja 'International shipping').` };
+    return { level: "check", text: `Sprawdź na stronie oferty czy sprzedawca wysyła do ${dstName} (opcja 'International shipping').` };
   }
-  // Generic international warning
   return { level: "check", text: `Przesyłka ${src}→${dst}: upewnij się że sprzedawca oferuje wysyłkę zagraniczną przed dokonaniem zakupu.` };
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
   US:"USA", GB:"UK", DE:"Niemcy", PL:"Polska", FR:"Francja", IT:"Włochy",
   ES:"Hiszpania", NL:"Holandia", JP:"Japonia", CA:"Kanada", AU:"Australia", NO:"Norwegia",
+  SE:"Szwecja", DK:"Dania", CN:"Chiny", IN:"Indie", BR:"Brazylia",
+  NG:"Nigeria", ZA:"RPA", KE:"Kenia", EG:"Egipt", GH:"Ghana",
+  MA:"Maroko", TZ:"Tanzania", UG:"Uganda", ET:"Etiopia", SN:"Senegal",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

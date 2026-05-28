@@ -151,15 +151,29 @@ router.post("/analyze-screenshot", async (req: Request, res: Response) => {
 Return ONLY a valid JSON object (no markdown, no explanation) with these fields:
 {
   "productName": "full product name or title shown",
-  "sourcePriceUSD": number or null (price converted to USD; if PLN divide by 4, if EUR multiply by 1.08, if GBP multiply by 1.27),
-  "sourcePricePLN": number or null (price in PLN if shown, else null),
+  "sourcePrice": number or null (the raw price exactly as shown — do NOT convert),
+  "sourceCurrency": "ISO 4217 currency code of the price shown (e.g. PLN, EUR, GBP, USD, ZAR, NGN, KES, EGP, GHS, MAD, JPY, CZK, SEK, DKK, TRY, BRL, INR, CNY, HKD, etc.) — detect from currency symbol or marketplace country",
   "category": one of ["Clothing","Jewelry","Electronics","Collectibles","Sneakers","Spirits","Antiques","Watches","General"],
   "description": "key product details, condition, specs visible in screenshot",
   "sourceUrl": "URL if visible in screenshot, else null",
-  "platform": one of ["Allegro","eBay","OLX","Vinted","Amazon","Etsy","Kleinanzeigen","Leboncoin","Other"],
-  "buyHint": "short note about source or deal quality",
+  "platform": one of ["Allegro","eBay","OLX","Vinted","Amazon","Etsy","Kleinanzeigen","Leboncoin","Jiji","Jumia","Konga","Takealot","OLX Africa","Maroc Annonces","Avito","Other"],
+  "buyHint": "short note about source, deal quality, or marketplace country",
   "condition": "New" or "Used" or "Refurbished" or "Unknown"
-}` },
+}
+Currency detection rules:
+- zł or PLN → PLN
+- € → EUR
+- £ → GBP
+- $ (on US site) → USD
+- R or ZAR (South Africa) → ZAR
+- ₦ or NGN → NGN
+- KSh or KES → KES
+- E£ or LE or EGP → EGP
+- GH₵ or GHS → GHS
+- MAD or DH → MAD
+- ¥ (Japan) → JPY
+- Kč → CZK
+- kr (Sweden/Denmark/Norway) → SEK/DKK/NOK based on site` },
           ]
         }]
       })

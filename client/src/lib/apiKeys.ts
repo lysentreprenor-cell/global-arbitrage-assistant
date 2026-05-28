@@ -39,16 +39,22 @@ export type UserLocation = {
 };
 
 export const SUPPORTED_LOCATIONS: UserLocation[] = [
-  { country: "PL", label: "Poland",       currency: "PLN", flag: "🇵🇱" },
-  { country: "DE", label: "Germany",      currency: "EUR", flag: "🇩🇪" },
-  { country: "FR", label: "France",       currency: "EUR", flag: "🇫🇷" },
-  { country: "CZ", label: "Czech Rep.",   currency: "CZK", flag: "🇨🇿" },
-  { country: "GB", label: "UK",           currency: "GBP", flag: "🇬🇧" },
-  { country: "ES", label: "Spain",        currency: "EUR", flag: "🇪🇸" },
-  { country: "IT", label: "Italy",        currency: "EUR", flag: "🇮🇹" },
-  { country: "NL", label: "Netherlands",  currency: "EUR", flag: "🇳🇱" },
-  { country: "JP", label: "Japan",        currency: "JPY", flag: "🇯🇵" },
-  { country: "US", label: "USA",          currency: "USD", flag: "🇺🇸" },
+  { country: "PL", label: "Poland",        currency: "PLN", flag: "🇵🇱" },
+  { country: "DE", label: "Germany",       currency: "EUR", flag: "🇩🇪" },
+  { country: "FR", label: "France",        currency: "EUR", flag: "🇫🇷" },
+  { country: "CZ", label: "Czech Rep.",    currency: "CZK", flag: "🇨🇿" },
+  { country: "GB", label: "UK",            currency: "GBP", flag: "🇬🇧" },
+  { country: "ES", label: "Spain",         currency: "EUR", flag: "🇪🇸" },
+  { country: "IT", label: "Italy",         currency: "EUR", flag: "🇮🇹" },
+  { country: "NL", label: "Netherlands",   currency: "EUR", flag: "🇳🇱" },
+  { country: "JP", label: "Japan",         currency: "JPY", flag: "🇯🇵" },
+  { country: "US", label: "USA",           currency: "USD", flag: "🇺🇸" },
+  { country: "NG", label: "Nigeria",       currency: "NGN", flag: "🇳🇬" },
+  { country: "ZA", label: "South Africa",  currency: "ZAR", flag: "🇿🇦" },
+  { country: "KE", label: "Kenya",         currency: "KES", flag: "🇰🇪" },
+  { country: "EG", label: "Egypt",         currency: "EGP", flag: "🇪🇬" },
+  { country: "GH", label: "Ghana",         currency: "GHS", flag: "🇬🇭" },
+  { country: "MA", label: "Morocco",       currency: "MAD", flag: "🇲🇦" },
 ];
 
 export function getUserLocation(): UserLocation {
