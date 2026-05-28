@@ -150,12 +150,11 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opportunities]);
 
-  // Auto-scan on mount if data is stale
+  // Auto-scan on mount ONLY if there are no real results saved yet
   useEffect(() => {
-    const lastTs = parseInt(localStorage.getItem(SCAN_TS_KEY) ?? "0", 10);
-    const stale = Date.now() - lastTs > AUTOSCAN_THRESHOLD_MS;
     const hasKeys = !!getAnthropicKey();
-    if (stale && hasKeys) {
+    const hasRealData = localStorage.getItem(SCAN_REAL_KEY) === "1";
+    if (!hasRealData && hasKeys) {
       triggerScan();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
