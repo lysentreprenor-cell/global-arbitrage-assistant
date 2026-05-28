@@ -26,16 +26,6 @@ type Opportunity = {
   daysToSell?: number;
 };
 
-const INITIAL_OPPORTUNITIES: Opportunity[] = [
-  { id: 1,  name: "Levi's 501 W32 — vintage EU-made wash", buy: 28, sell: 88, profit: 60, netProfit: 46, margin: 65, market: "eBay USA", category: "Clothing", score: 93, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", daysToSell: 5, tip: "EU-made 501s sell 2-3× faster — US buyers pay huge premium for 'Made in France/Belgium' tag", sourceUrl: "https://allegro.pl/listing?string=levis+501+vintage+w32", buyHint: "Allegro PL / OLX — search W30-W34 Made in EU, check 'Made in France' label", sellHint: "Levi's 501 Vintage Wash W32 L32 Made in Europe Original 90s" },
-  { id: 2,  name: "Baltic Amber Pendant — raw natural inclusion", buy: 45, sell: 265, profit: 220, netProfit: 192, margin: 83, market: "Etsy USA", category: "Jewelry", score: 97, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", daysToSell: 10, tip: "Raw Baltic amber with inclusions: PLN 150-200 in Poland, $200-350 on Etsy — zero Asian competition", sourceUrl: "https://allegro.pl/listing?string=bursztyn+baltycki+wisiorek", buyHint: "Allegro PL or Baltic coast markets — look for insect/plant inclusions, sterling silver setting", sellHint: "Baltic Amber Pendant Raw Natural Inclusion Sterling Silver Genuine Certified" },
-  { id: 3,  name: "Leica M3 Camera — double-stroke, working", buy: 380, sell: 920, profit: 540, netProfit: 421, margin: 59, market: "eBay USA", category: "Electronics", score: 89, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", daysToSell: 21, tip: "Kleinanzeigen.de 40% below US eBay — German sellers don't know US collector demand", sourceUrl: "https://www.kleinanzeigen.de/s-leica-m3/k0", buyHint: "Kleinanzeigen.de Bavaria/Germany — search 'Leica M3 verkaufen', test shutter", sellHint: "Leica M3 Double Stroke 1956 Camera Body Working Tested CLA Ready" },
-  { id: 4,  name: "Vintage Omega Seamaster 1960s automatic", buy: 220, sell: 680, profit: 460, netProfit: 371, margin: 68, market: "eBay USA", category: "Watches", score: 94, risk: "medium", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", daysToSell: 18, tip: "Polish flea markets 30% below European average — US demand very high, Cal.285 fetch $550+", sourceUrl: "https://allegro.pl/listing?string=omega+seamaster+vintage", buyHint: "Sunday flea markets Warsaw/Kraków — ask dealers for vintage watches, test movement", sellHint: "Omega Seamaster Vintage 1960s Automatic Cal.285 Original Dial Working Serviced" },
-  { id: 5,  name: "Zorki-4 Soviet Rangefinder — 1960s working", buy: 22, sell: 74, profit: 52, netProfit: 40, margin: 70, market: "Etsy USA", category: "Collectibles", score: 85, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", daysToSell: 8, tip: "Soviet film cameras: massive cult following on Etsy — consistently $65-90 working with Industar lens", sourceUrl: "https://allegro.pl/listing?string=aparat+zorki+4+dzialajacy", buyHint: "Allegro PL / OLX — filter 'sprawny' (working), 60-80 PLN budget, test shutter", sellHint: "Zorki 4 Soviet Rangefinder Camera Working 1960s 35mm Film Photography" },
-  { id: 6,  name: "Adidas Samba OG — EU exclusive colorway", buy: 70, sell: 155, profit: 85, netProfit: 61, margin: 55, market: "StockX USA", category: "Sneakers", score: 84, risk: "low", demandLevel: "high", trend: "up", flag: "🇵🇱→🇺🇸", daysToSell: 6, tip: "EU-exclusive Samba colorways unavailable in US — StockX premium 2x retail, sizes 41-44 best", sourceUrl: "https://allegro.pl/listing?string=adidas+samba+og", buyHint: "Allegro PL or Footshop.eu — EU-exclusive drops, sizes 41-44, check for EU-only colourways", sellHint: "Adidas Samba OG EU Exclusive Colorway Size US 9.5 Deadstock" },
-  { id: 7,  name: "Meissen Porcelain Figure — 1950s crossed swords", buy: 75, sell: 320, profit: 245, netProfit: 202, margin: 77, market: "Etsy USA", category: "Antiques", score: 91, risk: "medium", demandLevel: "medium", trend: "up", flag: "🇩🇪→🇺🇸", daysToSell: 30, tip: "East German porcelain massively undervalued at local auctions vs US collector market", sourceUrl: "https://www.kleinanzeigen.de/s-meissen-figur/k0", buyHint: "eBay.de / Dresdner Auktionshaus — search 'Meissen Figur', verify crossed swords mark", sellHint: "Meissen Porcelain Figurine 1950s Handpainted Vintage Crossed Swords Mark" },
-  { id: 8,  name: "Vintage Tissot T12 — Swiss automatic 1970s", buy: 85, sell: 285, profit: 200, netProfit: 161, margin: 70, market: "eBay USA", category: "Watches", score: 92, risk: "low", demandLevel: "high", trend: "up", flag: "🇩🇪→🇺🇸", daysToSell: 16, tip: "Tissot T12 crosshair dial: cult item in US — €60-90 on Kleinanzeigen, $220-320 US eBay", sourceUrl: "https://www.kleinanzeigen.de/s-tissot-vintage/k0", buyHint: "Kleinanzeigen.de Germany — search 'Tissot T12 Automatik', look for crosshair/spider dial", sellHint: "Tissot T12 Vintage Swiss Automatic 1970s Crosshair Dial Working Cal.2481" },
-];
 
 const PROFIT_TREND = [
   { day: "Mon", profit: 120 }, { day: "Tue", profit: 340 }, { day: "Wed", profit: 210 },
@@ -96,7 +86,7 @@ export default function Dashboard() {
   const [scanStep, setScanStep] = useState("");
   const [opportunities, setOpportunities] = useState<Opportunity[]>(() => {
     const cached = loadCachedOpportunities();
-    return cached ? cached.opps : INITIAL_OPPORTUNITIES;
+    return cached ? cached.opps : [];
   });
   const [isRealData, setIsRealData] = useState<boolean>(() => {
     const cached = loadCachedOpportunities();
@@ -124,8 +114,12 @@ export default function Dashboard() {
     });
 
   const totalProfit = opportunities.reduce((s, o) => s + (o.netProfit ?? o.profit), 0);
-  const avgMargin = Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length);
-  const topDeal = opportunities.reduce((a, b) => (a.netProfit ?? a.profit) > (b.netProfit ?? b.profit) ? a : b);
+  const avgMargin = opportunities.length
+    ? Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length)
+    : 0;
+  const topDeal = opportunities.length
+    ? opportunities.reduce((a, b) => (a.netProfit ?? a.profit) > (b.netProfit ?? b.profit) ? a : b)
+    : null;
 
   // Lazy-load images + direct URLs for opportunities missing imageUrl
   useEffect(() => {
@@ -286,16 +280,16 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Example data banner ── */}
-        {!isRealData && !scanning && (
-          <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10 }}>
-            <AlertCircle size={14} color="#f5c842" style={{ flexShrink: 0 }} />
-            <span style={{ color: "#fde68a", fontSize: 12, flex: 1 }}>
-              Wyświetlane są <strong>przykładowe oferty</strong> — dodaj klucze API w Ustawieniach i naciśnij „Rescan now", żeby zobaczyć prawdziwe aktualne okazje. Prawdziwe wyniki będą zapisane na stałe.
+        {/* ── No data banner ── */}
+        {opportunities.length === 0 && !scanning && (
+          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10, padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12 }}>
+            <Zap size={16} color="#a78bfa" style={{ flexShrink: 0 }} />
+            <span style={{ color: "#c4b5fd", fontSize: 13, flex: 1 }}>
+              Brak zapisanych ofert — naciśnij <strong>Rescan now</strong> żeby znaleźć okazje arbitrażowe.
             </span>
             <button
               onClick={triggerScan}
-              style={{ background: "rgba(245,200,66,0.15)", border: "1px solid rgba(245,200,66,0.3)", borderRadius: 7, padding: "5px 12px", cursor: "pointer", color: "#fde68a", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+              style={{ background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 7, padding: "7px 14px", cursor: "pointer", color: "#a78bfa", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
             >
               Skanuj teraz
             </button>
@@ -307,7 +301,7 @@ export default function Dashboard() {
           {[
             { label: "OPPORTUNITIES", value: String(opportunities.length * 100 + 47), sub: `+${opportunities.length} found`, icon: <Zap size={15} color="#f5c842" />, color: "#f5c842" },
             { label: "AVG PROFIT MARGIN", value: `${avgMargin}%`, sub: "across categories", icon: <TrendingUp size={15} color="#4ade80" />, color: "#4ade80" },
-            { label: "BEST NET PROFIT", value: `$${topDeal.netProfit ?? topDeal.profit}`, sub: topDeal.name.split(" ").slice(0, 2).join(" "), icon: <Star size={15} color="#a78bfa" />, color: "#a78bfa" },
+            { label: "BEST NET PROFIT", value: topDeal ? `$${topDeal.netProfit ?? topDeal.profit}` : "—", sub: topDeal ? topDeal.name.split(" ").slice(0, 2).join(" ") : "no data yet", icon: <Star size={15} color="#a78bfa" />, color: "#a78bfa" },
             { label: "MARKETS ACTIVE", value: "4", sub: "eBay · Etsy · Amazon", icon: <Globe size={15} color="#60a5fa" />, color: "#60a5fa" },
           ].map(s => (
             <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px" }}>
