@@ -15,13 +15,22 @@ type ApiEntry = {
   status?: "active" | "error" | "untested";
 };
 
+type ApiEntry = {
+  id: string; name: string; logo: string; color: string;
+  description: string; docsUrl: string; keyLabel: string;
+  secretLabel?: string; required?: boolean;
+  fields: { key: string; label: string; placeholder: string }[];
+  status?: "active" | "error" | "untested";
+};
+
 const PLATFORM_APIS: ApiEntry[] = [
   {
     id: "anthropic",
     name: "Anthropic AI",
     logo: "🤖",
     color: "#a78bfa",
-    description: "Wymagane do AI skanowania, porównań i generowania opisów ogłoszeń",
+    required: true,
+    description: "⭐ JEDYNY WYMAGANY KLUCZ — bez niego nic nie działa. Darmowe konto: console.anthropic.com",
     docsUrl: "https://console.anthropic.com/settings/keys",
     keyLabel: "API Key",
     fields: [{ key: "apiKey", label: "ANTHROPIC_API_KEY", placeholder: "sk-ant-..." }],
@@ -31,7 +40,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "eBay",
     logo: "🛒",
     color: "#f5c842",
-    description: "Prawdziwe ceny sprzedaży, aktywne aukcje, historia transakcji",
+    description: "Opcjonalne — żywe ceny z eBay, dokładniejsze wyniki skanowania",
     docsUrl: "https://developer.ebay.com/my/keys",
     keyLabel: "App ID",
     fields: [
@@ -44,7 +53,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "Etsy",
     logo: "🧶",
     color: "#f97316",
-    description: "Ceny na Etsy, popularne listingi, trendy kategorii",
+    description: "Opcjonalne — żywe ceny z Etsy, popularne listingi",
     docsUrl: "https://www.etsy.com/developers/your-apps",
     keyLabel: "API Key",
     fields: [{ key: "apiKey", label: "Keystring (API Key)", placeholder: "xxxxxxxxxxxxxxxxxxxx" }],
@@ -54,7 +63,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "Amazon (PA API)",
     logo: "📦",
     color: "#34d399",
-    description: "Ceny Amazon, bestsellery, ASIN lookup",
+    description: "Opcjonalne — ceny Amazon, bestsellery",
     docsUrl: "https://affiliate-program.amazon.com/assoc_credentials/home",
     keyLabel: "Access Key",
     fields: [
@@ -68,7 +77,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "Allegro",
     logo: "🇵🇱",
     color: "#f87171",
-    description: "Ceny na Allegro, aktualne oferty, kategorie PL",
+    description: "Opcjonalne — ceny na Allegro, oferty z Polski",
     docsUrl: "https://apps.developer.allegro.pl/",
     keyLabel: "Client ID",
     fields: [
@@ -81,7 +90,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "AliExpress",
     logo: "🇨🇳",
     color: "#f59e0b",
-    description: "Ceny hurtowe z Chin, dostępność, koszty wysyłki",
+    description: "Opcjonalne — ceny hurtowe z Chin",
     docsUrl: "https://portals.aliexpress.com",
     keyLabel: "App Key",
     fields: [
@@ -94,7 +103,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "RapidAPI Hub",
     logo: "⚡",
     color: "#60a5fa",
-    description: "Dostęp do setek API: Jumia, Shopee, Mercado Libre i innych",
+    description: "Opcjonalne — dostęp do Jumia, Shopee, Mercado Libre i innych",
     docsUrl: "https://rapidapi.com/developer/dashboard",
     keyLabel: "API Key",
     fields: [{ key: "apiKey", label: "X-RapidAPI-Key", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }],
@@ -104,7 +113,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "Własne API",
     logo: "🔧",
     color: "#94a3b8",
-    description: "Dodaj dowolne API — podaj nazwę, URL i klucz",
+    description: "Opcjonalne — dodaj dowolne API",
     docsUrl: "",
     keyLabel: "API Key",
     fields: [
@@ -198,12 +207,19 @@ export default function Settings() {
         </div>
 
         {/* Status bar */}
-        <div style={{ background: activeCount > 0 ? "rgba(74,222,128,0.08)" : "rgba(245,200,66,0.08)", border: `1px solid ${activeCount > 0 ? "rgba(74,222,128,0.2)" : "rgba(245,200,66,0.2)"}`, borderRadius: 12, padding: "12px 16px", marginBottom: 28, display: "flex", alignItems: "center", gap: 10 }}>
-          {activeCount > 0 ? <CheckCircle size={15} color="#4ade80" /> : <AlertCircle size={15} color="#f5c842" />}
-          <span style={{ color: activeCount > 0 ? "#86efac" : "#fde68a", fontSize: 13 }}>
-            {activeCount > 0
-              ? `${activeCount} platform${activeCount === 1 ? "a" : "y"} podłączone — app używa prawdziwych danych`
-              : "Brak kluczy API — app używa danych AI (mniej dokładne)"}
+        <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <AlertCircle size={15} color="#a78bfa" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <span style={{ color: "#c4b5fd", fontWeight: 700 }}>Potrzebujesz tylko 1 klucza</span>
+            <span style={{ color: "rgba(255,255,255,0.5)" }}> — klucz <strong style={{ color: "#a78bfa" }}>Anthropic AI</strong> wystarczy żeby aplikacja działała w pełni. Reszta jest opcjonalna i dodaje dokładniejsze dane na żywo z poszczególnych platform.</span>
+          </div>
+        </div>
+        <div style={{ background: hasKeys("anthropic") ? "rgba(74,222,128,0.08)" : "rgba(245,200,66,0.08)", border: `1px solid ${hasKeys("anthropic") ? "rgba(74,222,128,0.2)" : "rgba(245,200,66,0.2)"}`, borderRadius: 12, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
+          {hasKeys("anthropic") ? <CheckCircle size={15} color="#4ade80" /> : <AlertCircle size={15} color="#f5c842" />}
+          <span style={{ color: hasKeys("anthropic") ? "#86efac" : "#fde68a", fontSize: 13 }}>
+            {hasKeys("anthropic")
+              ? `✓ Klucz Anthropic ustawiony — aplikacja działa. ${activeCount > 1 ? `+ ${activeCount - 1} dodatkowe platformy.` : ""}`
+              : "⚠ Brak klucza Anthropic — dodaj go poniżej żeby aplikacja zaczęła działać"}
           </span>
         </div>
 
@@ -227,6 +243,12 @@ export default function Settings() {
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{platform.name}</span>
+                        {platform.required && !hasKey && (
+                          <span style={{ background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 99, padding: "1px 8px", color: "#f87171", fontSize: 10, fontWeight: 700 }}>WYMAGANE</span>
+                        )}
+                        {!platform.required && (
+                          <span style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 99, padding: "1px 8px", color: "rgba(255,255,255,0.3)", fontSize: 10 }}>opcjonalne</span>
+                        )}
                         {hasKey && (
                           result === "ok"
                             ? <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 99, padding: "1px 8px", color: "#4ade80", fontSize: 10, fontWeight: 700 }}>✓ Aktywne</span>
