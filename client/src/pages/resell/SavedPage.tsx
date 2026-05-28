@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Bookmark, Trash2, ExternalLink, ChevronDown, ChevronRight,
@@ -27,6 +27,17 @@ export default function SavedPage() {
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [filterStatus, setFilterStatus] = useState<PipelineStatus | "all">("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+
+  useEffect(() => {
+    const reload = () => setItems(loadPipeline());
+    window.addEventListener("focus", reload);
+    window.addEventListener("storage", reload);
+    return () => {
+      window.removeEventListener("focus", reload);
+      window.removeEventListener("storage", reload);
+    };
+  }, []);
 
   const key = (i: PipelineItem) => `${i.id}:${i.name}`;
 
@@ -41,7 +52,11 @@ export default function SavedPage() {
   const toggleExpand = (k: string) =>
     setExpanded(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
 
-  const filtered = filterStatus === "all" ? items : items.filter(i => i.status === filterStatus);
+  const categories = ["all", ...Array.from(new Set(items.map(i => i.category).filter(Boolean)))];
+
+  const filtered = items
+    .filter(i => filterStatus === "all" || i.status === filterStatus)
+    .filter(i => filterCategory === "all" || i.category === filterCategory);
 
   const counts = STATUS_ORDER.reduce((acc, s) => ({ ...acc, [s]: items.filter(i => i.status === s).length }), {} as Record<PipelineStatus, number>);
   const totalEarned = items.filter(i => i.status === "sold").reduce((s, i) => s + (i.soldPrice ?? i.sell), 0);
@@ -85,6 +100,20 @@ export default function SavedPage() {
             );
           })}
         </div>
+
+        {/* Category filter */}
+        {categories.length > 2 && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                style={{ padding: "4px 11px", borderRadius: 99, border: `1px solid ${filterCategory === cat ? "rgba(245,200,66,0.4)" : "rgba(255,255,255,0.08)"}`, background: filterCategory === cat ? "rgba(245,200,66,0.1)" : "transparent", color: filterCategory === cat ? "#f5c842" : "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                {cat === "all" ? "Wszystkie kategorie" : cat}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Empty state */}
         {items.length === 0 && (
@@ -137,6 +166,17 @@ export default function SavedPage() {
                 {isOpen && (
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
 
+                    {/* Copy name button */}
+                    <div>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(item.name).catch(() => {})}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 7, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 600, cursor: "pointer" }}
+                        title="Kopiuj nazwę"
+                      >
+                        📋 Kopiuj nazwę
+                      </button>
+                    </div>
+
                     {/* Buy/sell prices */}
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 8, padding: "6px 12px" }}>
@@ -166,7 +206,7 @@ export default function SavedPage() {
                     {/* Platforms to list on */}
                     <div>
                       <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, marginBottom: 6, letterSpacing: 0.5 }}>WYSTAW NA PLATFORMACH:</div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         {platforms.map(platform => {
                           const done = item.listedOn.includes(platform);
                           const url = item.sellUrls?.[platform] || item.sellUrl || "";
@@ -192,6 +232,17 @@ export default function SavedPage() {
                             </div>
                           );
                         })}
+                        {item.listedOn.length < platforms.length && (
+                          <button
+                            onClick={() => update(item.id, item.name, {
+                              listedOn: platforms,
+                              status: "listed",
+                            })}
+                            style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.1)", color: "#a78bfa", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            ✓ Wszystkie
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -256,9 +307,25 @@ export default function SavedPage() {
                         <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Cena sprzedaży:</span>
                         <input
                           type="number"
+                          min="0"
                           value={item.soldPrice ?? item.sell}
-                          onChange={e => update(item.id, item.name, { soldPrice: parseFloat(e.target.value) || item.sell })}
+                          onChange={e => update(item.id, item.name, { soldPrice: Math.max(0, parseFloat(e.target.value) || item.sell) })}
                           style={{ width: 80, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 7, padding: "4px 8px", color: "#4ade80", fontSize: 13, fontWeight: 700, outline: "none", textAlign: "center" }}
+                        />
+                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>USD</span>
+                      </div>
+                    )}
+
+                    {/* Actual buy price input when status=bought */}
+                    {item.status === "bought" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Cena zakupu:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.realBuyPrice ?? item.buy}
+                          onChange={e => update(item.id, item.name, { realBuyPrice: Math.max(0, parseFloat(e.target.value) || item.buy) })}
+                          style={{ width: 80, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(245,200,66,0.3)", borderRadius: 7, padding: "4px 8px", color: "#f5c842", fontSize: 13, fontWeight: 700, outline: "none", textAlign: "center" }}
                         />
                         <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>USD</span>
                       </div>

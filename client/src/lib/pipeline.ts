@@ -31,6 +31,7 @@ export type PipelineItem = {
   boughtAt?: number;
   soldAt?: number;
   soldPrice?: number;      // actual sell price achieved
+  realBuyPrice?: number;   // actual buy price paid
 };
 
 const KEY = "resell_pipeline";

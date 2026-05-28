@@ -110,6 +110,7 @@ export default function Dashboard() {
     const p = loadPipeline();
     return new Set(p.map(i => `${i.id}:${i.name}`));
   });
+  const [toast, setToast] = useState<string | null>(null);
 
   const filtered = opportunities
     .filter(o =>
@@ -621,12 +622,14 @@ export default function Dashboard() {
                       if (!savedIds.has(key)) {
                         addToPipeline({ ...o, category: o.category ?? "General", market: o.market ?? "" });
                         setSavedIds(prev => new Set([...prev, key]));
+                        setToast(o.name);
+                        setTimeout(() => setToast(null), 2500);
                       }
                     }}
                     style={{
                       background: savedIds.has(`${o.id}:${o.name}`) ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.06)",
                       border: `1px solid ${savedIds.has(`${o.id}:${o.name}`) ? "rgba(74,222,128,0.35)" : "rgba(255,255,255,0.12)"}`,
-                      borderRadius: 7, padding: "4px 8px", cursor: savedIds.has(`${o.id}:${o.name}`) ? "default" : "pointer",
+                      borderRadius: 7, padding: "6px 10px", cursor: savedIds.has(`${o.id}:${o.name}`) ? "default" : "pointer",
                       color: savedIds.has(`${o.id}:${o.name}`) ? "#4ade80" : "rgba(255,255,255,0.4)",
                       display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700,
                     }}
@@ -720,10 +723,24 @@ export default function Dashboard() {
         />
       )}
 
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+          background: "rgba(74,222,128,0.95)", borderRadius: 12, padding: "10px 18px",
+          color: "#0d1a0d", fontWeight: 700, fontSize: 13,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", gap: 8,
+          animation: "slideIn 0.2s ease",
+        }}>
+          ✓ Zapisano: {toast.slice(0, 40)}{toast.length > 40 ? "…" : ""}
+        </div>
+      )}
+
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
       `}</style>
     </ResellLayout>
   );
