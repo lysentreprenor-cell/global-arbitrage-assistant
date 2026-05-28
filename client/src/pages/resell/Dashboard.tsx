@@ -3,8 +3,9 @@ import { useLocation } from "wouter";
 import {
   Search, TrendingUp, TrendingDown, Zap, Globe, BarChart2,
   ArrowRight, RefreshCw, Star, DollarSign, ShoppingBag, Filter,
-  ExternalLink, Boxes, AlertCircle, X, PlusCircle,
+  ExternalLink, Boxes, AlertCircle, X, PlusCircle, Check, BookmarkPlus,
 } from "lucide-react";
+import { addToPipeline, loadPipeline } from "@/lib/pipeline";
 import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib/apiKeys";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -105,6 +106,10 @@ export default function Dashboard() {
   const [userLoc, setUserLoc] = useState(getUserLocation);
   const [previewImg, setPreviewImg] = useState<{ opp: Opportunity; rect: DOMRect } | null>(null);
   const [enrichedData, setEnrichedData] = useState<Record<number, { imageUrl: string; sourceUrl: string }>>({});
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => {
+    const p = loadPipeline();
+    return new Set(p.map(i => `${i.id}:${i.name}`));
+  });
 
   const filtered = opportunities
     .filter(o =>
@@ -608,6 +613,27 @@ export default function Dashboard() {
                   {o.daysToSell && <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 1 }}>~{o.daysToSell}d</div>}
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, alignItems: "center" }}>
+                  <button
+                    title={savedIds.has(`${o.id}:${o.name}`) ? "Zapisano w pipeline" : "Zapisz do pipeline"}
+                    onClick={e => {
+                      e.stopPropagation();
+                      const key = `${o.id}:${o.name}`;
+                      if (!savedIds.has(key)) {
+                        addToPipeline({ ...o, category: o.category ?? "General", market: o.market ?? "" });
+                        setSavedIds(prev => new Set([...prev, key]));
+                      }
+                    }}
+                    style={{
+                      background: savedIds.has(`${o.id}:${o.name}`) ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${savedIds.has(`${o.id}:${o.name}`) ? "rgba(74,222,128,0.35)" : "rgba(255,255,255,0.12)"}`,
+                      borderRadius: 7, padding: "4px 8px", cursor: savedIds.has(`${o.id}:${o.name}`) ? "default" : "pointer",
+                      color: savedIds.has(`${o.id}:${o.name}`) ? "#4ade80" : "rgba(255,255,255,0.4)",
+                      display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700,
+                    }}
+                  >
+                    {savedIds.has(`${o.id}:${o.name}`) ? <Check size={11} /> : <BookmarkPlus size={11} />}
+                    {savedIds.has(`${o.id}:${o.name}`) ? "Saved" : "Save"}
+                  </button>
                   <button
                     title="Create a listing others can buy"
                     onClick={e => { e.stopPropagation(); setOfferOpp(o); }}
