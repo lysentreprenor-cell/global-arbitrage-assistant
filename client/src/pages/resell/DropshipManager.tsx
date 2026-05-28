@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, Package, ShoppingCart, Zap, ExternalLink, CheckCircle, Clock,
   Copy, ChevronDown, X, MapPin, Trash2, RefreshCw, Edit3, Tag,
-  TrendingUp, DollarSign, ArrowRight, Check, Download,
+  TrendingUp, DollarSign, ArrowRight, Check, Download, Camera,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
@@ -112,6 +112,9 @@ export default function DropshipManager() {
   const [showOrderDetail, setShowOrderDetail] = useState<Order | null>(null);
   const [fulfillOrder, setFulfillOrder] = useState<Order | null>(null);
   const [creating, setCreating] = useState(false);
+  const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     productName: "", sourceUrl: "", sourcePricePLN: "", sourcePriceUSD: "",
@@ -168,6 +171,51 @@ export default function DropshipManager() {
   const feeAmt = sell * (fee / 100);
   const formProfit = sell > 0 ? Math.round((sell - feeAmt - buy - ship) * 100) / 100 : 0;
   const formMargin = sell > 0 ? Math.round((formProfit / sell) * 100) : 0;
+
+  const analyzeScreenshot = async (file: File) => {
+    setScreenshotAnalyzing(true);
+    setScreenshotError(null);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/dropship/analyze-screenshot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          imageData: base64,
+          mimeType: file.type || "image/jpeg",
+          anthropicKey: getAnthropicKey(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) { setScreenshotError(data.error || "Analysis failed"); return; }
+
+      const e = data.extracted ?? {};
+      setForm(f => ({
+        ...f,
+        productName: e.productName || f.productName,
+        sourcePriceUSD: e.sourcePriceUSD != null ? String(Math.round(e.sourcePriceUSD)) : f.sourcePriceUSD,
+        sourcePricePLN: e.sourcePricePLN != null ? String(Math.round(e.sourcePricePLN)) : f.sourcePricePLN,
+        sourceUrl: e.sourceUrl || f.sourceUrl,
+        description: e.description || f.description,
+        buyHint: e.buyHint || f.buyHint,
+        category: e.category && CATEGORIES.includes(e.category) ? e.category : f.category,
+      }));
+    } catch (err: any) {
+      setScreenshotError(err.message || "Upload failed");
+    } finally {
+      setScreenshotAnalyzing(false);
+    }
+  };
 
   const createListing = async () => {
     if (!form.productName || !form.sellPrice) return;
@@ -378,7 +426,42 @@ export default function DropshipManager() {
 
       {/* ── MODAL: New Listing ── */}
       {showNewListing && (
-        <Modal title="New Dropship Listing" onClose={() => setShowNewListing(false)} wide>
+        <Modal title="New Dropship Listing" onClose={() => { setShowNewListing(false); setScreenshotError(null); }} wide>
+          {/* Screenshot upload */}
+          <input
+            ref={screenshotInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) analyzeScreenshot(f); e.target.value = ""; }}
+          />
+          <div
+            style={{ marginBottom: 18, border: "1.5px dashed rgba(139,92,246,0.35)", borderRadius: 12, padding: "14px 16px", cursor: screenshotAnalyzing ? "default" : "pointer", background: screenshotAnalyzing ? "rgba(139,92,246,0.05)" : "rgba(139,92,246,0.04)", transition: "background 0.15s" }}
+            onClick={() => !screenshotAnalyzing && screenshotInputRef.current?.click()}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f && f.type.startsWith("image/")) analyzeScreenshot(f); }}
+          >
+            {screenshotAnalyzing ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "#a78bfa", fontSize: 13, fontWeight: 700 }}>
+                <div style={{ width: 16, height: 16, border: "2px solid #a78bfa", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                Analysing screenshot with AI…
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(139,92,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Camera size={17} color="#a78bfa" />
+                </div>
+                <div>
+                  <div style={{ color: "#a78bfa", fontWeight: 700, fontSize: 13 }}>📸 Create from Screenshot</div>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 }}>Click or drag & drop a screenshot of any marketplace listing — AI fills the form automatically</div>
+                </div>
+              </div>
+            )}
+            {screenshotError && (
+              <div style={{ marginTop: 8, color: "#f87171", fontSize: 11, fontWeight: 600 }}>⚠ {screenshotError}</div>
+            )}
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div style={{ gridColumn: "1/-1" }}>
               <Field label="PRODUCT NAME *">
@@ -660,7 +743,7 @@ export default function DropshipManager() {
         </Modal>
       )}
 
-      <style>{`option { background: #0d0d1a; } textarea,input { outline: none; } textarea:focus,input:focus { border-color: rgba(139,92,246,0.5) !important; }`}</style>
+      <style>{`option { background: #0d0d1a; } textarea,input { outline: none; } textarea:focus,input:focus { border-color: rgba(139,92,246,0.5) !important; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Fulfillment modal */}
       {fulfillOrder && (

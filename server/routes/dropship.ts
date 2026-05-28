@@ -129,6 +129,56 @@ router.post("/listings", async (req: Request, res: Response) => {
   return res.json({ listing });
 });
 
+// POST /api/dropship/analyze-screenshot
+router.post("/analyze-screenshot", async (req: Request, res: Response) => {
+  const { imageData, mimeType = "image/jpeg", anthropicKey } = req.body;
+  if (!imageData) return res.status(400).json({ error: "imageData required" });
+  const key = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mimeType, data: imageData } },
+            { type: "text", text: `Analyze this marketplace product listing screenshot and extract all product information you can see.
+Return ONLY a valid JSON object (no markdown, no explanation) with these fields:
+{
+  "productName": "full product name or title shown",
+  "sourcePriceUSD": number or null (price converted to USD; if PLN divide by 4, if EUR multiply by 1.08, if GBP multiply by 1.27),
+  "sourcePricePLN": number or null (price in PLN if shown, else null),
+  "category": one of ["Clothing","Jewelry","Electronics","Collectibles","Sneakers","Spirits","Antiques","Watches","General"],
+  "description": "key product details, condition, specs visible in screenshot",
+  "sourceUrl": "URL if visible in screenshot, else null",
+  "platform": one of ["Allegro","eBay","OLX","Vinted","Amazon","Etsy","Kleinanzeigen","Leboncoin","Other"],
+  "buyHint": "short note about source or deal quality",
+  "condition": "New" or "Used" or "Refurbished" or "Unknown"
+}` },
+          ]
+        }]
+      })
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      return res.status(502).json({ error: (err as any).error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(502).json({ error: "No JSON in response", raw: text });
+    return res.json({ extracted: JSON.parse(jsonMatch[0]) });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
 // GET /api/dropship/listings
 router.get("/listings", (_req: Request, res: Response) => {
   res.json({ listings: [...listings].reverse() });
