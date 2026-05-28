@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { X, Copy, Check, ExternalLink, Package, Truck, CheckCircle, DollarSign, AlertTriangle } from "lucide-react";
+import { recordEarning } from "@/lib/earningsTracker";
 
 interface FulfillmentOrder {
   orderId?: number;
@@ -482,6 +483,17 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
           const errData = await res.json().catch(() => ({}));
           throw new Error((errData as any).error || `Server error ${res.status}`);
         }
+      }
+      // Persist earnings so they survive page reloads
+      if (order.profit && order.profit > 0) {
+        recordEarning({
+          profit: order.profit,
+          platform: order.platform ?? "unknown",
+          product: order.productName ?? "product",
+          sellPrice: order.sellPrice,
+          buyPrice: order.buyPrice,
+          orderId: order.orderId,
+        });
       }
       setStep("done");
       onProcessed?.();

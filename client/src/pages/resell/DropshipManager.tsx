@@ -7,13 +7,14 @@ import {
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { FulfillmentModal } from "@/components/resell/FulfillmentModal";
+import { loadEarnings, getMonthProfit, getWeekProfit, getBestDay } from "@/lib/earningsTracker";
 
 const PLATFORMS = ["eBay USA", "Etsy USA", "Amazon UK", "eBay DE", "Vinted EU", "Amazon DE", "StockX USA", "Depop"];
 const CATEGORIES = ["Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches", "General"];
 
 const PLATFORM_FEES: Record<string, number> = {
   "eBay USA": 13.25, "Etsy USA": 9.5, "Amazon UK": 15, "eBay DE": 12,
-  "Amazon DE": 15, "Vinted EU": 0, "StockX USA": 9.5, "Depop": 10,
+  "Amazon DE": 15, "Vinted EU": 0, "StockX USA": 12, "Depop": 13,
 };
 const AVG_SHIPPING: Record<string, number> = {
   "Clothing": 12, "Jewelry": 18, "Electronics": 28, "Collectibles": 22,
@@ -112,6 +113,7 @@ export default function DropshipManager() {
   const [showOrderDetail, setShowOrderDetail] = useState<Order | null>(null);
   const [fulfillOrder, setFulfillOrder] = useState<Order | null>(null);
   const [creating, setCreating] = useState(false);
+  const [earnings] = useState(() => loadEarnings());
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
@@ -189,7 +191,8 @@ export default function DropshipManager() {
   const fee = PLATFORM_FEES[form.platform] ?? 13;
   const ship = AVG_SHIPPING[form.category] ?? 15;
   const feeAmt = sell * (fee / 100);
-  const formProfit = sell > 0 ? Math.round((sell - feeAmt - buy - ship) * 100) / 100 : 0;
+  const processingFlat = 0.30;
+  const formProfit = sell > 0 ? Math.round((sell - feeAmt - buy - ship - processingFlat) * 100) / 100 : 0;
   const formMargin = sell > 0 ? Math.round((formProfit / sell) * 100) : 0;
 
   const handleBuyPrice = (raw: string, currency: string) => {
@@ -334,15 +337,27 @@ export default function DropshipManager() {
           </button>
         </div>
 
+        {/* Stale orders alert */}
+        {orders.filter(o => o.status === "pending" && (Date.now() - new Date(o.createdAt).getTime()) > 6 * 3600 * 1000).length > 0 && (
+          <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <div>
+              <span style={{ color: "#f87171", fontWeight: 700, fontSize: 13 }}>
+                {orders.filter(o => o.status === "pending" && (Date.now() - new Date(o.createdAt).getTime()) > 6 * 3600 * 1000).length} zamówienie(a) czeka ponad 6h na realizację!
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}> Kup produkt i wyślij do kupującego — im szybciej tym lepsze opinie.</span>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         {stats && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 12 }}>
             {[
-              { label: "LISTINGS",    val: stats.totalListings,   color: "#f5c842" },
-              { label: "ACTIVE",     val: stats.activeListings,  color: "#4ade80" },
-              { label: "ORDERS",     val: stats.totalOrders,     color: "#60a5fa" },
-              { label: "PENDING",    val: stats.pendingOrders,   color: "#f59e0b" },
-              { label: "NET PROFIT", val: `$${stats.totalProfit.toFixed(0)}`, color: "#a78bfa" },
+              { label: "LISTINGS",   val: stats.totalListings,             color: "#f5c842" },
+              { label: "AKTYWNE",    val: stats.activeListings,            color: "#4ade80" },
+              { label: "ZAMÓWIENIA", val: stats.totalOrders,               color: "#60a5fa" },
+              { label: "OCZEKUJĄCE", val: stats.pendingOrders,             color: stats.pendingOrders > 0 ? "#f59e0b" : "rgba(255,255,255,0.3)" },
             ].map(s => (
               <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{s.label}</div>
@@ -351,6 +366,22 @@ export default function DropshipManager() {
             ))}
           </div>
         )}
+
+        {/* Persistent earnings panel */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
+          {[
+            { label: "ZAROBKI ALL-TIME", val: `$${earnings.totalProfit.toFixed(0)}`, color: "#4ade80", sub: `${earnings.totalOrders} transakcji` },
+            { label: "TEN MIESIĄC",      val: `$${getMonthProfit().toFixed(0)}`,     color: "#4ade80", sub: "od 1. dnia mies." },
+            { label: "OSTATNIE 7 DNI",   val: `$${getWeekProfit().toFixed(0)}`,      color: "#a78bfa", sub: "rolling 7 days" },
+            { label: "NAJLEPSZY DZIEŃ",   val: getBestDay() ? `$${getBestDay()!.profit}` : "—", color: "#f5c842", sub: getBestDay()?.date?.slice(0,10) ?? "brak danych" },
+          ].map(s => (
+            <div key={s.label} style={{ background: earnings.totalProfit > 0 ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.03)", border: `1px solid ${earnings.totalProfit > 0 ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.07)"}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>{s.label}</div>
+              <div style={{ color: s.color, fontSize: 19, fontWeight: 900 }}>{s.val}</div>
+              <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, marginTop: 2 }}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>

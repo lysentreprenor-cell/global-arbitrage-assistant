@@ -165,9 +165,14 @@ async function etsySearch(apiKey: string, query: string): Promise<any[]> {
 
 // ── Platform fees & shipping ──────────────────────────────────────────────────
 const PLATFORM_FEES: Record<string, number> = {
-  "eBay USA": 0.1325, "Etsy USA": 0.095, "Amazon UK": 0.15,
-  "eBay DE": 0.12, "Amazon DE": 0.15, "Vinted EU": 0,
-  "StockX USA": 0.095, "Depop": 0.10,
+  "eBay USA": 0.1325,  // includes Managed Payments processing
+  "Etsy USA": 0.095,   // 6.5% + ~3% payment processing
+  "Amazon UK": 0.15,   // includes payment processing
+  "eBay DE": 0.12,
+  "Amazon DE": 0.15,
+  "Vinted EU": 0,      // seller pays nothing; buyer pays protection fee
+  "StockX USA": 0.12,  // 9.5% + ~2.5% authentication/processing
+  "Depop": 0.13,       // 10% Depop + ~3% payment processing
 };
 
 const AVG_SHIPPING: Record<string, number> = {
@@ -178,7 +183,8 @@ const AVG_SHIPPING: Record<string, number> = {
 function calcNetProfit(sellPrice: number, buyPrice: number, market: string, category: string): number {
   const fee = PLATFORM_FEES[market] ?? 0.13;
   const ship = AVG_SHIPPING[category] ?? 20;
-  return Math.round(sellPrice * (1 - fee) - buyPrice - ship);
+  const processingFlat = 0.30; // per-transaction flat fee (PayPal/Stripe/platform)
+  return Math.round((sellPrice * (1 - fee) - buyPrice - ship - processingFlat) * 100) / 100;
 }
 
 // ── Default days-to-sell by category ─────────────────────────────────────────
@@ -194,8 +200,8 @@ function filterAndEnrich(opps: any[], hasLiveData: boolean): any[] {
       if (!o.buy || !o.sell || o.sell <= o.buy) return false;
       if (o.buy < 0 || o.sell < 0) return false;
       const np = o.netProfit ?? calcNetProfit(o.sell, o.buy, o.market ?? o.sellMarket ?? "", o.category ?? "General");
-      if (np < 10) return false;   // minimum $10 net profit
-      if ((o.margin ?? 0) < 15) return false;  // minimum 15% margin
+      if (np < 8) return false;    // minimum $8 net profit
+      if ((o.margin ?? 0) < 8) return false;   // minimum 8% margin (was 15% — too aggressive)
       return true;
     })
     .map(o => {
