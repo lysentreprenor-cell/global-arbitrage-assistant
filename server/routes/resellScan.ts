@@ -57,6 +57,10 @@ async function ebaySearch(
         condition: i.condition ?? "",
         conditionId: i.conditionId ?? "",
         watchCount: i.watchCount ?? 0,
+        availableQty: i.estimatedAvailabilities?.[0]?.estimatedAvailableQuantity ?? null,
+        sellerRating: parseFloat(i.seller?.feedbackPercentage ?? "0") || null,
+        sellerFeedback: i.seller?.feedbackScore ?? 0,
+        additionalImages: (i.additionalImages ?? []).map((img: any) => img.imageUrl).filter(Boolean).slice(0, 3),
         marketplace,
       }))
       .filter((i: any) =>
@@ -111,7 +115,7 @@ async function findBestEbayListing(
   oppName: string,
   expectedBuyPrice: number,
   marketplace: string
-): Promise<{ url: string; imageUrl: string; title: string; actualPrice: number } | null> {
+): Promise<{ url: string; imageUrl: string; additionalImages: string[]; title: string; actualPrice: number; condition: string; keywordMatch: number; stockCount: number | null; sellerRating: number | null; sellerFeedback: number } | null> {
   const words = oppName.toLowerCase().split(/[\s,\-—()]+/).filter(w => w.length > 2);
   const longWords = words.filter(w => w.length > 5);
 
@@ -151,10 +155,14 @@ async function findBestEbayListing(
       return {
         url: best.url,
         imageUrl: best.imageUrl,
+        additionalImages: best.additionalImages ?? [],
         title: best.title,
         actualPrice: best.price,
         condition: best.condition,
         keywordMatch: Math.round(best.consistency * 100),
+        stockCount: best.availableQty,
+        sellerRating: best.sellerRating,
+        sellerFeedback: best.sellerFeedback,
       };
     }
   }
@@ -838,13 +846,16 @@ router.post("/scan", async (req: Request, res: Response) => {
                     ...opp,
                     sourceUrl: best.url,
                     imageUrl: best.imageUrl,
+                    additionalImages: best.additionalImages,
                     realBuyTitle: best.title,
                     realBuyPrice: best.actualPrice,
                     itemCondition: best.condition,
                     keywordMatch: best.keywordMatch,
+                    stockCount: best.stockCount,
+                    sellerRating: best.sellerRating,
+                    sellerFeedback: best.sellerFeedback,
                     shippingFeasible: shipOk,
                     dataQuality: "verified",
-                    // sellUrl uses same keywords as buy search for consistency
                     sellUrl: opp.sellUrl?.startsWith("https://")
                       ? opp.sellUrl
                       : sellUrlForMarket(opp.market ?? "", searchName),
@@ -1233,7 +1244,11 @@ router.post("/enrich-opportunity", async (req: Request, res: Response) => {
 
     return res.json({
       imageUrl: best?.imageUrl ?? "",
-      sourceUrl: best?.url ?? fallbackUrl,  // always a valid URL
+      additionalImages: best?.additionalImages ?? [],
+      sourceUrl: best?.url ?? fallbackUrl,
+      stockCount: best?.availableQty ?? null,
+      sellerRating: best?.sellerRating ?? null,
+      sellerFeedback: best?.sellerFeedback ?? 0,
     });
   } catch {
     return res.json({ imageUrl: "", sourceUrl: fallbackUrl });

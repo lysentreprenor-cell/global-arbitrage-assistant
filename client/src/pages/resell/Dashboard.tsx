@@ -25,12 +25,18 @@ type Opportunity = {
   sourceUrl?: string; sellUrl?: string; imageUrl?: string;
   priceGapPct?: number; confidence?: "live" | "estimated";
   daysToSell?: number;
-  markets?: string[];        // NEW: array of 2-3 sell platforms
-  sellUrls?: Record<string, string>; // NEW: URL per platform
-  dataQuality?: "verified" | "matched" | "estimated";
+  stockCount?: number | null;
+  sellerRating?: number | null;
+  sellerFeedback?: number;
+  additionalImages?: string[];
   itemCondition?: string;
+  dataQuality?: "verified" | "matched" | "estimated";
   keywordMatch?: number;
   shippingFeasible?: boolean;
+  realBuyPrice?: number;
+  realBuyTitle?: string;
+  markets?: string[];        // NEW: array of 2-3 sell platforms
+  sellUrls?: Record<string, string>; // NEW: URL per platform
 };
 
 
@@ -105,7 +111,7 @@ export default function Dashboard() {
   const [offerOpp, setOfferOpp] = useState<Opportunity | null>(null);
   const [userLoc, setUserLoc] = useState(getUserLocation);
   const [previewImg, setPreviewImg] = useState<{ opp: Opportunity; rect: DOMRect } | null>(null);
-  const [enrichedData, setEnrichedData] = useState<Record<number, { imageUrl: string; sourceUrl: string }>>({});
+  const [enrichedData, setEnrichedData] = useState<Record<number, { imageUrl: string; sourceUrl: string; stockCount?: number | null; sellerRating?: number | null; additionalImages?: string[] }>>({});
   const [savedIds, setSavedIds] = useState<Set<string>>(() => {
     const p = loadPipeline();
     return new Set(p.map(i => `${i.id}:${i.name}`));
@@ -149,7 +155,13 @@ export default function Dashboard() {
           });
           const data = await r.json();
           if (data.imageUrl || data.sourceUrl) {
-            setEnrichedData(prev => ({ ...prev, [opp.id]: data }));
+            setEnrichedData(prev => ({ ...prev, [opp.id]: {
+              imageUrl: data.imageUrl,
+              sourceUrl: data.sourceUrl,
+              stockCount: data.stockCount,
+              sellerRating: data.sellerRating,
+              additionalImages: data.additionalImages,
+            }}));
           }
         } catch { /* silent */ }
       }, idx * 350);
@@ -528,7 +540,7 @@ export default function Dashboard() {
                           <img
                             src={imgUrl}
                             alt={o.name}
-                            style={{ width: 42, height: 42, objectFit: "cover", borderRadius: 7, border: "1px solid rgba(255,255,255,0.12)", cursor: "zoom-in", display: "block" }}
+                            style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", cursor: "zoom-in", display: "block" }}
                             onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                             onMouseEnter={e => setPreviewImg({ opp: { ...o, imageUrl: imgUrl }, rect: e.currentTarget.getBoundingClientRect() })}
                             onMouseLeave={() => setPreviewImg(null)}
@@ -562,6 +574,32 @@ export default function Dashboard() {
                           );
                         })()}
                       </div>
+                      {/* Stock + seller rating from live eBay data */}
+                      {(() => {
+                        const stockCount = enrichedData[o.id]?.stockCount ?? o.stockCount;
+                        const sellerRating = enrichedData[o.id]?.sellerRating ?? o.sellerRating;
+                        if (!stockCount && !sellerRating) return null;
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+                            {stockCount != null && (
+                              <span style={{
+                                background: stockCount <= 2 ? "rgba(248,113,113,0.12)" : stockCount <= 5 ? "rgba(245,200,66,0.12)" : "rgba(74,222,128,0.12)",
+                                border: `1px solid ${stockCount <= 2 ? "rgba(248,113,113,0.3)" : stockCount <= 5 ? "rgba(245,200,66,0.3)" : "rgba(74,222,128,0.3)"}`,
+                                borderRadius: 5, padding: "1px 6px",
+                                color: stockCount <= 2 ? "#f87171" : stockCount <= 5 ? "#f5c842" : "#4ade80",
+                                fontSize: 9, fontWeight: 700,
+                              }}>
+                                {stockCount <= 2 ? `⚡ ${stockCount} szt.` : stockCount <= 5 ? `${stockCount} szt.` : `${stockCount}+ szt.`}
+                              </span>
+                            )}
+                            {sellerRating != null && sellerRating > 0 && (
+                              <span style={{ color: sellerRating >= 99 ? "#4ade80" : sellerRating >= 95 ? "#f5c842" : "#f87171", fontSize: 9, fontWeight: 700 }}>
+                                ⭐ {sellerRating.toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 300 }}>
                         {o.flag} · {o.category}
                         {o.buyHint && <span style={{ color: "rgba(139,92,246,0.55)", marginLeft: 6 }}>· {o.buyHint}</span>}
