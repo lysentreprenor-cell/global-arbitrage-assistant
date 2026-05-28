@@ -34,6 +34,11 @@ function detectBuyerCountry(address: string): string | null {
   if (/\bUSA\b|\bUNITED STATES\b|\bU\.S\.A\b/.test(a)) return "US";
   if (/\bCANADA\b/.test(a)) return "CA";
   if (/\bBRAZIL\b|\bBRASIL\b/.test(a)) return "BR";
+  if (/\bMEXICO\b|\bMÉXICO\b/.test(a)) return "MX";
+  if (/\bARGENTINA\b/.test(a)) return "AR";
+  if (/\bCHILE\b/.test(a)) return "CL";
+  if (/\bCOLOMBIA\b/.test(a)) return "CO";
+  if (/\bPERU\b|\bPERÚ\b/.test(a)) return "PE";
   // Europe
   if (/\bUK\b|\bUNITED KINGDOM\b|\bENGLAND\b|\bSCOTLAND\b|\bWALES\b/.test(a)) return "GB";
   if (/\bGERMANY\b|\bDEUTSCHLAND\b/.test(a)) return "DE";
@@ -45,11 +50,32 @@ function detectBuyerCountry(address: string): string | null {
   if (/\bNORWAY\b|\bNORGE\b/.test(a)) return "NO";
   if (/\bSWEDEN\b|\bSVERIGE\b/.test(a)) return "SE";
   if (/\bDENMARK\b|\bDANMARK\b/.test(a)) return "DK";
+  if (/\bSWITZERLAND\b|\bSCHWEIZ\b|\bSUISSE\b/.test(a)) return "CH";
+  if (/\bRUSSIA\b|\bROSSIYA\b|\bROSSIA\b/.test(a)) return "RU";
+  if (/\bTURKEY\b|\bTÜRKIYE\b|\bTURCJA\b/.test(a)) return "TR";
   // Asia-Pacific
   if (/\bJAPAN\b|\bJAPONIA\b/.test(a)) return "JP";
   if (/\bAUSTRALIA\b/.test(a)) return "AU";
+  if (/\bNEW ZEALAND\b|\bNOWA ZELANDIA\b/.test(a)) return "NZ";
   if (/\bCHINA\b|\bCHINY\b/.test(a)) return "CN";
   if (/\bINDIA\b|\bINDIE\b/.test(a)) return "IN";
+  if (/\bSINGAPORE\b|\bSINGAPUR\b/.test(a)) return "SG";
+  if (/\bMALAYSIA\b/.test(a)) return "MY";
+  if (/\bTHAILAND\b|\bTAJLANDIA\b/.test(a)) return "TH";
+  if (/\bINDONESIA\b/.test(a)) return "ID";
+  if (/\bPHILIPPINES\b|\bFILIPINY\b/.test(a)) return "PH";
+  if (/\bVIETNAM\b|\bWIETNAM\b/.test(a)) return "VN";
+  if (/\bSOUTH KOREA\b|\bKOREA\b|\bKOREA POŁUDNIOWA\b/.test(a)) return "KR";
+  if (/\bTAIWAN\b/.test(a)) return "TW";
+  if (/\bHONG KONG\b/.test(a)) return "HK";
+  if (/\bPAKISTAN\b/.test(a)) return "PK";
+  if (/\bBANGLADESH\b/.test(a)) return "BD";
+  // Middle East
+  if (/\bUAE\b|\bUNITED ARAB\b|\bDUBAI\b|\bABU DHABI\b/.test(a)) return "AE";
+  if (/\bSAUDI\b|\bARABIA\b|\bKSA\b/.test(a)) return "SA";
+  if (/\bISRAEL\b|\bIZRAEL\b/.test(a)) return "IL";
+  if (/\bQATAR\b/.test(a)) return "QA";
+  if (/\bKUWAIT\b/.test(a)) return "KW";
   // Africa
   if (/\bNIGERIA\b|\bNIGERII\b/.test(a)) return "NG";
   if (/\bSOUTH AFRICA\b|\bPOŁUDNIOWA AFRYKA\b|\bRSA\b/.test(a)) return "ZA";
@@ -79,20 +105,37 @@ function detectSourceCountry(url = "", market = ""): string | null {
   if (u.includes("marktplaats.nl") || u.includes("ebay.nl")) return "NL";
   if (u.includes("wallapop") || u.includes("ebay.es")) return "ES";
   if (u.includes("subito.it") || u.includes("ebay.it")) return "IT";
-  if (u.includes("avito.ru")) return "RU";
+  if (u.includes("avito.ru") || u.includes("youla.ru")) return "RU";
+  if (u.includes("sahibinden.com") || u.includes("letgo.com.tr")) return "TR";
   // Asia-Pacific
-  if (u.includes("yahoo.co.jp") || u.includes(".co.jp")) return "JP";
-  if (u.includes("taobao") || u.includes("1688.com") || u.includes("alibaba")) return "CN";
+  if (u.includes("yahoo.co.jp") || u.includes("mercari.com") || u.includes(".co.jp")) return "JP";
+  if (u.includes("taobao") || u.includes("1688.com") || u.includes("alibaba") || u.includes("tmall") || u.includes("xianyu")) return "CN";
+  if (u.includes("flipkart") || u.includes("olx.in") || u.includes("quikr.com")) return "IN";
+  if (u.includes("carousell.sg") || u.includes("lazada.sg") || u.includes("shopee.sg")) return "SG";
+  if (u.includes("mudah.my") || u.includes("lazada.com.my") || u.includes("shopee.com.my")) return "MY";
+  if (u.includes("kaidee.com") || u.includes("lazada.co.th") || u.includes("shopee.co.th")) return "TH";
+  if (u.includes("tokopedia") || u.includes("bukalapak") || u.includes("olx.co.id") || u.includes("shopee.co.id")) return "ID";
+  if (u.includes("carousell.com.ph") || u.includes("olx.ph") || u.includes("shopee.ph")) return "PH";
+  if (u.includes("shopee.vn") || u.includes("tiki.vn") || u.includes("lazada.vn")) return "VN";
+  if (u.includes("bunjang.com") || u.includes("joongna.com")) return "KR";
+  if (u.includes("ruten.com.tw") || u.includes("carousell.com.tw")) return "TW";
   // Americas
-  if (u.includes("ebay.com") || u.includes("craigslist") || u.includes("amazon.com")) return "US";
+  if (u.includes("ebay.com") || u.includes("craigslist") || u.includes("amazon.com") || u.includes("offerup") || u.includes("facebook.com")) return "US";
+  if (u.includes("mercadolivre.com.br") || u.includes("enjoei.com.br") || u.includes("olx.com.br")) return "BR";
+  if (u.includes("mercadolibre.com.mx") || u.includes("segundamano.mx")) return "MX";
+  if (u.includes("mercadolibre.com.ar") || u.includes("olx.com.ar")) return "AR";
+  if (u.includes("mercadolibre.cl")) return "CL";
+  // Middle East
+  if (u.includes("dubizzle.com") || u.includes("opensooq.com/ae")) return "AE";
+  if (u.includes("opensooq.com") || u.includes("haraj.com.sa")) return "SA";
   // Africa
   if (u.includes("jiji.ng") || u.includes("konga.com") || u.includes("olx.com.ng")) return "NG";
   if (u.includes("jiji.com.gh") || u.includes("olx.com.gh") || u.includes("tonaton.com")) return "GH";
   if (u.includes("jiji.co.ke") || u.includes("olx.co.ke") || u.includes("pigiame.co.ke")) return "KE";
-  if (u.includes("opensooq.com") || u.includes("olx.com.eg") || u.includes("dubizzle.com.eg")) return "EG";
+  if (u.includes("olx.com.eg") || u.includes("dubizzle.com.eg")) return "EG";
   if (u.includes("takealot.com") || u.includes("olx.co.za") || u.includes("gumtree.co.za")) return "ZA";
   if (u.includes("avito.ma") || u.includes("marocannonces") || u.includes("jumia.ma")) return "MA";
-  if (u.includes("jumia.")) return "NG"; // jumia operates across Africa, default Nigeria
+  if (u.includes("jumia.")) return "NG";
   // market string fallbacks
   if (m.includes("ng") || m.includes("nigeria")) return "NG";
   if (m.includes("za") || m.includes("south africa")) return "ZA";
@@ -100,6 +143,13 @@ function detectSourceCountry(url = "", market = ""): string | null {
   if (m.includes("eg") || m.includes("egypt")) return "EG";
   if (m.includes("gh") || m.includes("ghana")) return "GH";
   if (m.includes("ma") || m.includes("morocco")) return "MA";
+  if (m.includes("in") || m.includes("india")) return "IN";
+  if (m.includes("sg") || m.includes("singapore")) return "SG";
+  if (m.includes("br") || m.includes("brazil")) return "BR";
+  if (m.includes("mx") || m.includes("mexico")) return "MX";
+  if (m.includes("ae") || m.includes("dubai") || m.includes("uae")) return "AE";
+  if (m.includes("tr") || m.includes("turkey")) return "TR";
+  if (m.includes("ru") || m.includes("russia")) return "RU";
   if (m.includes("pl")) return "PL";
   if (m.includes("de")) return "DE";
   if (m.includes("gb") || m.includes("uk")) return "GB";
@@ -109,104 +159,280 @@ function detectSourceCountry(url = "", market = ""): string | null {
   return null;
 }
 
-const EU = ["PL","DE","FR","IT","ES","NL","CZ","AT","BE","SE","DK","FI","PT","HU","RO"];
-const AFRICA = ["NG","ZA","KE","EG","GH","MA","TZ","UG","ET","SN","CI","CM"];
+const EU = ["PL","DE","FR","IT","ES","NL","CZ","AT","BE","SE","DK","FI","PT","HU","RO","SK","SI","HR","BG","LT","LV","EE","LU","MT","CY"];
+const EU_ADJACENT = ["NO","CH","IS","LI"]; // non-EU but same zone economically
+const AFRICA = ["NG","ZA","KE","EG","GH","MA","TZ","UG","ET","SN","CI","CM","DZ","LY","TN","SD","AO","MZ","ZM","ZW"];
+const SEA = ["SG","MY","TH","ID","PH","VN","KH","MM","LA","BN"]; // Southeast Asia
+const LATAM = ["BR","MX","AR","CL","CO","PE","VE","EC","BO","UY","PY"];
+const MIDEAST = ["AE","SA","IL","QA","KW","BH","OM","JO","LB","IQ","IR"];
 
+// Shipping cost table: DHL/FedEx express rates (USD) + transit days
+// Costs include packaging; heavy items (Electronics/Antiques/Spirits) add $15
 function estimateShipping(src: string | null, dst: string | null, category = ""): { cost: number; days: string } {
   if (!src || !dst) return { cost: 25, days: "7–21" };
   if (src === dst) return { cost: 5, days: "2–4" };
   const heavy = ["Electronics","Antiques","Spirits"].includes(category);
-  const base = heavy ? 15 : 0;
+  const H = heavy ? 15 : 0;
+  const srcEU = EU.includes(src) || EU_ADJACENT.includes(src);
+  const dstEU = EU.includes(dst) || EU_ADJACENT.includes(dst);
   const srcAf = AFRICA.includes(src), dstAf = AFRICA.includes(dst);
-  // Within Africa cross-border
-  if (srcAf && dstAf) return { cost: 20 + base, days: "7–14" };
-  // EU → Africa (DHL/FedEx)
-  if (EU.includes(src) && dstAf) return { cost: 45 + base, days: "7–14" };
-  // US/CA → Africa
-  if ((src === "US" || src === "CA") && dstAf) return { cost: 55 + base, days: "10–18" };
-  // Africa → EU
-  if (srcAf && EU.includes(dst)) return { cost: 40 + base, days: "10–21" };
-  // Africa → US/CA
-  if (srcAf && (dst === "US" || dst === "CA")) return { cost: 50 + base, days: "12–21" };
-  // Africa → anywhere else
-  if (srcAf || dstAf) return { cost: 45 + base, days: "14–30" };
-  // EU → US / CA
-  if (EU.includes(src) && (dst === "US" || dst === "CA")) return { cost: 28 + base, days: "7–14" };
-  // EU → GB
-  if (EU.includes(src) && dst === "GB") return { cost: 15 + base, days: "4–8" };
-  // EU → EU
-  if (EU.includes(src) && EU.includes(dst)) return { cost: 9 + base, days: "3–6" };
-  // GB → US
-  if (src === "GB" && dst === "US") return { cost: 20 + base, days: "5–10" };
-  // GB → EU
-  if (src === "GB" && EU.includes(dst)) return { cost: 14 + base, days: "4–8" };
-  // US → EU / GB
-  if (src === "US" && (EU.includes(dst) || dst === "GB")) return { cost: 30 + base, days: "7–14" };
-  // JP → anywhere
-  if (src === "JP") return { cost: dst === "US" ? 22 : 30, days: "5–12" };
-  return { cost: 28 + base, days: "10–21" };
+  const srcSEA = SEA.includes(src), dstSEA = SEA.includes(dst);
+  const srcLA = LATAM.includes(src), dstLA = LATAM.includes(dst);
+  const srcME = MIDEAST.includes(src), dstME = MIDEAST.includes(dst);
+
+  // ── EU ──────────────────────────────────────────────────────────────
+  if (srcEU && dstEU) return { cost: 9+H, days: "3–6" };
+  if (srcEU && dst === "GB") return { cost: 15+H, days: "4–8" };
+  if (srcEU && (dst === "US" || dst === "CA")) return { cost: 28+H, days: "6–12" };
+  if (srcEU && dst === "AU") return { cost: 38+H, days: "5–10" };
+  if (srcEU && dst === "NZ") return { cost: 42+H, days: "7–12" };
+  if (srcEU && dst === "JP") return { cost: 28+H, days: "5–9" };
+  if (srcEU && dst === "KR") return { cost: 30+H, days: "5–9" };
+  if (srcEU && dst === "CN") return { cost: 32+H, days: "5–8" };
+  if (srcEU && dst === "HK") return { cost: 28+H, days: "4–8" };
+  if (srcEU && dst === "TW") return { cost: 30+H, days: "5–9" };
+  if (srcEU && dst === "IN") return { cost: 38+H, days: "5–9" };
+  if (srcEU && dst === "PK") return { cost: 40+H, days: "6–10" };
+  if (srcEU && dst === "BD") return { cost: 42+H, days: "7–11" };
+  if (srcEU && dstSEA) return { cost: dst === "SG" ? 35+H : dst === "MY" ? 37+H : 42+H, days: "5–10" };
+  if (srcEU && dstME) return { cost: dst === "AE" ? 35+H : dst === "IL" ? 30+H : 38+H, days: "4–8" };
+  if (srcEU && dst === "TR") return { cost: 22+H, days: "3–6" };
+  if (srcEU && dst === "RU") return { cost: 30+H, days: "5–10" };
+  if (srcEU && dstAf) return { cost: dst === "MA" ? 28+H : 45+H, days: dst === "MA" ? "4–7" : "7–14" };
+  if (srcEU && dstLA) return { cost: dst === "MX" ? 40+H : dst === "BR" ? 52+H : 48+H, days: "7–14" };
+
+  // ── GB ──────────────────────────────────────────────────────────────
+  if (src === "GB" && dstEU) return { cost: 14+H, days: "4–8" };
+  if (src === "GB" && dst === "US") return { cost: 20+H, days: "5–10" };
+  if (src === "GB" && dst === "AU") return { cost: 35+H, days: "5–10" };
+  if (src === "GB" && dst === "JP") return { cost: 25+H, days: "5–9" };
+  if (src === "GB" && dst === "IN") return { cost: 35+H, days: "5–9" };
+  if (src === "GB" && dstSEA) return { cost: 38+H, days: "5–10" };
+  if (src === "GB" && dstME) return { cost: 32+H, days: "4–8" };
+  if (src === "GB" && dstAf) return { cost: 42+H, days: "6–12" };
+  if (src === "GB" && dstLA) return { cost: 45+H, days: "7–14" };
+
+  // ── US / CA ─────────────────────────────────────────────────────────
+  if ((src === "US" || src === "CA") && (dstEU || dst === "GB")) return { cost: 30+H, days: "6–12" };
+  if ((src === "US" || src === "CA") && (dst === "US" || dst === "CA")) return { cost: 12+H, days: "2–5" };
+  if (src === "US" && dst === "MX") return { cost: 22+H, days: "3–7" };
+  if ((src === "US" || src === "CA") && dst === "AU") return { cost: 32+H, days: "5–10" };
+  if ((src === "US" || src === "CA") && dst === "JP") return { cost: 22+H, days: "4–8" };
+  if ((src === "US" || src === "CA") && dst === "KR") return { cost: 24+H, days: "4–8" };
+  if ((src === "US" || src === "CA") && dst === "CN") return { cost: 25+H, days: "4–8" };
+  if ((src === "US" || src === "CA") && dst === "IN") return { cost: 32+H, days: "5–9" };
+  if ((src === "US" || src === "CA") && dstSEA) return { cost: 32+H, days: "5–10" };
+  if ((src === "US" || src === "CA") && dstME) return { cost: 35+H, days: "5–9" };
+  if ((src === "US" || src === "CA") && dst === "TR") return { cost: 30+H, days: "5–9" };
+  if ((src === "US" || src === "CA") && dstAf) return { cost: 52+H, days: "10–18" };
+  if ((src === "US" || src === "CA") && dstLA) return { cost: dst === "MX" ? 22+H : dst === "BR" ? 45+H : 38+H, days: "5–12" };
+
+  // ── Japan ────────────────────────────────────────────────────────────
+  if (src === "JP" && (dstEU || dst === "GB")) return { cost: 28+H, days: "5–10" };
+  if (src === "JP" && (dst === "US" || dst === "CA")) return { cost: 22+H, days: "4–8" };
+  if (src === "JP" && dst === "AU") return { cost: 24+H, days: "4–8" };
+  if (src === "JP" && dst === "CN") return { cost: 15+H, days: "3–6" };
+  if (src === "JP" && dst === "KR") return { cost: 14+H, days: "2–5" };
+  if (src === "JP" && dstSEA) return { cost: 18+H, days: "3–7" };
+  if (src === "JP" && dstME) return { cost: 28+H, days: "5–9" };
+  if (src === "JP" && dst === "IN") return { cost: 22+H, days: "4–8" };
+  if (src === "JP" && dstAf) return { cost: 45+H, days: "10–18" };
+  if (src === "JP" && dstLA) return { cost: 38+H, days: "8–14" };
+
+  // ── China ────────────────────────────────────────────────────────────
+  // China → world: ePacket/standard post is very cheap but slow; DHL express shown here
+  if (src === "CN" && (dstEU || dst === "GB")) return { cost: 18+H, days: "5–9" };
+  if (src === "CN" && (dst === "US" || dst === "CA")) return { cost: 16+H, days: "4–8" };
+  if (src === "CN" && dst === "AU") return { cost: 20+H, days: "4–8" };
+  if (src === "CN" && dst === "JP") return { cost: 12+H, days: "2–5" };
+  if (src === "CN" && dst === "KR") return { cost: 12+H, days: "2–5" };
+  if (src === "CN" && dstSEA) return { cost: 14+H, days: "3–7" };
+  if (src === "CN" && dstME) return { cost: 20+H, days: "4–8" };
+  if (src === "CN" && dst === "IN") return { cost: 16+H, days: "4–8" };
+  if (src === "CN" && dst === "TR") return { cost: 22+H, days: "5–9" };
+  if (src === "CN" && dstAf) return { cost: 30+H, days: "7–14" };
+  if (src === "CN" && dstLA) return { cost: 25+H, days: "7–14" };
+
+  // ── Southeast Asia ───────────────────────────────────────────────────
+  if (srcSEA && dstSEA) return { cost: 10+H, days: "3–7" };
+  if (srcSEA && (dstEU || dst === "GB")) return { cost: 40+H, days: "5–10" };
+  if (srcSEA && (dst === "US" || dst === "CA")) return { cost: 35+H, days: "5–10" };
+  if (srcSEA && dst === "AU") return { cost: 25+H, days: "4–8" };
+  if (srcSEA && dst === "JP") return { cost: 20+H, days: "3–7" };
+  if (srcSEA && dst === "CN") return { cost: 18+H, days: "3–7" };
+  if (srcSEA && dst === "IN") return { cost: 25+H, days: "5–9" };
+  if (srcSEA && dstME) return { cost: 30+H, days: "5–9" };
+  if (srcSEA && dstAf) return { cost: 45+H, days: "10–18" };
+  if (srcSEA && dstLA) return { cost: 40+H, days: "10–18" };
+
+  // ── Australia / NZ ───────────────────────────────────────────────────
+  if ((src === "AU" || src === "NZ") && (dstEU || dst === "GB")) return { cost: 38+H, days: "5–10" };
+  if ((src === "AU" || src === "NZ") && (dst === "US" || dst === "CA")) return { cost: 30+H, days: "5–10" };
+  if (src === "AU" && dst === "NZ") return { cost: 12+H, days: "2–5" };
+  if ((src === "AU" || src === "NZ") && dstSEA) return { cost: 25+H, days: "4–8" };
+  if ((src === "AU" || src === "NZ") && dst === "JP") return { cost: 28+H, days: "4–8" };
+  if ((src === "AU" || src === "NZ") && dstAf) return { cost: 50+H, days: "10–18" };
+
+  // ── Middle East ──────────────────────────────────────────────────────
+  if (srcME && dstME) return { cost: 18+H, days: "3–6" };
+  if (srcME && (dstEU || dst === "GB")) return { cost: 35+H, days: "4–8" };
+  if (srcME && (dst === "US" || dst === "CA")) return { cost: 38+H, days: "5–9" };
+  if (srcME && dstSEA) return { cost: 28+H, days: "4–8" };
+  if (srcME && dst === "IN") return { cost: 25+H, days: "4–8" };
+  if (srcME && dstAf) return { cost: 40+H, days: "7–14" };
+
+  // ── Turkey ───────────────────────────────────────────────────────────
+  if (src === "TR" && (dstEU || dst === "GB")) return { cost: 20+H, days: "3–6" };
+  if (src === "TR" && (dst === "US" || dst === "CA")) return { cost: 30+H, days: "5–9" };
+  if (src === "TR" && dstME) return { cost: 22+H, days: "3–7" };
+
+  // ── India ────────────────────────────────────────────────────────────
+  if (src === "IN" && (dstEU || dst === "GB")) return { cost: 35+H, days: "5–9" };
+  if (src === "IN" && (dst === "US" || dst === "CA")) return { cost: 32+H, days: "5–9" };
+  if (src === "IN" && dstSEA) return { cost: 22+H, days: "4–8" };
+  if (src === "IN" && dstME) return { cost: 25+H, days: "4–8" };
+  if (src === "IN" && dst === "AU") return { cost: 30+H, days: "5–9" };
+
+  // ── Latin America ────────────────────────────────────────────────────
+  if (srcLA && dstLA) return { cost: 18+H, days: "5–12" };
+  if (srcLA && (dstEU || dst === "GB")) return { cost: 50+H, days: "7–14" };
+  if (srcLA && (dst === "US" || dst === "CA")) return { cost: src === "MX" ? 22+H : 42+H, days: src === "MX" ? "3–7" : "7–14" };
+  if (srcLA && dstSEA) return { cost: 48+H, days: "10–18" };
+  if (srcLA && dstAf) return { cost: 55+H, days: "14–25" };
+
+  // ── Russia ───────────────────────────────────────────────────────────
+  if (src === "RU" && (dstEU || dst === "GB")) return { cost: 28+H, days: "7–14" };
+  if (src === "RU" && (dst === "US" || dst === "CA")) return { cost: 35+H, days: "8–15" };
+  if (dst === "RU") return { cost: 30+H, days: "7–14" };
+
+  // ── Africa ───────────────────────────────────────────────────────────
+  if (srcAf && dstAf) return { cost: 22+H, days: "7–14" };
+  if (srcAf && (dstEU || dst === "GB")) return { cost: 42+H, days: "8–18" };
+  if (srcAf && (dst === "US" || dst === "CA")) return { cost: 50+H, days: "10–20" };
+  if (srcAf && dstSEA) return { cost: 48+H, days: "10–18" };
+  if (srcAf && dstME) return { cost: 38+H, days: "7–14" };
+  if (srcAf && dstLA) return { cost: 55+H, days: "14–25" };
+
+  // Generic fallback
+  return { cost: 30+H, days: "10–21" };
 }
 
-const AFRICA_NAMES: Record<string,string> = { NG:"Nigeria",ZA:"RPA",KE:"Kenia",EG:"Egipt",GH:"Ghana",MA:"Maroko",TZ:"Tanzania",UG:"Uganda" };
+const REGION_NAMES: Record<string,string> = {
+  NG:"Nigeria",ZA:"RPA",KE:"Kenia",EG:"Egipt",GH:"Ghana",MA:"Maroko",TZ:"Tanzania",UG:"Uganda",
+  IN:"Indie",SG:"Singapur",MY:"Malezja",TH:"Tajlandia",ID:"Indonezja",PH:"Filipiny",VN:"Wietnam",
+  KR:"Korea Płd.",TW:"Tajwan",HK:"Hong Kong",PK:"Pakistan",BD:"Bangladesz",
+  AE:"Emiraty",SA:"Arabia Saudyjska",IL:"Izrael",QA:"Katar",KW:"Kuwejt",
+  BR:"Brazylia",MX:"Meksyk",AR:"Argentyna",CL:"Chile",CO:"Kolumbia",PE:"Peru",
+  RU:"Rosja",TR:"Turcja",AU:"Australia",NZ:"Nowa Zelandia",CA:"Kanada",
+};
 
 function getShippingWarning(src: string | null, dst: string | null, url = ""): { level: "warn" | "ok" | "check"; text: string } | null {
   if (!src || !dst) return null;
   if (src === dst) return { level: "ok", text: "Wysyłka krajowa — bez problemu." };
 
-  const dstName = AFRICA_NAMES[dst] ?? dst;
+  const dstName = REGION_NAMES[dst] ?? dst;
   const srcAf = AFRICA.includes(src), dstAf = AFRICA.includes(dst);
+  const srcSEA = SEA.includes(src), dstSEA = SEA.includes(dst);
+  const dstLA = LATAM.includes(dst);
+  const dstME = MIDEAST.includes(dst);
 
-  // African local classifieds — mostly pickup only
+  // ── Platform-specific warnings ──────────────────────────────────────
+  // African local classifieds — mostly pickup
   if (url.includes("jiji.") || url.includes("olx.com.ng") || url.includes("olx.co.ke") || url.includes("olx.com.gh") || url.includes("pigiame") || url.includes("tonaton")) {
-    return { level: "warn", text: `Uwaga: Jiji/OLX w Afryce to głównie sprzedaż lokalna — odbiór osobisty. Bardzo rzadko sprzedawcy wysyłają paczki, a wysyłka zagraniczna jest wyjątkiem.` };
+    return { level: "warn", text: "Uwaga: Jiji/OLX w Afryce to głównie sprzedaż lokalna (odbiór osobisty). Wysyłka zagraniczna jest wyjątkiem — weryfikuj każde ogłoszenie indywidualnie." };
   }
-  // Jumia — ships within country only
   if (url.includes("jumia.")) {
-    return { level: "warn", text: `Uwaga: Jumia wysyła TYLKO w obrębie jednego kraju. Nie obsługuje wysyłki zagranicznej — musisz zamówić przez lokalnego spedytora.` };
+    return { level: "warn", text: "Uwaga: Jumia wysyła TYLKO w obrębie jednego kraju. Brak wysyłki zagranicznej." };
   }
-  // Konga — Nigeria only
   if (url.includes("konga.com")) {
-    return { level: "warn", text: "Uwaga: Konga.com działa wyłącznie w Nigerii i nie oferuje wysyłki zagranicznej." };
+    return { level: "warn", text: "Uwaga: Konga.com działa wyłącznie w Nigerii, brak wysyłki zagranicznej." };
   }
-  // Takealot — South Africa only
   if (url.includes("takealot.com")) {
     return { level: "warn", text: "Uwaga: Takealot wysyła tylko na terenie RPA. Brak opcji wysyłki zagranicznej." };
   }
-  // Africa to Africa cross-border
-  if (srcAf && dstAf) {
-    return { level: "check", text: `Wysyłka wewnątrz Afryki (${src}→${dst}): użyj DHL lub FedEx — poczta lokalna jest bardzo zawodna. Cło i odprawy celne mogą znacznie opóźnić przesyłkę.` };
+  // SE Asia local platforms
+  if (url.includes("tokopedia") || url.includes("bukalapak")) {
+    return { level: "warn", text: "Uwaga: Tokopedia/Bukalapak obsługuje tylko rynek indonezyjski. Wysyłka zagraniczna jest bardzo rzadka." };
   }
-  // EU/US → Africa
-  if (!srcAf && dstAf) {
-    return { level: "check", text: `Wysyłka do ${dstName}: użyj DHL/FedEx (~7–14 dni). Uwaga: cła importowe w Afryce mogą być wysokie (np. Nigeria 20–75%). Wlicz je do kalkulacji zysku.` };
+  if (url.includes("shopee.") || url.includes("lazada.")) {
+    return { level: "check", text: `Shopee/Lazada: sprzedawcy zazwyczaj wysyłają tylko lokalnie. Sprawdź czy oferta ma opcję wysyłki do ${dstName}.` };
   }
-  // Africa → EU/US (sourcing from Africa)
-  if (srcAf && !dstAf) {
-    return { level: "check", text: `Zakup z Afryki (${src}→${dst}): większość lokalnych sprzedawców nie wysyła zagranicznie. Rozważ usługę spedytora lub sprawdź czy platforma oferuje shipping worldwide.` };
+  if (url.includes("mercadolivre") || url.includes("mercadolibre")) {
+    return { level: "warn", text: `Uwaga: Mercado Libre w większości krajów nie obsługuje wysyłki zagranicznej. Wysyłka do ${dstName} może być niemożliwa.` };
   }
-  // European local classifieds
+  if (url.includes("avito.ru")) {
+    return { level: "warn", text: "Uwaga: Avito.ru to rynek lokalny. Od 2022 r. wiele zachodnich kurierów (DHL, FedEx, UPS) wstrzymało wysyłki do/z Rosji. Sprawdź dostępność przed zakupem." };
+  }
   if (url.includes("allegro.pl") || url.includes("olx.pl")) {
-    return { level: "warn", text: `Uwaga: większość sprzedawców na Allegro wysyła TYLKO w Polsce. Sprawdź opcje wysyłki i zapytaj sprzedawcę o wysyłkę do ${dstName}.` };
+    return { level: "warn", text: `Uwaga: większość sprzedawców na Allegro wysyła TYLKO w Polsce. Sprawdź opcje wysyłki i zapytaj o możliwość wysyłki do ${dstName}.` };
   }
   if (url.includes("kleinanzeigen.de")) {
-    return { level: "warn", text: "Uwaga: Kleinanzeigen.de to głównie sprzedaż lokalna (odbiór osobisty). Wielu sprzedawców nie wysyła paczek — sprawdź ogłoszenie dokładnie." };
+    return { level: "warn", text: "Uwaga: Kleinanzeigen.de to głównie sprzedaż lokalna (odbiór osobisty). Wielu sprzedawców nie wysyła paczek." };
   }
   if (url.includes("vinted.")) {
-    return { level: "warn", text: "Uwaga: Vinted zazwyczaj obsługuje tylko wysyłkę krajową. Upewnij się że sprzedawca wysyła za granicę." };
+    return { level: "warn", text: "Uwaga: Vinted obsługuje tylko wysyłkę krajową. Upewnij się że sprzedawca wysyła za granicę." };
   }
   if (url.includes("facebook.com") || url.includes("fb.com")) {
     return { level: "warn", text: "Uwaga: Facebook Marketplace to głównie sprzedaż lokalna. Wysyłka zależy wyłącznie od sprzedawcy." };
   }
   if (url.includes("ebay.")) {
-    return { level: "check", text: `Sprawdź na stronie oferty czy sprzedawca wysyła do ${dstName} (opcja 'International shipping').` };
+    return { level: "check", text: `Sprawdź czy sprzedawca wysyła do ${dstName} (opcja 'International shipping' w ofercie).` };
   }
-  return { level: "check", text: `Przesyłka ${src}→${dst}: upewnij się że sprzedawca oferuje wysyłkę zagraniczną przed dokonaniem zakupu.` };
+
+  // ── Regional warnings ───────────────────────────────────────────────
+  if (dst === "RU") {
+    return { level: "warn", text: "Uwaga: od 2022 r. DHL, FedEx i UPS zawiesiły wysyłki do Rosji. Dostępne są opcje przez pośredników, ale są drogie i wolne (~4–6 tyg.). Sprawdź sankcje przed wysyłką." };
+  }
+  if (dst === "IR") {
+    return { level: "warn", text: "Uwaga: Iran jest objęty sankcjami — wysyłka do Iranu jest nielegalna z większości krajów zachodnich." };
+  }
+  if (dst === "BR") {
+    return { level: "check", text: "Uwaga: Brazylia ma bardzo wysokie cła importowe (~60% na elektronikę). Zamówienia powyżej $50 często zatrzymywane na granicy. Poinformuj kupującego o ryzyku cła." };
+  }
+  if (dst === "IN") {
+    return { level: "check", text: "Uwaga: Indie mają wysokie cła na elektronikę (20–50%) i skomplikowane procedury celne. Dodaj informację o potencjalnych opłatach w ogłoszeniu." };
+  }
+  if (dstLA && dst !== "MX") {
+    return { level: "check", text: `Wysyłka do ${dstName}: cła importowe w Ameryce Łacińskiej mogą być wysokie. Prześwietlenie paczek bywa długie. Użyj DHL/FedEx dla lepszego śledzenia.` };
+  }
+  if (dst === "MX") {
+    return { level: "check", text: "Meksyk: cła na dobra używane do $50 USD są zazwyczaj zwolnione. Użyj DHL/FedEx — poczta meksykańska jest bardzo zawodna." };
+  }
+
+  // Africa
+  if (srcAf && dstAf) {
+    return { level: "check", text: `Wysyłka wewnątrz Afryki (${src}→${dst}): używaj DHL/FedEx — poczta lokalna jest bardzo zawodna. Cło może opóźnić przesyłkę.` };
+  }
+  if (!srcAf && dstAf) {
+    return { level: "check", text: `Wysyłka do ${dstName}: użyj DHL/FedEx (~7–14 dni). Cła importowe mogą być wysokie (Nigeria 20–75%, Egipt 20–40%). Wlicz je do kalkulacji zysku.` };
+  }
+  if (srcAf && !dstAf) {
+    return { level: "check", text: `Zakup z Afryki: większość lokalnych sprzedawców nie wysyła zagranicznie. Sprawdź czy platforma oferuje wysyłkę międzynarodową.` };
+  }
+
+  // SE Asia
+  if (dstSEA || srcSEA) {
+    return { level: "check", text: `Azja Płd.-Wsch. (${src}→${dst}): użyj DHL/FedEx lub J&T Express. Czas dostawy 5–10 dni. Lokalne platformy zazwyczaj wysyłają tylko krajowo.` };
+  }
+
+  // Middle East
+  if (dstME) {
+    return { level: "check", text: `Bliski Wschód (→${dstName}): DHL/FedEx 4–8 dni. Emiraty i Arabia Saudyjska mają sprawne odprawy celne. Sprawdź ograniczenia na wysyłane produkty (alkohol, niektóre elektronika).` };
+  }
+
+  return { level: "check", text: `Przesyłka ${src}→${dst}: upewnij się że sprzedawca oferuje wysyłkę zagraniczną. Użyj DHL/FedEx dla pewności dostarczenia.` };
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
   US:"USA", GB:"UK", DE:"Niemcy", PL:"Polska", FR:"Francja", IT:"Włochy",
-  ES:"Hiszpania", NL:"Holandia", JP:"Japonia", CA:"Kanada", AU:"Australia", NO:"Norwegia",
-  SE:"Szwecja", DK:"Dania", CN:"Chiny", IN:"Indie", BR:"Brazylia",
+  ES:"Hiszpania", NL:"Holandia", JP:"Japonia", CA:"Kanada", AU:"Australia",
+  NO:"Norwegia", SE:"Szwecja", DK:"Dania", CH:"Szwajcaria", RU:"Rosja",
+  CN:"Chiny", HK:"Hong Kong", TW:"Tajwan", KR:"Korea Płd.",
+  IN:"Indie", PK:"Pakistan", BD:"Bangladesz",
+  SG:"Singapur", MY:"Malezja", TH:"Tajlandia", ID:"Indonezja", PH:"Filipiny", VN:"Wietnam",
+  NZ:"Nowa Zelandia", TR:"Turcja",
+  AE:"Emiraty", SA:"Arabia Saudyjska", IL:"Izrael", QA:"Katar", KW:"Kuwejt",
+  BR:"Brazylia", MX:"Meksyk", AR:"Argentyna", CL:"Chile", CO:"Kolumbia", PE:"Peru",
   NG:"Nigeria", ZA:"RPA", KE:"Kenia", EG:"Egipt", GH:"Ghana",
   MA:"Maroko", TZ:"Tanzania", UG:"Uganda", ET:"Etiopia", SN:"Senegal",
 };
