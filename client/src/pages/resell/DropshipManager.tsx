@@ -115,11 +115,15 @@ export default function DropshipManager() {
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
+  const [fxRates, setFxRates] = useState<Record<string, number>>({ USD: 1, PLN: 4.06, EUR: 0.92, GBP: 0.79, CZK: 23.5, JPY: 149.5, SEK: 10.52, DKK: 6.89 });
+  const [fxSource, setFxSource] = useState("fallback");
+  const [buyLocalRaw, setBuyLocalRaw] = useState("");
 
   const [form, setForm] = useState({
     productName: "", sourceUrl: "", sourcePricePLN: "", sourcePriceUSD: "",
     sellPrice: "", platform: "eBay USA", category: "General",
     description: "", buyHint: "", sellHint: "", sourceMarket: "",
+    sourceCurrency: "PLN",
   });
   const [orderForm, setOrderForm] = useState({ buyerName: "", buyerAddress: "", buyerEmail: "", quantity: "1", notes: "" });
   const [trackingInput, setTrackingInput] = useState("");
@@ -139,6 +143,13 @@ export default function DropshipManager() {
   }, []);
 
   useEffect(() => {
+    fetch("/api/exchange-rates?base=USD")
+      .then(r => r.json())
+      .then(d => { if (d.rates) { setFxRates(d.rates); setFxSource(d.source || "ECB"); } })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     load();
     // Check if there's a pending import from Dashboard
     const imp = sessionStorage.getItem("dropship_import");
@@ -146,10 +157,14 @@ export default function DropshipManager() {
       try {
         const o = JSON.parse(imp);
         sessionStorage.removeItem("dropship_import");
+        const buyUsd = String(o.buy ?? "");
+        setBuyLocalRaw(buyUsd);
         setForm(f => ({
           ...f,
           productName: o.name ?? "",
-          sourcePriceUSD: String(o.buy ?? ""),
+          sourcePriceUSD: buyUsd,
+          sourcePricePLN: o.buy ? String(Math.round(o.buy * (fxRates.PLN ?? 4.06) * 100) / 100) : "",
+          sourceCurrency: "USD",
           sellPrice: String(o.sell ?? ""),
           platform: o.market ?? "eBay USA",
           category: o.category ?? "General",
@@ -171,6 +186,20 @@ export default function DropshipManager() {
   const feeAmt = sell * (fee / 100);
   const formProfit = sell > 0 ? Math.round((sell - feeAmt - buy - ship) * 100) / 100 : 0;
   const formMargin = sell > 0 ? Math.round((formProfit / sell) * 100) : 0;
+
+  const handleBuyPrice = (raw: string, currency: string) => {
+    setBuyLocalRaw(raw);
+    const amount = parseFloat(raw) || 0;
+    const rateUSD = fxRates[currency] ?? 1;
+    const usd = currency === "USD" ? amount : parseFloat((amount / rateUSD).toFixed(2));
+    const pln = parseFloat((usd * (fxRates.PLN ?? 4.06)).toFixed(2));
+    setForm(f => ({
+      ...f,
+      sourceCurrency: currency,
+      sourcePriceUSD: raw === "" ? "" : String(usd),
+      sourcePricePLN: raw === "" ? "" : String(pln),
+    }));
+  };
 
   const analyzeScreenshot = async (file: File) => {
     setScreenshotAnalyzing(true);
@@ -200,11 +229,15 @@ export default function DropshipManager() {
       if (!res.ok) { setScreenshotError(data.error || "Analysis failed"); return; }
 
       const e = data.extracted ?? {};
+      // Use PLN price if available (most accurate for Polish market), else USD
+      if (e.sourcePricePLN != null) {
+        handleBuyPrice(String(Math.round(e.sourcePricePLN)), "PLN");
+      } else if (e.sourcePriceUSD != null) {
+        handleBuyPrice(String(Math.round(e.sourcePriceUSD * 100) / 100), "USD");
+      }
       setForm(f => ({
         ...f,
         productName: e.productName || f.productName,
-        sourcePriceUSD: e.sourcePriceUSD != null ? String(Math.round(e.sourcePriceUSD)) : f.sourcePriceUSD,
-        sourcePricePLN: e.sourcePricePLN != null ? String(Math.round(e.sourcePricePLN)) : f.sourcePricePLN,
         sourceUrl: e.sourceUrl || f.sourceUrl,
         description: e.description || f.description,
         buyHint: e.buyHint || f.buyHint,
@@ -228,7 +261,8 @@ export default function DropshipManager() {
       });
       const data = await res.json();
       setShowNewListing(false);
-      setForm({ productName: "", sourceUrl: "", sourcePricePLN: "", sourcePriceUSD: "", sellPrice: "", platform: "eBay USA", category: "General", description: "", buyHint: "", sellHint: "", sourceMarket: "" });
+      setBuyLocalRaw("");
+      setForm({ productName: "", sourceUrl: "", sourcePricePLN: "", sourcePriceUSD: "", sellPrice: "", platform: "eBay USA", category: "General", description: "", buyHint: "", sellHint: "", sourceMarket: "", sourceCurrency: "PLN" });
       await load();
       if (data.listing) setShowDetail(data.listing);
     } catch {}
@@ -426,7 +460,7 @@ export default function DropshipManager() {
 
       {/* ── MODAL: New Listing ── */}
       {showNewListing && (
-        <Modal title="New Dropship Listing" onClose={() => { setShowNewListing(false); setScreenshotError(null); }} wide>
+        <Modal title="New Dropship Listing" onClose={() => { setShowNewListing(false); setScreenshotError(null); setBuyLocalRaw(""); }} wide>
           {/* Screenshot upload */}
           <input
             ref={screenshotInputRef}
@@ -488,14 +522,33 @@ export default function DropshipManager() {
             </Field>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 2 }}>
-            <Field label="BUY PRICE (USD) *">
-              <input style={inp} type="number" min="0" value={form.sourcePriceUSD} onChange={e => setForm(f => ({ ...f, sourcePriceUSD: e.target.value }))} placeholder="22" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 2 }}>
+            <Field label="BUY PRICE *">
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  style={{ ...inp, flex: 1 }}
+                  type="number" min="0"
+                  value={buyLocalRaw}
+                  onChange={e => handleBuyPrice(e.target.value, form.sourceCurrency)}
+                  placeholder={form.sourceCurrency === "PLN" ? "200" : form.sourceCurrency === "EUR" ? "45" : "22"}
+                />
+                <select
+                  value={form.sourceCurrency}
+                  onChange={e => handleBuyPrice(buyLocalRaw, e.target.value)}
+                  style={{ ...inp, width: 74, padding: "10px 6px", appearance: "none", textAlign: "center", flexShrink: 0, cursor: "pointer" }}>
+                  {["PLN","EUR","GBP","USD","CZK","JPY","SEK","DKK"].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              {form.sourceCurrency !== "USD" && form.sourcePriceUSD && (
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10 }}>
+                  <span style={{ color: "#60a5fa", fontWeight: 700 }}>≈ ${form.sourcePriceUSD} USD</span>
+                  <span style={{ color: "rgba(255,255,255,0.2)" }}>
+                    1 USD = {(fxRates[form.sourceCurrency] ?? 1).toFixed(2)} {form.sourceCurrency} · {fxSource.includes("fallback") ? "fallback" : "ECB live"}
+                  </span>
+                </div>
+              )}
             </Field>
-            <Field label="BUY PRICE (PLN)">
-              <input style={inp} type="number" min="0" value={form.sourcePricePLN} onChange={e => setForm(f => ({ ...f, sourcePricePLN: e.target.value }))} placeholder="88" />
-            </Field>
-            <Field label="SELL PRICE ($) *">
+            <Field label="SELL PRICE (USD) *">
               <input style={inp} type="number" min="0" value={form.sellPrice} onChange={e => setForm(f => ({ ...f, sellPrice: e.target.value }))} placeholder="74" />
             </Field>
           </div>
@@ -504,9 +557,10 @@ export default function DropshipManager() {
           {sell > 0 && (
             <div style={{ background: formProfit > 0 ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)", border: `1px solid ${formProfit > 0 ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
               <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 12 }}>
+                <span style={{ color: "rgba(255,255,255,0.5)" }}>Buy: <strong style={{ color: "#60a5fa" }}>${buy.toFixed(2)}</strong>{form.sourceCurrency !== "USD" && buyLocalRaw && <span style={{ color: "rgba(255,255,255,0.2)", fontWeight: 400 }}> ({buyLocalRaw} {form.sourceCurrency})</span>}</span>
                 <span style={{ color: "rgba(255,255,255,0.5)" }}>Net profit: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>${formProfit.toFixed(2)}</strong></span>
                 <span style={{ color: "rgba(255,255,255,0.5)" }}>Margin: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>{formMargin}%</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.35)" }}>Fee {form.platform}: {fee}% (${feeAmt.toFixed(2)})</span>
+                <span style={{ color: "rgba(255,255,255,0.35)" }}>Fee: {fee}% (${feeAmt.toFixed(2)})</span>
                 <span style={{ color: "rgba(255,255,255,0.35)" }}>Ship est: ${ship}</span>
               </div>
             </div>
