@@ -32,11 +32,16 @@ async function getEbayToken(appId: string, certId: string): Promise<string | nul
 // ── eBay Browse search (single marketplace) ──────────────────────────────────
 async function ebaySearch(
   token: string, query: string, maxPrice: number,
-  marketplace = "EBAY_US", sortOrder = "price"
+  marketplace = "EBAY_US", sortOrder = "price",
+  conditionFilter: "used" | "any" = "any"
 ): Promise<any[]> {
   try {
     const priceFilter = maxPrice < 9999 ? `price:[1..${maxPrice}],` : "";
-    const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${encodeURIComponent(query)}&fieldgroups=EXTENDED&filter=${priceFilter}conditionIds:{3000|4000|5000|6000}&limit=8&sort=${sortOrder}`;
+    // used=3000-6000, new=1000-2500; buy-side prefers used
+    const condIds = conditionFilter === "used"
+      ? "conditionIds:{3000|4000|5000|6000}"
+      : "conditionIds:{1000|1500|2000|2500|3000|4000|5000|6000}";
+    const url = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${encodeURIComponent(query)}&fieldgroups=EXTENDED&filter=${priceFilter}${condIds}&limit=10&sort=${sortOrder}`;
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, "X-EBAY-C-MARKETPLACE-ID": marketplace },
     });
@@ -50,11 +55,42 @@ async function ebaySearch(
         url: i.itemWebUrl ?? "",
         imageUrl: i.image?.imageUrl ?? i.thumbnailImages?.[0]?.imageUrl ?? "",
         condition: i.condition ?? "",
+        conditionId: i.conditionId ?? "",
         watchCount: i.watchCount ?? 0,
         marketplace,
       }))
-      .filter((i: any) => i.url.startsWith("https://") && i.price > 0); // only valid listings
+      .filter((i: any) =>
+        i.url.startsWith("https://") &&
+        i.price > 0 &&
+        isValidEbayImage(i.imageUrl)
+      );
   } catch { return []; }
+}
+
+// Only accept images from eBay's own CDN — rejects empty strings and external placeholders
+function isValidEbayImage(img: string): boolean {
+  if (!img) return false;
+  return img.includes("ebayimg.com") || img.includes("ebaystatic.com") || img.startsWith("https://");
+}
+
+// How many search keywords from productName appear in the listing title (0.0–1.0)
+function keywordConsistency(productName: string, listingTitle: string): number {
+  const words = productName.toLowerCase().split(/[\s,\-—()]+/).filter(w => w.length > 3);
+  if (!words.length) return 0;
+  const t = listingTitle.toLowerCase();
+  return words.filter(w => t.includes(w)).length / words.length;
+}
+
+// Shipping feasibility: total shipping must be < 40% of net profit
+function shippingFeasible(netProfit: number, category: string, buyFlag: string): boolean {
+  const BASE: Record<string, number> = {
+    Clothing: 12, Jewelry: 18, Electronics: 28, Collectibles: 22,
+    Sneakers: 25, Spirits: 35, Antiques: 40, Watches: 30, General: 20,
+  };
+  const base = BASE[category] ?? 20;
+  const intercontinental = !!buyFlag && (buyFlag.includes("🇯🇵") || buyFlag.includes("🇨🇳") || buyFlag.includes("🇰🇷"));
+  const totalShip = intercontinental ? base * 1.6 : base;
+  return netProfit > 0 && totalShip < netProfit * 0.4;
 }
 
 // Generate a guaranteed eBay search URL as fallback when no direct listing is found
@@ -92,27 +128,34 @@ async function findBestEbayListing(
   const maxPrice = expectedBuyPrice > 0 ? expectedBuyPrice * 3.5 : 9999;
 
   for (const query of queries) {
-    const listings = await ebaySearch(token, query, maxPrice, marketplace, "price");
+    // Buy-side: prefer used/pre-owned items (condition 3000-6000) — these are the arbitrage finds
+    const listings = await ebaySearch(token, query, maxPrice, marketplace, "price", "used");
     if (!listings.length) continue;
 
-    const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
     const scored = listings
       .map(l => {
-        const lTitle = l.title.toLowerCase();
-        const overlap = qWords.filter(w => lTitle.includes(w)).length;
-        const overlapRatio = qWords.length > 0 ? overlap / qWords.length : 0;
+        // Keyword consistency: same words from product name must appear in listing title
+        const consistency = keywordConsistency(oppName, l.title);
         const priceDelta = expectedBuyPrice > 0
           ? Math.abs(l.price - expectedBuyPrice) / (expectedBuyPrice * 2)
           : 0.5;
         const priceScore = Math.max(0, 1 - priceDelta);
-        return { ...l, matchScore: overlapRatio * 0.65 + priceScore * 0.35, overlapRatio };
+        // Weight: 65% title match, 35% price proximity
+        return { ...l, matchScore: consistency * 0.65 + priceScore * 0.35, consistency };
       })
-      .filter(l => l.overlapRatio >= 0.30);
+      .filter(l => l.consistency >= 0.30); // minimum 30% keyword match
 
     if (scored.length > 0) {
       scored.sort((a, b) => b.matchScore - a.matchScore);
       const best = scored[0];
-      return { url: best.url, imageUrl: best.imageUrl, title: best.title, actualPrice: best.price };
+      return {
+        url: best.url,
+        imageUrl: best.imageUrl,
+        title: best.title,
+        actualPrice: best.price,
+        condition: best.condition,
+        keywordMatch: Math.round(best.consistency * 100),
+      };
     }
   }
   return null;
@@ -755,15 +798,28 @@ router.post("/scan", async (req: Request, res: Response) => {
               enriched = await Promise.all(
                 filtered.map(async (opp: any, idx: number) => {
                   await new Promise(r => setTimeout(r, idx * 200));
-                  const best = await findBestEbayListing(token, opp.name, opp.buy, locCfg.buyEbayMarketplace);
+                  // Use AI-generated ebaySearchQuery when available — consistent keywords buy→sell
+                  const searchName = opp.ebaySearchQuery?.trim() || opp.name;
+                  const best = await findBestEbayListing(token, searchName, opp.buy, locCfg.buyEbayMarketplace);
                   if (!best) return opp;
+
+                  // Validate shipping feasibility before accepting this opportunity
+                  const shipOk = shippingFeasible(opp.netProfit ?? opp.profit, opp.category, opp.flag);
+
                   return {
                     ...opp,
                     sourceUrl: best.url,
                     imageUrl: best.imageUrl,
                     realBuyTitle: best.title,
                     realBuyPrice: best.actualPrice,
+                    itemCondition: best.condition,
+                    keywordMatch: best.keywordMatch,
+                    shippingFeasible: shipOk,
                     dataQuality: "verified",
+                    // sellUrl uses same keywords as buy search for consistency
+                    sellUrl: opp.sellUrl?.startsWith("https://")
+                      ? opp.sellUrl
+                      : sellUrlForMarket(opp.market ?? "", searchName),
                   };
                 })
               );
@@ -775,17 +831,21 @@ router.post("/scan", async (req: Request, res: Response) => {
         const allEuListings = gapData.flatMap(g => g.gap.euListings);
         enriched = enrichWithRealListings(enriched, allEuListings, locCfg.buyEbayMarketplace);
 
-        // Final guarantee: every opp has valid https:// URLs
-        const withUrls = enriched.map((o: any) => ({
-          ...o,
-          dataQuality: o.dataQuality ?? (o.imageUrl?.startsWith("https://") ? "matched" : "estimated"),
-          sourceUrl: o.sourceUrl?.startsWith("https://")
-            ? o.sourceUrl
-            : ebaySearchFallbackUrl(o.name, locCfg.buyEbayMarketplace),
-          sellUrl: o.sellUrl?.startsWith("https://")
-            ? o.sellUrl
-            : sellUrlForMarket(o.market ?? "", o.name ?? ""),
-        }));
+        // Final guarantee: every opp has valid https:// URLs + shipping check
+        const withUrls = enriched
+          .map((o: any) => ({
+            ...o,
+            dataQuality: o.dataQuality ?? (o.imageUrl?.startsWith("https://") ? "matched" : "estimated"),
+            shippingFeasible: o.shippingFeasible ?? shippingFeasible(o.netProfit ?? o.profit, o.category, o.flag),
+            sourceUrl: o.sourceUrl?.startsWith("https://")
+              ? o.sourceUrl
+              : ebaySearchFallbackUrl(o.name, locCfg.buyEbayMarketplace),
+            sellUrl: o.sellUrl?.startsWith("https://")
+              ? o.sellUrl
+              : sellUrlForMarket(o.market ?? "", o.name ?? ""),
+          }))
+          // Remove opportunities where shipping cost is too high relative to profit
+          .filter((o: any) => o.shippingFeasible !== false || o.dataQuality === "estimated");
 
         const hasLive = gapData.some(g => g.gap.confidence === "live");
         return res.json({ opportunities: withUrls, source: hasLive ? "live" : "ai", scannedAt: new Date().toISOString() });
@@ -1136,10 +1196,12 @@ router.post("/enrich-opportunity", async (req: Request, res: Response) => {
     const token = await getEbayToken(appId, certId);
     if (!token) return res.json({ imageUrl: "", sourceUrl: fallbackUrl });
 
-    const listings = await ebaySearch(token, String(name), 9999, marketplace, "price");
-    // Prefer a listing with both image and URL; fall back to one with just URL
-    const best = listings.find(l => l.imageUrl.startsWith("https://") && l.url.startsWith("https://"))
-      ?? listings.find(l => l.url.startsWith("https://"));
+    const listings = await ebaySearch(token, String(name), 9999, marketplace, "price", "used");
+    // Prefer listing with verified eBay image + URL + good keyword match
+    const withScore = listings.map(l => ({ ...l, score: keywordConsistency(String(name), l.title) }));
+    withScore.sort((a, b) => b.score - a.score);
+    const best = withScore.find(l => l.imageUrl.startsWith("https://") && l.url.startsWith("https://"))
+      ?? withScore.find(l => l.url.startsWith("https://"));
 
     return res.json({
       imageUrl: best?.imageUrl ?? "",
