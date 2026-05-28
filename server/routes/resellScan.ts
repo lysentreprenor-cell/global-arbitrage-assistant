@@ -526,7 +526,33 @@ function sellUrlForMarket(market: string, productName: string): string {
   if (market.includes("StockX")) return `https://stockx.com/search?s=${q}`;
   if (market.includes("Vinted")) return `https://www.vinted.com/catalog?search_text=${q}`;
   if (market.includes("Depop")) return `https://www.depop.com/search/?q=${q}`;
+  if (market.includes("Chrono24")) return `https://www.chrono24.com/search/index.htm?query=${q}`;
+  if (market.includes("WhatNot")) return `https://www.whatnot.com/search?query=${q}`;
+  if (market.includes("Vestiaire")) return `https://www.vestiaire.com/search/?q=${q}`;
+  if (market.includes("Grailed")) return `https://www.grailed.com/shop/search?query=${q}`;
+  if (market.includes("Reverb")) return `https://reverb.com/marketplace?query=${q}`;
   return `https://www.google.com/search?q=${q}+sold+price`;
+}
+
+// Suggest 2-3 best sell platforms for a category + generate their URLs
+function getMultiPlatformSell(market: string, category: string, productName: string): { markets: string[]; sellUrls: Record<string, string> } {
+  const platforms: Record<string, string[]> = {
+    Watches:      ["eBay USA", "Chrono24", "Etsy USA"],
+    Jewelry:      ["Etsy USA", "eBay USA", "Vestiaire Collective"],
+    Clothing:     ["eBay USA", "Depop", "Vinted EU"],
+    Sneakers:     ["StockX USA", "eBay USA", "Depop"],
+    Electronics:  ["eBay USA", "Amazon UK", "eBay DE"],
+    Collectibles: ["eBay USA", "WhatNot", "Etsy USA"],
+    Antiques:     ["Etsy USA", "eBay USA", "Vestiaire Collective"],
+    Spirits:      ["eBay USA", "Amazon UK", "Etsy USA"],
+    General:      ["eBay USA", "Etsy USA", "eBay DE"],
+  };
+  const markets = platforms[category] ?? platforms["General"]!;
+  const sellUrls: Record<string, string> = {};
+  for (const p of markets) {
+    sellUrls[p] = sellUrlForMarket(p, productName);
+  }
+  return { markets, sellUrls };
 }
 
 function sourceUrlForMarket(market: string, productName: string): string {
@@ -615,7 +641,8 @@ Sell platforms available (use best fit for category):
 - Vinted EU: fast fashion clothing resale (0% seller fee)
 - Vestiaire Collective: luxury/designer fashion, watches above $500
 
-daysToSell estimates by category: Clothing 5-10, Jewelry 7-14, Electronics 7-21, Collectibles 10-30, Sneakers 3-7, Spirits 7-14, Antiques 14-45, Watches 10-25.`,
+daysToSell estimates by category: Clothing 5-10, Jewelry 7-14, Electronics 7-21, Collectibles 10-30, Sneakers 3-7, Spirits 7-14, Antiques 14-45, Watches 10-25.
+For each opportunity, list the top 2-3 sell platforms in a "markets" array — selling on multiple platforms simultaneously increases sell speed.`,
       messages: [{
         role: "user",
         content: `${hasReal
@@ -688,6 +715,7 @@ VALIDATION: Before including each item, verify: (1) buy price is LOWER than sell
         sellUrl: o.sellUrl || sellUrlForMarket(o.market ?? "", o.name ?? ""),
         sourceUrl: o.sourceUrl || sourceUrlForMarket("Allegro", o.name ?? ""),
         confidence: o.confidence ?? (hasReal ? "live" : "estimated"),
+        ...getMultiPlatformSell(o.market ?? "", o.category ?? "General", o.name ?? ""),
       }));
   } catch { return []; }
 }

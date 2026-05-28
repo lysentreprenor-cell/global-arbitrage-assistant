@@ -24,6 +24,12 @@ type Opportunity = {
   sourceUrl?: string; sellUrl?: string; imageUrl?: string;
   priceGapPct?: number; confidence?: "live" | "estimated";
   daysToSell?: number;
+  markets?: string[];        // NEW: array of 2-3 sell platforms
+  sellUrls?: Record<string, string>; // NEW: URL per platform
+  dataQuality?: "verified" | "matched" | "estimated";
+  itemCondition?: string;
+  keywordMatch?: number;
+  shippingFeasible?: boolean;
 };
 
 
@@ -577,9 +583,28 @@ export default function Dashboard() {
                   <div style={{ background: `${riskColor}18`, border: `1px solid ${riskColor}35`, borderRadius: 99, padding: "2px 8px", display: "inline-block", color: riskColor, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 }}>{riskLabel}</div>
                   <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 2 }}>{o.margin}% margin</div>
                 </div>
-                {/* MARKET + days to sell */}
+                {/* PLATFORMS — multi-sell */}
                 <div>
-                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{o.market}</div>
+                  {(o.markets && o.markets.length > 0 ? o.markets : [o.market]).map(platform => {
+                    const url = o.sellUrls?.[platform] || o.sellUrl || "";
+                    const short = platform.replace("USA","").replace("eBay ","eBay").replace("Etsy","Etsy").replace("Amazon ","AMZ ").replace("StockX","StockX").trim();
+                    return (
+                      <a
+                        key={platform}
+                        href={url || undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: "inline-block", marginRight: 3, marginBottom: 2,
+                          background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
+                          borderRadius: 5, padding: "1px 5px", color: "#a78bfa",
+                          fontSize: 9, fontWeight: 700, textDecoration: "none", cursor: url ? "pointer" : "default",
+                          letterSpacing: 0.3,
+                        }}
+                      >{short}</a>
+                    );
+                  })}
                   {o.daysToSell && <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 1 }}>~{o.daysToSell}d</div>}
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, alignItems: "center" }}>
