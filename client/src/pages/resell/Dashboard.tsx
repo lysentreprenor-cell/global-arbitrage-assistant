@@ -280,19 +280,37 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── No data banner ── */}
-        {opportunities.length === 0 && !scanning && (
-          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10, padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12 }}>
+        {/* ── No data / stale example data banner ── */}
+        {(opportunities.length === 0 || !isRealData) && !scanning && (
+          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10, padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <Zap size={16} color="#a78bfa" style={{ flexShrink: 0 }} />
-            <span style={{ color: "#c4b5fd", fontSize: 13, flex: 1 }}>
-              Brak zapisanych ofert — naciśnij <strong>Rescan now</strong> żeby znaleźć okazje arbitrażowe.
+            <span style={{ color: "#c4b5fd", fontSize: 13, flex: 1, minWidth: 180 }}>
+              {opportunities.length === 0
+                ? <>Brak zapisanych ofert — naciśnij <strong>Skanuj teraz</strong>.</>
+                : <>Widoczne dane nie są prawdziwe — naciśnij <strong>Wyczyść i skanuj</strong> żeby pobrać aktualne okazje.</>}
             </span>
-            <button
-              onClick={triggerScan}
-              style={{ background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 7, padding: "7px 14px", cursor: "pointer", color: "#a78bfa", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
-            >
-              Skanuj teraz
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              {opportunities.length > 0 && !isRealData && (
+                <button
+                  onClick={() => {
+                    localStorage.removeItem(SCAN_DATA_KEY);
+                    localStorage.removeItem(SCAN_REAL_KEY);
+                    localStorage.removeItem(SCAN_TS_KEY);
+                    setOpportunities([]);
+                    setIsRealData(false);
+                  }}
+                  style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 7, padding: "7px 12px", cursor: "pointer", color: "#fca5a5", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+                >
+                  Wyczyść cache
+                </button>
+              )}
+              <button
+                onClick={triggerScan}
+                style={{ background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 7, padding: "7px 14px", cursor: "pointer", color: "#a78bfa", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
+              >
+                Skanuj teraz
+              </button>
+            </div>
           </div>
         )}
 
