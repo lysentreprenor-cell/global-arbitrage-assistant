@@ -47,14 +47,21 @@ export const SUPPORTED_LOCATIONS: UserLocation[] = [
   { country: "ES", label: "Spain",         currency: "EUR", flag: "🇪🇸" },
   { country: "IT", label: "Italy",         currency: "EUR", flag: "🇮🇹" },
   { country: "NL", label: "Netherlands",   currency: "EUR", flag: "🇳🇱" },
+  { country: "EU", label: "Europa",        currency: "EUR", flag: "🇪🇺" },
   { country: "JP", label: "Japan",         currency: "JPY", flag: "🇯🇵" },
+  { country: "CN", label: "China",         currency: "CNY", flag: "🇨🇳" },
+  { country: "IN", label: "India",         currency: "INR", flag: "🇮🇳" },
+  { country: "AS", label: "Azja",          currency: "USD", flag: "🌏" },
   { country: "US", label: "USA",           currency: "USD", flag: "🇺🇸" },
+  { country: "EU_US", label: "USA + Europa", currency: "USD", flag: "🌍" },
   { country: "NG", label: "Nigeria",       currency: "NGN", flag: "🇳🇬" },
   { country: "ZA", label: "South Africa",  currency: "ZAR", flag: "🇿🇦" },
   { country: "KE", label: "Kenya",         currency: "KES", flag: "🇰🇪" },
   { country: "EG", label: "Egypt",         currency: "EGP", flag: "🇪🇬" },
   { country: "GH", label: "Ghana",         currency: "GHS", flag: "🇬🇭" },
   { country: "MA", label: "Morocco",       currency: "MAD", flag: "🇲🇦" },
+  { country: "AF", label: "Afryka",        currency: "USD", flag: "🌍" },
+  { country: "WW", label: "Cały Świat",    currency: "USD", flag: "🌐" },
 ];
 
 export function getUserLocation(): UserLocation {

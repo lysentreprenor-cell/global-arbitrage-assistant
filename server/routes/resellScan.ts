@@ -326,6 +326,65 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
     localSources: "eBay USA, Facebook Marketplace US, Craigslist, Goodwill Auctions, Estate sales",
     localSourcesMap: {},
   },
+  EU: {
+    buyEbayMarketplace: "EBAY_DE",
+    currencyNote: "User buys across entire Europe (EUR). Look for cheap EU listings to sell on eBay USA or Etsy USA.",
+    localSources: "eBay.de, Kleinanzeigen.de, Vinted EU, Leboncoin FR, Wallapop ES, Subito.it, Marktplaats NL, European flea markets",
+    localSourcesMap: {
+      Clothing:    "Vinted EU, Kleinanzeigen.de, Leboncoin FR, European thrift stores",
+      Jewelry:     "European estate sales, Kleinanzeigen.de, Leboncoin FR, eBay.de",
+      Electronics: "Kleinanzeigen.de, Backmarket EU, eBay.de",
+      Collectibles:"European flea markets, eBay.de, Kleinanzeigen.de",
+      Watches:     "Chrono24.de, eBay.de, European watch dealers",
+      Antiques:    "European antique fairs, Drouot FR, Kleinanzeigen.de",
+    },
+  },
+  EU_US: {
+    buyEbayMarketplace: "EBAY_DE",
+    currencyNote: "User operates in both USA and Europe. Find cross-Atlantic arbitrage: cheap EU → sell USA, or cheap USA → sell EU.",
+    localSources: "eBay USA + eBay.de, Kleinanzeigen.de, Facebook Marketplace US, Vinted EU, Goodwill USA",
+    localSourcesMap: {
+      Clothing:    "Vinted EU, Goodwill USA, eBay on both sides of Atlantic",
+      Watches:     "Chrono24 (EU), eBay USA, US estate sales",
+      Electronics: "Kleinanzeigen.de, eBay USA, Craigslist",
+      Collectibles:"eBay USA + eBay.de, US estate sales, European flea markets",
+    },
+  },
+  AS: {
+    buyEbayMarketplace: "EBAY_US",
+    currencyNote: "User buys in Asia (Japan, China, Korea, SE Asia). Great for electronics, collectibles, vintage cameras, anime.",
+    localSources: "Yahoo Auctions JP (via Buyee/Zenmarket), Mercari JP, Taobao CN, Rakuten JP, Korean Jungonara, SE Asia Shopee/Lazada",
+    localSourcesMap: {
+      Electronics: "Yahoo Auctions JP, Mercari JP, Akihabara shops, Taobao CN",
+      Collectibles:"Yahoo Auctions JP, Mandarake JP, Korean collectibles markets",
+      Watches:     "Yahoo Auctions JP, Mercari JP, Japanese watch dealers",
+      Cameras:     "Yahoo Auctions JP, Map Camera Tokyo, Yodobashi Camera used",
+      Clothing:    "Mercari JP, Taobao CN, Korean fashion markets",
+    },
+  },
+  AF: {
+    buyEbayMarketplace: "EBAY_US",
+    currencyNote: "User buys in Africa. Look for African crafts, art, textiles, gemstones to sell in US/EU markets.",
+    localSources: "Local African markets, OLX.co.za (South Africa), Jumia (West Africa), Jiji.ng (Nigeria), African craft fairs",
+    localSourcesMap: {
+      Jewelry:     "African gemstone dealers, local craft markets, OLX.co.za",
+      Clothing:    "African textile markets, local tailors, Ankara fabric sellers",
+      Antiques:    "Local African antique dealers, tribal art markets",
+      Collectibles:"Local African markets, tribal masks, art galleries",
+    },
+  },
+  WW: {
+    buyEbayMarketplace: "EBAY_DE",
+    currencyNote: "User operates globally — no geographic restriction. Find the best arbitrage opportunities worldwide.",
+    localSources: "eBay (all markets), Etsy worldwide, Amazon global, local markets on every continent",
+    localSourcesMap: {
+      Electronics: "Yahoo Auctions JP, eBay USA, Kleinanzeigen.de",
+      Clothing:    "Vinted EU, Depop, ThredUp USA, Mercari JP",
+      Watches:     "Chrono24 (global), eBay USA, Yahoo Auctions JP",
+      Collectibles:"eBay USA, Yahoo Auctions JP, European antique fairs",
+      Jewelry:     "Etsy USA, eBay.de, African gemstone markets",
+    },
+  },
 };
 
 function getLocationConfig(countryCode: string): LocationConfig {
