@@ -631,7 +631,7 @@ router.post("/scan", async (req: Request, res: Response) => {
   }
 
   const shuffled = [...FALLBACK].sort(() => Math.random() - 0.5);
-  return res.json({ opportunities: shuffled, source: "cache", scannedAt: new Date().toISOString() });
+  return res.json({ opportunities: shuffled, source: "example", scannedAt: new Date().toISOString() });
 });
 
 // ── POST /api/resell/product-search ──────────────────────────────────────────

@@ -73,10 +73,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const SCAN_TS_KEY = "resell_last_scan_ts";
 const SCAN_DATA_KEY = "resell_scan_data";
-const AUTOSCAN_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+const SCAN_REAL_KEY = "resell_scan_is_real"; // "1" if cached data is from a real scan
+const AUTOSCAN_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours — real results persist all day
 
-function loadCachedOpportunities(): Opportunity[] | null {
-  try { return JSON.parse(localStorage.getItem(SCAN_DATA_KEY) || "null"); } catch { return null; }
+function loadCachedOpportunities(): { opps: Opportunity[]; isReal: boolean } | null {
+  try {
+    const raw = localStorage.getItem(SCAN_DATA_KEY);
+    if (!raw) return null;
+    const opps = JSON.parse(raw) as Opportunity[];
+    const isReal = localStorage.getItem(SCAN_REAL_KEY) === "1";
+    return { opps, isReal };
+  } catch { return null; }
 }
 
 export default function Dashboard() {
@@ -86,9 +93,16 @@ export default function Dashboard() {
   const [sortKey, setSortKey] = useState<"score" | "profit" | "sell_desc" | "sell_asc" | "buy_asc">("score");
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState("");
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(() => loadCachedOpportunities() ?? INITIAL_OPPORTUNITIES);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>(() => {
+    const cached = loadCachedOpportunities();
+    return cached ? cached.opps : INITIAL_OPPORTUNITIES;
+  });
+  const [isRealData, setIsRealData] = useState<boolean>(() => {
+    const cached = loadCachedOpportunities();
+    return cached?.isReal ?? false;
+  });
   const [scannedAt, setScannedAt] = useState<string | null>(null);
-  const [scanSource, setScanSource] = useState<"ai" | "cache" | "live" | null>(null);
+  const [scanSource, setScanSource] = useState<"ai" | "live" | "example" | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [offerOpp, setOfferOpp] = useState<Opportunity | null>(null);
   const [userLoc, setUserLoc] = useState(getUserLocation);
@@ -174,10 +188,16 @@ export default function Dashboard() {
       if (data.opportunities?.length) {
         setOpportunities(data.opportunities);
         setScanSource(data.source);
+        const isReal = data.source !== "example";
+        setIsRealData(isReal);
         const ts = new Date().toLocaleTimeString();
         setScannedAt(ts);
-        localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
-        localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
+        if (isReal) {
+          // Only persist real scan results — never overwrite good data with examples
+          localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
+          localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
+          localStorage.setItem(SCAN_REAL_KEY, "1");
+        }
       } else if (data.error || data.message) {
         setScanError(data.error ?? data.message);
       }
@@ -223,7 +243,7 @@ export default function Dashboard() {
                   ? <>Last scan: <span style={{ color: "#86efac" }}>{scannedAt}</span>
                       {scanSource === "live" && <span style={{ color: "#4ade80", marginLeft: 6 }}>· 🟢 Live data</span>}
                       {scanSource === "ai" && <span style={{ color: "#a78bfa", marginLeft: 6 }}>· 🤖 AI</span>}
-                      {scanSource === "cache" && <span style={{ color: "rgba(255,255,255,0.4)", marginLeft: 6 }}>· 📦 Cache</span>}
+                      {scanSource === "example" && <span style={{ color: "#f87171", marginLeft: 6 }}>· 📋 Przykładowe</span>}
                     </>
                   : "Real-time cross-border arbitrage intelligence · 4 markets"
               }
@@ -256,6 +276,22 @@ export default function Dashboard() {
             <span style={{ color: "#fca5a5", fontSize: 12, flex: 1 }}>{scanError}</span>
             <button onClick={() => setScanError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 2 }}>
               <X size={13} />
+            </button>
+          </div>
+        )}
+
+        {/* ── Example data banner ── */}
+        {!isRealData && !scanning && (
+          <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10 }}>
+            <AlertCircle size={14} color="#f5c842" style={{ flexShrink: 0 }} />
+            <span style={{ color: "#fde68a", fontSize: 12, flex: 1 }}>
+              Wyświetlane są <strong>przykładowe oferty</strong> — dodaj klucze API w Ustawieniach i naciśnij „Rescan now", żeby zobaczyć prawdziwe aktualne okazje. Prawdziwe wyniki będą zapisane na stałe.
+            </span>
+            <button
+              onClick={triggerScan}
+              style={{ background: "rgba(245,200,66,0.15)", border: "1px solid rgba(245,200,66,0.3)", borderRadius: 7, padding: "5px 12px", cursor: "pointer", color: "#fde68a", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+            >
+              Skanuj teraz
             </button>
           </div>
         )}
