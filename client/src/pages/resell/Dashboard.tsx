@@ -192,12 +192,17 @@ export default function Dashboard() {
         setIsRealData(isReal);
         const ts = new Date().toLocaleTimeString();
         setScannedAt(ts);
-        // Always persist scan results — real or example — so they survive refresh.
-        // SCAN_REAL_KEY is only set (never cleared) when source is real.
-        localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
-        localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
+        // Save logic:
+        // - Real data → always save, mark as real.
+        // - Example data → save ONLY if no real data exists yet (don't overwrite real with examples).
+        const alreadyHasReal = localStorage.getItem(SCAN_REAL_KEY) === "1";
         if (isReal) {
+          localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
+          localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
           localStorage.setItem(SCAN_REAL_KEY, "1");
+        } else if (!alreadyHasReal) {
+          localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
+          localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
         }
       } else if (data.error || data.message) {
         setScanError(data.error ?? data.message);
