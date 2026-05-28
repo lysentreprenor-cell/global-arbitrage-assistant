@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
-  Search, TrendingUp, TrendingDown, Zap, Globe, BarChart2,
-  ArrowRight, RefreshCw, Star, DollarSign, ShoppingBag, Filter,
+  Search, TrendingUp, Zap, Globe, RefreshCw, Star, Filter,
   ExternalLink, Boxes, AlertCircle, X, PlusCircle, Check, BookmarkPlus,
+  ArrowRight, Package, ShieldCheck, ShieldAlert, Clock,
 } from "lucide-react";
 import { addToPipeline, loadPipeline } from "@/lib/pipeline";
 import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib/apiKeys";
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, Cell,
-} from "recharts";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
 import { LocationPicker } from "@/components/resell/LocationPicker";
@@ -35,49 +31,24 @@ type Opportunity = {
   shippingFeasible?: boolean;
   realBuyPrice?: number;
   realBuyTitle?: string;
-  markets?: string[];        // NEW: array of 2-3 sell platforms
-  sellUrls?: Record<string, string>; // NEW: URL per platform
+  markets?: string[];
+  sellUrls?: Record<string, string>;
 };
-
-
-const PROFIT_TREND = [
-  { day: "Mon", profit: 120 }, { day: "Tue", profit: 340 }, { day: "Wed", profit: 210 },
-  { day: "Thu", profit: 480 }, { day: "Fri", profit: 390 }, { day: "Sat", profit: 620 },
-  { day: "Sun", profit: 510 },
-];
-
-const MARKET_DATA = [
-  { name: "eBay USA", deals: 312, fill: "#8b5cf6" },
-  { name: "Etsy USA", deals: 198, fill: "#f5c842" },
-  { name: "Amazon", deals: 156, fill: "#34d399" },
-  { name: "eBay EU", deals: 181, fill: "#60a5fa" },
-];
 
 const CATEGORIES = ["All", "Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches"];
 
 const SCAN_STEPS = [
-  "Connecting to eBay USA…",
-  "Scanning Etsy marketplace…",
-  "Checking Amazon EU/UK…",
-  "Analysing price gaps…",
-  "Running AI profit model…",
-  "Ranking opportunities…",
+  "Łączenie z eBay…",
+  "Skanowanie Etsy…",
+  "Sprawdzanie Amazon EU/UK…",
+  "Analiza różnic cenowych…",
+  "AI model zysku…",
+  "Ranking okazji…",
 ];
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{ background: "#1a1a2e", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 8, padding: "8px 14px" }}>
-      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{label}</div>
-      <div style={{ color: "#a78bfa", fontWeight: 800, fontSize: 15 }}>${payload[0].value}</div>
-    </div>
-  );
-};
 
 const SCAN_TS_KEY = "resell_last_scan_ts";
 const SCAN_DATA_KEY = "resell_scan_data";
-const SCAN_REAL_KEY = "resell_scan_is_real"; // "1" if cached data is from a real scan
-const AUTOSCAN_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours — real results persist all day
+const SCAN_REAL_KEY = "resell_scan_is_real";
 
 function loadCachedOpportunities(): { opps: Opportunity[]; isReal: boolean } | null {
   try {
@@ -90,11 +61,33 @@ function loadCachedOpportunities(): { opps: Opportunity[]; isReal: boolean } | n
   } catch { return null; }
 }
 
+// ── Category emoji map ────────────────────────────────────────────────────────
+const CAT_EMOJI: Record<string, string> = {
+  Clothing: "👗", Jewelry: "💎", Electronics: "📱", Collectibles: "🏺",
+  Sneakers: "👟", Spirits: "🥃", Antiques: "🏛", Watches: "⌚", General: "📦",
+};
+
+// ── Platform color map ────────────────────────────────────────────────────────
+const PLATFORM_COLOR: Record<string, { bg: string; border: string; text: string }> = {
+  "eBay":    { bg: "rgba(245,200,66,0.13)",  border: "rgba(245,200,66,0.3)",  text: "#f5c842" },
+  "Etsy":    { bg: "rgba(248,113,113,0.13)", border: "rgba(248,113,113,0.3)", text: "#f87171" },
+  "Amazon":  { bg: "rgba(96,165,250,0.13)",  border: "rgba(96,165,250,0.3)",  text: "#60a5fa" },
+  "StockX":  { bg: "rgba(74,222,128,0.13)",  border: "rgba(74,222,128,0.3)",  text: "#4ade80" },
+  "Vinted":  { bg: "rgba(52,211,153,0.13)",  border: "rgba(52,211,153,0.3)",  text: "#34d399" },
+  "Depop":   { bg: "rgba(244,114,182,0.13)", border: "rgba(244,114,182,0.3)", text: "#f472b6" },
+  "default": { bg: "rgba(139,92,246,0.13)",  border: "rgba(139,92,246,0.3)",  text: "#a78bfa" },
+};
+
+function platformStyle(name: string) {
+  const key = Object.keys(PLATFORM_COLOR).find(k => name.includes(k)) ?? "default";
+  return PLATFORM_COLOR[key];
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
-  const [sortKey, setSortKey] = useState<"score" | "profit" | "sell_desc" | "sell_asc" | "buy_asc">("score");
+  const [sortKey, setSortKey] = useState<"score" | "profit" | "sell_desc" | "buy_asc">("score");
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState("");
   const [opportunities, setOpportunities] = useState<Opportunity[]>(() => {
@@ -109,14 +102,16 @@ export default function Dashboard() {
   const [scanSource, setScanSource] = useState<"ai" | "live" | "example" | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [offerOpp, setOfferOpp] = useState<Opportunity | null>(null);
-  const [userLoc, setUserLoc] = useState(getUserLocation);
-  const [previewImg, setPreviewImg] = useState<{ opp: Opportunity; rect: DOMRect } | null>(null);
-  const [enrichedData, setEnrichedData] = useState<Record<number, { imageUrl: string; sourceUrl: string; stockCount?: number | null; sellerRating?: number | null; additionalImages?: string[] }>>({});
+  const [enrichedData, setEnrichedData] = useState<Record<number, {
+    imageUrl: string; sourceUrl: string;
+    stockCount?: number | null; sellerRating?: number | null; additionalImages?: string[];
+  }>>({});
   const [savedIds, setSavedIds] = useState<Set<string>>(() => {
     const p = loadPipeline();
     return new Set(p.map(i => `${i.id}:${i.name}`));
   });
   const [toast, setToast] = useState<string | null>(null);
+  const [previewImg, setPreviewImg] = useState<{ src: string; name: string; rect: DOMRect } | null>(null);
 
   const filtered = opportunities
     .filter(o =>
@@ -126,18 +121,18 @@ export default function Dashboard() {
     .sort((a, b) => {
       if (sortKey === "profit") return (b.netProfit ?? b.profit) - (a.netProfit ?? a.profit);
       if (sortKey === "sell_desc") return b.sell - a.sell;
-      if (sortKey === "sell_asc") return a.sell - b.sell;
       if (sortKey === "buy_asc") return a.buy - b.buy;
-      return b.score - a.score; // default: AI score
+      return b.score - a.score;
     });
 
-  const totalProfit = opportunities.reduce((s, o) => s + (o.netProfit ?? o.profit), 0);
+  const totalNetProfit = opportunities.reduce((s, o) => s + (o.netProfit ?? o.profit), 0);
   const avgMargin = opportunities.length
     ? Math.round(opportunities.reduce((s, o) => s + o.margin, 0) / opportunities.length)
     : 0;
   const topDeal = opportunities.length
     ? opportunities.reduce((a, b) => (a.netProfit ?? a.profit) > (b.netProfit ?? b.profit) ? a : b)
     : null;
+  const highRiskCount = opportunities.filter(o => o.risk === "high").length;
 
   // Lazy-load images + direct URLs for opportunities missing imageUrl
   useEffect(() => {
@@ -156,10 +151,8 @@ export default function Dashboard() {
           const data = await r.json();
           if (data.imageUrl || data.sourceUrl) {
             setEnrichedData(prev => ({ ...prev, [opp.id]: {
-              imageUrl: data.imageUrl,
-              sourceUrl: data.sourceUrl,
-              stockCount: data.stockCount,
-              sellerRating: data.sellerRating,
+              imageUrl: data.imageUrl, sourceUrl: data.sourceUrl,
+              stockCount: data.stockCount, sellerRating: data.sellerRating,
               additionalImages: data.additionalImages,
             }}));
           }
@@ -169,13 +162,11 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opportunities]);
 
-  // Auto-scan on mount ONLY if there are no real results saved yet
+  // Auto-scan on mount only if no real data cached
   useEffect(() => {
     const hasKeys = !!getAnthropicKey();
     const hasRealData = localStorage.getItem(SCAN_REAL_KEY) === "1";
-    if (!hasRealData && hasKeys) {
-      triggerScan();
-    }
+    if (!hasRealData && hasKeys) triggerScan();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -183,12 +174,10 @@ export default function Dashboard() {
     if (scanning) return;
     setScanning(true);
     setScanError(null);
-
     for (let i = 0; i < SCAN_STEPS.length; i++) {
       setScanStep(SCAN_STEPS[i]);
       await new Promise(r => setTimeout(r, 400));
     }
-
     try {
       const ebay = getEbayKeys();
       const res = await fetch("/api/resell/scan", {
@@ -208,11 +197,7 @@ export default function Dashboard() {
         setScanSource(data.source);
         const isReal = data.source !== "example";
         setIsRealData(isReal);
-        const ts = new Date().toLocaleTimeString();
-        setScannedAt(ts);
-        // Save logic:
-        // - Real data → always save, mark as real.
-        // - Example data → save ONLY if no real data exists yet (don't overwrite real with examples).
+        setScannedAt(new Date().toLocaleTimeString());
         const alreadyHasReal = localStorage.getItem(SCAN_REAL_KEY) === "1";
         if (isReal) {
           localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
@@ -226,22 +211,21 @@ export default function Dashboard() {
         setScanError(data.error ?? data.message);
       }
     } catch {
-      setScanError("Connection error — scan failed. Showing cached data.");
+      setScanError("Błąd połączenia — skanowanie nieudane. Wyświetlam zapisane dane.");
     }
-
     setScanStep("");
     setScanning(false);
   };
 
   return (
     <ResellLayout>
-      <div style={{ padding: "28px 28px 60px", maxWidth: 1080 }}>
+      <div style={{ padding: "24px 24px 80px", maxWidth: 1100, margin: "0 auto" }}>
 
         {/* ── Header ── */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
+              <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
                 AI Market Scanner
               </h1>
               <div style={{
@@ -256,46 +240,46 @@ export default function Dashboard() {
                   animation: "pulse 1.5s infinite",
                 }} />
                 <span style={{ color: scanning ? "#fde68a" : "#86efac", fontSize: 11, fontWeight: 700 }}>
-                  {scanning ? "Scanning..." : "Live"}
+                  {scanning ? "Skanuje..." : "Live"}
                 </span>
               </div>
             </div>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: 0 }}>
               {scanStep
                 ? <span style={{ color: "#f5c842" }}>{scanStep}</span>
                 : scannedAt
-                  ? <>Last scan: <span style={{ color: "#86efac" }}>{scannedAt}</span>
-                      {scanSource === "live" && <span style={{ color: "#4ade80", marginLeft: 6 }}>· 🟢 Live data</span>}
+                  ? <>Ostatni skan: <span style={{ color: "#86efac" }}>{scannedAt}</span>
+                      {scanSource === "live" && <span style={{ color: "#4ade80", marginLeft: 6 }}>· 🟢 Dane live</span>}
                       {scanSource === "ai" && <span style={{ color: "#a78bfa", marginLeft: 6 }}>· 🤖 AI</span>}
                       {scanSource === "example" && <span style={{ color: "#f87171", marginLeft: 6 }}>· 📋 Przykładowe</span>}
                     </>
-                  : "Real-time cross-border arbitrage intelligence · 4 markets"
+                  : "Arbitraż cross-border w czasie rzeczywistym"
               }
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <LocationPicker onChange={loc => { setUserLoc(loc); }} />
+            <LocationPicker onChange={() => {}} />
             <button
               onClick={triggerScan}
               disabled={scanning}
               style={{
                 display: "flex", alignItems: "center", gap: 7,
                 padding: "10px 18px", borderRadius: 10, cursor: scanning ? "not-allowed" : "pointer",
-                background: scanning ? "rgba(245,200,66,0.15)" : "rgba(139,92,246,0.15)",
-                border: `1px solid ${scanning ? "rgba(245,200,66,0.3)" : "rgba(139,92,246,0.3)"}`,
-                color: scanning ? "#fde68a" : "#a78bfa", fontWeight: 700, fontSize: 13,
+                background: scanning ? "rgba(245,200,66,0.15)" : "linear-gradient(135deg,rgba(139,92,246,0.25),rgba(124,58,237,0.15))",
+                border: `1px solid ${scanning ? "rgba(245,200,66,0.3)" : "rgba(139,92,246,0.4)"}`,
+                color: scanning ? "#fde68a" : "#c4b5fd", fontWeight: 700, fontSize: 13,
                 opacity: scanning ? 0.8 : 1,
               }}
             >
-              <RefreshCw size={15} style={{ animation: scanning ? "spin 1s linear infinite" : "none" }} />
-              {scanning ? scanStep || "Scanning..." : "Rescan now"}
+              <RefreshCw size={14} style={{ animation: scanning ? "spin 1s linear infinite" : "none" }} />
+              {scanning ? scanStep || "Skanuje..." : "Skanuj ponownie"}
             </button>
           </div>
         </div>
 
-        {/* ── Scan error banner ── */}
+        {/* ── Error banner ── */}
         {scanError && (
-          <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
             <AlertCircle size={14} color="#f87171" style={{ flexShrink: 0 }} />
             <span style={{ color: "#fca5a5", fontSize: 12, flex: 1 }}>{scanError}</span>
             <button onClick={() => setScanError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 2 }}>
@@ -304,14 +288,14 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── No data / stale example data banner ── */}
+        {/* ── Stale data banner ── */}
         {(opportunities.length === 0 || !isRealData) && !scanning && (
-          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10, padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <Zap size={16} color="#a78bfa" style={{ flexShrink: 0 }} />
+          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <Zap size={15} color="#a78bfa" style={{ flexShrink: 0 }} />
             <span style={{ color: "#c4b5fd", fontSize: 13, flex: 1, minWidth: 180 }}>
               {opportunities.length === 0
-                ? <>Brak zapisanych ofert — naciśnij <strong>Skanuj teraz</strong>.</>
-                : <>Widoczne dane nie są prawdziwe — naciśnij <strong>Wyczyść i skanuj</strong> żeby pobrać aktualne okazje.</>}
+                ? <>Brak danych — naciśnij <strong>Skanuj ponownie</strong>.</>
+                : <>Dane przykładowe — naciśnij <strong>Skanuj ponownie</strong> żeby pobrać aktualne okazje.</>}
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               {opportunities.length > 0 && !isRealData && (
@@ -323,14 +307,14 @@ export default function Dashboard() {
                     setOpportunities([]);
                     setIsRealData(false);
                   }}
-                  style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 7, padding: "7px 12px", cursor: "pointer", color: "#fca5a5", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+                  style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 7, padding: "6px 12px", cursor: "pointer", color: "#fca5a5", fontSize: 11, fontWeight: 700 }}
                 >
                   Wyczyść cache
                 </button>
               )}
               <button
                 onClick={triggerScan}
-                style={{ background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 7, padding: "7px 14px", cursor: "pointer", color: "#a78bfa", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
+                style={{ background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 7, padding: "6px 14px", cursor: "pointer", color: "#a78bfa", fontSize: 12, fontWeight: 700 }}
               >
                 Skanuj teraz
               </button>
@@ -338,398 +322,443 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Stats ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
+        {/* ── Stats row ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 22 }}>
           {[
-            { label: "OPPORTUNITIES", value: String(opportunities.length * 100 + 47), sub: `+${opportunities.length} found`, icon: <Zap size={15} color="#f5c842" />, color: "#f5c842" },
-            { label: "AVG PROFIT MARGIN", value: `${avgMargin}%`, sub: "across categories", icon: <TrendingUp size={15} color="#4ade80" />, color: "#4ade80" },
-            { label: "BEST NET PROFIT", value: topDeal ? `$${topDeal.netProfit ?? topDeal.profit}` : "—", sub: topDeal ? topDeal.name.split(" ").slice(0, 2).join(" ") : "no data yet", icon: <Star size={15} color="#a78bfa" />, color: "#a78bfa" },
-            { label: "MARKETS ACTIVE", value: "4", sub: "eBay · Etsy · Amazon", icon: <Globe size={15} color="#60a5fa" />, color: "#60a5fa" },
+            {
+              label: "OKAZJI", value: String(opportunities.length),
+              sub: filtered.length !== opportunities.length ? `${filtered.length} widocznych` : "wszystkie kategorie",
+              color: "#f5c842", icon: <Zap size={14} color="#f5c842" />,
+            },
+            {
+              label: "ŚR. MARŻA", value: `${avgMargin}%`,
+              sub: "po opłatach i wysyłce",
+              color: "#4ade80", icon: <TrendingUp size={14} color="#4ade80" />,
+            },
+            {
+              label: "NAJLEPSZY ZYSK", value: topDeal ? `$${topDeal.netProfit ?? topDeal.profit}` : "—",
+              sub: topDeal ? topDeal.name.split(" ").slice(0, 3).join(" ") : "brak danych",
+              color: "#a78bfa", icon: <Star size={14} color="#a78bfa" />,
+            },
+            {
+              label: "RYZYKO WYSOKIE", value: String(highRiskCount),
+              sub: `z ${opportunities.length} okazji`,
+              color: highRiskCount > 0 ? "#f87171" : "#4ade80",
+              icon: highRiskCount > 0 ? <ShieldAlert size={14} color="#f87171" /> : <ShieldCheck size={14} color="#4ade80" />,
+            },
           ].map(s => (
-            <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 {s.icon}
-                <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>{s.label}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>{s.label}</span>
               </div>
-              <div style={{ color: s.color, fontSize: 24, fontWeight: 900, letterSpacing: -0.5 }}>{s.value}</div>
-              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginTop: 3 }}>{s.sub}</div>
+              <div style={{ color: s.color, fontSize: 22, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.sub}</div>
             </div>
           ))}
         </div>
 
-        {/* ── Charts row ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 28 }}>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 20px 10px" }}>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 16 }}>ESTIMATED PROFIT TREND — 7 DAYS</div>
-            <ResponsiveContainer width="100%" height={140}>
-              <AreaChart data={PROFIT_TREND}>
-                <defs>
-                  <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="day" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="profit" stroke="#8b5cf6" strokeWidth={2} fill="url(#profitGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 20px 10px" }}>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 16 }}>DEALS BY MARKET</div>
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={MARKET_DATA} barCategoryGap="30%">
-                <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={({ active, payload }) => active && payload?.length ? (
-                  <div style={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 12px" }}>
-                    <div style={{ color: "#fff", fontWeight: 700 }}>{payload[0].value} deals</div>
-                  </div>
-                ) : null} />
-                <Bar dataKey="deals" radius={[6, 6, 0, 0]}>
-                  {MARKET_DATA.map((m, i) => <Cell key={i} fill={m.fill} fillOpacity={0.8} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* ── Search + filter ── */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
-            <Search size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)" }} />
-            <input
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search opportunities..."
+        {/* ── Search + categories ── */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            {/* Search */}
+            <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
+              <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Szukaj okazji..."
+                style={{
+                  width: "100%", background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(139,92,246,0.2)", borderRadius: 9,
+                  padding: "9px 12px 9px 36px", color: "#fff", fontSize: 13,
+                  outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+                }}
+              />
+            </div>
+            {/* Sort */}
+            <select
+              value={sortKey}
+              onChange={e => setSortKey(e.target.value as typeof sortKey)}
               style={{
-                width: "100%", background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10,
-                padding: "10px 14px 10px 38px", color: "#fff", fontSize: 13,
-                outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(139,92,246,0.2)",
+                borderRadius: 9, padding: "9px 12px", color: "rgba(255,255,255,0.7)",
+                fontSize: 12, cursor: "pointer", fontFamily: "inherit", outline: "none",
               }}
-            />
+            >
+              <option value="score">⭐ AI Score</option>
+              <option value="profit">💰 Najwyższy zysk</option>
+              <option value="sell_desc">↑ Najwyższa cena</option>
+              <option value="buy_asc">🏷 Najtańszy zakup</option>
+            </select>
           </div>
+          {/* Category pills */}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {CATEGORIES.map(cat => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
                 style={{
-                  padding: "8px 14px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                  background: activeCategory === cat ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "rgba(255,255,255,0.06)",
+                  padding: "6px 13px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                  background: activeCategory === cat ? "linear-gradient(135deg,#8b5cf6,#7c3aed)" : "rgba(255,255,255,0.06)",
                   color: activeCategory === cat ? "#fff" : "rgba(255,255,255,0.45)",
                   boxShadow: activeCategory === cat ? "0 2px 10px rgba(139,92,246,0.3)" : "none",
                   transition: "all 0.15s",
                 }}
               >
-                {cat}
+                {cat !== "All" ? `${CAT_EMOJI[cat] ?? ""} ` : ""}{cat}
               </button>
             ))}
           </div>
         </div>
 
-        {/* ── Sort bar ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-          <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.5, flexShrink: 0 }}>SORT:</span>
-          {([
-            { key: "score",     label: "⭐ AI Score" },
-            { key: "profit",    label: "💰 Best Profit" },
-            { key: "sell_desc", label: "↑ Highest Price" },
-            { key: "sell_asc",  label: "↓ Lowest Price" },
-            { key: "buy_asc",   label: "🏷 Cheapest Buy" },
-          ] as const).map(({ key, label }) => (
-            <button key={key} onClick={() => setSortKey(key)}
-              style={{
-                padding: "5px 11px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, transition: "all 0.12s",
-                background: sortKey === key ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "rgba(255,255,255,0.06)",
-                color: sortKey === key ? "#fff" : "rgba(255,255,255,0.4)",
-                boxShadow: sortKey === key ? "0 2px 8px rgba(139,92,246,0.35)" : "none",
-              }}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Opportunities table ── */}
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 100px", gap: 0, padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            {([
-              { label: "PRODUCT", sk: null },
-              { label: "BUY",        sk: "buy_asc"   as const },
-              { label: "SELL ↕",     sk: sortKey === "sell_asc" ? "sell_desc" as const : "sell_asc" as const },
-              { label: "NET PROFIT", sk: "profit"    as const },
-              { label: "RISK",       sk: null },
-              { label: "MARKET",     sk: null },
-              { label: "",           sk: null },
-            ]).map(({ label, sk }) => (
-              <div key={label}
-                onClick={() => sk && setSortKey(sk)}
-                style={{
-                  color: sk && sortKey === sk ? "#c4b5fd" : "rgba(255,255,255,0.25)",
-                  fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
-                  cursor: sk ? "pointer" : "default",
-                  userSelect: "none",
-                  display: "flex", alignItems: "center", gap: 3,
-                }}>
-                {label}
-                {sk === "buy_asc" && sortKey === "buy_asc" && <span style={{ color: "#c4b5fd" }}>↑</span>}
-                {sk === "profit" && sortKey === "profit" && <span style={{ color: "#c4b5fd" }}>↓</span>}
-              </div>
-            ))}
-          </div>
-
-          {scanning ? (
-            <div style={{ padding: "40px", textAlign: "center" }}>
-              <div style={{ color: "#f5c842", fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{scanStep}</div>
-              <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
-                {[0, 1, 2, 3, 4].map(i => (
-                  <div key={i} style={{
-                    width: 6, height: 6, borderRadius: "50%", background: "#8b5cf6",
-                    animation: `bounce 1s ${i * 0.15}s infinite`,
-                  }} />
-                ))}
-              </div>
+        {/* ── Scanning animation ── */}
+        {scanning && (
+          <div style={{ padding: "48px 24px", textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#8b5cf6", animation: `bounce 1s ${i * 0.15}s infinite` }} />
+              ))}
             </div>
-          ) : filtered.length === 0 ? (
-            <div style={{ padding: "40px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No opportunities match your search</div>
-          ) : filtered.map((o, i) => {
-            const scoreColor = o.score >= 85 ? "#4ade80" : o.score >= 65 ? "#f5c842" : "#f87171";
-            const riskColor = o.risk === "low" ? "#4ade80" : o.risk === "medium" ? "#f5c842" : "#f87171";
-            const riskLabel = o.risk === "low" ? "LOW" : o.risk === "medium" ? "MED" : o.risk === "high" ? "HIGH" : "—";
-            const demandColor = o.demandLevel === "high" ? "#4ade80" : o.demandLevel === "medium" ? "#60a5fa" : "rgba(255,255,255,0.3)";
-            const demandIcon = o.demandLevel === "high" ? "▲" : o.demandLevel === "medium" ? "◆" : "▼";
-            const netP = o.netProfit ?? o.profit;
-            return (
-              <div
-                key={o.id}
-                style={{
-                  display: "grid", gridTemplateColumns: "1fr 70px 70px 90px 72px 80px 100px",
-                  gap: 0, padding: "13px 18px",
-                  borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                  cursor: "pointer", transition: "background 0.12s",
-                  alignItems: "center",
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                onClick={() => {
-                  sessionStorage.setItem("resell_opportunity", JSON.stringify(o));
-                  sessionStorage.setItem("compare_product", JSON.stringify({ name: o.name, buyPrice: o.buy, category: o.category }));
-                  setLocation(`/resell/product/${o.id}`);
-                }}
-              >
-                {/* Product column */}
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: `${scoreColor}15`, border: `1px solid ${scoreColor}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: scoreColor, flexShrink: 0 }}>{o.score}</div>
-                    {/* Product thumbnail */}
-                    {(enrichedData[o.id]?.imageUrl || o.imageUrl) && (() => {
-                      const imgUrl = enrichedData[o.id]?.imageUrl || o.imageUrl!;
-                      const linkUrl = enrichedData[o.id]?.sourceUrl || o.sourceUrl;
-                      return (
-                        <a
-                          href={linkUrl || "#"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          style={{ flexShrink: 0, display: "block", lineHeight: 0 }}
-                        >
-                          <img
-                            src={imgUrl}
-                            alt={o.name}
-                            style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", cursor: "zoom-in", display: "block" }}
-                            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                            onMouseEnter={e => setPreviewImg({ opp: { ...o, imageUrl: imgUrl }, rect: e.currentTarget.getBoundingClientRect() })}
-                            onMouseLeave={() => setPreviewImg(null)}
-                          />
-                        </a>
-                      );
-                    })()}
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                        <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{o.name}</span>
-                        {o.demandLevel && (
-                          <span title={`Demand: ${o.demandLevel}`} style={{ color: demandColor, fontSize: 10, fontWeight: 700, marginLeft: 2 }}>
-                            {demandIcon} {o.demandLevel?.toUpperCase()}
-                          </span>
+            <div style={{ color: "#f5c842", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{scanStep}</div>
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Analizowanie rynków — może zająć chwilę...</div>
+          </div>
+        )}
+
+        {/* ── Empty state ── */}
+        {!scanning && filtered.length === 0 && (
+          <div style={{ padding: "48px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, marginBottom: 16 }}>
+              {query || activeCategory !== "All" ? "Brak okazji pasujących do filtrów" : "Brak danych — uruchom skanowanie"}
+            </div>
+            <button
+              onClick={triggerScan}
+              style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", border: "none", borderRadius: 10, padding: "10px 22px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+            >
+              Skanuj teraz
+            </button>
+          </div>
+        )}
+
+        {/* ── Opportunity cards grid ── */}
+        {!scanning && filtered.length > 0 && (
+          <>
+            <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginBottom: 10 }}>
+              {filtered.length} okazj{filtered.length === 1 ? "a" : filtered.length < 5 ? "e" : "i"}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(480px,1fr))", gap: 12 }}>
+              {filtered.map(o => {
+                const netP = o.netProfit ?? o.profit;
+                const scoreColor = o.score >= 85 ? "#4ade80" : o.score >= 65 ? "#f5c842" : "#f87171";
+                const riskColor = o.risk === "low" ? "#4ade80" : o.risk === "medium" ? "#f5c842" : "#f87171";
+                const riskLabel = o.risk === "low" ? "Niskie" : o.risk === "medium" ? "Średnie" : o.risk === "high" ? "Wysokie" : "—";
+                const imgUrl = enrichedData[o.id]?.imageUrl || o.imageUrl;
+                const srcUrl = enrichedData[o.id]?.sourceUrl || o.sourceUrl;
+                const stockCount = enrichedData[o.id]?.stockCount ?? o.stockCount;
+                const sellerRating = enrichedData[o.id]?.sellerRating ?? o.sellerRating;
+                const isSaved = savedIds.has(`${o.id}:${o.name}`);
+                const platforms = o.markets?.length ? o.markets : [o.market];
+                const catEmoji = CAT_EMOJI[o.category] ?? "📦";
+
+                return (
+                  <div
+                    key={o.id}
+                    onClick={() => {
+                      sessionStorage.setItem("resell_opportunity", JSON.stringify(o));
+                      sessionStorage.setItem("compare_product", JSON.stringify({ name: o.name, buyPrice: o.buy, category: o.category }));
+                      setLocation(`/resell/product/${o.id}`);
+                    }}
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 16,
+                      padding: 16,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                      position: "relative",
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)";
+                      (e.currentTarget as HTMLElement).style.border = "1px solid rgba(139,92,246,0.3)";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)";
+                      (e.currentTarget as HTMLElement).style.border = "1px solid rgba(255,255,255,0.08)";
+                    }}
+                  >
+                    {/* ── Top row: image + name + score ── */}
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      {/* Image */}
+                      <div style={{ flexShrink: 0 }}>
+                        {imgUrl ? (
+                          <a
+                            href={srcUrl || "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ display: "block", lineHeight: 0 }}
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={o.name}
+                              style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", display: "block" }}
+                              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                              onMouseEnter={e => setPreviewImg({ src: imgUrl, name: o.name, rect: e.currentTarget.getBoundingClientRect() })}
+                              onMouseLeave={() => setPreviewImg(null)}
+                            />
+                          </a>
+                        ) : (
+                          <div style={{ width: 72, height: 72, borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+                            {catEmoji}
+                          </div>
                         )}
-                        {(() => {
-                          const url = enrichedData[o.id]?.sourceUrl || o.sourceUrl;
-                          if (!url) return null;
-                          const isDirect = url.includes("/itm/") || url.includes("/s-anzeige/") || url.includes("/listing/");
-                          return (
+                      </div>
+
+                      {/* Name + meta */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                          <div style={{ color: "#fff", fontSize: 14, fontWeight: 700, lineHeight: 1.3, flex: 1 }}>{o.name}</div>
+                          {/* Score badge */}
+                          <div style={{
+                            flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+                            background: `${scoreColor}18`, border: `1.5px solid ${scoreColor}40`,
+                            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          }}>
+                            <span style={{ color: scoreColor, fontSize: 13, fontWeight: 900, lineHeight: 1 }}>{o.score}</span>
+                            <span style={{ color: scoreColor, fontSize: 8, fontWeight: 600, opacity: 0.7 }}>AI</span>
+                          </div>
+                        </div>
+                        {/* Meta chips */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+                          <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{o.flag} {o.category}</span>
+                          {o.daysToSell && (
+                            <span style={{ display: "flex", alignItems: "center", gap: 3, color: "rgba(255,255,255,0.3)", fontSize: 10 }}>
+                              <Clock size={9} /> ~{o.daysToSell}d
+                            </span>
+                          )}
+                          {o.dataQuality && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                              background: o.dataQuality === "verified" ? "rgba(74,222,128,0.12)" : o.dataQuality === "matched" ? "rgba(96,165,250,0.12)" : "rgba(245,200,66,0.10)",
+                              color: o.dataQuality === "verified" ? "#4ade80" : o.dataQuality === "matched" ? "#60a5fa" : "#f5c842",
+                              border: `1px solid ${o.dataQuality === "verified" ? "rgba(74,222,128,0.25)" : o.dataQuality === "matched" ? "rgba(96,165,250,0.25)" : "rgba(245,200,66,0.2)"}`,
+                            }}>
+                              {o.dataQuality === "verified" ? "✓ weryfikowane" : o.dataQuality === "matched" ? "≈ dopasowane" : "~ szacowane"}
+                            </span>
+                          )}
+                          {srcUrl && (
                             <a
-                              href={url}
+                              href={srcUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={e => e.stopPropagation()}
-                              style={{ color: isDirect ? "rgba(74,222,128,0.7)" : "rgba(139,92,246,0.6)", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, marginLeft: 4, textDecoration: "none" }}
-                              title={isDirect ? "Direct product listing" : "Search results page"}
+                              style={{ color: "rgba(139,92,246,0.5)", fontSize: 10, display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}
                             >
-                              <ExternalLink size={9} /> {isDirect ? "listing" : "source"}
+                              <ExternalLink size={9} /> źródło
                             </a>
-                          );
-                        })()}
-                      </div>
-                      {/* Stock + seller rating from live eBay data */}
-                      {(() => {
-                        const stockCount = enrichedData[o.id]?.stockCount ?? o.stockCount;
-                        const sellerRating = enrichedData[o.id]?.sellerRating ?? o.sellerRating;
-                        if (!stockCount && !sellerRating) return null;
-                        return (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+                          )}
+                        </div>
+                        {/* Stock + seller rating */}
+                        {(stockCount != null || (sellerRating != null && sellerRating > 0)) && (
+                          <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
                             {stockCount != null && (
                               <span style={{
-                                background: stockCount <= 2 ? "rgba(248,113,113,0.12)" : stockCount <= 5 ? "rgba(245,200,66,0.12)" : "rgba(74,222,128,0.12)",
-                                border: `1px solid ${stockCount <= 2 ? "rgba(248,113,113,0.3)" : stockCount <= 5 ? "rgba(245,200,66,0.3)" : "rgba(74,222,128,0.3)"}`,
-                                borderRadius: 5, padding: "1px 6px",
+                                display: "flex", alignItems: "center", gap: 3,
+                                background: stockCount <= 2 ? "rgba(248,113,113,0.12)" : stockCount <= 5 ? "rgba(245,200,66,0.12)" : "rgba(74,222,128,0.10)",
+                                border: `1px solid ${stockCount <= 2 ? "rgba(248,113,113,0.3)" : stockCount <= 5 ? "rgba(245,200,66,0.3)" : "rgba(74,222,128,0.25)"}`,
+                                borderRadius: 5, padding: "2px 7px",
                                 color: stockCount <= 2 ? "#f87171" : stockCount <= 5 ? "#f5c842" : "#4ade80",
-                                fontSize: 9, fontWeight: 700,
+                                fontSize: 10, fontWeight: 700,
                               }}>
-                                {stockCount <= 2 ? `⚡ ${stockCount} szt.` : stockCount <= 5 ? `${stockCount} szt.` : `${stockCount}+ szt.`}
+                                <Package size={9} />
+                                {stockCount <= 2 ? `Ostatnie ${stockCount} szt.!` : stockCount <= 5 ? `${stockCount} szt.` : `${stockCount}+ szt.`}
                               </span>
                             )}
                             {sellerRating != null && sellerRating > 0 && (
-                              <span style={{ color: sellerRating >= 99 ? "#4ade80" : sellerRating >= 95 ? "#f5c842" : "#f87171", fontSize: 9, fontWeight: 700 }}>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700,
+                                color: sellerRating >= 99 ? "#4ade80" : sellerRating >= 95 ? "#f5c842" : "#f87171",
+                              }}>
                                 ⭐ {sellerRating.toFixed(1)}%
                               </span>
                             )}
                           </div>
-                        );
-                      })()}
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 300 }}>
-                        {o.flag} · {o.category}
-                        {o.buyHint && <span style={{ color: "rgba(139,92,246,0.55)", marginLeft: 6 }}>· {o.buyHint}</span>}
+                        )}
                       </div>
                     </div>
-                  </div>
-                </div>
-                {/* BUY */}
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>${o.buy}</div>
-                {/* SELL */}
-                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>${o.sell}</div>
-                {/* NET PROFIT — after platform fees + shipping */}
-                <div>
-                  <div style={{ color: "#4ade80", fontWeight: 800, fontSize: 14 }}>+${netP}</div>
-                  {o.priceGapPct && o.priceGapPct > 0 ? (
-                    <div style={{ color: o.priceGapPct > 200 ? "#4ade80" : o.priceGapPct > 80 ? "#f5c842" : "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700 }}>
-                      +{o.priceGapPct}% gap
-                    </div>
-                  ) : (
-                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>after fees</div>
-                  )}
-                </div>
-                {/* RISK */}
-                <div>
-                  <div style={{ background: `${riskColor}18`, border: `1px solid ${riskColor}35`, borderRadius: 99, padding: "2px 8px", display: "inline-block", color: riskColor, fontSize: 10, fontWeight: 800, letterSpacing: 0.4 }}>{riskLabel}</div>
-                  <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 2 }}>{o.margin}% margin</div>
-                </div>
-                {/* PLATFORMS — multi-sell */}
-                <div>
-                  {(o.markets && o.markets.length > 0 ? o.markets : [o.market]).map(platform => {
-                    const url = o.sellUrls?.[platform] || o.sellUrl || "";
-                    const short = platform.replace("USA","").replace("eBay ","eBay").replace("Etsy","Etsy").replace("Amazon ","AMZ ").replace("StockX","StockX").trim();
-                    return (
-                      <a
-                        key={platform}
-                        href={url || undefined}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          display: "inline-block", marginRight: 3, marginBottom: 2,
-                          background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
-                          borderRadius: 5, padding: "1px 5px", color: "#a78bfa",
-                          fontSize: 9, fontWeight: 700, textDecoration: "none", cursor: url ? "pointer" : "default",
-                          letterSpacing: 0.3,
-                        }}
-                      >{short}</a>
-                    );
-                  })}
-                  {o.daysToSell && <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 1 }}>~{o.daysToSell}d</div>}
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 5, alignItems: "center" }}>
-                  <button
-                    title={savedIds.has(`${o.id}:${o.name}`) ? "Zapisano w pipeline" : "Zapisz do pipeline"}
-                    onClick={e => {
-                      e.stopPropagation();
-                      const key = `${o.id}:${o.name}`;
-                      if (!savedIds.has(key)) {
-                        addToPipeline({ ...o, category: o.category ?? "General", market: o.market ?? "" });
-                        setSavedIds(prev => new Set([...prev, key]));
-                        setToast(o.name);
-                        setTimeout(() => setToast(null), 2500);
-                      }
-                    }}
-                    style={{
-                      background: savedIds.has(`${o.id}:${o.name}`) ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.06)",
-                      border: `1px solid ${savedIds.has(`${o.id}:${o.name}`) ? "rgba(74,222,128,0.35)" : "rgba(255,255,255,0.12)"}`,
-                      borderRadius: 7, padding: "6px 10px", cursor: savedIds.has(`${o.id}:${o.name}`) ? "default" : "pointer",
-                      color: savedIds.has(`${o.id}:${o.name}`) ? "#4ade80" : "rgba(255,255,255,0.4)",
-                      display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700,
-                    }}
-                  >
-                    {savedIds.has(`${o.id}:${o.name}`) ? <Check size={11} /> : <BookmarkPlus size={11} />}
-                    {savedIds.has(`${o.id}:${o.name}`) ? "Saved" : "Save"}
-                  </button>
-                  <button
-                    title="Create a listing others can buy"
-                    onClick={e => { e.stopPropagation(); setOfferOpp(o); }}
-                    style={{
-                      background: "rgba(96,165,250,0.13)", border: "1px solid rgba(96,165,250,0.28)",
-                      borderRadius: 7, padding: "4px 8px", cursor: "pointer", color: "#60a5fa",
-                      display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700,
-                    }}
-                  >
-                    <PlusCircle size={11} /> List
-                  </button>
-                  <button
-                    title="Import to Dropship Manager"
-                    onClick={e => {
-                      e.stopPropagation();
-                      sessionStorage.setItem("dropship_import", JSON.stringify(o));
-                      setLocation("/resell/dropship");
-                    }}
-                    style={{
-                      background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
-                      borderRadius: 6, padding: "4px 5px", cursor: "pointer", color: "#a78bfa",
-                      display: "flex", alignItems: "center",
-                    }}
-                  >
-                    <Boxes size={12} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
 
-        <div style={{ marginTop: 20, textAlign: "center" }}>
+                    {/* ── Price flow: BUY → SELL → PROFIT ── */}
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 0,
+                      background: "rgba(0,0,0,0.2)", borderRadius: 12, overflow: "hidden",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                    }}>
+                      {/* BUY */}
+                      <div style={{ flex: 1, padding: "10px 14px", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+                        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>KUP ZA</div>
+                        <div style={{ color: "#f87171", fontSize: 20, fontWeight: 900 }}>${o.buy}</div>
+                        {o.buyHint && <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 2 }}>{o.buyHint}</div>}
+                      </div>
+                      {/* Arrow */}
+                      <div style={{ padding: "0 10px", color: "rgba(255,255,255,0.2)" }}>
+                        <ArrowRight size={16} />
+                      </div>
+                      {/* SELL */}
+                      <div style={{ flex: 1, padding: "10px 14px", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+                        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>SPRZEDAJ ZA</div>
+                        <div style={{ color: "#60a5fa", fontSize: 20, fontWeight: 900 }}>${o.sell}</div>
+                        {o.sellHint && <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 2 }}>{o.sellHint}</div>}
+                      </div>
+                      {/* Arrow */}
+                      <div style={{ padding: "0 10px", color: "rgba(255,255,255,0.2)" }}>
+                        <ArrowRight size={16} />
+                      </div>
+                      {/* NET PROFIT */}
+                      <div style={{ flex: 1.2, padding: "10px 14px", background: "rgba(74,222,128,0.07)" }}>
+                        <div style={{ color: "rgba(74,222,128,0.6)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>ZYSK NETTO</div>
+                        <div style={{ color: "#4ade80", fontSize: 22, fontWeight: 900 }}>+${netP}</div>
+                        <div style={{ color: "rgba(74,222,128,0.6)", fontSize: 10, fontWeight: 700 }}>
+                          {o.priceGapPct && o.priceGapPct > 0 ? `+${o.priceGapPct}% gap` : `${o.margin}% marża`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Bottom row: risk + platforms + actions ── */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {/* Risk badge */}
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        background: `${riskColor}14`, border: `1px solid ${riskColor}35`,
+                        borderRadius: 8, padding: "4px 10px",
+                        color: riskColor, fontSize: 11, fontWeight: 700,
+                      }}>
+                        {o.risk === "low" ? <ShieldCheck size={11} /> : <ShieldAlert size={11} />}
+                        {riskLabel}
+                      </div>
+
+                      {/* Platform badges */}
+                      <div style={{ display: "flex", gap: 4, flex: 1, flexWrap: "wrap" }}>
+                        {platforms.map(platform => {
+                          const ps = platformStyle(platform);
+                          const url = o.sellUrls?.[platform] || o.sellUrl || "";
+                          const short = platform.replace("USA","US").replace("Amazon ","AMZ ").trim();
+                          return (
+                            <a
+                              key={platform}
+                              href={url || undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              title={platform}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 3,
+                                background: ps.bg, border: `1px solid ${ps.border}`,
+                                borderRadius: 7, padding: "3px 9px",
+                                color: ps.text, fontSize: 11, fontWeight: 700,
+                                textDecoration: "none", cursor: url ? "pointer" : "default",
+                              }}
+                            >
+                              {short}
+                              {url && <ExternalLink size={8} />}
+                            </a>
+                          );
+                        })}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{ display: "flex", gap: 5, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                        <button
+                          title={isSaved ? "Zapisano w pipeline" : "Zapisz do pipeline"}
+                          onClick={() => {
+                            if (!isSaved) {
+                              addToPipeline({ ...o, category: o.category ?? "General", market: o.market ?? "" });
+                              setSavedIds(prev => new Set([...prev, `${o.id}:${o.name}`]));
+                              setToast(o.name);
+                              setTimeout(() => setToast(null), 2500);
+                            }
+                          }}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 4,
+                            background: isSaved ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.06)",
+                            border: `1px solid ${isSaved ? "rgba(74,222,128,0.4)" : "rgba(255,255,255,0.12)"}`,
+                            borderRadius: 8, padding: "6px 11px", cursor: isSaved ? "default" : "pointer",
+                            color: isSaved ? "#4ade80" : "rgba(255,255,255,0.5)",
+                            fontSize: 11, fontWeight: 700,
+                          }}
+                        >
+                          {isSaved ? <Check size={12} /> : <BookmarkPlus size={12} />}
+                          {isSaved ? "Zapisane" : "Zapisz"}
+                        </button>
+                        <button
+                          title="Utwórz ogłoszenie"
+                          onClick={() => setOfferOpp(o)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 4,
+                            background: "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.28)",
+                            borderRadius: 8, padding: "6px 11px", cursor: "pointer",
+                            color: "#60a5fa", fontSize: 11, fontWeight: 700,
+                          }}
+                        >
+                          <PlusCircle size={12} /> Wystaw
+                        </button>
+                        <button
+                          title="Dropship Manager"
+                          onClick={() => {
+                            sessionStorage.setItem("dropship_import", JSON.stringify(o));
+                            setLocation("/resell/dropship");
+                          }}
+                          style={{
+                            display: "flex", alignItems: "center",
+                            background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
+                            borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: "#a78bfa",
+                          }}
+                        >
+                          <Boxes size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* ── Tip (if available) ── */}
+                    {o.tip && (
+                      <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.15)", borderRadius: 8, padding: "7px 11px", color: "#c4b5fd", fontSize: 11, lineHeight: 1.4 }}>
+                        💡 {o.tip}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* ── CTA bottom ── */}
+        <div style={{ marginTop: 24, textAlign: "center" }}>
           <button
             onClick={() => setLocation("/resell/search")}
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 28px", borderRadius: 10, border: "none", cursor: "pointer",
-              background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+              background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
               color: "#fff", fontWeight: 700, fontSize: 13,
               boxShadow: "0 4px 18px rgba(139,92,246,0.35)",
             }}
           >
-            <Search size={15} /> AI Search — find new opportunities
+            <Search size={15} /> AI Search — znajdź nowe okazje
           </button>
         </div>
       </div>
 
-      {/* Hover image preview */}
+      {/* ── Hover image preview ── */}
       {previewImg && (
         <div
           style={{
             position: "fixed",
-            left: Math.min(previewImg.rect.right + 12, window.innerWidth - 240),
-            top: Math.max(8, Math.min(previewImg.rect.top - 60, window.innerHeight - 300)),
+            left: Math.min(previewImg.rect.right + 14, window.innerWidth - 250),
+            top: Math.max(8, Math.min(previewImg.rect.top - 40, window.innerHeight - 280)),
             zIndex: 9999,
             background: "#0d0d1f",
             border: "1px solid rgba(139,92,246,0.45)",
@@ -737,19 +766,15 @@ export default function Dashboard() {
             padding: 12,
             boxShadow: "0 16px 48px rgba(0,0,0,0.85)",
             pointerEvents: "none",
-            width: 220,
+            width: 230,
           }}
         >
           <img
-            src={previewImg.opp.imageUrl}
-            alt={previewImg.opp.name}
-            style={{ width: 196, height: 170, objectFit: "contain", display: "block", borderRadius: 8, background: "rgba(255,255,255,0.04)" }}
+            src={previewImg.src}
+            alt={previewImg.name}
+            style={{ width: 206, height: 180, objectFit: "contain", display: "block", borderRadius: 8, background: "rgba(255,255,255,0.04)" }}
           />
-          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 8, lineHeight: 1.4 }}>{previewImg.opp.name}</div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
-            <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 800 }}>+${previewImg.opp.netProfit ?? previewImg.opp.profit} profit</span>
-            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>{previewImg.opp.market}</span>
-          </div>
+          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 8, lineHeight: 1.4 }}>{previewImg.name}</div>
         </div>
       )}
 
@@ -757,7 +782,7 @@ export default function Dashboard() {
         <QuickCreateOfferModal
           opportunity={offerOpp}
           onClose={() => setOfferOpp(null)}
-          onCreated={() => { /* listing created */ }}
+          onCreated={() => {}}
         />
       )}
 
@@ -779,6 +804,7 @@ export default function Dashboard() {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
         @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        select option { background: #1a1a2e; color: #fff; }
       `}</style>
     </ResellLayout>
   );
