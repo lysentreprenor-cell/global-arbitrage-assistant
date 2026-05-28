@@ -69,6 +69,55 @@ function ebaySearchFallbackUrl(productName: string, marketplace: string): string
   return `https://www.ebay.com/sch/i.html?_nkw=${q}&_sop=15`;
 }
 
+// Find the best real eBay listing for a product using multi-query strategy + price validation
+async function findBestEbayListing(
+  token: string,
+  oppName: string,
+  expectedBuyPrice: number,
+  marketplace: string
+): Promise<{ url: string; imageUrl: string; title: string; actualPrice: number } | null> {
+  const words = oppName.toLowerCase().split(/[\s,\-—()]+/).filter(w => w.length > 2);
+  const longWords = words.filter(w => w.length > 5);
+
+  // Build 3 progressively broader queries
+  const queries = [
+    words.slice(0, 5).join(" "),
+    longWords.slice(0, 4).join(" "),
+    longWords.slice(0, 2).join(" "),
+  ]
+    .map(q => q.trim())
+    .filter(q => q.split(/\s+/).length >= 2)
+    .filter((q, i, arr) => arr.indexOf(q) === i);
+
+  const maxPrice = expectedBuyPrice > 0 ? expectedBuyPrice * 3.5 : 9999;
+
+  for (const query of queries) {
+    const listings = await ebaySearch(token, query, maxPrice, marketplace, "price");
+    if (!listings.length) continue;
+
+    const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const scored = listings
+      .map(l => {
+        const lTitle = l.title.toLowerCase();
+        const overlap = qWords.filter(w => lTitle.includes(w)).length;
+        const overlapRatio = qWords.length > 0 ? overlap / qWords.length : 0;
+        const priceDelta = expectedBuyPrice > 0
+          ? Math.abs(l.price - expectedBuyPrice) / (expectedBuyPrice * 2)
+          : 0.5;
+        const priceScore = Math.max(0, 1 - priceDelta);
+        return { ...l, matchScore: overlapRatio * 0.65 + priceScore * 0.35, overlapRatio };
+      })
+      .filter(l => l.overlapRatio >= 0.30);
+
+    if (scored.length > 0) {
+      scored.sort((a, b) => b.matchScore - a.matchScore);
+      const best = scored[0];
+      return { url: best.url, imageUrl: best.imageUrl, title: best.title, actualPrice: best.price };
+    }
+  }
+  return null;
+}
+
 // EUR→USD conversion rate (approximate 2025)
 const EUR_TO_USD = 1.10;
 
@@ -508,6 +557,7 @@ ACCURACY RULES — FOLLOW STRICTLY:
 4. netProfit = sell × (1 − fee%) − buy − shipping. Hard reject: netProfit < $15, margin < 20%
 5. Never generate hallucinated prices — if you're unsure about a gap, use conservative estimates
 6. sourceUrl must point to actual local buy market (Allegro PL for Poland, Kleinanzeigen.de for Germany, etc.)
+7. For each item, provide ebaySearchQuery: a concise 3-6 word eBay search string that would find real listings of this exact product (avoid stop words, focus on brand+model+key-attribute).
 
 Platform fees: ${feeContext}.
 Shipping (USD): Clothing $12, Jewelry $18, Electronics $28, Collectibles $22, Sneakers $25, Spirits $35, Antiques $40, Watches $30.
@@ -566,6 +616,7 @@ Return ONLY a valid JSON array sorted by netProfit descending:
   "sellUrl": "https://www.ebay.com/sch/i.html?_nkw=...&LH_Sold=1&LH_Complete=1",
   "buyHint": "Platform name + exact search terms + what to look for + price range",
   "sellHint": "Full SEO-optimised listing title (keyword-dense, include model/year/condition)",
+  "ebaySearchQuery": "optimised short eBay search string (3-6 words, no brand misspellings)",
   "confidence": "${hasReal ? "live" : "estimated"}"
 }]
 
@@ -625,6 +676,22 @@ const GAP_QUERIES = [
   { query: "polish jazz vinyl record 1960s", maxBuyPrice: 20 },
   // Japanese
   { query: "seiko 5 military dial automatic 1970s", maxBuyPrice: 52 },
+  // Spirits
+  { query: "polish vodka collectors bottle vintage", maxBuyPrice: 28 },
+  { query: "whisky single malt miniature bottle set", maxBuyPrice: 20 },
+  // Antiques / folk art
+  { query: "folk art wooden hand painted box polish", maxBuyPrice: 25 },
+  { query: "art nouveau bronze figurine antique", maxBuyPrice: 120 },
+  // More watches
+  { query: "longines vintage automatic cal 30l", maxBuyPrice: 200 },
+  { query: "citizen automatic vintage leopard dial", maxBuyPrice: 55 },
+  // More cameras
+  { query: "voigtlander bessa folding camera vintage", maxBuyPrice: 70 },
+  { query: "rollei 35 compact film camera germany", maxBuyPrice: 110 },
+  // Vinyl
+  { query: "krautrock vinyl record germany 1970s original", maxBuyPrice: 30 },
+  // Jewelry
+  { query: "amber brooch sterling silver handmade", maxBuyPrice: 35 },
 ];
 
 // ── POST /api/resell/scan ─────────────────────────────────────────────────────
@@ -679,12 +746,39 @@ router.post("/scan", async (req: Request, res: Response) => {
       const aiResults = await scanWithAI(aiKey, gapData, realEtsy, locCfg);
       const filtered = filterAndEnrich(aiResults, gapData.some(g => g.gap.gapPct > 0));
       if (filtered.length > 0) {
-        const allEuListings = gapData.flatMap(g => g.gap.euListings);
-        const enriched = enrichWithRealListings(filtered, allEuListings, locCfg.buyEbayMarketplace);
+        // Per-opportunity targeted eBay search (parallel, staggered 200ms to avoid rate limits)
+        let enriched = [...filtered];
+        if (ebayApp && ebayCert) {
+          try {
+            const token = await getEbayToken(ebayApp, ebayCert);
+            if (token) {
+              enriched = await Promise.all(
+                filtered.map(async (opp: any, idx: number) => {
+                  await new Promise(r => setTimeout(r, idx * 200));
+                  const best = await findBestEbayListing(token, opp.name, opp.buy, locCfg.buyEbayMarketplace);
+                  if (!best) return opp;
+                  return {
+                    ...opp,
+                    sourceUrl: best.url,
+                    imageUrl: best.imageUrl,
+                    realBuyTitle: best.title,
+                    realBuyPrice: best.actualPrice,
+                    dataQuality: "verified",
+                  };
+                })
+              );
+            }
+          } catch (err) { console.error("[resell/scan] per-opp enrich:", err); }
+        }
 
-        // Final pass: ensure every opportunity has valid buy + sell URLs
-        const withUrls = enriched.map(o => ({
+        // Fall back to gap-data enrichment for any opp still missing a real link
+        const allEuListings = gapData.flatMap(g => g.gap.euListings);
+        enriched = enrichWithRealListings(enriched, allEuListings, locCfg.buyEbayMarketplace);
+
+        // Final guarantee: every opp has valid https:// URLs
+        const withUrls = enriched.map((o: any) => ({
           ...o,
+          dataQuality: o.dataQuality ?? (o.imageUrl?.startsWith("https://") ? "matched" : "estimated"),
           sourceUrl: o.sourceUrl?.startsWith("https://")
             ? o.sourceUrl
             : ebaySearchFallbackUrl(o.name, locCfg.buyEbayMarketplace),
