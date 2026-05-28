@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Copy, Check, ExternalLink, Package, Truck, CheckCircle, DollarSign } from "lucide-react";
+import { X, Copy, Check, ExternalLink, Package, Truck, CheckCircle, DollarSign, AlertTriangle } from "lucide-react";
 
 interface FulfillmentOrder {
   orderId?: number;
@@ -9,11 +9,13 @@ interface FulfillmentOrder {
   buyerAddress?: string;
   buyerEmail?: string;
   sourceUrl?: string;
+  sourceMarket?: string;
   buyPrice?: number;
   sellPrice?: number;
   profit?: number;
   quantity?: number;
   platform?: string;
+  category?: string;
 }
 
 interface Props {
@@ -24,6 +26,107 @@ interface Props {
 
 type Step = "buy" | "tracking" | "done";
 
+// ── Shipping helpers ──────────────────────────────────────────────────────────
+
+function detectBuyerCountry(address: string): string | null {
+  const a = address.toUpperCase();
+  if (/\bUSA\b|\bUNITED STATES\b|\bU\.S\.A\b/.test(a)) return "US";
+  if (/\bUK\b|\bUNITED KINGDOM\b|\bENGLAND\b|\bSCOTLAND\b|\bWALES\b/.test(a)) return "GB";
+  if (/\bGERMANY\b|\bDEUTSCHLAND\b/.test(a)) return "DE";
+  if (/\bPOLAND\b|\bPOLSKA\b/.test(a)) return "PL";
+  if (/\bFRANCE\b|\bFRANKREICH\b/.test(a)) return "FR";
+  if (/\bITALY\b|\bITALIA\b/.test(a)) return "IT";
+  if (/\bSPAIN\b|\bESPA[NÑ]A\b/.test(a)) return "ES";
+  if (/\bNETHERLANDS\b|\bHOLLAND\b/.test(a)) return "NL";
+  if (/\bJAPAN\b|\bJAPONIA\b/.test(a)) return "JP";
+  if (/\bCANADA\b/.test(a)) return "CA";
+  if (/\bAUSTRALIA\b/.test(a)) return "AU";
+  if (/\bNORWAY\b|\bNORGE\b/.test(a)) return "NO";
+  // Postal code patterns
+  if (/\b[A-Z]{1,2}\d{1,2}[A-Z]?\s\d[A-Z]{2}\b/.test(a)) return "GB";
+  if (/\b\d{2}-\d{3}\b/.test(a)) return "PL";
+  return null;
+}
+
+function detectSourceCountry(url = "", market = ""): string | null {
+  const u = url.toLowerCase(), m = market.toLowerCase();
+  if (u.includes("allegro.pl") || u.includes("olx.pl")) return "PL";
+  if (u.includes("kleinanzeigen.de") || u.includes("ebay.de")) return "DE";
+  if (u.includes("ebay.fr") || u.includes("leboncoin.fr")) return "FR";
+  if (u.includes("ebay.co.uk") || u.includes("gumtree.com")) return "GB";
+  if (u.includes("marktplaats.nl") || u.includes("ebay.nl")) return "NL";
+  if (u.includes("wallapop") || u.includes("ebay.es")) return "ES";
+  if (u.includes("subito.it") || u.includes("ebay.it")) return "IT";
+  if (u.includes("yahoo.co.jp") || u.includes(".co.jp")) return "JP";
+  if (u.includes("ebay.com") || u.includes("craigslist")) return "US";
+  if (m.includes("pl")) return "PL";
+  if (m.includes("de")) return "DE";
+  if (m.includes("gb") || m.includes("uk")) return "GB";
+  if (m.includes("fr")) return "FR";
+  if (m.includes("us")) return "US";
+  if (m.includes("jp")) return "JP";
+  return null;
+}
+
+const EU = ["PL","DE","FR","IT","ES","NL","CZ","AT","BE","SE","DK","FI","PT","HU","RO"];
+
+function estimateShipping(src: string | null, dst: string | null, category = ""): { cost: number; days: string } {
+  if (!src || !dst) return { cost: 22, days: "7–21" };
+  if (src === dst) return { cost: 5, days: "2–4" };
+  const heavy = ["Electronics","Antiques","Spirits"].includes(category);
+  const base = heavy ? 15 : 0;
+  // EU → US / CA
+  if (EU.includes(src) && (dst === "US" || dst === "CA")) return { cost: 28 + base, days: "7–14" };
+  // EU → GB
+  if (EU.includes(src) && dst === "GB") return { cost: 15 + base, days: "4–8" };
+  // EU → EU
+  if (EU.includes(src) && EU.includes(dst)) return { cost: 9 + base, days: "3–6" };
+  // GB → US
+  if (src === "GB" && dst === "US") return { cost: 20 + base, days: "5–10" };
+  // GB → EU
+  if (src === "GB" && EU.includes(dst)) return { cost: 14 + base, days: "4–8" };
+  // US → EU / GB
+  if (src === "US" && (EU.includes(dst) || dst === "GB")) return { cost: 30 + base, days: "7–14" };
+  // JP → anywhere
+  if (src === "JP") return { cost: dst === "US" ? 22 : 30, days: "5–12" };
+  return { cost: 25 + base, days: "10–21" };
+}
+
+function getShippingWarning(src: string | null, dst: string | null, url = ""): { level: "warn" | "ok" | "check"; text: string } | null {
+  if (!src || !dst) return null;
+  // Same country — no issue
+  if (src === dst) return { level: "ok", text: "Wysyłka krajowa — bez problemu." };
+  // Allegro: many sellers domestic only
+  if (url.includes("allegro.pl") || url.includes("olx.pl")) {
+    return { level: "warn", text: `Uwaga: większość sprzedawców na Allegro wysyła TYLKO w Polsce. Przed zakupem sprawdź opcje wysyłki i zapytaj sprzedawcę o wysyłkę do ${dst}.` };
+  }
+  // Kleinanzeigen: mostly local pickup
+  if (url.includes("kleinanzeigen.de")) {
+    return { level: "warn", text: "Uwaga: Kleinanzeigen.de to głównie sprzedaż lokalna (odbiór osobisty). Wielu sprzedawców nie wysyła paczek — sprawdź ogłoszenie dokładnie." };
+  }
+  // Vinted: domestic only
+  if (url.includes("vinted.")) {
+    return { level: "warn", text: "Uwaga: Vinted zazwyczaj obsługuje tylko wysyłkę krajową. Upewnij się że sprzedawca wysyła za granicę." };
+  }
+  // Facebook Marketplace
+  if (url.includes("facebook.com") || url.includes("fb.com")) {
+    return { level: "warn", text: "Uwaga: Facebook Marketplace to głównie sprzedaż lokalna. Wysyłka zależy wyłącznie od sprzedawcy." };
+  }
+  // eBay — generally ships internationally
+  if (url.includes("ebay.")) {
+    return { level: "check", text: `Sprawdź na stronie oferty czy sprzedawca wysyła do ${dst} (opcja 'International shipping').` };
+  }
+  // Generic international warning
+  return { level: "check", text: `Przesyłka ${src}→${dst}: upewnij się że sprzedawca oferuje wysyłkę zagraniczną przed dokonaniem zakupu.` };
+}
+
+const COUNTRY_NAMES: Record<string, string> = {
+  US:"USA", GB:"UK", DE:"Niemcy", PL:"Polska", FR:"Francja", IT:"Włochy",
+  ES:"Hiszpania", NL:"Holandia", JP:"Japonia", CA:"Kanada", AU:"Australia", NO:"Norwegia",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
   const [step, setStep] = useState<Step>("buy");
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -32,8 +135,12 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const formattedAddress = [order.buyerName, order.buyerAddress]
-    .filter(Boolean).join("\n");
+  const formattedAddress = [order.buyerName, order.buyerAddress].filter(Boolean).join("\n");
+
+  const buyerCountry  = detectBuyerCountry(order.buyerAddress || "");
+  const sourceCountry = detectSourceCountry(order.sourceUrl, order.sourceMarket);
+  const shipping      = estimateShipping(sourceCountry, buyerCountry, order.category);
+  const warning       = getShippingWarning(sourceCountry, buyerCountry, order.sourceUrl || "");
 
   const copyAddress = () => {
     navigator.clipboard.writeText(formattedAddress).then(() => {
@@ -45,7 +152,6 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
   const openSource = () => {
     if (order.sourceUrl) {
       window.open(order.sourceUrl, "_blank");
-      // Move to tracking step after they've gone to buy
       setTimeout(() => setStep("tracking"), 1500);
     }
   };
@@ -68,7 +174,7 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
       setStep("done");
       onProcessed?.();
     } catch (err: any) {
-      setSubmitError(err.message || "Failed to save — please try again");
+      setSubmitError(err.message || "Błąd zapisu — spróbuj ponownie");
     } finally { setSubmitting(false); }
   };
 
@@ -78,6 +184,7 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
     borderRadius: 9, color: "#fff", fontSize: 14, padding: "10px 14px", outline: "none",
     fontFamily: "inherit",
   };
+
 
   return (
     <div
@@ -132,15 +239,17 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
         {step === "buy" && (
           <div>
             {/* Profit summary */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 7, marginBottom: 20 }}>
               {[
                 { label: "BUY", val: `$${order.buyPrice ?? "?"}`, color: "#60a5fa" },
                 { label: "SELL", val: `$${order.sellPrice ?? "?"}`, color: "#a78bfa" },
                 { label: "NET PROFIT", val: `+$${order.profit ?? "?"}`, color: "#4ade80" },
+                { label: "SHIP EST", val: `~$${shipping.cost}`, color: "#f5c842", sub: shipping.days + "d" },
               ].map(s => (
-                <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, padding: "8px 10px", textAlign: "center" }}>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: 0.5, marginBottom: 3 }}>{s.label}</div>
-                  <div style={{ color: s.color, fontWeight: 900, fontSize: 14 }}>{s.val}</div>
+                <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, padding: "7px 6px", textAlign: "center" }}>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 7, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>{s.label}</div>
+                  <div style={{ color: s.color, fontWeight: 900, fontSize: 13 }}>{s.val}</div>
+                  {"sub" in s && s.sub && <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, marginTop: 1 }}>{s.sub}</div>}
                 </div>
               ))}
             </div>
@@ -170,6 +279,26 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
                 ↑ Paste this as the delivery address when ordering from the source
               </div>
             </div>
+
+            {/* Shipping feasibility warning */}
+            {warning && (
+              <div style={{
+                background: warning.level === "warn" ? "rgba(248,113,113,0.1)" : warning.level === "ok" ? "rgba(74,222,128,0.08)" : "rgba(245,200,66,0.08)",
+                border: `1px solid ${warning.level === "warn" ? "rgba(248,113,113,0.3)" : warning.level === "ok" ? "rgba(74,222,128,0.25)" : "rgba(245,200,66,0.25)"}`,
+                borderRadius: 10, padding: "10px 14px", marginBottom: 16,
+                display: "flex", alignItems: "flex-start", gap: 8,
+              }}>
+                <AlertTriangle size={13} color={warning.level === "warn" ? "#f87171" : warning.level === "ok" ? "#4ade80" : "#f5c842"} style={{ marginTop: 1, flexShrink: 0 }} />
+                <div style={{ color: warning.level === "warn" ? "#f87171" : warning.level === "ok" ? "#86efac" : "#fde68a", fontSize: 11, lineHeight: 1.55 }}>
+                  {warning.text}
+                  {(sourceCountry || buyerCountry) && (
+                    <span style={{ display: "inline-block", marginTop: 4, color: "rgba(255,255,255,0.3)", fontSize: 10 }}>
+                      {" "}({sourceCountry ?? "?"} → {buyerCountry ?? "?"}, ~{shipping.days} days)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Instructions */}
             <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.18)", borderRadius: 10, padding: 14, marginBottom: 20 }}>

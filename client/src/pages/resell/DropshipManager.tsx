@@ -677,6 +677,8 @@ export default function DropshipManager() {
             sellPrice: fulfillOrder.sellPrice,
             profit: fulfillOrder.profit,
             platform: fulfillOrder.platform,
+            sourceMarket: fulfillOrder.sourceMarket,
+            category: fulfillOrder.category,
           }}
           onClose={() => setFulfillOrder(null)}
           onProcessed={async () => { setFulfillOrder(null); await load(); }}
