@@ -80,9 +80,10 @@ function loadCachedOpportunities(): { opps: Opportunity[]; isReal: boolean } | n
   try {
     const raw = localStorage.getItem(SCAN_DATA_KEY);
     if (!raw) return null;
-    const opps = JSON.parse(raw) as Opportunity[];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.length) return null;
     const isReal = localStorage.getItem(SCAN_REAL_KEY) === "1";
-    return { opps, isReal };
+    return { opps: parsed as Opportunity[], isReal };
   } catch { return null; }
 }
 
@@ -191,10 +192,11 @@ export default function Dashboard() {
         setIsRealData(isReal);
         const ts = new Date().toLocaleTimeString();
         setScannedAt(ts);
+        // Always persist scan results — real or example — so they survive refresh.
+        // SCAN_REAL_KEY is only set (never cleared) when source is real.
+        localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
+        localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
         if (isReal) {
-          // Only persist real scan results — never overwrite good data with examples
-          localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
-          localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
           localStorage.setItem(SCAN_REAL_KEY, "1");
         }
       } else if (data.error || data.message) {
