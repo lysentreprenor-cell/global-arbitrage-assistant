@@ -34,6 +34,7 @@ type Opportunity = {
   markets?: string[];
   sellUrls?: Record<string, string>;
   sellMarketOptions?: { market: string; sell: number; netProfit: number; sample: number }[];
+  _enriching?: boolean;
 };
 
 const CATEGORIES = ["All", "Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches"];
@@ -175,13 +176,15 @@ export default function Dashboard() {
     if (scanning) return;
     setScanning(true);
     setScanError(null);
-    for (let i = 0; i < SCAN_STEPS.length; i++) {
-      setScanStep(SCAN_STEPS[i]);
-      await new Promise(r => setTimeout(r, 400));
-    }
+    setScanStep("Łączenie z rynkami…");
+    setOpportunities([]); // clear so animation shows while waiting for first result
+
+    const oppsBuffer: Opportunity[] = [];
+    let source = "ai";
+
     try {
       const ebay = getEbayKeys();
-      const res = await fetch("/api/resell/scan", {
+      const res = await fetch("/api/resell/scan-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -192,28 +195,72 @@ export default function Dashboard() {
           userLocation: getUserLocation(),
         }),
       });
-      const data = await res.json();
-      if (data.opportunities?.length) {
-        setOpportunities(data.opportunities);
-        setScanSource(data.source);
-        const isReal = data.source !== "example";
-        setIsRealData(isReal);
-        setScannedAt(new Date().toLocaleTimeString());
-        const alreadyHasReal = localStorage.getItem(SCAN_REAL_KEY) === "1";
-        if (isReal) {
-          localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
-          localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
-          localStorage.setItem(SCAN_REAL_KEY, "1");
-        } else if (!alreadyHasReal) {
-          localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(data.opportunities));
-          localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
+
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+
+        for (const part of parts) {
+          if (!part.trim()) continue;
+          let ev = "message", d = "";
+          for (const ln of part.split("\n")) {
+            if (ln.startsWith("event: ")) ev = ln.slice(7).trim();
+            else if (ln.startsWith("data: ")) d = ln.slice(6).trim();
+          }
+          try {
+            if (ev === "status") {
+              setScanStep(JSON.parse(d).step ?? "");
+            } else if (ev === "ai-opportunity") {
+              const opp: Opportunity = { ...JSON.parse(d), _enriching: true };
+              oppsBuffer.push(opp);
+              setOpportunities(prev => {
+                const without = prev.filter(p => p.id !== opp.id);
+                return [...without, opp].sort((a, b) => b.score - a.score);
+              });
+            } else if (ev === "opportunity") {
+              const opp: Opportunity = { ...JSON.parse(d), _enriching: false };
+              const idx = oppsBuffer.findIndex(p => p.id === opp.id);
+              if (idx !== -1) oppsBuffer[idx] = opp; else oppsBuffer.push(opp);
+              setOpportunities(prev => {
+                const without = prev.filter(p => p.id !== opp.id);
+                return [...without, opp].sort((a, b) => b.score - a.score);
+              });
+            } else if (ev === "done") {
+              source = JSON.parse(d).source ?? "ai";
+            }
+          } catch { /* malformed SSE data — skip */ }
         }
-      } else if (data.error || data.message) {
-        setScanError(data.error ?? data.message);
+      }
+
+      const isReal = source !== "example" && source !== "no-keys" && source !== "error";
+      setIsRealData(isReal);
+      setScanSource(source as any);
+      setScannedAt(new Date().toLocaleTimeString());
+      const alreadyReal = localStorage.getItem(SCAN_REAL_KEY) === "1";
+      if (isReal) {
+        localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(oppsBuffer));
+        localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
+        localStorage.setItem(SCAN_REAL_KEY, "1");
+      } else if (!alreadyReal) {
+        localStorage.setItem(SCAN_DATA_KEY, JSON.stringify(oppsBuffer));
+        localStorage.setItem(SCAN_TS_KEY, String(Date.now()));
+      }
+      if (!oppsBuffer.length) {
+        setScanError("Brak wyników — sprawdź klucze API w Ustawieniach.");
       }
     } catch {
       setScanError("Błąd połączenia — skanowanie nieudane. Wyświetlam zapisane dane.");
     }
+
     setScanStep("");
     setScanning(false);
   };
@@ -416,8 +463,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── Scanning animation ── */}
-        {scanning && (
+        {/* ── Scanning animation (only when no cards yet) ── */}
+        {scanning && filtered.length === 0 && (
           <div style={{ padding: "48px 24px", textAlign: "center" }}>
             <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>
               {[0,1,2,3,4].map(i => (
@@ -425,7 +472,16 @@ export default function Dashboard() {
               ))}
             </div>
             <div style={{ color: "#f5c842", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{scanStep}</div>
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Analizowanie rynków — może zająć chwilę...</div>
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Trwa analiza rynków…</div>
+          </div>
+        )}
+
+        {/* ── Enrichment progress bar (cards already visible, prices updating) ── */}
+        {scanning && filtered.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 14px", background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 8 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#f5c842", animation: "pulse 1s infinite", flexShrink: 0 }} />
+            <span style={{ color: "#fde68a", fontSize: 12, fontWeight: 700, flex: 1 }}>{scanStep || "Weryfikacja cen na eBay…"}</span>
+            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>Karty aktualizują się automatycznie</span>
           </div>
         )}
 
@@ -446,7 +502,7 @@ export default function Dashboard() {
         )}
 
         {/* ── Opportunity cards grid ── */}
-        {!scanning && filtered.length > 0 && (
+        {filtered.length > 0 && (
           <>
             <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginBottom: 10 }}>
               {filtered.length} okazj{filtered.length === 1 ? "a" : filtered.length < 5 ? "e" : "i"}
@@ -494,6 +550,11 @@ export default function Dashboard() {
                       (e.currentTarget as HTMLElement).style.border = "1px solid rgba(255,255,255,0.08)";
                     }}
                   >
+                    {/* Enriching pulse — disappears once real eBay data arrives */}
+                    {o._enriching && (
+                      <div style={{ position: "absolute", top: 9, right: 9, width: 7, height: 7, borderRadius: "50%", background: "#f5c842", animation: "pulse 1s infinite", zIndex: 2 }} />
+                    )}
+
                     {/* ── Top row: image + name + score ── */}
                     <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                       {/* Image */}

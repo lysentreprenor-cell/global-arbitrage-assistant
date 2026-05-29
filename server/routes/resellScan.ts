@@ -6,6 +6,10 @@ const router = Router();
 // ── eBay OAuth (with in-memory token cache) ──────────────────────────────────
 const _tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
+// ── eBay search result cache (5-min TTL → rescans are near-instant) ──────────
+const _ebayCache = new Map<string, { results: any[]; expiresAt: number }>();
+const EBAY_CACHE_TTL = 5 * 60 * 1000;
+
 async function getEbayToken(appId: string, certId: string): Promise<string | null> {
   const cacheKey = `${appId}:${certId}`;
   const cached = _tokenCache.get(cacheKey);
@@ -77,6 +81,20 @@ function isValidEbayImage(img: string): boolean {
   return img.includes("ebayimg.com") || img.includes("ebaystatic.com") || img.startsWith("https://");
 }
 
+// Cache wrapper — avoids duplicate eBay API calls within 5 minutes (same query+params)
+async function ebaySearchCached(
+  token: string, query: string, maxPrice: number,
+  marketplace = "EBAY_US", sortOrder = "price",
+  conditionFilter: "used" | "any" = "any"
+): Promise<any[]> {
+  const key = `${query}|${maxPrice}|${marketplace}|${sortOrder}|${conditionFilter}`;
+  const hit = _ebayCache.get(key);
+  if (hit && Date.now() < hit.expiresAt) return hit.results;
+  const results = await ebaySearch(token, query, maxPrice, marketplace, sortOrder, conditionFilter);
+  _ebayCache.set(key, { results, expiresAt: Date.now() + EBAY_CACHE_TTL });
+  return results;
+}
+
 // How many search keywords from productName appear in the listing title (0.0–1.0)
 function keywordConsistency(productName: string, listingTitle: string): number {
   const words = productName.toLowerCase().split(/[\s,\-—()]+/).filter(w => w.length > 3);
@@ -133,7 +151,7 @@ async function findBestEbayListing(
 
   for (const query of queries) {
     // Buy-side: prefer used/pre-owned items (condition 3000-6000) — these are the arbitrage finds
-    const listings = await ebaySearch(token, query, maxPrice, marketplace, "price", "used");
+    const listings = await ebaySearchCached(token, query, maxPrice, marketplace, "price", "used");
     if (!listings.length) continue;
 
     const scored = listings
@@ -239,8 +257,8 @@ async function detectGap(
 
   try {
     const [buyListings, sellListings] = await Promise.all([
-      ebaySearch(token, query, maxBuyPrice, buyMarketplace, "price", "used"), // cheapest local USED
-      ebaySearch(token, query, 9999, sellMarketplace, "-price", "used"),       // dest USED, expensive-first
+      ebaySearchCached(token, query, maxBuyPrice, buyMarketplace, "price", "used"),
+      ebaySearchCached(token, query, 9999, sellMarketplace, "-price", "used"),
     ]);
     if (buyListings.length < MIN_GAP_SAMPLE || sellListings.length < MIN_GAP_SAMPLE) {
       return { ...empty, euListings: buyListings, usListings: sellListings, sampleBuy: buyListings.length, sampleSell: sellListings.length };
@@ -657,7 +675,7 @@ async function findBestSellMarket(
   const results = await Promise.all(
     SELL_DESTINATIONS.map(async (d, idx) => {
       await new Promise(r => setTimeout(r, idx * 120)); // light stagger to respect rate limits
-      const listings = await ebaySearch(token, query, 9999, d.marketplace, "-price", "used");
+      const listings = await ebaySearchCached(token, query, 9999, d.marketplace, "-price", "used");
       const pricesUSD = listings.map(l => toUSD(l.price, l.currency)).filter(p => p > 0);
       if (pricesUSD.length < MIN_GAP_SAMPLE) return null;
       const med = median(pricesUSD);
@@ -916,6 +934,169 @@ const GAP_QUERIES = [
   { query: "amber brooch sterling silver handmade", maxBuyPrice: 35 },
 ];
 
+// ── Concurrency limiter — max N async tasks in flight at once ────────────────
+async function withConcurrency<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let next = 0;
+  async function worker() {
+    while (next < tasks.length) {
+      const i = next++;
+      results[i] = await tasks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  return results;
+}
+
+// ── Single-opportunity enrichment (extracted for reuse in /scan and /scan-stream) ──
+async function enrichOneOpp(token: string, opp: any, locCfg: LocationConfig): Promise<any> {
+  const searchName = opp.ebaySearchQuery?.trim() || opp.name;
+  const best = await findBestEbayListing(token, searchName, opp.buy, locCfg.buyEbayMarketplace);
+  const buyPriceUSD = best?.actualPrice ?? opp.buy;
+  const { best: bestSell, options: sellOptions } =
+    await findBestSellMarket(token, searchName, buyPriceUSD, opp.category ?? "General");
+
+  let merged: any = { ...opp };
+  if (best) {
+    merged = {
+      ...merged,
+      sourceUrl: best.url, imageUrl: best.imageUrl,
+      additionalImages: best.additionalImages,
+      realBuyTitle: best.title, realBuyPrice: best.actualPrice,
+      itemCondition: best.condition, keywordMatch: best.keywordMatch,
+      stockCount: best.stockCount, sellerRating: best.sellerRating,
+      sellerFeedback: best.sellerFeedback, dataQuality: "verified",
+    };
+  }
+  if (bestSell && bestSell.netProfitUSD > 0) {
+    merged.sell = Math.round(bestSell.medianPriceUSD);
+    merged.netProfit = bestSell.netProfitUSD;
+    merged.market = bestSell.label;
+    merged.margin = buyPriceUSD > 0 ? Math.round((bestSell.netProfitUSD / buyPriceUSD) * 100) : merged.margin;
+    merged.priceGapPct = buyPriceUSD > 0
+      ? Math.round((bestSell.medianPriceUSD / buyPriceUSD - 1) * 100) : merged.priceGapPct;
+    merged.sellMarketOptions = sellOptions.map(s => ({
+      market: s.label, sell: Math.round(s.medianPriceUSD),
+      netProfit: s.netProfitUSD, sample: s.sampleSize,
+    }));
+    const multi = getMultiPlatformSell(bestSell.label, merged.category ?? "General", searchName);
+    merged.markets = [bestSell.label, ...multi.markets.filter((m: string) => m !== bestSell.label)].slice(0, 3);
+    merged.sellUrls = {};
+    for (const m of merged.markets) merged.sellUrls[m] = sellUrlForMarket(m, searchName);
+    merged.sellUrl = merged.sellUrls[bestSell.label];
+  }
+  merged.shippingFeasible = shippingFeasible(merged.netProfit ?? merged.profit, merged.category, merged.flag);
+  merged.score = computeScore({
+    netProfit: merged.netProfit ?? merged.profit ?? 0,
+    margin: merged.margin ?? 0,
+    keywordMatch: merged.keywordMatch,
+    sellerRating: merged.sellerRating,
+    daysToSell: merged.daysToSell,
+    dataQuality: merged.dataQuality,
+    shippingFeasible: merged.shippingFeasible,
+    sellSampleSize: bestSell?.sampleSize,
+  });
+  if (!merged.sellUrl?.startsWith("https://"))
+    merged.sellUrl = sellUrlForMarket(merged.market ?? "", searchName);
+  return merged;
+}
+
+// ── POST /api/resell/scan-stream (SSE — streams each opportunity as it's ready) ──
+router.post("/scan-stream", async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const emit = (event: string, data: object) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const { anthropicKey, ebayAppId, ebayCertId, etsyApiKey, userLocation } = req.body ?? {};
+  const aiKey: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  const ebayApp: string = ebayAppId || process.env.EBAY_APP_ID || "";
+  const ebayCert: string = ebayCertId || process.env.EBAY_CERT_ID || "";
+  const etsyKey: string = etsyApiKey || process.env.ETSY_API_KEY || "";
+  const locCode: string = (userLocation?.country ?? "PL").toUpperCase();
+  const locCfg = getLocationConfig(locCode);
+
+  let gapData: Array<{ query: string; gap: GapResult }> = [];
+  let realEtsy: any[] = [];
+
+  emit("status", { step: "Łączenie z eBay…" });
+  if (ebayApp && ebayCert) {
+    try {
+      const token = await getEbayToken(ebayApp, ebayCert);
+      if (token) {
+        emit("status", { step: "Skanowanie rynków…" });
+        const gaps = await Promise.all(
+          GAP_QUERIES.map(async q => ({
+            query: q.query,
+            gap: await detectGap(token, q.query, q.maxBuyPrice, locCfg.buyEbayMarketplace, locCfg.sellEbayMarketplace),
+          }))
+        );
+        gapData = gaps.filter(g => g.gap.euListings.length > 0 || g.gap.usListings.length > 0);
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (etsyKey) {
+    try {
+      emit("status", { step: "Skanowanie Etsy…" });
+      const r = await Promise.all([
+        etsySearch(etsyKey, "vintage levis jeans denim"),
+        etsySearch(etsyKey, "baltic amber pendant handmade"),
+        etsySearch(etsyKey, "soviet film camera zorki"),
+        etsySearch(etsyKey, "vintage omega watch mechanical"),
+        etsySearch(etsyKey, "polish folk art handmade"),
+      ]);
+      realEtsy = r.flat().filter(i => i.price > 20);
+    } catch { /* ignore */ }
+  }
+
+  if (!aiKey) {
+    emit("done", { source: "no-keys", message: "Add API keys in Settings to scan for real opportunities." });
+    return res.end();
+  }
+
+  emit("status", { step: "AI analizuje okazje…" });
+  try {
+    const aiResults = await scanWithAI(aiKey, gapData, realEtsy, locCfg);
+    const filtered = filterAndEnrich(aiResults, gapData.some(g => g.gap.gapPct > 0));
+    if (!filtered.length) {
+      emit("done", { source: "ai" });
+      return res.end();
+    }
+
+    // Stream raw AI results immediately — user sees first cards within ~6s
+    for (const opp of filtered) emit("ai-opportunity", opp);
+    emit("status", { step: "Weryfikacja cen na eBay…" });
+
+    // Enrich each opportunity concurrently (max 4 at a time — no artificial stagger)
+    if (ebayApp && ebayCert) {
+      try {
+        const token = await getEbayToken(ebayApp, ebayCert);
+        if (token) {
+          await withConcurrency(
+            filtered.map((opp: any) => async () => {
+              const enriched = await enrichOneOpp(token, opp, locCfg);
+              emit("opportunity", enriched);
+            }),
+            4
+          );
+        }
+      } catch { /* ignore */ }
+    }
+
+    const hasLive = gapData.some(g => g.gap.confidence === "live");
+    emit("done", { source: hasLive ? "live" : "ai", scannedAt: new Date().toISOString() });
+  } catch {
+    emit("done", { source: "error" });
+  }
+  res.end();
+});
+
 // ── POST /api/resell/scan ─────────────────────────────────────────────────────
 router.post("/scan", async (req: Request, res: Response) => {
   const { anthropicKey, ebayAppId, ebayCertId, etsyApiKey, userLocation } = req.body ?? {};
@@ -974,83 +1155,10 @@ router.post("/scan", async (req: Request, res: Response) => {
           try {
             const token = await getEbayToken(ebayApp, ebayCert);
             if (token) {
-              enriched = await Promise.all(
-                filtered.map(async (opp: any, idx: number) => {
-                  await new Promise(r => setTimeout(r, idx * 240));
-                  // Use AI-generated ebaySearchQuery when available — consistent keywords buy→sell
-                  const searchName = opp.ebaySearchQuery?.trim() || opp.name;
-
-                  // BUY side: find the real cheap listing on the user's local marketplace
-                  const best = await findBestEbayListing(token, searchName, opp.buy, locCfg.buyEbayMarketplace);
-                  const buyPriceUSD = best?.actualPrice ?? opp.buy;
-
-                  // SELL side: data-driven — check US/UK/DE and rank by real net profit
-                  const { best: bestSell, options: sellOptions } =
-                    await findBestSellMarket(token, searchName, buyPriceUSD, opp.category ?? "General");
-
-                  let merged: any = { ...opp };
-
-                  if (best) {
-                    merged = {
-                      ...merged,
-                      sourceUrl: best.url,
-                      imageUrl: best.imageUrl,
-                      additionalImages: best.additionalImages,
-                      realBuyTitle: best.title,
-                      realBuyPrice: best.actualPrice,
-                      itemCondition: best.condition,
-                      keywordMatch: best.keywordMatch,
-                      stockCount: best.stockCount,
-                      sellerRating: best.sellerRating,
-                      sellerFeedback: best.sellerFeedback,
-                      dataQuality: "verified",
-                    };
-                  }
-
-                  // Apply the most profitable real sell destination
-                  if (bestSell && bestSell.netProfitUSD > 0) {
-                    merged.sell = Math.round(bestSell.medianPriceUSD);
-                    merged.netProfit = bestSell.netProfitUSD;
-                    merged.market = bestSell.label;
-                    merged.margin = buyPriceUSD > 0
-                      ? Math.round((bestSell.netProfitUSD / buyPriceUSD) * 100)
-                      : merged.margin;
-                    merged.priceGapPct = buyPriceUSD > 0
-                      ? Math.round((bestSell.medianPriceUSD / buyPriceUSD - 1) * 100)
-                      : merged.priceGapPct;
-                    // Comparison of all checked destinations (for transparency in UI)
-                    merged.sellMarketOptions = sellOptions.map(s => ({
-                      market: s.label, sell: Math.round(s.medianPriceUSD),
-                      netProfit: s.netProfitUSD, sample: s.sampleSize,
-                    }));
-                    // Rebuild platform links around the winning destination + category peers
-                    const multi = getMultiPlatformSell(bestSell.label, merged.category ?? "General", searchName);
-                    merged.markets = [bestSell.label, ...multi.markets.filter((m: string) => m !== bestSell.label)].slice(0, 3);
-                    merged.sellUrls = {};
-                    for (const m of merged.markets) merged.sellUrls[m] = sellUrlForMarket(m, searchName);
-                    merged.sellUrl = merged.sellUrls[bestSell.label];
-                  }
-
-                  // Re-evaluate shipping feasibility with the (possibly updated) profit
-                  merged.shippingFeasible = shippingFeasible(merged.netProfit ?? merged.profit, merged.category, merged.flag);
-
-                  // Computed score from real signals replaces the AI's guess
-                  merged.score = computeScore({
-                    netProfit: merged.netProfit ?? merged.profit ?? 0,
-                    margin: merged.margin ?? 0,
-                    keywordMatch: merged.keywordMatch,
-                    sellerRating: merged.sellerRating,
-                    daysToSell: merged.daysToSell,
-                    dataQuality: merged.dataQuality,
-                    shippingFeasible: merged.shippingFeasible,
-                    sellSampleSize: bestSell?.sampleSize,
-                  });
-
-                  if (!merged.sellUrl?.startsWith("https://"))
-                    merged.sellUrl = sellUrlForMarket(merged.market ?? "", searchName);
-
-                  return merged;
-                })
+              // Enrich max 4 at a time — no stagger, cache makes repeated queries instant
+              enriched = await withConcurrency(
+                filtered.map((opp: any) => () => enrichOneOpp(token, opp, locCfg)),
+                4
               );
             }
           } catch (err) { console.error("[resell/scan] per-opp enrich:", err); }
