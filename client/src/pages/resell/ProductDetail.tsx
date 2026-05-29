@@ -72,12 +72,6 @@ function getBuySources(flag: string) {
   return BUY_SOURCES[buyFlag] ?? BUY_SOURCES["🇵🇱"];
 }
 
-const FALLBACK_PRODUCTS: Record<string, Opportunity> = {
-  "1": { id: 1, name: "Levi's 501 W32 — Poland", buy: 30, sell: 78, profit: 48, margin: 62, market: "eBay USA", category: "Clothing", score: 92, trend: "up", flag: "🇵🇱→🇺🇸", tip: "Vintage denim sells for 2-3x more in US than EU" },
-  "2": { id: 2, name: "Baltic Amber Pendant", buy: 50, sell: 260, profit: 210, margin: 80, market: "Etsy USA", category: "Jewelry", score: 96, trend: "up", flag: "🇵🇱→🇺🇸", tip: "Baltic amber is rare in US — handmade jewelry sells fast on Etsy" },
-  "3": { id: 3, name: "Vintage Leica M3 Camera", buy: 420, sell: 890, profit: 470, margin: 53, market: "eBay DE", category: "Electronics", score: 88, trend: "up", flag: "🇩🇪→🇺🇸", tip: "German camera market underprices Leica vs US collectors" },
-};
-
 export default function ProductDetail() {
   const [, params] = useRoute("/resell/product/:id");
   const [, setLocation] = useLocation();
@@ -93,7 +87,27 @@ export default function ProductDetail() {
       if (String(parsed.id) === id) opportunity = parsed;
     }
   } catch {}
-  if (!opportunity) opportunity = FALLBACK_PRODUCTS[id] ?? FALLBACK_PRODUCTS["1"];
+
+  // No real opportunity in session — show an honest empty state instead of fake data
+  if (!opportunity) {
+    return (
+      <ResellLayout>
+        <div style={{ padding: "60px 24px", maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+          <div style={{ fontSize: 44, marginBottom: 16 }}>🔍</div>
+          <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 800, margin: "0 0 8px" }}>Nie wybrano okazji</h2>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: "0 0 24px", lineHeight: 1.5 }}>
+            Otwórz okazję z Dashboardu, żeby zobaczyć szczegóły, źródła zakupu i kalkulację zysku.
+          </p>
+          <button
+            onClick={() => setLocation("/resell")}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", border: "none", borderRadius: 10, padding: "12px 24px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+          >
+            <ArrowLeft size={15} /> Wróć do Dashboardu
+          </button>
+        </div>
+      </ResellLayout>
+    );
+  }
 
   const p = opportunity;
   const scoreColor = p.score >= 70 ? "#4ade80" : p.score >= 50 ? "#f5c842" : "#f87171";

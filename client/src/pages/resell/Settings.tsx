@@ -3,19 +3,6 @@ import { Settings as SettingsIcon, Key, Eye, EyeOff, Check, ExternalLink, Trash2
 import { ResellLayout } from "@/components/resell/ResellLayout";
 
 type ApiEntry = {
-  id: string;
-  name: string;
-  logo: string;
-  color: string;
-  description: string;
-  docsUrl: string;
-  keyLabel: string;
-  secretLabel?: string;
-  fields: { key: string; label: string; placeholder: string }[];
-  status?: "active" | "error" | "untested";
-};
-
-type ApiEntry = {
   id: string; name: string; logo: string; color: string;
   description: string; docsUrl: string; keyLabel: string;
   secretLabel?: string; required?: boolean;

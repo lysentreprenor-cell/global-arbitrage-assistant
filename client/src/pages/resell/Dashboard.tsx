@@ -259,7 +259,10 @@ export default function Dashboard() {
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <LocationPicker onChange={() => {}} />
+            <LocationPicker onChange={() => {
+              // Location drives which markets are scanned — refresh on change
+              if (!scanning) triggerScan();
+            }} />
             <button
               onClick={triggerScan}
               disabled={scanning}
