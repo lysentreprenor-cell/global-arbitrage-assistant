@@ -20,6 +20,7 @@ import ResellSavedPage from "@/pages/resell/SavedPage";
 import AutopilotPage from "@/pages/resell/AutopilotPage";
 import PhotoListingPage from "@/pages/resell/PhotoListingPage";
 import AlertsPage from "@/pages/resell/AlertsPage";
+import QuickListPage from "@/pages/resell/QuickListPage";
 
 function RedirectToResell() {
   const [, setLocation] = useLocation();
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/resell/settings" component={Settings} />
         <Route path="/resell/photo" component={PhotoListingPage} />
         <Route path="/resell/alerts" component={AlertsPage} />
+        <Route path="/resell/quick-list" component={QuickListPage} />
       </Switch>
       <Toaster />
     </QueryClientProvider>

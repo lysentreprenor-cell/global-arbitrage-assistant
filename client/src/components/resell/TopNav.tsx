@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp, Camera, ListTodo, Search, Rocket, Bell } from "lucide-react";
+import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp, Camera, ListTodo, Search, Rocket, Bell, Copy } from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
 const NAV_ITEMS = [
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/resell/market-scan", label: "Rynki", icon: Globe },
   { href: "/resell/dropship", label: "Dropship", icon: ShoppingBag },
   { href: "/resell/photo", label: "Ze Zdjęcia", icon: Camera },
+  { href: "/resell/quick-list", label: "Kopiuj", icon: Copy },
   { href: "/resell/autopilot", label: "Autopilot", icon: Rocket },
   { href: "/resell/settings", label: "API", icon: Settings },
 ];
