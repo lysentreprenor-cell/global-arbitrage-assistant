@@ -169,60 +169,105 @@ async function findBestEbayListing(
   return null;
 }
 
-// EUR→USD conversion rate (approximate 2025)
-const EUR_TO_USD = 1.10;
+// ── Multi-currency conversion (approximate 2025/2026 rates) ──────────────────
+const CURRENCY_TO_USD: Record<string, number> = {
+  USD: 1.0, EUR: 1.08, GBP: 1.27, PLN: 0.25, CZK: 0.043,
+  JPY: 0.0067, CNY: 0.14, INR: 0.012, NGN: 0.00065, ZAR: 0.055,
+  KES: 0.0077, EGP: 0.021, GHS: 0.067, MAD: 0.10, AUD: 0.66, CAD: 0.73,
+};
+const EUR_TO_USD = CURRENCY_TO_USD.EUR; // kept for backward-compat references
+
+function toUSD(price: number, currency: string): number {
+  const rate = CURRENCY_TO_USD[currency?.toUpperCase()] ?? 1.0;
+  return price * rate;
+}
+
+// Currency each eBay marketplace prices in
+const MARKETPLACE_CURRENCY: Record<string, string> = {
+  EBAY_US: "USD", EBAY_GB: "GBP", EBAY_DE: "EUR", EBAY_FR: "EUR",
+  EBAY_IT: "EUR", EBAY_ES: "EUR", EBAY_NL: "EUR", EBAY_AU: "AUD", EBAY_CA: "CAD",
+};
+
+// Robust percentile from a numeric array (already sorted ascending)
+function percentile(sortedAsc: number[], p: number): number {
+  if (!sortedAsc.length) return 0;
+  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.floor(sortedAsc.length * p)));
+  return sortedAsc[idx];
+}
+
+// Median of a numeric array
+function median(arr: number[]): number {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+const MIN_GAP_SAMPLE = 3; // require at least this many listings per side for a trusted gap
 
 // ── EU vs US price gap detector (core of the accuracy improvement) ────────────
-// Queries eBay DE for cheap buy-side prices (EUR→USD converted),
-// eBay US for expensive sell-side prices.
-// Uses 20th percentile for buy (achievable cheap price) and
-// 80th percentile for sell (what good listings actually command).
+// Buy side: cheap listings on the user's local marketplace (USED condition only).
+// Sell side: realistic achievable price on the destination marketplace.
+// Buy estimate = 25th percentile (achievable cheap). Sell estimate = MEDIAN of
+// used listings (conservative — avoids the overpriced-never-sells outliers that
+// the old 80th-percentile logic latched onto). Both sides USED for fair parity.
 interface GapResult {
   euListings: any[];
   usListings: any[];
-  medianEU: number;   // 20th-percentile EU price in USD
-  medianUS: number;   // 80th-percentile US sell price in USD
+  medianEU: number;   // 25th-percentile buy price in USD
+  medianUS: number;   // median achievable sell price in USD
   gapPct: number;     // (medianUS/medianEU - 1) * 100
   gapMultiplier: number; // medianUS/medianEU
+  sampleBuy: number;
+  sampleSell: number;
   confidence: "live" | "no_data";
 }
 
-async function detectGap(token: string, query: string, maxBuyPrice: number, buyMarketplace = "EBAY_DE"): Promise<GapResult> {
-  const empty: GapResult = { euListings: [], usListings: [], medianEU: 0, medianUS: 0, gapPct: 0, gapMultiplier: 0, confidence: "no_data" };
+async function detectGap(
+  token: string,
+  query: string,
+  maxBuyPrice: number,
+  buyMarketplace = "EBAY_DE",
+  sellMarketplace = "EBAY_US",
+): Promise<GapResult> {
+  const empty: GapResult = { euListings: [], usListings: [], medianEU: 0, medianUS: 0, gapPct: 0, gapMultiplier: 0, sampleBuy: 0, sampleSell: 0, confidence: "no_data" };
+
+  // Live gap is only meaningful between two DISTINCT real eBay marketplaces.
+  // For users whose buy market isn't on eBay (JP/Asia/Africa) buy===sell here →
+  // skip and let the AI layer drive (avoids fabricated 0% gaps).
+  if (buyMarketplace === sellMarketplace) return empty;
+
   try {
-    const [euListings, usListings] = await Promise.all([
-      ebaySearch(token, query, maxBuyPrice, buyMarketplace, "price"), // cheapest local listed price-asc
-      ebaySearch(token, query, 9999, "EBAY_US", "-price"),            // most expensive US price-desc
+    const [buyListings, sellListings] = await Promise.all([
+      ebaySearch(token, query, maxBuyPrice, buyMarketplace, "price", "used"), // cheapest local USED
+      ebaySearch(token, query, 9999, sellMarketplace, "-price", "used"),       // dest USED, expensive-first
     ]);
-    if (euListings.length === 0 || usListings.length === 0) return { ...empty, euListings, usListings };
+    if (buyListings.length < MIN_GAP_SAMPLE || sellListings.length < MIN_GAP_SAMPLE) {
+      return { ...empty, euListings: buyListings, usListings: sellListings, sampleBuy: buyListings.length, sampleSell: sellListings.length };
+    }
 
-    // Convert EU prices to USD (eBay DE prices are in EUR)
-    const euPricesUSD = euListings
-      .map(i => i.price * (i.currency === "EUR" ? EUR_TO_USD : 1))
-      .filter(p => p > 0)
-      .sort((a, b) => a - b);
+    // Convert both sides to USD using each listing's own currency
+    const buyUSD = buyListings.map(i => toUSD(i.price, i.currency)).filter(p => p > 0).sort((a, b) => a - b);
+    const sellUSD = sellListings.map(i => toUSD(i.price, i.currency)).filter(p => p > 0).sort((a, b) => a - b);
+    if (buyUSD.length < MIN_GAP_SAMPLE || sellUSD.length < MIN_GAP_SAMPLE) {
+      return { ...empty, euListings: buyListings, usListings: sellListings, sampleBuy: buyUSD.length, sampleSell: sellUSD.length };
+    }
 
-    const usPrices = usListings
-      .map(i => i.price)
-      .filter(p => p > 0)
-      .sort((a, b) => b - a); // descending — we want expensive end
+    // Buy = 25th percentile (realistic cheap find, not the single broken outlier)
+    const buyPrice = percentile(buyUSD, 0.25);
+    // Sell = MEDIAN of destination listings (conservative; the top asking prices
+    // rarely sell, so we use the middle of the market as achievable).
+    const sellPrice = median(sellUSD);
 
-    // Use 20th percentile for buy (achievable cheap EU price)
-    const p20Idx = Math.max(0, Math.floor(euPricesUSD.length * 0.2));
-    const buyEU = euPricesUSD[p20Idx] ?? euPricesUSD[0] ?? 0;
-
-    // Use 20th percentile from TOP of US prices (80th pct of sell side — what good items fetch)
-    const p20TopIdx = Math.max(0, Math.floor(usPrices.length * 0.2));
-    const sellUS = usPrices[p20TopIdx] ?? usPrices[0] ?? 0;
-
-    const gapPct = buyEU > 0 && sellUS > buyEU ? Math.round((sellUS / buyEU - 1) * 100) : 0;
-    const gapMul = buyEU > 0 && sellUS > 0 ? Math.round((sellUS / buyEU) * 10) / 10 : 0;
+    const gapPct = buyPrice > 0 && sellPrice > buyPrice ? Math.round((sellPrice / buyPrice - 1) * 100) : 0;
+    const gapMul = buyPrice > 0 && sellPrice > 0 ? Math.round((sellPrice / buyPrice) * 10) / 10 : 0;
 
     return {
-      euListings, usListings,
-      medianEU: Math.round(buyEU * 100) / 100,
-      medianUS: Math.round(sellUS * 100) / 100,
+      euListings: buyListings, usListings: sellListings,
+      medianEU: Math.round(buyPrice * 100) / 100,
+      medianUS: Math.round(sellPrice * 100) / 100,
       gapPct, gapMultiplier: gapMul,
+      sampleBuy: buyUSD.length, sampleSell: sellUSD.length,
       confidence: gapPct > 0 ? "live" : "no_data",
     };
   } catch { return empty; }
@@ -249,6 +294,7 @@ async function etsySearch(apiKey: string, query: string): Promise<any[]> {
 // ── Platform fees & shipping ──────────────────────────────────────────────────
 const PLATFORM_FEES: Record<string, number> = {
   "eBay USA": 0.1325,  // includes Managed Payments processing
+  "eBay UK": 0.128,    // UK final value fee + processing
   "Etsy USA": 0.095,   // 6.5% + ~3% payment processing
   "Amazon UK": 0.15,   // includes payment processing
   "eBay DE": 0.12,
@@ -345,15 +391,17 @@ function enrichWithRealListings(
 // ── Location helpers ──────────────────────────────────────────────────────────
 // Map user's country → best eBay buy-side marketplace + local source hints
 interface LocationConfig {
-  buyEbayMarketplace: string;   // eBay API marketplace ID
-  currencyNote: string;         // for AI context
-  localSources: string;         // human-readable local buy markets
+  buyEbayMarketplace: string;    // eBay API marketplace ID for BUY side
+  sellEbayMarketplace: string;   // eBay API marketplace ID for SELL side (must differ for live gap)
+  currencyNote: string;          // for AI context
+  localSources: string;          // human-readable local buy markets
   localSourcesMap: Record<string, string>;  // per-category overrides
 }
 
 const LOCATION_CONFIG: Record<string, LocationConfig> = {
   PL: {
     buyEbayMarketplace: "EBAY_DE", // eBay.pl doesn't exist — use DE as proxy
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in PLN (≈ EUR×0.23). Allegro/OLX are the main Polish buy markets.",
     localSources: "Allegro PL, OLX PL, Vinted PL, Polish flea markets (Warsaw/Kraków/Wrocław), Sprzedajemy PL",
     localSourcesMap: {
@@ -369,6 +417,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   DE: {
     buyEbayMarketplace: "EBAY_DE",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in EUR. Kleinanzeigen.de is the main German classifieds market.",
     localSources: "Kleinanzeigen.de, eBay.de, Rebuy.de, Momox, Stuffle, German flea markets",
     localSourcesMap: {
@@ -384,6 +433,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   FR: {
     buyEbayMarketplace: "EBAY_FR",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in EUR. Leboncoin.fr is the main French classifieds.",
     localSources: "Leboncoin FR, Vinted FR, eBay.fr, Rakuten FR, French vide-greniers",
     localSourcesMap: {
@@ -397,6 +447,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   CZ: {
     buyEbayMarketplace: "EBAY_DE", // No EBAY_CZ — use DE
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in CZK (≈ EUR×0.04). Bazos.cz and OLX.cz are main Czech buy markets.",
     localSources: "Bazos.cz, OLX.cz, Sbazar.cz, Czech flea markets (burzy)",
     localSourcesMap: {
@@ -408,6 +459,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   GB: {
     buyEbayMarketplace: "EBAY_GB",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in GBP. eBay.co.uk and Gumtree are main UK buy markets.",
     localSources: "eBay.co.uk, Gumtree, Facebook Marketplace UK, UK car boot sales, Vinted UK",
     localSourcesMap: {
@@ -419,6 +471,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   ES: {
     buyEbayMarketplace: "EBAY_ES",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in EUR. Wallapop and Milanuncios are main Spanish markets.",
     localSources: "Wallapop ES, Milanuncios, eBay.es, Vibbo ES, Spanish rastros",
     localSourcesMap: {
@@ -428,6 +481,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   IT: {
     buyEbayMarketplace: "EBAY_IT",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in EUR. Subito.it is the main Italian classifieds.",
     localSources: "Subito.it, eBay.it, Vinted IT, Italian antique markets",
     localSourcesMap: {
@@ -437,12 +491,14 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   NL: {
     buyEbayMarketplace: "EBAY_NL",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "Local prices in EUR. Marktplaats is the main Dutch classifieds.",
     localSources: "Marktplaats.nl, eBay.nl, Vinted NL, Dutch vlooienmarkt",
     localSourcesMap: {},
   },
   JP: {
     buyEbayMarketplace: "EBAY_US", // eBay.co.jp closed; will use Yahoo Auctions JP via AI
+    sellEbayMarketplace: "EBAY_US", // buy market not on eBay → live gap skipped, AI drives
     currencyNote: "Local prices in JPY (≈ USD×0.0067). Yahoo Auctions JP and Mercari JP are main buy markets. Use Buyee/Zenmarket as proxy services.",
     localSources: "Yahoo Auctions JP (via Buyee/Zenmarket), Mercari JP, Book-Off JP, Hard-Off JP",
     localSourcesMap: {
@@ -454,12 +510,14 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   US: {
     buyEbayMarketplace: "EBAY_US",
+    sellEbayMarketplace: "EBAY_DE", // reverse arbitrage: buy US cheap → sell into Europe
     currencyNote: "Local prices in USD. User is US-based — opportunities are reverse: buy US cheap, sell EU/JP high.",
     localSources: "eBay USA, Facebook Marketplace US, Craigslist, Goodwill Auctions, Estate sales",
     localSourcesMap: {},
   },
   EU: {
     buyEbayMarketplace: "EBAY_DE",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "User buys across entire Europe (EUR). Look for cheap EU listings to sell on eBay USA or Etsy USA.",
     localSources: "eBay.de, Kleinanzeigen.de, Vinted EU, Leboncoin FR, Wallapop ES, Subito.it, Marktplaats NL, European flea markets",
     localSourcesMap: {
@@ -473,6 +531,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   EU_US: {
     buyEbayMarketplace: "EBAY_DE",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "User operates in both USA and Europe. Find cross-Atlantic arbitrage: cheap EU → sell USA, or cheap USA → sell EU.",
     localSources: "eBay USA + eBay.de, Kleinanzeigen.de, Facebook Marketplace US, Vinted EU, Goodwill USA",
     localSourcesMap: {
@@ -484,6 +543,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   AS: {
     buyEbayMarketplace: "EBAY_US",
+    sellEbayMarketplace: "EBAY_US", // Asian buy markets not on eBay → live gap skipped, AI drives
     currencyNote: "User buys in Asia (Japan, China, Korea, SE Asia). Great for electronics, collectibles, vintage cameras, anime.",
     localSources: "Yahoo Auctions JP (via Buyee/Zenmarket), Mercari JP, Taobao CN, Rakuten JP, Korean Jungonara, SE Asia Shopee/Lazada",
     localSourcesMap: {
@@ -496,6 +556,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   AF: {
     buyEbayMarketplace: "EBAY_US",
+    sellEbayMarketplace: "EBAY_US", // African buy markets not on eBay → live gap skipped, AI drives
     currencyNote: "User buys in Africa. Look for African crafts, art, textiles, gemstones to sell in US/EU markets.",
     localSources: "Local African markets, OLX.co.za (South Africa), Jumia (West Africa), Jiji.ng (Nigeria), African craft fairs",
     localSourcesMap: {
@@ -507,6 +568,7 @@ const LOCATION_CONFIG: Record<string, LocationConfig> = {
   },
   WW: {
     buyEbayMarketplace: "EBAY_DE",
+    sellEbayMarketplace: "EBAY_US",
     currencyNote: "User operates globally — no geographic restriction. Find the best arbitrage opportunities worldwide.",
     localSources: "eBay (all markets), Etsy worldwide, Amazon global, local markets on every continent",
     localSourcesMap: {
@@ -561,6 +623,87 @@ function getMultiPlatformSell(market: string, category: string, productName: str
     sellUrls[p] = sellUrlForMarket(p, productName);
   }
   return { markets, sellUrls };
+}
+
+// ── Data-driven sell-market selection ─────────────────────────────────────────
+// Instead of guessing the sell platform from category alone, query the actual
+// achievable price on each candidate eBay marketplace, convert to USD, subtract
+// that market's fee + shipping, and rank by REAL net profit. This is the engine
+// that answers "where should I sell this?" with data, not assumptions.
+interface SellOption {
+  marketplace: string;
+  label: string;
+  currency: string;
+  medianPriceUSD: number;
+  feePct: number;
+  shippingUSD: number;
+  netProfitUSD: number;
+  sampleSize: number;
+}
+
+const SELL_DESTINATIONS = [
+  { marketplace: "EBAY_US", label: "eBay USA", feeKey: "eBay USA" },
+  { marketplace: "EBAY_GB", label: "eBay UK",  feeKey: "eBay UK" },
+  { marketplace: "EBAY_DE", label: "eBay DE",  feeKey: "eBay DE" },
+];
+
+async function findBestSellMarket(
+  token: string,
+  query: string,
+  buyPriceUSD: number,
+  category: string,
+): Promise<{ best: SellOption | null; options: SellOption[] }> {
+  const ship = AVG_SHIPPING[category] ?? 20;
+  const results = await Promise.all(
+    SELL_DESTINATIONS.map(async (d, idx) => {
+      await new Promise(r => setTimeout(r, idx * 120)); // light stagger to respect rate limits
+      const listings = await ebaySearch(token, query, 9999, d.marketplace, "-price", "used");
+      const pricesUSD = listings.map(l => toUSD(l.price, l.currency)).filter(p => p > 0);
+      if (pricesUSD.length < MIN_GAP_SAMPLE) return null;
+      const med = median(pricesUSD);
+      const feePct = PLATFORM_FEES[d.feeKey] ?? 0.13;
+      const net = Math.round((med * (1 - feePct) - buyPriceUSD - ship - 0.30) * 100) / 100;
+      return {
+        marketplace: d.marketplace, label: d.label,
+        currency: MARKETPLACE_CURRENCY[d.marketplace] ?? "USD",
+        medianPriceUSD: Math.round(med * 100) / 100,
+        feePct, shippingUSD: ship, netProfitUSD: net, sampleSize: pricesUSD.length,
+      } as SellOption;
+    })
+  );
+  const options = results
+    .filter((r): r is SellOption => r !== null)
+    .sort((a, b) => b.netProfitUSD - a.netProfitUSD);
+  return { best: options[0] ?? null, options };
+}
+
+// ── Computed opportunity score (0-100) from real signals, not AI guesswork ────
+function computeScore(o: {
+  netProfit: number; margin: number; keywordMatch?: number;
+  sellerRating?: number | null; daysToSell?: number;
+  dataQuality?: string; shippingFeasible?: boolean; sellSampleSize?: number;
+}): number {
+  let s = 0;
+  // Net profit (0-30): $15 → 0pts, $150+ → 30pts
+  s += Math.min(30, Math.max(0, (o.netProfit - 15) / 135 * 30));
+  // Margin (0-20): 20% → 0pts, 120%+ → 20pts
+  s += Math.min(20, Math.max(0, (o.margin - 20) / 100 * 20));
+  // Keyword match buy→sell (0-15): how confident we matched the SAME product
+  s += Math.min(15, (o.keywordMatch ?? 40) / 100 * 15);
+  // Data quality (0-15)
+  s += o.dataQuality === "verified" ? 15 : o.dataQuality === "matched" ? 9 : 4;
+  // Seller trust (0-8)
+  if (o.sellerRating != null && o.sellerRating > 0)
+    s += o.sellerRating >= 99 ? 8 : o.sellerRating >= 95 ? 5 : 2;
+  else s += 3;
+  // Speed to sell (0-7): faster is better
+  const days = o.daysToSell ?? 14;
+  s += days <= 7 ? 7 : days <= 14 ? 5 : days <= 30 ? 3 : 1;
+  // Sell-side sample size confidence (0-5)
+  s += Math.min(5, o.sellSampleSize ?? 0);
+  // Shipping infeasibility penalty
+  if (o.shippingFeasible === false) s -= 12;
+  return Math.max(1, Math.min(99, Math.round(s)));
 }
 
 function sourceUrlForMarket(market: string, productName: string): string {
@@ -796,7 +939,7 @@ router.post("/scan", async (req: Request, res: Response) => {
         const gaps = await Promise.all(
           GAP_QUERIES.map(async q => ({
             query: q.query,
-            gap: await detectGap(token, q.query, q.maxBuyPrice, locCfg.buyEbayMarketplace),
+            gap: await detectGap(token, q.query, q.maxBuyPrice, locCfg.buyEbayMarketplace, locCfg.sellEbayMarketplace),
           }))
         );
         gapData = gaps.filter(g => g.gap.euListings.length > 0 || g.gap.usListings.length > 0);
@@ -833,33 +976,80 @@ router.post("/scan", async (req: Request, res: Response) => {
             if (token) {
               enriched = await Promise.all(
                 filtered.map(async (opp: any, idx: number) => {
-                  await new Promise(r => setTimeout(r, idx * 200));
+                  await new Promise(r => setTimeout(r, idx * 240));
                   // Use AI-generated ebaySearchQuery when available — consistent keywords buy→sell
                   const searchName = opp.ebaySearchQuery?.trim() || opp.name;
+
+                  // BUY side: find the real cheap listing on the user's local marketplace
                   const best = await findBestEbayListing(token, searchName, opp.buy, locCfg.buyEbayMarketplace);
-                  if (!best) return opp;
+                  const buyPriceUSD = best?.actualPrice ?? opp.buy;
 
-                  // Validate shipping feasibility before accepting this opportunity
-                  const shipOk = shippingFeasible(opp.netProfit ?? opp.profit, opp.category, opp.flag);
+                  // SELL side: data-driven — check US/UK/DE and rank by real net profit
+                  const { best: bestSell, options: sellOptions } =
+                    await findBestSellMarket(token, searchName, buyPriceUSD, opp.category ?? "General");
 
-                  return {
-                    ...opp,
-                    sourceUrl: best.url,
-                    imageUrl: best.imageUrl,
-                    additionalImages: best.additionalImages,
-                    realBuyTitle: best.title,
-                    realBuyPrice: best.actualPrice,
-                    itemCondition: best.condition,
-                    keywordMatch: best.keywordMatch,
-                    stockCount: best.stockCount,
-                    sellerRating: best.sellerRating,
-                    sellerFeedback: best.sellerFeedback,
-                    shippingFeasible: shipOk,
-                    dataQuality: "verified",
-                    sellUrl: opp.sellUrl?.startsWith("https://")
-                      ? opp.sellUrl
-                      : sellUrlForMarket(opp.market ?? "", searchName),
-                  };
+                  let merged: any = { ...opp };
+
+                  if (best) {
+                    merged = {
+                      ...merged,
+                      sourceUrl: best.url,
+                      imageUrl: best.imageUrl,
+                      additionalImages: best.additionalImages,
+                      realBuyTitle: best.title,
+                      realBuyPrice: best.actualPrice,
+                      itemCondition: best.condition,
+                      keywordMatch: best.keywordMatch,
+                      stockCount: best.stockCount,
+                      sellerRating: best.sellerRating,
+                      sellerFeedback: best.sellerFeedback,
+                      dataQuality: "verified",
+                    };
+                  }
+
+                  // Apply the most profitable real sell destination
+                  if (bestSell && bestSell.netProfitUSD > 0) {
+                    merged.sell = Math.round(bestSell.medianPriceUSD);
+                    merged.netProfit = bestSell.netProfitUSD;
+                    merged.market = bestSell.label;
+                    merged.margin = buyPriceUSD > 0
+                      ? Math.round((bestSell.netProfitUSD / buyPriceUSD) * 100)
+                      : merged.margin;
+                    merged.priceGapPct = buyPriceUSD > 0
+                      ? Math.round((bestSell.medianPriceUSD / buyPriceUSD - 1) * 100)
+                      : merged.priceGapPct;
+                    // Comparison of all checked destinations (for transparency in UI)
+                    merged.sellMarketOptions = sellOptions.map(s => ({
+                      market: s.label, sell: Math.round(s.medianPriceUSD),
+                      netProfit: s.netProfitUSD, sample: s.sampleSize,
+                    }));
+                    // Rebuild platform links around the winning destination + category peers
+                    const multi = getMultiPlatformSell(bestSell.label, merged.category ?? "General", searchName);
+                    merged.markets = [bestSell.label, ...multi.markets.filter((m: string) => m !== bestSell.label)].slice(0, 3);
+                    merged.sellUrls = {};
+                    for (const m of merged.markets) merged.sellUrls[m] = sellUrlForMarket(m, searchName);
+                    merged.sellUrl = merged.sellUrls[bestSell.label];
+                  }
+
+                  // Re-evaluate shipping feasibility with the (possibly updated) profit
+                  merged.shippingFeasible = shippingFeasible(merged.netProfit ?? merged.profit, merged.category, merged.flag);
+
+                  // Computed score from real signals replaces the AI's guess
+                  merged.score = computeScore({
+                    netProfit: merged.netProfit ?? merged.profit ?? 0,
+                    margin: merged.margin ?? 0,
+                    keywordMatch: merged.keywordMatch,
+                    sellerRating: merged.sellerRating,
+                    daysToSell: merged.daysToSell,
+                    dataQuality: merged.dataQuality,
+                    shippingFeasible: merged.shippingFeasible,
+                    sellSampleSize: bestSell?.sampleSize,
+                  });
+
+                  if (!merged.sellUrl?.startsWith("https://"))
+                    merged.sellUrl = sellUrlForMarket(merged.market ?? "", searchName);
+
+                  return merged;
                 })
               );
             }
@@ -914,7 +1104,7 @@ router.post("/product-search", async (req: Request, res: Response) => {
   const budget = maxBudget ? parseFloat(String(maxBudget)) : 500;
 
   // Real local→US gap detection for this specific product
-  let gapResult: GapResult = { euListings: [], usListings: [], medianEU: 0, medianUS: 0, gapPct: 0, gapMultiplier: 0, confidence: "no_data" };
+  let gapResult: GapResult = { euListings: [], usListings: [], medianEU: 0, medianUS: 0, gapPct: 0, gapMultiplier: 0, sampleBuy: 0, sampleSell: 0, confidence: "no_data" };
   let gbListings: any[] = [];
   let realEtsy: any[] = [];
 
@@ -923,7 +1113,7 @@ router.post("/product-search", async (req: Request, res: Response) => {
       const token = await getEbayToken(ebayApp, ebayCert);
       if (token) {
         [gapResult, gbListings] = await Promise.all([
-          detectGap(token, q, budget, locCfg.buyEbayMarketplace),
+          detectGap(token, q, budget, locCfg.buyEbayMarketplace, locCfg.sellEbayMarketplace),
           ebaySearch(token, q, 9999, "EBAY_GB", "-price"),  // UK pricing too
         ]);
       }

@@ -33,6 +33,7 @@ type Opportunity = {
   realBuyTitle?: string;
   markets?: string[];
   sellUrls?: Record<string, string>;
+  sellMarketOptions?: { market: string; sell: number; netProfit: number; sample: number }[];
 };
 
 const CATEGORIES = ["All", "Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches"];
@@ -626,6 +627,29 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
+
+                    {/* ── Where to sell (data-driven comparison) ── */}
+                    {o.sellMarketOptions && o.sellMarketOptions.length > 1 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700 }}>GDZIE SPRZEDAĆ:</span>
+                        {o.sellMarketOptions.slice(0, 3).map((opt, i) => (
+                          <span
+                            key={opt.market}
+                            title={`Mediana ${opt.sell}$ · ${opt.sample} ofert porównanych`}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 4,
+                              background: i === 0 ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.05)",
+                              border: `1px solid ${i === 0 ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.1)"}`,
+                              borderRadius: 7, padding: "2px 8px",
+                              color: i === 0 ? "#4ade80" : "rgba(255,255,255,0.45)",
+                              fontSize: 10, fontWeight: 700,
+                            }}
+                          >
+                            {i === 0 && "🏆 "}{opt.market} <span style={{ opacity: 0.7 }}>+${opt.netProfit}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {/* ── Bottom row: risk + platforms + actions ── */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
