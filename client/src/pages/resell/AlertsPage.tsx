@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Bell, Plus, Trash2, RefreshCw, CheckCircle, AlertTriangle, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bell, Plus, Trash2, RefreshCw, CheckCircle, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getEbayKeys } from "@/lib/apiKeys";
 import {
@@ -18,6 +18,17 @@ const MARKETPLACE_CURRENCY: Record<string, string> = {
   EBAY_US: "USD", EBAY_GB: "GBP", EBAY_DE: "EUR", EBAY_FR: "EUR",
 };
 
+const FX_PAIRS = [
+  { code: "EUR", flag: "🇪🇺", name: "Euro" },
+  { code: "GBP", flag: "🇬🇧", name: "Funt brytyjski" },
+  { code: "PLN", flag: "🇵🇱", name: "Złoty polski" },
+  { code: "JPY", flag: "🇯🇵", name: "Jen japoński" },
+  { code: "CZK", flag: "🇨🇿", name: "Korona czeska" },
+  { code: "SEK", flag: "🇸🇪", name: "Korona szwedzka" },
+  { code: "CHF", flag: "🇨🇭", name: "Frank szwajcarski" },
+  { code: "CNY", flag: "🇨🇳", name: "Juan chiński" },
+];
+
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<PriceAlert[]>(loadAlerts);
   const [checking, setChecking] = useState<string | null>(null);
@@ -27,6 +38,24 @@ export default function AlertsPage() {
   const [marketplace, setMarketplace] = useState("EBAY_DE");
   const [targetPrice, setTargetPrice] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [fxRates, setFxRates] = useState<Record<string, number>>({});
+  const [fxFetchedAt, setFxFetchedAt] = useState<number>(0);
+  const [fxLoading, setFxLoading] = useState(false);
+
+  useEffect(() => {
+    fetchFx();
+  }, []);
+
+  const fetchFx = async () => {
+    setFxLoading(true);
+    try {
+      const r = await fetch("/api/resell/fx-rates");
+      const data = await r.json();
+      setFxRates(data.rates ?? {});
+      setFxFetchedAt(data.fetchedAt ?? Date.now());
+    } catch {}
+    setFxLoading(false);
+  };
 
   useEffect(() => {
     const reload = () => setAlerts(loadAlerts());
@@ -256,6 +285,53 @@ export default function AlertsPage() {
           <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>JAK TO DZIAŁA</div>
           <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, lineHeight: 1.6 }}>
             Kliknij "Sprawdź" przy alercie aby sprawdzić aktualną najtańszą cenę na eBay. Gdy cena jest niższa od Twojego progu — alert wyzwala się i pokazuje bezpośredni link do aukcji. Sprawdź "Wszystkie" jednym kliknięciem przed każdym zakupem.
+          </div>
+        </div>
+
+        {/* FX Rates section */}
+        <div style={{ marginTop: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#06b6d4,#0891b2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <TrendingUp size={15} color="#fff" />
+              </div>
+              <div>
+                <div style={{ color: "#fff", fontSize: 15, fontWeight: 800 }}>Kursy walut (USD base)</div>
+                {fxFetchedAt > 0 && (
+                  <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>
+                    Aktualizacja: {new Date(fxFetchedAt).toLocaleTimeString("pl-PL")}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button onClick={fetchFx} disabled={fxLoading} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(6,182,212,0.3)", background: "rgba(6,182,212,0.08)", color: "#67e8f9", fontSize: 11, fontWeight: 700, cursor: fxLoading ? "not-allowed" : "pointer", opacity: fxLoading ? 0.6 : 1 }}>
+              <RefreshCw size={11} style={{ animation: fxLoading ? "spin 1s linear infinite" : "none" }} />
+              Odśwież
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+            {FX_PAIRS.map(({ code, flag, name: cname }) => {
+              const rate = fxRates[code];
+              const prev = code === "EUR" ? 0.92 : code === "GBP" ? 0.79 : code === "PLN" ? 4.0 : code === "JPY" ? 150 : undefined;
+              const diff = rate && prev ? ((rate - prev) / prev) * 100 : 0;
+              return (
+                <div key={code} style={{ background: "rgba(6,182,212,0.05)", border: "1px solid rgba(6,182,212,0.15)", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 14 }}>{flag}</span>
+                    <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>{code}</span>
+                  </div>
+                  <div style={{ color: "#fff", fontWeight: 800, fontSize: 17 }}>
+                    {rate ? rate.toFixed(code === "JPY" || code === "CZK" || code === "SEK" ? 1 : 4) : "—"}
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10 }}>{cname}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 10, color: "rgba(255,255,255,0.2)", fontSize: 10, textAlign: "right" }}>
+            Kursy z open.er-api.com · odświeżane co godzinę
           </div>
         </div>
       </div>

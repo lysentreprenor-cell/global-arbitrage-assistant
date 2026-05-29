@@ -104,6 +104,11 @@ function CopyBtn({ text }: { text: string }) {
 
 export default function DropshipManager() {
   const [tab, setTab] = useState<"listings" | "orders">("listings");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkAction, setBulkAction] = useState<"pct" | "set">("pct");
+  const [bulkValue, setBulkValue] = useState("");
+  const [bulkApplying, setBulkApplying] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -400,6 +405,62 @@ export default function DropshipManager() {
         {/* LISTINGS */}
         {tab === "listings" && (
           <div>
+            {/* Bulk edit toolbar */}
+            {listings.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()); }}
+                  style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bulkMode ? "rgba(245,158,11,0.4)" : "rgba(255,255,255,0.12)"}`, background: bulkMode ? "rgba(245,158,11,0.1)" : "transparent", color: bulkMode ? "#f59e0b" : "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  {bulkMode ? `✓ Zaznaczono: ${selectedIds.size}` : "Zaznacz do edycji"}
+                </button>
+                {bulkMode && selectedIds.size > 0 && (
+                  <>
+                    <select value={bulkAction} onChange={e => setBulkAction(e.target.value as "pct" | "set")} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 12, outline: "none" }}>
+                      <option value="pct">Obniż o %</option>
+                      <option value="set">Ustaw cenę $</option>
+                    </select>
+                    <input
+                      type="number" min="0" value={bulkValue} onChange={e => setBulkValue(e.target.value)}
+                      placeholder={bulkAction === "pct" ? "np. 10" : "np. 49.99"}
+                      style={{ width: 100, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 12, outline: "none" }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!bulkValue) return;
+                        setBulkApplying(true);
+                        const val = parseFloat(bulkValue);
+                        for (const id of Array.from(selectedIds)) {
+                          const listing = listings.find(l => l.id === id);
+                          if (!listing) continue;
+                          const newPrice = bulkAction === "pct"
+                            ? Math.round(listing.sellPrice * (1 - val / 100) * 100) / 100
+                            : val;
+                          if (newPrice <= 0) continue;
+                          await fetch(`/api/dropship/listings/${id}/price`, {
+                            method: "PATCH",
+                            headers: { "content-type": "application/json" },
+                            body: JSON.stringify({ sellPrice: newPrice }),
+                          }).catch(() => {});
+                        }
+                        setBulkApplying(false);
+                        setBulkMode(false);
+                        setSelectedIds(new Set());
+                        setBulkValue("");
+                        // Refresh listings
+                        fetch("/api/dropship/listings").then(r => r.json()).then(d => setListings(d.listings ?? []));
+                      }}
+                      disabled={bulkApplying}
+                      style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000", fontWeight: 800, fontSize: 12, cursor: bulkApplying ? "not-allowed" : "pointer" }}
+                    >
+                      {bulkApplying ? "…" : `Zastosuj (${selectedIds.size})`}
+                    </button>
+                    <button onClick={() => setSelectedIds(new Set(listings.map(l => l.id)))} style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: 11, cursor: "pointer" }}>Zaznacz wszystkie</button>
+                  </>
+                )}
+              </div>
+            )}
+
             {listings.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
                 <Package size={36} style={{ margin: "0 auto 12px", opacity: 0.2, display: "block" }} />
@@ -407,10 +468,19 @@ export default function DropshipManager() {
               </div>
             ) : listings.map(l => {
               const sc = STATUS_COLORS[l.status] || "#888";
+              const isChecked = selectedIds.has(l.id);
               return (
-                <div key={l.id} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(255,255,255,0.07)`, borderRadius: 14, padding: "14px 16px", marginBottom: 8 }}>
+                <div key={l.id} style={{ background: isChecked ? "rgba(245,158,11,0.06)" : "rgba(255,255,255,0.03)", border: `1px solid ${isChecked ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.07)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                    <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setShowDetail(l)}>
+                    {bulkMode && (
+                      <div
+                        onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}
+                        style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${isChecked ? "#f59e0b" : "rgba(255,255,255,0.2)"}`, background: isChecked ? "#f59e0b" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, marginTop: 2 }}
+                      >
+                        {isChecked && <Check size={11} color="#000" strokeWidth={3} />}
+                      </div>
+                    )}
+                    <div style={{ flex: 1, cursor: "pointer" }} onClick={() => !bulkMode && setShowDetail(l)}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
                         <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{l.productName}</span>
                         <span style={{ background: `${sc}18`, border: `1px solid ${sc}35`, borderRadius: 99, padding: "2px 9px", color: sc, fontSize: 10, fontWeight: 700 }}>

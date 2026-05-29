@@ -21,6 +21,10 @@ import AutopilotPage from "@/pages/resell/AutopilotPage";
 import PhotoListingPage from "@/pages/resell/PhotoListingPage";
 import AlertsPage from "@/pages/resell/AlertsPage";
 import QuickListPage from "@/pages/resell/QuickListPage";
+import TrendsPage from "@/pages/resell/TrendsPage";
+import PLDashboard from "@/pages/resell/PLDashboard";
+import SuppliersPage from "@/pages/resell/SuppliersPage";
+import CompetitorTracker from "@/pages/resell/CompetitorTracker";
 
 function RedirectToResell() {
   const [, setLocation] = useLocation();
@@ -50,6 +54,10 @@ export default function App() {
         <Route path="/resell/photo" component={PhotoListingPage} />
         <Route path="/resell/alerts" component={AlertsPage} />
         <Route path="/resell/quick-list" component={QuickListPage} />
+        <Route path="/resell/trends" component={TrendsPage} />
+        <Route path="/resell/pnl" component={PLDashboard} />
+        <Route path="/resell/suppliers" component={SuppliersPage} />
+        <Route path="/resell/competitors" component={CompetitorTracker} />
       </Switch>
       <Toaster />
     </QueryClientProvider>

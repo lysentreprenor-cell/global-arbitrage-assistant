@@ -1,20 +1,28 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp, Camera, ListTodo, Search, Rocket, Bell, Copy } from "lucide-react";
+import {
+  LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp,
+  Camera, ListTodo, Search, Rocket, Bell, Copy, Flame, LineChart,
+  Truck, Crosshair,
+} from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
 const NAV_ITEMS = [
-  { href: "/resell", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/resell/search", label: "Szukaj", icon: Search },
-  { href: "/resell/saved", label: "Pipeline", icon: ListTodo },
-  { href: "/resell/alerts", label: "Alerty", icon: Bell, badge: true },
-  { href: "/resell/compare", label: "Porównaj", icon: BarChart2 },
-  { href: "/resell/market-scan", label: "Rynki", icon: Globe },
-  { href: "/resell/dropship", label: "Dropship", icon: ShoppingBag },
-  { href: "/resell/photo", label: "Ze Zdjęcia", icon: Camera },
-  { href: "/resell/quick-list", label: "Kopiuj", icon: Copy },
-  { href: "/resell/autopilot", label: "Autopilot", icon: Rocket },
-  { href: "/resell/settings", label: "API", icon: Settings },
+  { href: "/resell",              label: "Dashboard",   icon: LayoutDashboard },
+  { href: "/resell/search",       label: "Szukaj",      icon: Search },
+  { href: "/resell/saved",        label: "Pipeline",    icon: ListTodo },
+  { href: "/resell/pnl",          label: "P&L",         icon: LineChart },
+  { href: "/resell/alerts",       label: "Alerty",      icon: Bell, badge: true },
+  { href: "/resell/trends",       label: "Trendy",      icon: Flame },
+  { href: "/resell/competitors",  label: "Rywale",      icon: Crosshair },
+  { href: "/resell/compare",      label: "Porównaj",    icon: BarChart2 },
+  { href: "/resell/market-scan",  label: "Rynki",       icon: Globe },
+  { href: "/resell/dropship",     label: "Dropship",    icon: ShoppingBag },
+  { href: "/resell/suppliers",    label: "Dostawcy",    icon: Truck },
+  { href: "/resell/photo",        label: "Ze Zdjęcia",  icon: Camera },
+  { href: "/resell/quick-list",   label: "Kopiuj",      icon: Copy },
+  { href: "/resell/autopilot",    label: "Autopilot",   icon: Rocket },
+  { href: "/resell/settings",     label: "API",         icon: Settings },
 ];
 
 export function TopNav() {

@@ -1,7 +1,15 @@
 import { useState, useRef } from "react";
-import { Upload, Copy, ExternalLink, Rocket, CheckCircle, AlertCircle, Loader2, Check, RefreshCw } from "lucide-react";
+import { Upload, Copy, ExternalLink, Rocket, CheckCircle, AlertCircle, Loader2, Check, RefreshCw, Languages } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+
+const PLATFORM_LANG: Record<string, string> = {
+  "Allegro PL": "pl", "OLX PL": "pl", "Vinted PL": "pl",
+  "eBay DE": "de", "Amazon DE": "de",
+  "eBay USA": "en", "Etsy USA": "en", "StockX USA": "en", "Amazon USA": "en", "Depop": "en",
+  "eBay UK": "en", "Amazon UK": "en",
+  "Vinted EU": "en",
+};
 
 const PLATFORM_FLAGS: Record<string, string> = {
   "Allegro PL": "🇵🇱", "OLX PL": "🇵🇱", "Vinted PL": "🇵🇱",
@@ -73,7 +81,35 @@ export default function QuickListPage() {
   const [copied, setCopied] = useState<Record<string, boolean>>({});
   const [launchDone, setLaunchDone] = useState(false);
   const [expandedDesc, setExpandedDesc] = useState<Record<string, boolean>>({});
+  const [translating, setTranslating] = useState<Record<string, boolean>>({});
+  const [overrides, setOverrides] = useState<Record<string, Partial<PlatformResult["listing"]>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const translateListing = async (p: PlatformResult) => {
+    const key = getAnthropicKey();
+    if (!key) return;
+    setTranslating(prev => ({ ...prev, [p.platform]: true }));
+    try {
+      const targetLang = PLATFORM_LANG[p.platform] || "en";
+      const r = await fetch("/api/dropship/translate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: overrides[p.platform]?.title ?? p.listing.title,
+          description: overrides[p.platform]?.description ?? p.listing.description,
+          tags: overrides[p.platform]?.tags ?? p.listing.tags,
+          targetLang,
+          platform: p.platform,
+          anthropicKey: key,
+        }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setOverrides(prev => ({ ...prev, [p.platform]: data }));
+      }
+    } catch {}
+    setTranslating(prev => ({ ...prev, [p.platform]: false }));
+  };
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) { setError("Wybierz plik graficzny (JPG, PNG, WEBP)"); return; }
@@ -114,8 +150,12 @@ export default function QuickListPage() {
     }
   };
 
-  const buildClipText = (p: PlatformResult) =>
-    `${p.listing.title}\n\n${p.listing.description}\n\nTagi: ${p.listing.tags.join(", ")}${p.listing.shippingNote ? `\n\nWysyłka: ${p.listing.shippingNote}` : ""}`;
+  const getListing = (p: PlatformResult) => ({ ...p.listing, ...(overrides[p.platform] ?? {}) });
+
+  const buildClipText = (p: PlatformResult) => {
+    const l = getListing(p);
+    return `${l.title}\n\n${l.description}\n\nTagi: ${l.tags.join(", ")}${l.shippingNote ? `\n\nWysyłka: ${l.shippingNote}` : ""}`;
+  };
 
   const copyAndOpen = async (p: PlatformResult) => {
     try { await navigator.clipboard.writeText(buildClipText(p)); } catch {}
@@ -359,8 +399,20 @@ export default function QuickListPage() {
 
                     {/* Title */}
                     <div style={{ marginBottom: 9 }}>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.5, marginBottom: 3 }}>TYTUŁ</div>
-                      <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, lineHeight: 1.4, fontWeight: 500 }}>{p.listing.title}</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>TYTUŁ{overrides[p.platform] ? " (przetłumaczono)" : ""}</div>
+                        {getAnthropicKey() && (
+                          <button
+                            onClick={e => { e.stopPropagation(); translateListing(p); }}
+                            disabled={translating[p.platform]}
+                            style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 5, color: "#a78bfa", fontSize: 9, padding: "2px 6px", cursor: translating[p.platform] ? "not-allowed" : "pointer", opacity: translating[p.platform] ? 0.6 : 1 }}
+                          >
+                            {translating[p.platform] ? <Loader2 size={8} style={{ animation: "spin 1s linear infinite" }} /> : <Languages size={8} />}
+                            {translating[p.platform] ? "…" : `→ ${PLATFORM_LANG[p.platform] === "pl" ? "PL" : PLATFORM_LANG[p.platform] === "de" ? "DE" : "EN"}`}
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, lineHeight: 1.4, fontWeight: 500 }}>{getListing(p).title}</div>
                     </div>
 
                     {/* Description (collapsible) */}
@@ -373,14 +425,14 @@ export default function QuickListPage() {
                       </button>
                       {isExpanded && (
                         <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, lineHeight: 1.5, background: "rgba(0,0,0,0.2)", borderRadius: 6, padding: "8px 10px" }}>
-                          {p.listing.description}
+                          {getListing(p).description}
                         </div>
                       )}
                     </div>
 
                     {/* Tags */}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
-                      {p.listing.tags.slice(0, 5).map(tag => (
+                      {getListing(p).tags.slice(0, 5).map(tag => (
                         <span key={tag} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "2px 8px", color: "rgba(255,255,255,0.35)", fontSize: 10 }}>{tag}</span>
                       ))}
                     </div>
@@ -410,7 +462,7 @@ export default function QuickListPage() {
             {/* Reset */}
             <div style={{ textAlign: "center", marginTop: 36 }}>
               <button
-                onClick={() => { setPhase("upload"); setResult(null); setImagePreview(""); setSelected(new Set()); setLaunchDone(false); setExpandedDesc({}); }}
+                onClick={() => { setPhase("upload"); setResult(null); setImagePreview(""); setSelected(new Set()); setLaunchDone(false); setExpandedDesc({}); setOverrides({}); }}
                 style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 auto", padding: "10px 22px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer" }}
               >
                 <RefreshCw size={14} /> Nowe ogłoszenie

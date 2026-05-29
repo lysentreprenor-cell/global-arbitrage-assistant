@@ -376,9 +376,76 @@ Sort platforms by estimatedProfitUSD descending.`;
   }
 });
 
+// POST /api/dropship/translate
+router.post("/translate", async (req: Request, res: Response) => {
+  const { title, description, tags, targetLang = "en", platform = "", anthropicKey } = req.body;
+  if (!title) return res.status(400).json({ error: "title required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const langNames: Record<string, string> = {
+    en: "English", de: "German (Deutschland)", pl: "Polish", fr: "French", it: "Italian", es: "Spanish",
+  };
+  const langName = langNames[targetLang] ?? targetLang;
+  const platformNote = platform ? `Platform: ${platform}. ` : "";
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 800,
+        messages: [{
+          role: "user",
+          content: `${platformNote}Translate this marketplace listing to ${langName}. Preserve SEO keywords and persuasive tone. Keep title under 80 chars.
+
+Title: ${title}
+Description: ${description || ""}
+Tags: ${(tags || []).join(", ")}
+
+Return ONLY valid JSON:
+{
+  "title": "translated title",
+  "description": "translated description",
+  "tags": ["tag1","tag2","tag3","tag4","tag5"]
+}`,
+        }],
+      }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(502).json({ error: "No JSON in response" });
+    return res.json(JSON.parse(match[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
 // GET /api/dropship/listings
 router.get("/listings", (_req: Request, res: Response) => {
   res.json({ listings: [...listings].reverse() });
+});
+
+// PATCH /api/dropship/listings/:id/price
+router.patch("/listings/:id/price", (req: Request, res: Response) => {
+  const listing = listings.find(l => l.id === parseInt(String(req.params.id)));
+  if (!listing) return res.status(404).json({ error: "Not found" });
+  const newPrice = parseFloat(String(req.body.sellPrice));
+  if (!newPrice || newPrice <= 0) return res.status(400).json({ error: "Invalid price" });
+  const fee = PLATFORM_FEES[listing.platform] ?? 0.13;
+  const ship = AVG_SHIPPING[listing.category ?? "General"] ?? 15;
+  listing.sellPrice = newPrice;
+  listing.feePercent = Math.round(fee * 1000) / 10;
+  listing.profit = Math.round((newPrice - newPrice * fee - listing.sourcePriceUSD - ship) * 100) / 100;
+  listing.margin = Math.round((listing.profit / newPrice) * 100);
+  return res.json({ listing });
 });
 
 // PATCH /api/dropship/listings/:id/status

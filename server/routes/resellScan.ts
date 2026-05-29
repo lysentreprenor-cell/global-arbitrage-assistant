@@ -1662,4 +1662,110 @@ router.post("/check-alert", async (req: Request, res: Response) => {
   }
 });
 
+// ── Trending items ──────────────────────────────────────────────────────────
+const _trendsCache = new Map<string, { data: any; expiresAt: number }>();
+
+router.post("/trends", async (req: Request, res: Response) => {
+  const { category = "Electronics", marketplace = "EBAY_US", ebayAppId, ebayCertId } = req.body ?? {};
+  const appId: string = ebayAppId || process.env.EBAY_APP_ID || "";
+  if (!appId) return res.json({ items: [], source: "no-key" });
+
+  const CATEGORY_IDS: Record<string, string> = {
+    Electronics: "293", Telefony: "15032", Odzież: "11450", Zegarki: "14324",
+    Sneakers: "63889", Biżuteria: "281", Aparaty: "625", Gry: "1249",
+    Muzyka: "619", Antyki: "20081", Kolekcje: "1",
+  };
+  const catId = CATEGORY_IDS[String(category)] ?? "293";
+  const cacheKey = `${catId}_${marketplace}`;
+  const now = Date.now();
+  const cached = _trendsCache.get(cacheKey);
+  if (cached && now < cached.expiresAt) return res.json(cached.data);
+
+  const siteMap: Record<string, string> = {
+    EBAY_US: "EBAY-US", EBAY_GB: "EBAY-GB", EBAY_DE: "EBAY-DE",
+  };
+  const globalId = siteMap[String(marketplace)] ?? "EBAY-US";
+
+  try {
+    const url = [
+      "https://svcs.ebay.com/services/search/FindingService/v1",
+      "?OPERATION-NAME=findItemsByCategory",
+      "&SERVICE-VERSION=1.0.0",
+      `&SECURITY-APPNAME=${encodeURIComponent(appId)}`,
+      "&RESPONSE-DATA-FORMAT=JSON",
+      "&REST-PAYLOAD",
+      `&GLOBAL-ID=${globalId}`,
+      `&categoryId=${catId}`,
+      "&paginationInput.entriesPerPage=24",
+      "&sortOrder=WatchCountDecreasing",
+      "&outputSelector(0)=WatchCount",
+      "&outputSelector(1)=PictureURLLarge",
+    ].join("");
+
+    const r = await fetch(url);
+    if (!r.ok) return res.json({ items: [], source: "api-error" });
+    const data = await r.json() as any;
+
+    const root = data?.findItemsByCategoryResponse?.[0];
+    const rawItems: any[] = root?.searchResult?.[0]?.item ?? [];
+
+    const items = rawItems.map((i: any) => {
+      const price = parseFloat(i.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ ?? "0");
+      const currency = i.sellingStatus?.[0]?.currentPrice?.[0]?.["@currencyId"] ?? "USD";
+      const watchCount = parseInt(i.listingInfo?.[0]?.watchCount?.[0] ?? "0") || 0;
+      const bidCount = parseInt(i.sellingStatus?.[0]?.bidCount?.[0] ?? "0") || 0;
+      const endTime = i.listingInfo?.[0]?.endTime?.[0] ?? null;
+      const daysLeft = endTime
+        ? Math.max(0, Math.ceil((new Date(endTime).getTime() - Date.now()) / 86400000))
+        : null;
+      const imageUrl = i.pictureURLLarge?.[0] ?? i.galleryURL?.[0] ?? "";
+
+      return {
+        title: i.title?.[0] ?? "",
+        price: Math.round(price * 100) / 100,
+        currency,
+        imageUrl,
+        url: i.viewItemURL?.[0] ?? "",
+        watchCount,
+        bidCount,
+        condition: i.condition?.[0]?.conditionDisplayName?.[0] ?? "Unknown",
+        daysLeft,
+        sellerId: i.sellerInfo?.[0]?.sellerUserName?.[0] ?? "",
+      };
+    }).filter(i => i.price > 0);
+
+    const result = { items, source: "ebay-finding" };
+    _trendsCache.set(cacheKey, { data: result, expiresAt: now + 15 * 60 * 1000 }); // 15 min cache
+    return res.json(result);
+  } catch (err) {
+    console.error("[trends]", err);
+    return res.json({ items: [], source: "error" });
+  }
+});
+
+// ── Live FX rates ────────────────────────────────────────────────────────────
+let _fxCache: { rates: Record<string, number>; fetchedAt: number } | null = null;
+
+router.get("/fx-rates", async (_req: Request, res: Response) => {
+  const now = Date.now();
+  if (_fxCache && now - _fxCache.fetchedAt < 60 * 60 * 1000) {
+    return res.json({ rates: _fxCache.rates, fetchedAt: _fxCache.fetchedAt });
+  }
+  try {
+    const r = await fetch("https://open.er-api.com/v6/latest/USD");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json() as any;
+    const rates: Record<string, number> = data?.rates ?? {};
+    _fxCache = { rates, fetchedAt: now };
+    return res.json({ rates, fetchedAt: now });
+  } catch (err) {
+    // Return fallback rates if fetch fails
+    const fallback: Record<string, number> = {
+      EUR: 0.92, GBP: 0.79, PLN: 4.0, JPY: 150, CZK: 23, SEK: 10.5,
+      CNY: 7.24, CHF: 0.9, NOK: 10.7, DKK: 6.9, HUF: 357, RON: 4.6,
+    };
+    return res.json({ rates: fallback, fetchedAt: 0, fallback: true });
+  }
+});
+
 export default router;
