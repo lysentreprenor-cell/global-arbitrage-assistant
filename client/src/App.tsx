@@ -19,6 +19,7 @@ import Settings from "@/pages/resell/Settings";
 import ResellSavedPage from "@/pages/resell/SavedPage";
 import AutopilotPage from "@/pages/resell/AutopilotPage";
 import PhotoListingPage from "@/pages/resell/PhotoListingPage";
+import AlertsPage from "@/pages/resell/AlertsPage";
 
 function RedirectToResell() {
   const [, setLocation] = useLocation();
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/resell/autopilot" component={AutopilotPage} />
         <Route path="/resell/settings" component={Settings} />
         <Route path="/resell/photo" component={PhotoListingPage} />
+        <Route path="/resell/alerts" component={AlertsPage} />
       </Switch>
       <Toaster />
     </QueryClientProvider>

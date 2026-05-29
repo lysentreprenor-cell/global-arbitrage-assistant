@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, ChevronRight, ShoppingCart, Tag, ExternalLink, Link2, Info, TrendingUp, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ChevronRight, ShoppingCart, Tag, ExternalLink, Link2, Info, TrendingUp, AlertTriangle, BarChart2 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { getEbayKeys } from "@/lib/apiKeys";
 
 type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
@@ -78,6 +79,29 @@ export default function ProductDetail() {
   const id = params?.id ?? "1";
   const [showRiskTooltip, setShowRiskTooltip] = useState(false);
   const [showDemandTooltip, setShowDemandTooltip] = useState(false);
+  const [soldData, setSoldData] = useState<{ results: any[]; stats: any } | null>(null);
+  const [loadingSold, setLoadingSold] = useState(false);
+
+  useEffect(() => {
+    const ebay = getEbayKeys();
+    if (!ebay.appId) return;
+    let stored: any = null;
+    try { stored = JSON.parse(sessionStorage.getItem("resell_opportunity") || "null"); } catch {}
+    if (!stored) return;
+    const query = stored.ebaySearchQuery || stored.name || "";
+    if (!query) return;
+    setLoadingSold(true);
+    fetch("/api/resell/sold-prices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, ebayAppId: ebay.appId, ebayCertId: ebay.certId, marketplace: "EBAY_US", limit: 8 }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.stats?.count > 0) setSoldData(d); })
+      .catch(() => {})
+      .finally(() => setLoadingSold(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   let opportunity: Opportunity | null = null;
   try {
@@ -271,6 +295,46 @@ export default function ProductDetail() {
             ))}
           </div>
         </div>
+
+        {/* Completed / Sold prices panel */}
+        {(loadingSold || soldData) && (
+          <div style={{ marginBottom: 20, background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.18)", borderRadius: 14, padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <BarChart2 size={14} color="#4ade80" />
+              <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 800, letterSpacing: 0.8 }}>OSTATNIO SPRZEDANE NA EBAY USA</span>
+              {loadingSold && <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>ładowanie…</span>}
+            </div>
+            {soldData && (
+              <>
+                <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                  {[
+                    { label: "Średnia", val: `$${soldData.stats.avg}`, color: "#4ade80" },
+                    { label: "Mediana", val: `$${soldData.stats.median}`, color: "#86efac" },
+                    { label: "Min", val: `$${soldData.stats.low}`, color: "#f87171" },
+                    { label: "Max", val: `$${soldData.stats.high}`, color: "#f5c842" },
+                    { label: "Próbka", val: `${soldData.stats.count} sprzedanych`, color: "rgba(255,255,255,0.4)" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: "rgba(0,0,0,0.25)", borderRadius: 8, padding: "6px 12px", textAlign: "center" }}>
+                      <div style={{ color: s.color, fontWeight: 900, fontSize: 16 }}>{s.val}</div>
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>{s.label.toUpperCase()}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {soldData.results.slice(0, 5).map((item: any, i: number) => (
+                    <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: "rgba(255,255,255,0.03)", borderRadius: 8, textDecoration: "none" }}>
+                      {item.imageUrl && <img src={item.imageUrl} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />}
+                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title.slice(0, 55)}</span>
+                      <span style={{ color: "#4ade80", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>${item.price}</span>
+                      {item.daysAgo != null && <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, flexShrink: 0 }}>{item.daysAgo}d temu</span>}
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* SELL section */}
         <div style={{ marginBottom: 20 }}>

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import {
   Bookmark, Trash2, ExternalLink, ChevronDown, ChevronRight,
   Check, Clock, ShoppingCart, Tag, Trophy, Ban, Plus, Pencil,
+  AlertTriangle, TrendingDown, DollarSign, BarChart2,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import {
@@ -19,6 +20,25 @@ const STATUS_CONFIG: Record<PipelineStatus, { label: string; color: string; bg: 
 };
 
 const STATUS_ORDER: PipelineStatus[] = ["planned", "bought", "listed", "sold", "abandoned"];
+
+// Days since a timestamp (returns null if no timestamp)
+function daysSince(ts?: number): number | null {
+  if (!ts) return null;
+  return Math.floor((Date.now() - ts) / 86400000);
+}
+
+// A "listed" item is stale when it's been listed for 1.5× its expected sell time
+function isStale(item: PipelineItem): boolean {
+  if (item.status !== "listed") return false;
+  const days = daysSince(item.listedAt ?? item.savedAt);
+  if (days === null) return false;
+  const threshold = Math.round((item.daysToSell ?? 14) * 1.5);
+  return days >= threshold;
+}
+
+function suggestReprice(item: PipelineItem): number {
+  return Math.round(item.sell * 0.88); // 12% price drop suggestion
+}
 
 export default function SavedPage() {
   const [, setLocation] = useLocation();
@@ -61,6 +81,22 @@ export default function SavedPage() {
   const counts = STATUS_ORDER.reduce((acc, s) => ({ ...acc, [s]: items.filter(i => i.status === s).length }), {} as Record<PipelineStatus, number>);
   const totalEarned = items.filter(i => i.status === "sold").reduce((s, i) => s + (i.soldPrice ?? i.sell), 0);
   const totalPotential = items.filter(i => i.status !== "sold" && i.status !== "abandoned").reduce((s, i) => s + (i.netProfit ?? i.profit), 0);
+
+  // Capital efficiency calculations
+  const activeItems = items.filter(i => i.status === "bought" || i.status === "listed");
+  const capitalTied = activeItems.reduce((s, i) => s + (i.realBuyPrice ?? i.buy), 0);
+  const staleItems = items.filter(isStale);
+  const soldItems = items.filter(i => i.status === "sold" && i.soldAt && i.boughtAt);
+  const avgFlipDays = soldItems.length
+    ? Math.round(soldItems.reduce((s, i) => s + (i.soldAt! - i.boughtAt!) / 86400000, 0) / soldItems.length)
+    : null;
+  const avgNetProfit = soldItems.length
+    ? Math.round(soldItems.reduce((s, i) => s + (i.soldPrice ?? i.sell) - (i.realBuyPrice ?? i.buy), 0) / soldItems.length)
+    : null;
+  const roiPerDay = capitalTied > 0 && avgFlipDays
+    ? Math.round((totalPotential / capitalTied / avgFlipDays) * 365 * 100)
+    : null;
+  const [showCapital, setShowCapital] = useState(false);
 
   return (
     <ResellLayout>
@@ -112,6 +148,69 @@ export default function SavedPage() {
                 {cat === "all" ? "Wszystkie kategorie" : cat}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* ── Stale inventory alerts ── */}
+        {staleItems.length > 0 && (
+          <div style={{ marginBottom: 16, background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 12, padding: "12px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <AlertTriangle size={14} color="#f87171" />
+              <span style={{ color: "#fca5a5", fontSize: 12, fontWeight: 800 }}>STAGNUJĄCE PRODUKTY — za długo wystawione</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {staleItems.map(item => {
+                const days = daysSince(item.listedAt ?? item.savedAt) ?? 0;
+                const suggested = suggestReprice(item);
+                return (
+                  <div key={`${item.id}:${item.name}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <TrendingDown size={12} color="#f87171" style={{ flexShrink: 0 }} />
+                    <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, flex: 1 }}>
+                      <strong style={{ color: "#fff" }}>{item.name.slice(0, 45)}</strong>
+                      <span style={{ color: "rgba(255,255,255,0.35)" }}> · {days} dni wystawiony</span>
+                    </span>
+                    <span style={{ color: "#f5c842", fontSize: 11, fontWeight: 700 }}>
+                      Obecna: ${item.sell} → Sugeruj: <strong>${suggested}</strong>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Capital Efficiency Dashboard ── */}
+        {capitalTied > 0 && (
+          <div style={{ marginBottom: 16, background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 12, overflow: "hidden" }}>
+            <button onClick={() => setShowCapital(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <BarChart2 size={14} color="#a78bfa" />
+                <span style={{ color: "#c4b5fd", fontSize: 12, fontWeight: 800 }}>EFEKTYWNOŚĆ KAPITAŁU</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ color: "#f5c842", fontWeight: 900, fontSize: 15 }}>${Math.round(capitalTied)}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>zamrożone</span>
+                <ChevronDown size={13} color="rgba(255,255,255,0.3)" style={{ transform: showCapital ? "rotate(180deg)" : "none", transition: "0.15s" }} />
+              </div>
+            </button>
+            {showCapital && (
+              <div style={{ padding: "0 16px 14px", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
+                {[
+                  { label: "Kapitał zamrożony", value: `$${Math.round(capitalTied)}`, sub: `${activeItems.length} produktów`, color: "#f5c842" },
+                  { label: "Potencjalny zysk", value: `+$${Math.round(totalPotential)}`, sub: "gdy wszystko sprzedane", color: "#4ade80" },
+                  { label: "Śr. czas flipu", value: avgFlipDays ? `${avgFlipDays}d` : "—", sub: "na podstawie sprzedanych", color: "#60a5fa" },
+                  { label: "Śr. zysk/flip", value: avgNetProfit != null ? `$${avgNetProfit}` : "—", sub: "netto po opłatach", color: "#a78bfa" },
+                  { label: "Proj. ROI roczny", value: roiPerDay ? `${roiPerDay}%` : "—", sub: "przy obecnym tempie", color: "#f59e0b" },
+                  { label: "Stagnujące", value: String(staleItems.length), sub: "wymagają repricing", color: staleItems.length > 0 ? "#f87171" : "#4ade80" },
+                ].map(s => (
+                  <div key={s.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>{s.label.toUpperCase()}</div>
+                    <div style={{ color: s.color, fontSize: 20, fontWeight: 900, lineHeight: 1 }}>{s.value}</div>
+                    <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 3 }}>{s.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -287,6 +386,7 @@ export default function SavedPage() {
                           <button key={s} onClick={() => {
                             const patch: Partial<PipelineItem> = { status: s };
                             if (s === "bought") patch.boughtAt = Date.now();
+                            if (s === "listed") patch.listedAt = Date.now();
                             if (s === "sold") { patch.soldAt = Date.now(); patch.soldPrice = item.sell; }
                             update(item.id, item.name, patch);
                           }}

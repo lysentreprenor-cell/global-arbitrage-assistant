@@ -1553,4 +1553,113 @@ router.post("/enrich-opportunity", async (req: Request, res: Response) => {
   }
 });
 
+// ── POST /api/resell/sold-prices — eBay Finding API (completed/sold listings) ─
+router.post("/sold-prices", async (req: Request, res: Response) => {
+  const { query, ebayAppId, ebayCertId, marketplace = "EBAY_US", limit = 10 } = req.body ?? {};
+  if (!query?.trim()) return res.json({ results: [], source: "empty" });
+
+  const appId: string = ebayAppId || process.env.EBAY_APP_ID || "";
+  if (!appId) return res.json({ results: [], source: "no-key" });
+
+  // eBay Finding API — findCompletedItems (sold items only)
+  // Note: Finding API uses App ID directly (no OAuth token needed)
+  const siteMap: Record<string, string> = {
+    EBAY_US: "EBAY-US", EBAY_GB: "EBAY-GB", EBAY_DE: "EBAY-DE",
+    EBAY_FR: "EBAY-FR", EBAY_IT: "EBAY-IT",
+  };
+  const globalId = siteMap[marketplace] ?? "EBAY-US";
+  const q = encodeURIComponent(String(query).trim());
+
+  try {
+    const url = [
+      "https://svcs.ebay.com/services/search/FindingService/v1",
+      "?OPERATION-NAME=findCompletedItems",
+      "&SERVICE-VERSION=1.0.0",
+      `&SECURITY-APPNAME=${encodeURIComponent(appId)}`,
+      "&RESPONSE-DATA-FORMAT=JSON",
+      "&REST-PAYLOAD",
+      `&GLOBAL-ID=${globalId}`,
+      `&keywords=${q}`,
+      "&itemFilter(0).name=SoldItemsOnly&itemFilter(0).value=true",
+      `&paginationInput.entriesPerPage=${Math.min(20, Number(limit) || 10)}`,
+      "&sortOrder=EndTimeSoonest",
+      "&outputSelector=SellerInfo",
+    ].join("");
+
+    const r = await fetch(url, { headers: { "Accept-Encoding": "gzip" } });
+    if (!r.ok) return res.json({ results: [], source: "api-error", status: r.status });
+    const data = await r.json() as any;
+
+    const root = data?.findCompletedItemsResponse?.[0];
+    const items = root?.searchResult?.[0]?.item ?? [];
+
+    const results = items
+      .filter((i: any) => {
+        const price = parseFloat(i.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ ?? "0");
+        return price > 0;
+      })
+      .map((i: any) => {
+        const price = parseFloat(i.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ ?? "0");
+        const currency = i.sellingStatus?.[0]?.currentPrice?.[0]?.["@currencyId"] ?? "USD";
+        const priceUSD = toUSD(price, currency);
+        const endTime = i.listingInfo?.[0]?.endTime?.[0] ?? null;
+        return {
+          title: i.title?.[0] ?? "",
+          price: Math.round(priceUSD * 100) / 100,
+          currency,
+          originalPrice: Math.round(price * 100) / 100,
+          url: i.viewItemURL?.[0] ?? "",
+          imageUrl: i.galleryURL?.[0] ?? "",
+          condition: i.condition?.[0]?.conditionDisplayName?.[0] ?? "",
+          endTime,
+          daysAgo: endTime ? Math.round((Date.now() - new Date(endTime).getTime()) / 86400000) : null,
+        };
+      });
+
+    const prices = results.map((r: any) => r.price).filter((p: number) => p > 0);
+    const avg = prices.length ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length) : 0;
+    const med = prices.length ? (() => { const s = [...prices].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); })() : 0;
+    const low = prices.length ? Math.min(...prices) : 0;
+    const high = prices.length ? Math.max(...prices) : 0;
+
+    return res.json({ results, stats: { count: results.length, avg, median: med, low, high }, query, marketplace, source: "ebay-finding" });
+  } catch (err) {
+    console.error("[sold-prices]", err);
+    return res.json({ results: [], source: "error" });
+  }
+});
+
+// ── POST /api/resell/check-alert — current cheapest eBay price for a query ────
+router.post("/check-alert", async (req: Request, res: Response) => {
+  const { query, marketplace = "EBAY_DE", targetPrice, ebayAppId, ebayCertId } = req.body ?? {};
+  if (!query?.trim()) return res.json({ found: false, cheapestPrice: null });
+
+  const appId: string = ebayAppId || process.env.EBAY_APP_ID || "";
+  const certId: string = ebayCertId || process.env.EBAY_CERT_ID || "";
+  if (!appId || !certId) return res.json({ found: false, cheapestPrice: null, error: "no-keys" });
+
+  try {
+    const token = await getEbayToken(appId, certId);
+    if (!token) return res.json({ found: false, cheapestPrice: null, error: "auth-failed" });
+
+    const listings = await ebaySearchCached(token, String(query).trim(), 9999, String(marketplace), "price", "used");
+    if (!listings.length) return res.json({ found: false, cheapestPrice: null });
+
+    const sorted = [...listings].sort((a, b) => toUSD(a.price, a.currency) - toUSD(b.price, b.currency));
+    const cheapest = sorted[0];
+    const cheapestUSD = Math.round(toUSD(cheapest.price, cheapest.currency) * 100) / 100;
+    const target = parseFloat(String(targetPrice)) || 0;
+    const found = target > 0 && cheapestUSD <= target;
+
+    return res.json({
+      found, cheapestPrice: cheapestUSD,
+      cheapestUrl: cheapest.url, cheapestTitle: cheapest.title,
+      cheapestCondition: cheapest.condition, cheapestImage: cheapest.imageUrl,
+    });
+  } catch (err) {
+    console.error("[check-alert]", err);
+    return res.json({ found: false, cheapestPrice: null, error: "server-error" });
+  }
+});
+
 export default router;

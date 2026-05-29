@@ -270,6 +270,36 @@ export default function ProfitPage() {
           </div>
         </div>
 
+        {/* Import route / duty presets */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>TRASA IMPORTU — cło + VAT (kliknij żeby wypełnić)</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[
+              { label: "CN→PL Ubrania",    duty: 12,  vat: 23, note: "tkaniny 12% + VAT 23%" },
+              { label: "CN→PL Elektronika",duty: 0,   vat: 23, note: "IT/AV 0% + VAT 23%" },
+              { label: "JP→PL Zegarki",    duty: 4.5, vat: 23, note: "zegarki 4.5% + VAT 23%" },
+              { label: "JP→DE Zegarki",    duty: 4.5, vat: 19, note: "zegarki 4.5% + VAT 19%" },
+              { label: "US→PL Sneakers",   duty: 17,  vat: 23, note: "obuwie 17% + VAT 23%" },
+              { label: "CN→PL Biżuteria",  duty: 3,   vat: 23, note: "biżuteria 3% + VAT 23%" },
+              { label: "US→DE Elektronika",duty: 0,   vat: 19, note: "IT 0% + MwSt 19%" },
+            ].map(r => (
+              <button
+                key={r.label}
+                title={r.note}
+                onClick={() => { setDuty(String(r.duty)); setVatEnabled(true); setVatPct(String(r.vat)); }}
+                style={{
+                  padding: "5px 11px", borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                  background: duty === String(r.duty) && vatPct === String(r.vat) ? "rgba(245,200,66,0.2)" : "rgba(255,255,255,0.06)",
+                  color: duty === String(r.duty) && vatPct === String(r.vat) ? "#f5c842" : "rgba(255,255,255,0.45)",
+                  outline: duty === String(r.duty) && vatPct === String(r.vat) ? "1px solid rgba(245,200,66,0.35)" : "none",
+                }}
+              >
+                {r.label} <span style={{ opacity: 0.6 }}>{r.duty}%+{r.vat}%</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Inputs */}
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: 22, marginBottom: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>

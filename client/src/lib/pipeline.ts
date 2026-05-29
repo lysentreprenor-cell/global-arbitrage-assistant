@@ -32,6 +32,7 @@ export type PipelineItem = {
   soldAt?: number;
   soldPrice?: number;      // actual sell price achieved
   realBuyPrice?: number;   // actual buy price paid
+  listedAt?: number;       // timestamp when status changed to "listed"
 };
 
 const KEY = "resell_pipeline";

@@ -1,10 +1,13 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp, Camera, ListTodo, Search, Rocket } from "lucide-react";
+import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp, Camera, ListTodo, Search, Rocket, Bell } from "lucide-react";
+import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
 const NAV_ITEMS = [
   { href: "/resell", label: "Dashboard", icon: LayoutDashboard },
   { href: "/resell/search", label: "Szukaj", icon: Search },
   { href: "/resell/saved", label: "Pipeline", icon: ListTodo },
+  { href: "/resell/alerts", label: "Alerty", icon: Bell, badge: true },
   { href: "/resell/compare", label: "Porównaj", icon: BarChart2 },
   { href: "/resell/market-scan", label: "Rynki", icon: Globe },
   { href: "/resell/dropship", label: "Dropship", icon: ShoppingBag },
@@ -15,6 +18,15 @@ const NAV_ITEMS = [
 
 export function TopNav() {
   const [location] = useLocation();
+  const [alertBadge, setAlertBadge] = useState(0);
+
+  useEffect(() => {
+    const update = () => setAlertBadge(triggeredAlertsCount());
+    update();
+    window.addEventListener("focus", update);
+    window.addEventListener("storage", update);
+    return () => { window.removeEventListener("focus", update); window.removeEventListener("storage", update); };
+  }, []);
 
   return (
     <header style={{
@@ -50,12 +62,13 @@ export function TopNav() {
         overflowX: "auto",
         scrollbarWidth: "none",
       }}>
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, label, icon: Icon, badge }) => {
           const active = location === href || (href !== "/resell" && location.startsWith(href));
+          const badgeCount = badge ? alertBadge : 0;
           return (
             <Link key={href} href={href}>
               <a style={{
-                display: "flex", alignItems: "center", gap: 6,
+                display: "flex", alignItems: "center", gap: 6, position: "relative",
                 padding: "7px 14px", borderRadius: 8, whiteSpace: "nowrap",
                 background: active ? "rgba(34,197,94,0.18)" : "transparent",
                 color: active ? "#86efac" : "rgba(255,255,255,0.5)",
@@ -66,6 +79,15 @@ export function TopNav() {
               }}>
                 <Icon size={14} />
                 {label}
+                {badgeCount > 0 && (
+                  <span style={{
+                    position: "absolute", top: 2, right: 2,
+                    minWidth: 14, height: 14, borderRadius: 7, background: "#f59e0b",
+                    color: "#000", fontSize: 9, fontWeight: 900,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 3px",
+                  }}>{badgeCount}</span>
+                )}
               </a>
             </Link>
           );
