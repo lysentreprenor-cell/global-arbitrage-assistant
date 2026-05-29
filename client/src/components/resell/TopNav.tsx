@@ -1,13 +1,15 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp, Camera, ListTodo } from "lucide-react";
+import { LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp, Camera, ListTodo, Search, Rocket } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/resell", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/resell/search", label: "Szukaj", icon: Search },
   { href: "/resell/saved", label: "Pipeline", icon: ListTodo },
   { href: "/resell/compare", label: "Porównaj", icon: BarChart2 },
   { href: "/resell/market-scan", label: "Rynki", icon: Globe },
   { href: "/resell/dropship", label: "Dropship", icon: ShoppingBag },
   { href: "/resell/photo", label: "Ze Zdjęcia", icon: Camera },
+  { href: "/resell/autopilot", label: "Autopilot", icon: Rocket },
   { href: "/resell/settings", label: "API", icon: Settings },
 ];
 

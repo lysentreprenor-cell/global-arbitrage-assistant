@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
-  Search, TrendingUp, Zap, Globe, RefreshCw, Star, Filter,
+  Search, TrendingUp, Zap, RefreshCw, Star,
   ExternalLink, Boxes, AlertCircle, X, PlusCircle, Check, BookmarkPlus,
   ArrowRight, Package, ShieldCheck, ShieldAlert, Clock,
 } from "lucide-react";
