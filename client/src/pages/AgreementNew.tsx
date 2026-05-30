@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, type CurrencyCode } from "@/lib/store";
-import { useSearch, useLocation } from "wouter";
+import { useSearch } from "wouter";
 
 // ——— Types
-type Category = "usluga" | "remont" | "sprzedaz" | "wynajem" | "wlasna" | "wypozyczenie" | "korepetycje" | "opieka" | "rezerwacja" | "pozyczka" | "partnerska" | "nda";
+type Category = "usluga" | "remont" | "sprzedaz" | "wynajem" | "wlasna" | "wypozyczenie" | "korepetycje" | "opieka" | "rezerwacja";
 type PricingMethod = string;
 type DeadlineType = "single" | "range" | "stages" | "cyclic" | "tbd";
 type ProtocolStatus = "accepted" | "with_notes" | "needs_fixes" | "rejected";
@@ -223,29 +223,6 @@ interface WizardData {
   eventHours: number;
   equipmentBy: "artysta" | "organizator" | "wspólnie";
   recordingRights: boolean;
-  // Pożyczka P2P fields
-  p2pLoanAmount: number;
-  p2pLoanCurrency: string;
-  p2pDueDate: string;
-  p2pInstallments: boolean;
-  p2pInstallmentCount: number;
-  p2pInterestRate: number;
-  p2pCollateral: string;
-  // Umowa partnerska fields
-  partnerAName: string;
-  partnerBName: string;
-  partnerAEquity: number;
-  partnerBEquity: number;
-  partnerARoles: string;
-  partnerBRoles: string;
-  partnerVoting: string;
-  partnerExitClause: string;
-  // NDA fields
-  ndaType: "jednostronne" | "dwustronne";
-  ndaConfidentialInfo: string;
-  ndaDurationMonths: number;
-  ndaPenalty: number;
-  ndaExceptions: string;
 }
 
 const INITIAL: WizardData = {
@@ -292,14 +269,6 @@ const INITIAL: WizardData = {
   finalTransactionDate: "", reservationExpiry: "", finalPrice: 0, reservationConditions: "",
   // Artysta/DJ
   eventType: "inne", eventHours: 2, equipmentBy: "artysta", recordingRights: false,
-  // Pożyczka P2P
-  p2pLoanAmount: 0, p2pLoanCurrency: "PLN", p2pDueDate: "", p2pInstallments: false,
-  p2pInstallmentCount: 3, p2pInterestRate: 0, p2pCollateral: "",
-  // Umowa partnerska
-  partnerAName: "", partnerBName: "", partnerAEquity: 50, partnerBEquity: 50,
-  partnerARoles: "", partnerBRoles: "", partnerVoting: "", partnerExitClause: "",
-  // NDA
-  ndaType: "dwustronne", ndaConfidentialInfo: "", ndaDurationMonths: 24, ndaPenalty: 0, ndaExceptions: "",
 };
 
 // ——— Style helpers
@@ -371,7 +340,7 @@ function addContractEvent(contractId: string, event: Omit<ActivityEvent, "id" | 
     const idx = existing.findIndex(c => c.contractId === contractId);
     if (idx >= 0) {
       existing[idx].events = existing[idx].events || [];
-      existing[idx].events.unshift({ ...event, id: Math.random().toString(36).slice(2), timestamp: new Date().toISOString() });
+      existing[idx].events.unshift({ ...event, id: crypto.randomUUID().replace(/-/g,""), timestamp: new Date().toISOString() });
       localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
     }
   } catch {}
@@ -388,7 +357,7 @@ const PHASE_EVENTS: Record<string, { label: string; icon: string }> = {
 // ——— CONTRACT TEMPLATES
 const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset: Partial<WizardData> }[] = [
   {
-    id: "service", icon: "🔨", label: "Usługa", desc: "Praca, pomoc, naprawa",
+    id: "service", icon: "🛠️", label: "Usługa", desc: "Praca, pomoc, naprawa",
     preset: { category: "usluga", subcategory: "Inne", pricingMethod: "fixed", warranty: true, warrantyDays: 30, latePenalty: true, latePenaltyAmount: 100, requireApproval: true },
   },
   {
@@ -400,7 +369,7 @@ const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset
     preset: { category: "sprzedaz", subcategory: "Samochód", pricingMethod: "fixed" },
   },
   {
-    id: "remont", icon: "🛠", label: "Remont", desc: "Malowanie, instalacje",
+    id: "remont", icon: "🔨", label: "Remont", desc: "Malowanie, instalacje",
     preset: { category: "remont", subcategory: "Generalny remont", pricingMethod: "stages", scopeBeforePhotos: true, warranty: true, warrantyDays: 365, latePenalty: true, latePenaltyAmount: 200 },
   },
   {
@@ -416,24 +385,12 @@ const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset
     preset: { category: "korepetycje", subcategory: "Matematyka", pricingMethod: "hourly", warranty: false },
   },
   {
-    id: "opieka", icon: "🏥", label: "Opieka", desc: "Zwierzę, dziecko, pomoc domowa",
+    id: "opieka", icon: "🐾", label: "Opieka", desc: "Zwierzę, dziecko, pomoc domowa",
     preset: { category: "opieka", subcategory: "Opieka nad zwierzęciem", pricingMethod: "per_day" },
   },
   {
     id: "rezerwacja", icon: "📋", label: "Rezerwacja", desc: "Zadatek, zaliczka, rezerwacja",
     preset: { category: "rezerwacja", subcategory: "Nieruchomość", pricingMethod: "total" },
-  },
-  {
-    id: "pozyczka", icon: "💸", label: "Pożyczka P2P", desc: "Pożyczka między znajomymi lub rodziną",
-    preset: { category: "pozyczka", subcategory: "Między znajomymi", pricingMethod: "total" },
-  },
-  {
-    id: "partnerska", icon: "🤝", label: "Umowa partnerska", desc: "Startup, firma, projekt wspólny",
-    preset: { category: "partnerska", subcategory: "Startup / Firma", pricingMethod: "total" },
-  },
-  {
-    id: "nda", icon: "🔒", label: "NDA / Poufność", desc: "Umowa o zachowaniu poufności",
-    preset: { category: "nda", subcategory: "Dwustronne", pricingMethod: "total" },
   },
 ];
 
@@ -464,18 +421,20 @@ const CAT_LABELS: Record<string, string> = {
   usluga: "Usługa", remont: "Remont", sprzedaz: "Sprzedaż",
   wynajem: "Wynajem", wlasna: "Własna", wypozyczenie: "Wypożyczenie",
   korepetycje: "Korepetycje", opieka: "Opieka", rezerwacja: "Rezerwacja",
-  pozyczka: "Pożyczka P2P", partnerska: "Umowa partnerska", nda: "NDA / Poufność",
+};
+const CATEGORY_ICONS: Record<string, string> = {
+  usluga: "🛠️", remont: "🔨", sprzedaz: "🛍️", wynajem: "🏠",
+  wlasna: "📝", wypozyczenie: "🔑", korepetycje: "📚", opieka: "🐾", rezerwacja: "📋",
 };
 
 // ——— HOME SCREEN
-function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContract, onBack }: {
+function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContract }: {
   onNew: () => void;
   onResume: () => void;
   onTemplate: (preset: Partial<WizardData>) => void;
   draft: { data: WizardData; stepIndex: number } | null;
   contracts: SavedContract[];
   onOpenContract: (c: SavedContract) => void;
-  onBack: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "done" | "action">("all");
@@ -554,18 +513,10 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-background)", maxWidth: "min(560px, 100vw)", margin: "0 auto", padding: "24px 16px 100px", boxSizing: "border-box" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            onClick={onBack}
-            style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "rgba(255,255,255,0.7)" }}><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          </button>
-          <div>
-            <div style={{ color: "var(--color-primary)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>ItemPrise</div>
-            <h1 style={{ color: "var(--color-foreground)", fontSize: 26, fontWeight: 900, margin: 0, lineHeight: 1.2 }}>Moje umowy</h1>
-          </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div>
+          <div style={{ color: "var(--color-primary)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 2 }}>ItemPrise</div>
+          <h1 style={{ color: "var(--color-foreground)", fontSize: 26, fontWeight: 900, margin: 0, lineHeight: 1.2 }}>Moje umowy</h1>
         </div>
         <button onClick={onNew} style={{ background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: 12, padding: "10px 18px", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>+ Nowa</button>
       </div>
@@ -650,7 +601,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
           {COMMUNITY_TEMPLATES.map(t => (
             <div
               key={t.id}
-              onClick={() => onTemplate(t as Partial<WizardData>)}
+              onClick={() => onTemplate(t)}
               style={{
                 flexShrink: 0, width: 140, borderRadius: 16, padding: "16px 14px",
                 background: "rgba(255,255,255,0.03)", border: "1.5px solid rgba(255,255,255,0.08)",
@@ -789,7 +740,6 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
           </div>
           {visible.map(c => {
             const badge = deadlineBadge(c);
-            const catIcon: Record<string,string> = { usluga:"🛠️", remont:"🔨", sprzedaz:"🛍️", wynajem:"🏠", wlasna:"📝", wypozyczenie:"🔑", korepetycje:"📚", opieka:"🏥", rezerwacja:"📋", pozyczka:"💸", partnerska:"🤝", nda:"🔒" };
             const otherRole = c.data.myRole === "client"
               ? (c.data.category === "wynajem" ? "Wynajmujący" : c.data.category === "sprzedaz" ? "Sprzedający" : c.data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca")
               : (c.data.category === "wynajem" ? "Najemca" : c.data.category === "sprzedaz" ? "Kupujący" : c.data.category === "wypozyczenie" ? "Pożyczający" : "Zamawiający");
@@ -800,7 +750,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
               <div key={c.id} onClick={() => onOpenContract(c)} style={{ background: "var(--color-card)", border: `1.5px solid ${badge === "overdue" ? "#dc2626" : badge === "soon" ? "#f59e0b" : "var(--color-border)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10, cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{catIcon[c.data.category] || "📄"}</span>
+                    <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{CATEGORY_ICONS[c.data.category] || "📄"}</span>
                     <div style={{ minWidth: 0 }}>
                       <div title={c.data.customTitle || (c.data.category === "wypozyczenie" && c.data.loanItemName ? `🔑 ${c.data.loanItemName}` : c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")} style={{ color: "var(--color-foreground)", fontSize: 15, fontWeight: 700, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {c.data.customTitle || (c.data.category === "wypozyczenie" && c.data.loanItemName ? `🔑 ${c.data.loanItemName}` : c.data.subcategory ? `${CAT_LABELS[c.data.category] || "Umowa"} › ${c.data.subcategory}` : CAT_LABELS[c.data.category] || "Umowa")}
@@ -946,9 +896,6 @@ const SUBCATEGORIES: Record<string, string[]> = {
   korepetycje: ["Matematyka", "Języki obce", "Nauki ścisłe", "Humanistyka", "Programowanie", "Muzyka/Sztuka", "Przygotowanie do matury", "Inne"],
   opieka: ["Opieka nad zwierzęciem", "Opieka nad dzieckiem", "Opieka nad starszą osobą", "Sprzątanie/Pomoc domowa"],
   rezerwacja: ["Nieruchomość", "Pojazd", "Usługa/Event", "Sprzęt/Towar", "Inne"],
-  pozyczka: ["Między znajomymi", "Między rodziną", "Firmowa / Prywatna"],
-  partnerska: ["Startup / Firma", "Projekt / Przedsięwzięcie", "Sklep / E-commerce", "Działalność twórcza"],
-  nda: ["Dwustronne", "Jednostronne", "Przed współpracą", "Due diligence"],
 };
 
 const PRICING_OPTIONS: Record<string, { value: string; label: string }[]> = {
@@ -995,16 +942,8 @@ const PRICING_OPTIONS: Record<string, { value: string; label: string }[]> = {
   ],
   rezerwacja: [
     { value: "total", label: "Kwota zadatku / zaliczki" },
-  ],
-  pozyczka: [
-    { value: "total", label: "Kwota pożyczki" },
-  ],
-  partnerska: [
-    { value: "total", label: "Wartość projektu / firmy" },
-    { value: "stages", label: "Wkład etapami" },
-  ],
-  nda: [
-    { value: "total", label: "Kara umowna za naruszenie" },
+    { value: "stages", label: "Płatność etapami (np. 20% + 80%)" },
+    { value: "fixed", label: "Pełna kwota z góry" },
   ],
 };
 
@@ -1018,11 +957,6 @@ const DEPOSIT_COVERS_OPTIONS = [
   "Ostatnia rata", "Poprawki/usterki", "Kaucja za szkody",
 ];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  usluga: "Usługa", remont: "Remont", sprzedaz: "Sprzedaż", wynajem: "Wynajem", wlasna: "Własna", wypozyczenie: "Wypożyczenie",
-  korepetycje: "Korepetycje", opieka: "Opieka", rezerwacja: "Rezerwacja",
-  pozyczka: "Pożyczka P2P", partnerska: "Umowa partnerska", nda: "NDA / Poufność",
-};
 
 // Module-level presets — defined once, not re-created on every render
 const HOUR_PRESETS = [
@@ -1091,9 +1025,6 @@ function getSteps(category: string) {
   if (category === "korepetycje") base.push({ id: "szczegoly_korepetycji", label: "Szczegóły korepetycji" });
   if (category === "opieka") base.push({ id: "szczegoly_opieki", label: "Szczegóły opieki" });
   if (category === "rezerwacja") base.push({ id: "szczegoly_rezerwacji", label: "Szczegóły rezerwacji" });
-  if (category === "pozyczka") base.push({ id: "szczegoly_pozyczki", label: "Warunki pożyczki" });
-  if (category === "partnerska") base.push({ id: "szczegoly_partnerskiej", label: "Podział i role" });
-  if (category === "nda") base.push({ id: "szczegoly_nda", label: "Zakres poufności" });
   base.push({ id: "dodatki", label: "Koszty dodatkowe" });
   base.push({ id: "wycena_koncowa", label: "Wycena końcowa" });
   base.push({ id: "platnosc", label: "Sposób płatności" });
@@ -1181,9 +1112,8 @@ function LiveTicker({ total, label, currency }: { total: number; label: string; 
 
 export default function AgreementNew() {
   const { user } = useAppStore();
-  const defaultCurrency: CurrencyCode = ((user as any)?.currency as CurrencyCode) || "PLN";
+  const defaultCurrency = (user?.currency as string) || "PLN";
   const search = useSearch();
-  const [, setLocation] = useLocation();
   const forceNew = new URLSearchParams(search).get("new") === "1";
   const [view, setView] = useState<"home" | "wizard">(() => {
     if (forceNew) return "wizard";
@@ -1194,29 +1124,12 @@ export default function AgreementNew() {
   const [savedContracts, setSavedContracts] = useState<SavedContract[]>(() => loadContracts());
   const [draft, setDraft] = useState<{ data: WizardData; stepIndex: number } | null>(() => loadDraft());
 
-  // Sync contracts from backend on mount
-  useEffect(() => {
-    fetch("/api/contracts", { credentials: "include" })
-      .then(r => r.ok ? r.json() : [])
-      .then((apiContracts: SavedContract[]) => {
-        if (!apiContracts.length) return;
-        // Merge: API contracts take precedence, keep local-only ones too
-        const merged = [...apiContracts];
-        const apiIds = new Set(apiContracts.map((c: SavedContract) => c.contractId));
-        loadContracts().forEach(local => { if (!apiIds.has(local.contractId)) merged.push(local); });
-        merged.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
-        setSavedContracts(merged);
-        if (!forceNew) setView("home");
-      })
-      .catch(() => {});
-  }, []);
-
   const [stepIndex, setStepIndex] = useState(() => loadDraft()?.stepIndex ?? 0);
   const [data, setData] = useState<WizardData>(() => loadDraft()?.data ?? { ...INITIAL, currency: defaultCurrency });
   const [contractPhase, setContractPhase] = useState<
     "" | "awaiting_counterparty" | "awaiting_deposit" | "in_progress" | "awaiting_release" | "completed"
   >("");
-  const [contractId, setContractId] = useState(() => loadDraft()?.contractId ?? `UMW-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`);
+  const [contractId, setContractId] = useState(() => loadDraft()?.contractId ?? `UMW-${new Date().getFullYear()}-${(parseInt(crypto.randomUUID().replace(/-/g,''),16)%9000+1000)}`);
   const [invitationDismissed, setInvitationDismissed] = useState(false);
   const [showDocument, setShowDocument] = useState(false);
   const [ratingDone, setRatingDone] = useState(false);
@@ -1242,26 +1155,24 @@ export default function AgreementNew() {
     }
   }, [data, stepIndex, contractId, view, contractPhase]);
 
-  // Save/update contract in localStorage + backend whenever phase changes
+  // Save/update contract in localStorage whenever phase changes
   useEffect(() => {
     if (!contractPhase) return;
     const now = new Date().toISOString();
     const existing = loadContracts();
     const idx = existing.findIndex(c => c.contractId === contractId);
-    let contract: SavedContract;
     if (idx >= 0) {
       existing[idx].phase = contractPhase;
       existing[idx].updatedAt = now;
       existing[idx].events = existing[idx].events || [];
       const ev = PHASE_EVENTS[contractPhase];
-      if (ev) existing[idx].events.unshift({ ...ev, id: Math.random().toString(36).slice(2), timestamp: now, type: "phase_change" });
+      if (ev) existing[idx].events.unshift({ ...ev, id: crypto.randomUUID().replace(/-/g,""), timestamp: now, type: "phase_change" });
       try { localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing)); } catch {}
       setContractEvents([...existing[idx].events]);
-      contract = existing[idx];
     } else {
       const ev = PHASE_EVENTS[contractPhase];
-      const initEvents: ActivityEvent[] = ev ? [{ ...ev, id: Math.random().toString(36).slice(2), timestamp: now, type: "phase_change" }] : [];
-      contract = {
+      const initEvents: ActivityEvent[] = ev ? [{ ...ev, id: crypto.randomUUID().replace(/-/g,""), timestamp: now, type: "phase_change" }] : [];
+      const contract: SavedContract = {
         id: contractId, contractId, data,
         totalPrice: calcTotal(data),
         phase: contractPhase,
@@ -1271,8 +1182,6 @@ export default function AgreementNew() {
       saveContract(contract);
       setContractEvents(initEvents);
     }
-    // Persist to backend
-    fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(contract) }).catch(() => {});
     clearDraft();
     setDraft(null);
     setSavedContracts(loadContracts());
@@ -1281,7 +1190,7 @@ export default function AgreementNew() {
   const update = (patch: Partial<WizardData>) => setData(prev => ({ ...prev, ...patch }));
 
   const startNewWizard = () => {
-    const newId = `UMW-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+    const newId = `UMW-${new Date().getFullYear()}-${(parseInt(crypto.randomUUID().replace(/-/g,''),16)%9000+1000)}`;
     setContractId(newId);
     setData({ ...INITIAL, currency: defaultCurrency });
     setStepIndex(0);
@@ -1294,7 +1203,7 @@ export default function AgreementNew() {
   };
 
   const startFromTemplate = (preset: Partial<WizardData>) => {
-    const newId = `UMW-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+    const newId = `UMW-${new Date().getFullYear()}-${(parseInt(crypto.randomUUID().replace(/-/g,''),16)%9000+1000)}`;
     setContractId(newId);
     setData({ ...INITIAL, currency: defaultCurrency, ...preset });
     // Skip rola/kategoria/podkategoria since template pre-fills them — go to strony
@@ -1413,9 +1322,6 @@ export default function AgreementNew() {
       case "szczegoly_korepetycji": return <StepSzczegolyKorepetycje data={data} update={update} />;
       case "szczegoly_opieki": return <StepSzczegolyOpieka data={data} update={update} />;
       case "szczegoly_rezerwacji": return <StepSzczegolyRezerwacja data={data} update={update} />;
-      case "szczegoly_pozyczki": return <StepSzczegolyPozyczka data={data} update={update} />;
-      case "szczegoly_partnerskiej": return <StepSzczegolyPartnerska data={data} update={update} />;
-      case "szczegoly_nda": return <StepSzczegolyNDA data={data} update={update} />;
       case "dodatki": return <StepDodatki data={data} update={update} additionalTotal={additionalTotal} />;
       case "wycena_koncowa": return <StepWycenaKoncowa data={data} update={update} totalPrice={totalPrice} additionalTotal={additionalTotal} goBack={goBack} />;
       case "platnosc": return <StepPlatnosc data={data} update={update} totalPrice={totalPrice} />;
@@ -1435,7 +1341,6 @@ export default function AgreementNew() {
         draft={draft}
         contracts={savedContracts}
         onOpenContract={openContract}
-        onBack={() => setLocation("/")}
       />
     );
   }
@@ -1524,7 +1429,7 @@ export default function AgreementNew() {
             </span>
             {data.category && (
               <span style={{ color: "var(--color-muted-foreground)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {" · "}{CATEGORY_LABELS[data.category]}{data.subcategory ? ` › ${data.subcategory}` : ""}
+                {" · "}{CAT_LABELS[data.category]}{data.subcategory ? ` › ${data.subcategory}` : ""}
               </span>
             )}
           </div>
@@ -1642,7 +1547,7 @@ function StepRola({ data, update, goNext }: { data: WizardData; update: (p: Part
 
 // ——— STEP: Szczegóły wypożyczenia
 function StepSzczegolyWypozyczenia({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
-  const conditionOptions = ["Nowy", "Bardzo dobry", "Dobry", "Lekko używany", "Używany"];
+  const conditionOptions = CONDITIONS;
   return (
     <div>
       <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Przedmiot wypożyczenia</h2>
@@ -1780,7 +1685,7 @@ function StepSzczegolyOpieka({ data, update }: { data: WizardData; update: (p: P
 
   return (
     <div>
-      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Szczegóły opieki 🏥</h2>
+      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Szczegóły opieki 🐾</h2>
       <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 18, lineHeight: 1.5 }}>Uzupełnij informacje dotyczące zakresu opieki.</p>
 
       <div style={sectionCard}>
@@ -2014,206 +1919,13 @@ function StepArtystaDetails({ data, update }: { data: WizardData; update: (p: Pa
 }
 
 // ——— STEP 1: Kategoria
-// ——— STEP: Szczegóły pożyczki P2P
-function StepSzczegolyPozyczka({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
-  return (
-    <div>
-      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Warunki pożyczki 💸</h2>
-      <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 18, lineHeight: 1.5 }}>Określ kwotę, termin i zasady spłaty.</p>
-
-      <div style={sectionCard}>
-        <SectionLabel>Kwota pożyczki</SectionLabel>
-        <input type="number" inputMode="decimal" placeholder="0.00"
-          value={data.p2pLoanAmount || ""}
-          onChange={e => update({ p2pLoanAmount: parseFloat(e.target.value) || 0 })}
-          style={inputStyle} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Termin spłaty</SectionLabel>
-        <input type="date" value={data.p2pDueDate}
-          onChange={e => update({ p2pDueDate: e.target.value })}
-          min={new Date().toISOString().split("T")[0]}
-          style={{ ...inputStyle, colorScheme: "dark" }} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Sposób spłaty</SectionLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {[{ v: false, l: "Jednorazowo", s: "Cała kwota naraz" }, { v: true, l: "Na raty", s: "Kilka spłat" }].map(opt => (
-            <div key={String(opt.v)} onClick={() => update({ p2pInstallments: opt.v })}
-              style={{ ...cardStyle(data.p2pInstallments === opt.v), cursor: "pointer", padding: "12px 10px" }}>
-              <div style={{ fontWeight: 700, color: "var(--color-foreground)", fontSize: 14, marginBottom: 2 }}>{opt.l}</div>
-              <div style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{opt.s}</div>
-            </div>
-          ))}
-        </div>
-        {data.p2pInstallments && (
-          <div style={{ marginTop: 12 }}>
-            <SectionLabel>Liczba rat</SectionLabel>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[2, 3, 4, 6, 12].map(n => (
-                <div key={n} onClick={() => update({ p2pInstallmentCount: n })}
-                  style={{ ...cardStyle(data.p2pInstallmentCount === n), cursor: "pointer", padding: "8px 16px", fontSize: 14, fontWeight: 700 }}>
-                  {n}x
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Odsetki (% rocznie, 0 = brak)</SectionLabel>
-        <input type="number" inputMode="decimal" placeholder="0"
-          value={data.p2pInterestRate || ""}
-          onChange={e => update({ p2pInterestRate: parseFloat(e.target.value) || 0 })}
-          style={inputStyle} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Zabezpieczenie (opcjonalnie)</SectionLabel>
-        <input type="text" placeholder="np. Poręczyciel, zastaw, weksel"
-          value={data.p2pCollateral}
-          onChange={e => update({ p2pCollateral: e.target.value })}
-          style={inputStyle} />
-      </div>
-    </div>
-  );
-}
-
-// ——— STEP: Szczegóły umowy partnerskiej
-function StepSzczegolyPartnerska({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
-  return (
-    <div>
-      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Podział i role 🤝</h2>
-      <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 18, lineHeight: 1.5 }}>Określ udziały, role i zasady współpracy.</p>
-
-      <div style={sectionCard}>
-        <SectionLabel>Partner A — imię / nazwa</SectionLabel>
-        <input type="text" placeholder="np. Jan Kowalski"
-          value={data.partnerAName}
-          onChange={e => update({ partnerAName: e.target.value })}
-          style={inputStyle} />
-        <SectionLabel style={{ marginTop: 10 }}>Udział partnera A (%)</SectionLabel>
-        <input type="number" inputMode="decimal" placeholder="50"
-          value={data.partnerAEquity || ""}
-          onChange={e => { const v = parseFloat(e.target.value) || 0; update({ partnerAEquity: v, partnerBEquity: 100 - v }); }}
-          style={inputStyle} />
-        <SectionLabel style={{ marginTop: 10 }}>Rola / obowiązki A</SectionLabel>
-        <textarea placeholder="np. CTO, odpowiada za produkt i technologię"
-          value={data.partnerARoles}
-          onChange={e => update({ partnerARoles: e.target.value })}
-          style={textareaStyle} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Partner B — imię / nazwa</SectionLabel>
-        <input type="text" placeholder="np. Anna Nowak"
-          value={data.partnerBName}
-          onChange={e => update({ partnerBName: e.target.value })}
-          style={inputStyle} />
-        <SectionLabel style={{ marginTop: 10 }}>Udział partnera B (%) = {100 - (data.partnerAEquity || 50)}</SectionLabel>
-        <SectionLabel style={{ marginTop: 10 }}>Rola / obowiązki B</SectionLabel>
-        <textarea placeholder="np. CEO, odpowiada za sprzedaż i klientów"
-          value={data.partnerBRoles}
-          onChange={e => update({ partnerBRoles: e.target.value })}
-          style={textareaStyle} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Zasady głosowania / decyzji</SectionLabel>
-        <input type="text" placeholder="np. Decyzje strategiczne wymagają zgody obu stron"
-          value={data.partnerVoting}
-          onChange={e => update({ partnerVoting: e.target.value })}
-          style={inputStyle} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Klauzula wyjścia (exit clause)</SectionLabel>
-        <textarea placeholder="np. Partner może wyjść po 12 mies. z 3-mies. wypowiedzeniem, odkup udziałów wg wyceny"
-          value={data.partnerExitClause}
-          onChange={e => update({ partnerExitClause: e.target.value })}
-          style={textareaStyle} />
-      </div>
-    </div>
-  );
-}
-
-// ——— STEP: Szczegóły NDA
-function StepSzczegolyNDA({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
-  return (
-    <div>
-      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Zakres poufności 🔒</h2>
-      <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 18, lineHeight: 1.5 }}>Określ co jest poufne i na jak długo.</p>
-
-      <div style={sectionCard}>
-        <SectionLabel>Typ NDA</SectionLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {[{ v: "dwustronne" as const, l: "Dwustronne", s: "Obie strony chronią info" }, { v: "jednostronne" as const, l: "Jednostronne", s: "Tylko jedna strona ujawnia" }].map(opt => (
-            <div key={opt.v} onClick={() => update({ ndaType: opt.v })}
-              style={{ ...cardStyle(data.ndaType === opt.v), cursor: "pointer", padding: "12px 10px" }}>
-              <div style={{ fontWeight: 700, color: "var(--color-foreground)", fontSize: 14, marginBottom: 2 }}>{opt.l}</div>
-              <div style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{opt.s}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Definicja informacji poufnych</SectionLabel>
-        <textarea placeholder="np. Wszelkie informacje techniczne, finansowe, lista klientów, kod źródłowy, know-how przekazane w trakcie współpracy"
-          value={data.ndaConfidentialInfo}
-          onChange={e => update({ ndaConfidentialInfo: e.target.value })}
-          style={textareaStyle} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Czas obowiązywania NDA (miesięcy)</SectionLabel>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {[6, 12, 24, 36, 60].map(m => (
-            <div key={m} onClick={() => update({ ndaDurationMonths: m })}
-              style={{ ...cardStyle(data.ndaDurationMonths === m), cursor: "pointer", padding: "8px 16px", fontSize: 14, fontWeight: 700 }}>
-              {m < 12 ? `${m} mies.` : `${m / 12} ${m === 12 ? "rok" : "lata"}`}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Kara umowna za naruszenie (PLN)</SectionLabel>
-        <input type="number" inputMode="decimal" placeholder="np. 10000"
-          value={data.ndaPenalty || ""}
-          onChange={e => update({ ndaPenalty: parseFloat(e.target.value) || 0 })}
-          style={inputStyle} />
-      </div>
-
-      <div style={sectionCard}>
-        <SectionLabel>Wyłączenia (co NIE jest poufne)</SectionLabel>
-        <textarea placeholder="np. Informacje publicznie dostępne, znane przed podpisaniem umowy"
-          value={data.ndaExceptions}
-          onChange={e => update({ ndaExceptions: e.target.value })}
-          style={textareaStyle} />
-      </div>
-    </div>
-  );
-}
-
 function StepKategoria({ data, update, goNext }: { data: WizardData; update: (p: Partial<WizardData>) => void; goNext: () => void }) {
-  const categories: { value: Category; label: string; icon: string }[] = [
-    { value: "usluga", label: "Usługa", icon: "🛠️" },
-    { value: "remont", label: "Remont", icon: "🔨" },
-    { value: "sprzedaz", label: "Sprzedaż", icon: "🛍️" },
-    { value: "wynajem", label: "Wynajem", icon: "🏠" },
-    { value: "wlasna", label: "Stwórz własną", icon: "📝" },
-    { value: "wypozyczenie", label: "Wypożyczenie", icon: "🔑" },
-    { value: "korepetycje", label: "Korepetycje", icon: "📚" },
-    { value: "opieka", label: "Opieka", icon: "🏥" },
-    { value: "rezerwacja", label: "Rezerwacja", icon: "📋" },
-    { value: "pozyczka", label: "Pożyczka P2P", icon: "💸" },
-    { value: "partnerska", label: "Umowa partnerska", icon: "🤝" },
-    { value: "nda", label: "NDA / Poufność", icon: "🔒" },
-  ];
+  const categoryOrder: Category[] = ["usluga", "remont", "sprzedaz", "wynajem", "wypozyczenie", "korepetycje", "opieka", "rezerwacja", "wlasna"];
+  const categories = categoryOrder.map(v => ({
+    value: v,
+    label: v === "wlasna" ? "Stwórz własną" : CAT_LABELS[v],
+    icon: CATEGORY_ICONS[v],
+  }));
   return (
     <div>
       <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Nowa umowa</h2>
@@ -3052,7 +2764,7 @@ function StepPomieszczenia({ data, update }: { data: WizardData; update: (p: Par
 }
 
 // ——— STEP 7b: Szczegóły sprzedaż/elektronika
-const CONDITIONS = ["Nowy", "Bardzo dobry", "Dobry", "Używany", "Uszkodzony"];
+const CONDITIONS = ["Nowy", "Bardzo dobry", "Dobry", "Lekko używany", "Używany", "Uszkodzony"];
 
 function SaleItemsEditor({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
   const items = data.saleItems;
@@ -3777,121 +3489,6 @@ function StepWarunki({ data, update }: { data: WizardData; update: (p: Partial<W
   );
 }
 
-// ——— STEP 12: Protokół odbioru
-function StepProtokol({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
-  const isSale = data.category === "sprzedaz";
-  const isCar = isSale && data.subcategory === "Auto/pojazd";
-
-  if (isSale) {
-    const statuses = [
-      { value: "accepted" as ProtocolStatus, label: "Przekazano bez zastrzeżeń", color: "#22c55e" },
-      { value: "with_notes" as ProtocolStatus, label: "Przekazano z uwagami", color: "#f59e0b" },
-    ];
-    return (
-      <div>
-        <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 4 }}>
-          {isCar ? "Protokół przekazania pojazdu" : "Potwierdzenie przekazania"}
-        </h2>
-        <p style={{ color: "var(--color-muted-foreground)", fontSize: 15, marginBottom: 16, lineHeight: 1.6 }}>
-          Kupujący potwierdza odbiór {isCar ? "pojazdu" : "przedmiotu"}.
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-          {statuses.map(s => {
-            const active = data.protocolStatus === s.value;
-            return (
-              <div key={s.value} onClick={() => update({ protocolStatus: s.value })} style={{ ...cardStyle(active), display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 12, height: 12, borderRadius: 6, background: s.color, flexShrink: 0 }} />
-                <span style={{ flex: 1, color: active ? "var(--color-primary)" : "var(--color-foreground)", fontSize: 15, fontWeight: active ? 700 : 400 }}>{s.label}</span>
-                <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {active && <div style={{ width: 10, height: 10, borderRadius: 5, background: "var(--color-primary)" }} />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {isCar && (
-          <div style={sectionCard}>
-            <SectionLabel>Przekazano przy odbiorze</SectionLabel>
-            <Toggle on={data.beforePhotos} onChange={v => update({ beforePhotos: v })} label="Kluczyki do pojazdu" />
-            <Toggle on={data.afterPhotos} onChange={v => update({ afterPhotos: v })} label="Dowód rejestracyjny" />
-            <Toggle on={data.releaseDeposit} onChange={v => update({ releaseDeposit: v })} label="Karta pojazdu (jeśli dotyczy)" />
-          </div>
-        )}
-
-        {data.protocolStatus === "with_notes" && (
-          <div style={{ marginBottom: 12 }}>
-            <SectionLabel>Uwagi przy przekazaniu</SectionLabel>
-            <textarea value={data.protocolDesc} onChange={e => update({ protocolDesc: e.target.value })} placeholder="Opisz uwagi..." style={textareaStyle} />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Remont / Usługa / Wynajem — pełny protokół
-  const statuses: { value: ProtocolStatus; label: string; color: string }[] = [
-    { value: "accepted", label: "Odebrane bez uwag", color: "#22c55e" },
-    { value: "with_notes", label: "Odebrane z uwagami", color: "#f59e0b" },
-    { value: "needs_fixes", label: "Wymaga poprawek", color: "#ef4444" },
-    { value: "rejected", label: "Odrzucone", color: "#6b7280" },
-  ];
-  return (
-    <div>
-      <h2 style={{ color: "var(--color-foreground)", fontSize: 24, fontWeight: 800, marginBottom: 16 }}>
-        {data.category === "wynajem" ? "Protokół wydania i zwrotu" : "Protokół odbioru"}
-      </h2>
-      <div style={{ marginBottom: 16 }}>
-        <SectionLabel>Status odbioru</SectionLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {statuses.map(s => {
-            const active = data.protocolStatus === s.value;
-            return (
-              <div key={s.value} onClick={() => update({ protocolStatus: s.value })} style={{ ...cardStyle(active), display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 12, height: 12, borderRadius: 6, background: s.color, flexShrink: 0 }} />
-                <span style={{ flex: 1, color: active ? "var(--color-primary)" : "var(--color-foreground)", fontSize: 14, fontWeight: active ? 700 : 400 }}>{s.label}</span>
-                <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {active && <div style={{ width: 10, height: 10, borderRadius: 5, background: "var(--color-primary)" }} />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {data.protocolStatus === "rejected" && (
-        <div style={{ marginTop: 4, marginBottom: 12, padding: "12px 14px", borderRadius: 10, background: "rgba(107,114,128,0.08)", border: "1px solid #9ca3af" }}>
-          <div style={{ color: "var(--color-foreground)", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Co dalej?</div>
-          <div style={{ color: "var(--color-muted-foreground)", fontSize: 13, lineHeight: 1.7 }}>
-            <div>• Opisz powód odrzucenia w polu poniżej</div>
-            <div>• Otwórz spór w panelu umowy (opcja po powrocie)</div>
-            <div>• Skontaktuj się z drugą stroną bezpośrednio</div>
-          </div>
-        </div>
-      )}
-      <div style={sectionCard}>
-        <Toggle on={data.beforePhotos} onChange={v => update({ beforePhotos: v })} label="Zdjęcia przed" />
-        <Toggle on={data.afterPhotos} onChange={v => update({ afterPhotos: v })} label="Zdjęcia po" />
-      </div>
-      <div style={{ marginBottom: 12 }}>
-        <SectionLabel>Opis wykonania</SectionLabel>
-        <textarea value={data.protocolDesc} onChange={e => update({ protocolDesc: e.target.value })} placeholder="Opisz wykonane prace..." style={textareaStyle} />
-      </div>
-      {(data.protocolStatus === "with_notes" || data.protocolStatus === "needs_fixes") && (
-        <div style={{ marginBottom: 12 }}>
-          <SectionLabel>Lista usterek</SectionLabel>
-          <textarea value={data.protocolIssues} onChange={e => update({ protocolIssues: e.target.value })} placeholder="Wypisz usterki..." style={textareaStyle} />
-          <SectionLabel>Termin poprawek</SectionLabel>
-          <input type="date" value={data.protocolFixDeadline} onChange={e => update({ protocolFixDeadline: e.target.value })} style={inputStyle} />
-        </div>
-      )}
-      <div style={sectionCard}>
-        <Toggle on={data.releaseDeposit} onChange={v => update({ releaseDeposit: v })} label="Wypłata depozytu" />
-      </div>
-    </div>
-  );
-}
-
 // ——— STEP 13: Przegląd
 function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: WizardData; steps: { id: string; label: string }[]; goToStep: (i: number) => void; warnings: string[]; totalPrice: number }) {
   const [expanded, setExpanded] = useState<string[]>(["podstawy"]);
@@ -4193,7 +3790,7 @@ function StepPodpis({ data, update, onSign }: { data: WizardData; update: (p: Pa
 
 // ——— SHARE HELPER
 async function shareContract(contractId: string, data: WizardData, totalPrice: number) {
-  const category = (CATEGORY_LABELS as Record<string, string>)[data.category] ?? data.category;
+  const category = CAT_LABELS[data.category] ?? data.category;
   const sub = data.category === "wypozyczenie" && data.loanItemName ? ` — ${data.loanItemName}` : data.subcategory ? ` › ${data.subcategory}` : "";
   const invited = data.inviteContact || "uczestnik";
   const amountLine = data.pricingMethod === "price"
@@ -4215,7 +3812,7 @@ function InvitationScreen({ data, contractId, totalPrice, onContinue }: {
   data: WizardData; contractId: string; totalPrice: number; onContinue: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const category = (CATEGORY_LABELS as Record<string, string>)[data.category] ?? data.category;
+  const category = CAT_LABELS[data.category] ?? data.category;
   const invited = data.inviteContact || "—";
   const url = `${window.location.origin}/kontrakt/${contractId}`;
 
@@ -4267,7 +3864,7 @@ function InvitationScreen({ data, contractId, totalPrice, onContinue }: {
           📤 Udostępnij umowę
         </button>
         <a
-          href={`https://wa.me/?text=${encodeURIComponent(`Zaproszenie do umowy #${contractId}\n📋 ${data.category ? ((CATEGORY_LABELS as Record<string,string>)[data.category] ?? "") : ""}${data.subcategory ? ` › ${data.subcategory}` : ""}\n\nKliknij, żeby przejrzeć i podpisać:\n${url}`)}`}
+          href={`https://wa.me/?text=${encodeURIComponent(`Zaproszenie do umowy #${contractId}\n📋 ${data.category ? (CAT_LABELS[data.category] ?? "") : ""}${data.subcategory ? ` › ${data.subcategory}` : ""}\n\nKliknij, żeby przejrzeć i podpisać:\n${url}`)}`}
           target="_blank"
           rel="noopener noreferrer"
           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", borderRadius: 12, border: "1.5px solid #25d366", background: "rgba(37,211,102,0.08)", color: "#16a34a", fontSize: 15, fontWeight: 700, textDecoration: "none", boxSizing: "border-box", width: "100%", marginBottom: 8 }}
@@ -4322,7 +3919,7 @@ function InvitationScreen({ data, contractId, totalPrice, onContinue }: {
 function ContractDocument({ data, contractId, onClose }: { data: WizardData; contractId: string; onClose: () => void }) {
   const [copiedDoc, setCopiedDoc] = useState(false);
   const totalPrice = calcTotal(data);
-  const category = (CATEGORY_LABELS as Record<string, string>)[data.category] ?? data.category;
+  const category = CAT_LABELS[data.category] ?? data.category;
   const clientLabel = data.category === "wynajem" ? "Najemca" : data.category === "sprzedaz" ? "Kupujący" : data.category === "wypozyczenie" ? "Pożyczający" : "Zleceniodawca";
   const contractorLabel = data.category === "wynajem" ? "Wynajmujący" : data.category === "sprzedaz" ? "Sprzedający" : data.category === "wypozyczenie" ? "Wypożyczający" : "Wykonawca";
   const today = new Date().toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" });
@@ -4586,7 +4183,6 @@ function RatingScreen({ contractId, data, onDone }: { contractId: string; data: 
         existing[idx].rating = stars;
         existing[idx].ratingNote = note;
         localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
-        fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
       }
     } catch {}
     setSaved(true);
@@ -4748,11 +4344,7 @@ function ContractLifecycle({
     try {
       const existing = loadContracts();
       const idx = existing.findIndex(c => c.contractId === contractId);
-      if (idx >= 0) {
-        existing[idx].paymentSentAt = ts;
-        localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
-        fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
-      }
+      if (idx >= 0) { existing[idx].paymentSentAt = ts; localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing)); }
     } catch {}
     setPaymentSentAt(ts);
     addContractEvent(contractId, { type: "phase_change", icon: "💸", label: "Klient potwierdził wysłanie przelewu" });
@@ -4763,11 +4355,7 @@ function ContractLifecycle({
     try {
       const existing = loadContracts();
       const idx = existing.findIndex(c => c.contractId === contractId);
-      if (idx >= 0) {
-        existing[idx].paymentConfirmedAt = ts;
-        localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
-        fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
-      }
+      if (idx >= 0) { existing[idx].paymentConfirmedAt = ts; localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing)); }
     } catch {}
     addContractEvent(contractId, { type: "phase_change", icon: "✅", label: "Wykonawca potwierdził odbiór przelewu — realizacja rozpoczęta" });
     setPhase("in_progress");
@@ -4845,24 +4433,6 @@ function ContractLifecycle({
       { id: "in_progress",           icon: "📋", label: "Rezerwacja aktywna",        who: clientLabel,     desc: `Rezerwacja potwierdzona — oczekiwanie na finalizację transakcji` },
       { id: "awaiting_release",      icon: "🤝", label: "Finalizacja transakcji",    who: clientLabel,     desc: `Strony finalizują transakcję zgodnie z warunkami` },
       { id: "completed",             icon: "🔓", label: "Transakcja sfinalizowana",  who: contractorLabel, desc: `Rezerwacja zakończona pomyślnie` },
-    ] : data.category === "pozyczka" ? [
-      { id: "awaiting_counterparty", icon: "✍️", label: "Akceptacja umowy pożyczki", who: contractorLabel, desc: `${contractorLabel} przegląda i podpisuje umowę pożyczki` },
-      { id: "awaiting_deposit",      icon: "💸", label: "Wypłata pożyczki",          who: clientLabel,     desc: `${clientLabel} przekazuje uzgodnioną kwotę pożyczkobiorcy` },
-      { id: "in_progress",           icon: "⏳", label: "Trwa spłata",               who: contractorLabel, desc: `${contractorLabel} spłaca pożyczkę zgodnie z harmonogramem` },
-      { id: "awaiting_release",      icon: "📋", label: "Potwierdzenie spłaty",      who: clientLabel,     desc: `${clientLabel} potwierdza otrzymanie całości spłaty` },
-      { id: "completed",             icon: "🔓", label: "Pożyczka spłacona",         who: clientLabel,     desc: `Pożyczka spłacona w całości — umowa zakończona` },
-    ] : data.category === "partnerska" ? [
-      { id: "awaiting_counterparty", icon: "✍️", label: "Akceptacja partnerstwa",   who: contractorLabel, desc: `${contractorLabel} przegląda i podpisuje umowę partnerską` },
-      { id: "awaiting_deposit",      icon: "💼", label: "Wniesienie wkładów",        who: clientLabel,     desc: `Partnerzy wnoszą uzgodnione wkłady (pieniężne, rzeczowe, czas)` },
-      { id: "in_progress",           icon: "🚀", label: "Współpraca aktywna",        who: contractorLabel, desc: `Partnerstwo działa — realizacja uzgodnionych celów` },
-      { id: "awaiting_release",      icon: "📊", label: "Rozliczenie / Wyjście",     who: clientLabel,     desc: `Strony rozliczają wyniki lub realizują klauzulę wyjścia` },
-      { id: "completed",             icon: "🔓", label: "Partnerstwo zakończone",    who: contractorLabel, desc: `Umowa partnerska zakończona pomyślnie` },
-    ] : data.category === "nda" ? [
-      { id: "awaiting_counterparty", icon: "✍️", label: "Podpisanie NDA",           who: contractorLabel, desc: `${contractorLabel} przegląda i podpisuje umowę o poufności` },
-      { id: "awaiting_deposit",      icon: "🔒", label: "NDA aktywne",              who: clientLabel,     desc: `Obie strony potwierdzają obowiązywanie NDA` },
-      { id: "in_progress",           icon: "🤝", label: "Współpraca pod NDA",       who: contractorLabel, desc: `Strony wymieniają informacje poufne w ramach umowy` },
-      { id: "awaiting_release",      icon: "📋", label: "Zakończenie współpracy",   who: clientLabel,     desc: `Strony formalizują zakończenie wymiany informacji poufnych` },
-      { id: "completed",             icon: "🔓", label: "NDA wygasłe",              who: contractorLabel, desc: `Umowa o poufności zakończona — obowiązki wygasają zgodnie z terminem` },
     ] : [
       { id: "awaiting_counterparty", icon: "✍️", label: "Akceptacja umowy",        who: contractorLabel, desc: `${contractorLabel} przegląda i podpisuje umowę` },
       { id: "awaiting_deposit",      icon: "💳", label: "Wpłata na escrow",         who: clientLabel,     desc: `${clientLabel} wpłaca środki — zablokowane do odbioru` },
@@ -5213,7 +4783,6 @@ function ContractLifecycle({
               const current = existing[idx].paidStages || [];
               existing[idx].paidStages = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
               localStorage.setItem(LS_CONTRACTS_KEY, JSON.stringify(existing));
-              fetch("/api/contracts", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(existing[idx]) }).catch(() => {});
               addContractEvent(contractId, { type: "phase_change", icon: "💰", label: `Etap zapłacony: ${data.paymentStages.find(s => s.id === id)?.name || id}` });
             }
           } catch {}
