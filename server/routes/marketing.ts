@@ -398,7 +398,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
   },
   "social": {
     "instagram": {
-      "caption": "full Instagram caption in ${language} (max 2200 chars, include emojis)",
+      "caption": "Instagram caption in ${language} (max 500 chars, include emojis)",
       "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6", "#tag7", "#tag8", "#tag9", "#tag10"],
       "cta": "call to action text",
       "format": "Reel / Carousel / Single Post / Story",
@@ -406,7 +406,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     },
     "facebook": {
       "headline": "Facebook ad headline (max 40 chars) in ${language}",
-      "primaryText": "Facebook primary text in ${language} (150-300 chars)",
+      "primaryText": "Facebook primary text in ${language} (max 150 chars)",
       "linkDescription": "link description in ${language} (max 30 chars)",
       "audienceNote": "specific Facebook audience targeting suggestion"
     },
@@ -419,7 +419,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     },
     "youtube": {
       "title": "YouTube video title in ${language}",
-      "description": "YouTube description in ${language} (first 200 chars shown)",
+      "description": "YouTube description in ${language} (max 120 chars)",
       "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
     }
   },
@@ -446,7 +446,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
   "email": {
     "subject": "email subject line in ${language} (A/B test: write 2 variations separated by | )",
     "preheader": "email preheader in ${language}",
-    "body": "full promotional email body in ${language} (HTML-ready, 150-250 words)",
+    "body": "promotional email body in ${language} (max 120 words)",
     "cta": "email CTA button text in ${language}"
   },
   "seo": {
@@ -457,7 +457,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     "longTailKeywords": ["long tail 1", "long tail 2", "long tail 3"],
     "contentIdeas": ["blog post idea 1", "blog post idea 2", "video idea 1"]
   },
-  "localInsights": "3-5 cultural and market-specific insights for ${targetMarket} — what resonates, what to avoid, local trends, trusted payment methods, preferred delivery expectations",
+  "localInsights": "2-3 key cultural insights for ${targetMarket}: what resonates, what to avoid, local payment/delivery preferences",
   "launchPlan": [
     { "week": 1, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1"], "budget_pct": "30%" },
     { "week": 2, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1", "platform2"], "budget_pct": "25%" },
@@ -471,8 +471,8 @@ Return ONLY a valid JSON object (no markdown, no explanation):
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 8000,
+        model: "claude-sonnet-4-6",
+        max_tokens: 16000,
         system: "You are a world-class international performance marketing strategist. Generate complete, ready-to-use marketing campaigns. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
