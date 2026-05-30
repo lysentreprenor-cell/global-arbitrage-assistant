@@ -466,7 +466,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 6000,
+        max_tokens: 8000,
         system: "You are a world-class international performance marketing strategist. Generate complete, ready-to-use marketing campaigns. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
@@ -481,7 +481,25 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
 
-    const campaign = JSON.parse(match[0]);
+    let campaign: any;
+    try {
+      campaign = JSON.parse(match[0]);
+    } catch {
+      // JSON truncated — try to salvage by closing open structures
+      let partial = match[0];
+      // Count unclosed braces/brackets and close them
+      let opens = 0;
+      for (const ch of partial) { if (ch === "{" || ch === "[") opens++; else if (ch === "}" || ch === "]") opens--; }
+      // Remove trailing incomplete key/value
+      partial = partial.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, "").replace(/,\s*$/, "");
+      // Close remaining open structures
+      const stack: string[] = [];
+      for (const ch of partial) { if (ch === "{") stack.push("}"); else if (ch === "[") stack.push("]"); else if (ch === "}" || ch === "]") stack.pop(); }
+      partial += stack.reverse().join("");
+      try { campaign = JSON.parse(partial); } catch {
+        return res.status(502).json({ error: "JSON truncated — try again or shorten the description", raw: text.slice(0, 200) });
+      }
+    }
     return res.json({
       campaign,
       meta: { product, targetMarket, marketType, campaignType, language, currency },
