@@ -154,6 +154,10 @@ export default function MarketingPage() {
   const [calendar, setCalendar] = useState<any[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
+  // Influencer kit
+  const [influencer, setInfluencer] = useState<any>(null);
+  const [influencerLoading, setInfluencerLoading] = useState(false);
+  const [influencerError, setInfluencerError] = useState<string | null>(null);
 
   const fetchYt = async () => {
     if (!ytUrl.trim()) return;
@@ -298,6 +302,7 @@ export default function MarketingPage() {
     setEmailSeq([]); setEmailSeqError(null);
     setLandingPage(null); setLandingError(null);
     setCalendar([]); setCalendarError(null);
+    setInfluencer(null); setInfluencerError(null);
     try {
       const r = await fetch("/api/marketing/generate", {
         method: "POST",
@@ -392,6 +397,27 @@ export default function MarketingPage() {
       setCalendar(Array.isArray(data) ? data : []);
     } catch (e: any) { setCalendarError(e.message); }
     setCalendarLoading(false);
+  };
+
+  const genInfluencer = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setInfluencerError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    setInfluencerLoading(true); setInfluencerError(null);
+    try {
+      const r = await fetch("/api/marketing/gen-influencer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          product: product.trim(), description: description.trim(),
+          targetMarket: selectedMarket, priceUSD: parseFloat(priceUSD) || 0,
+          campaignType, voice, anthropicKey: key,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania kitu influencer");
+      setInfluencer(data);
+    } catch (e: any) { setInfluencerError(e.message); }
+    setInfluencerLoading(false);
   };
 
   const copyText = async (text: string, key: string) => {
@@ -1238,41 +1264,60 @@ export default function MarketingPage() {
             )}
 
             {/* ── TAB: Influencerzy ── */}
-            {activeTab === "influencer" && (() => {
-              const inf = result.campaign.influencer as any;
-              if (!inf) return <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Brak danych influencer — wygeneruj kampanię ponownie.</div>;
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 14, padding: "20px 22px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                      <Users size={18} color="#a855f7" />
-                      <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Influencer Marketing</span>
-                    </div>
-                    <Block label="IDEALNY PROFIL INFLUENCERA">
-                      <div style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 10, padding: "12px 14px", color: "#c4b5fd", fontSize: 13, lineHeight: 1.6 }}>{inf.idealProfile}</div>
-                    </Block>
-                    <Block label="TEMAT WIADOMOŚCI DO INFLUENCERA">
-                      <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                        <span style={{ color: "#c4b5fd", fontWeight: 600, fontSize: 14 }}>{inf.outreachSubject}</span>
-                        <CopyBtn text={inf.outreachSubject} id="inf_subj" />
-                      </div>
-                    </Block>
-                    <Block label="TREŚĆ WIADOMOŚCI OUTREACH">
-                      <TextCard text={inf.outreachBody} id="inf_body" />
-                    </Block>
-                    <Block label="BRIEF TREŚCI">
-                      <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.6, position: "relative" }}>
-                        <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={inf.brief} id="inf_brief" /></div>
-                        <div style={{ paddingRight: 80, whiteSpace: "pre-wrap" }}>{inf.brief}</div>
-                      </div>
-                    </Block>
-                    <Block label="STRUKTURA WSPÓŁPRACY / WYNAGRODZENIE">
-                      <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "12px 14px", color: "#4ade80", fontSize: 13 }}>{inf.compensation}</div>
-                    </Block>
+            {activeTab === "influencer" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {!influencer ? (
+                  <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
+                    <Users size={32} color="#a855f7" style={{ marginBottom: 12 }} />
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Kit Influencer Marketingu</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI stworzy profil idealnego influencera, wiadomość outreach, brief treści i propozycję współpracy.</div>
+                    {influencerError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{influencerError}</div>}
+                    <button onClick={genInfluencer} disabled={influencerLoading} style={{
+                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
+                      background: influencerLoading ? "rgba(168,85,247,0.2)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
+                      color: influencerLoading ? "rgba(255,255,255,0.4)" : "#fff",
+                      fontWeight: 700, fontSize: 14, cursor: influencerLoading ? "not-allowed" : "pointer",
+                      boxShadow: influencerLoading ? "none" : "0 4px 16px rgba(168,85,247,0.35)",
+                    }}>
+                      {influencerLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję kit influencer…</> : <><Users size={16} /> Generuj kit influencer</>}
+                    </button>
                   </div>
-                </div>
-              );
-            })()}
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                      <button onClick={() => { setInfluencer(null); setInfluencerError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
+                    </div>
+                    <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 14, padding: "20px 22px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                        <Users size={18} color="#a855f7" />
+                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Influencer Marketing</span>
+                      </div>
+                      <Block label="IDEALNY PROFIL INFLUENCERA">
+                        <div style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 10, padding: "12px 14px", color: "#c4b5fd", fontSize: 13, lineHeight: 1.6 }}>{influencer.idealProfile}</div>
+                      </Block>
+                      <Block label="TEMAT WIADOMOŚCI DO INFLUENCERA">
+                        <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                          <span style={{ color: "#c4b5fd", fontWeight: 600, fontSize: 14 }}>{influencer.outreachSubject}</span>
+                          <CopyBtn text={influencer.outreachSubject} id="inf_subj" />
+                        </div>
+                      </Block>
+                      <Block label="TREŚĆ WIADOMOŚCI OUTREACH">
+                        <TextCard text={influencer.outreachBody} id="inf_body" />
+                      </Block>
+                      <Block label="BRIEF TREŚCI">
+                        <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.6, position: "relative" }}>
+                          <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={influencer.brief} id="inf_brief" /></div>
+                          <div style={{ paddingRight: 80, whiteSpace: "pre-wrap" }}>{influencer.brief}</div>
+                        </div>
+                      </Block>
+                      <Block label="STRUKTURA WSPÓŁPRACY / WYNAGRODZENIE">
+                        <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "12px 14px", color: "#4ade80", fontSize: 13 }}>{influencer.compensation}</div>
+                      </Block>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── TAB: Sekwencja Email ── */}
             {activeTab === "sequence" && (

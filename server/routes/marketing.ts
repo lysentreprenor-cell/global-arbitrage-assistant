@@ -399,9 +399,9 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     },
     "tiktok": {
       "hook": "first 3 seconds hook in ${language} — must stop the scroll",
-      "script": "full TikTok video script in ${language} (15-30 seconds)",
+      "script": "TikTok script in ${language} (max 15 seconds / 50 words)",
       "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
-      "musicMood": "describe the ideal background music style",
+      "musicMood": "ideal background music style",
       "trendSuggestion": "current TikTok trend to leverage"
     },
     "youtube": {
@@ -450,14 +450,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     { "week": 2, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1", "platform2"], "budget_pct": "25%" },
     { "week": 3, "focus": "...", "actions": ["action1"], "platforms": ["platform1", "platform2"], "budget_pct": "25%" },
     { "week": 4, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1"], "budget_pct": "20%" }
-  ],
-  "influencer": {
-    "idealProfile": "description of ideal influencer type for this product+market",
-    "outreachSubject": "email subject line for influencer outreach",
-    "outreachBody": "full outreach email body (150-200 words) in ${language}",
-    "brief": "content brief: key messages to include, things to avoid, format recommendation",
-    "compensation": "suggested deal structure (barter/paid/affiliate commission %)"
-  }
+  ]
 }`;
 
   try {
@@ -712,6 +705,62 @@ Use platforms: TikTok, Instagram, Facebook, YouTube. Vary them across days. Writ
     const text: string = data.content?.[0]?.text ?? "";
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return res.status(502).json({ error: "No JSON array in response", raw: text.slice(0, 400) });
+    return res.json(JSON.parse(match[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
+// ── Influencer marketing kit ──────────────────────────────────────────────────
+router.post("/gen-influencer", async (req: Request, res: Response) => {
+  const {
+    product, description = "", targetMarket = "Poland",
+    priceUSD = 0, campaignType = "launch", voice = "professional", anthropicKey,
+  } = req.body;
+  if (!product) return res.status(400).json({ error: "product required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const language = MARKET_LANGUAGE[targetMarket] ?? "English";
+
+  const prompt = `You are an influencer marketing expert. Create an influencer outreach kit for:
+Product: ${product}
+Description: ${description || "N/A"}
+Target Market: ${targetMarket}
+Price: $${priceUSD} USD
+Campaign Type: ${campaignType}
+Voice/Tone: ${voice}
+Language: ${language}
+
+Return ONLY a valid JSON object (no markdown):
+{
+  "idealProfile": "2-3 sentences: description of the ideal influencer type, niche, follower count range, platform preference for this product+market",
+  "outreachSubject": "email subject line for influencer outreach in ${language}",
+  "outreachBody": "full outreach email body (150-200 words) in ${language} — personalized, professional, clear value proposition",
+  "brief": "content brief in ${language}: key messages to include, things to avoid, format recommendation, required disclosures",
+  "compensation": "suggested deal structure — barter value, flat fee range, affiliate commission %, or hybrid; be specific for ${targetMarket} market rates"
+}
+Write all user-facing text in ${language}. Keep JSON keys in English.`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 2000,
+        system: "You are an influencer marketing expert. Always respond with valid JSON only.",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
     return res.json(JSON.parse(match[0]));
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });
