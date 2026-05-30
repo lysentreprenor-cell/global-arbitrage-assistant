@@ -23,6 +23,16 @@ const PLATFORM_APIS: ApiEntry[] = [
     fields: [{ key: "apiKey", label: "ANTHROPIC_API_KEY", placeholder: "sk-ant-..." }],
   },
   {
+    id: "youtube",
+    name: "YouTube Data API v3",
+    logo: "▶️",
+    color: "#ef4444",
+    description: "Opcjonalne — pobieranie komentarzy z YouTube do analizy marketingowej. Darmowy limit: 10 000 jednostek/dzień. Klucz w Google Cloud Console.",
+    docsUrl: "https://console.cloud.google.com/apis/credentials",
+    keyLabel: "API Key",
+    fields: [{ key: "apiKey", label: "YouTube Data API v3 Key", placeholder: "AIza..." }],
+  },
+  {
     id: "ebay",
     name: "eBay",
     logo: "🛒",

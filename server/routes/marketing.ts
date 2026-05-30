@@ -84,6 +84,123 @@ const CONTINENT_CONTEXT: Record<string, string> = {
   "Worldwide": "Global campaign — adapt for top markets simultaneously: US (English), Germany (German), Poland (Polish), Japan (Japanese). Focus on universal value propositions.",
 };
 
+// ── YouTube comments fetch (requires YouTube Data API v3 key) ────────────────
+router.get("/yt-comments", async (req: Request, res: Response) => {
+  const videoId = String(req.query.videoId ?? "").trim();
+  const ytKey   = String(req.query.ytKey   ?? "").trim();
+  if (!videoId || !ytKey) return res.status(400).json({ error: "videoId and ytKey required" });
+
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=20&order=relevance&textFormat=plainText&key=${ytKey}`;
+    const r = await fetch(url, { headers: { "Accept": "application/json" } });
+    const data = await r.json() as any;
+    if (!r.ok) return res.status(502).json({ error: data.error?.message || "YouTube API error" });
+
+    const comments = (data.items ?? []).map((item: any) => ({
+      text:   item.snippet.topLevelComment.snippet.textDisplay,
+      likes:  item.snippet.topLevelComment.snippet.likeCount ?? 0,
+      author: item.snippet.topLevelComment.snippet.authorDisplayName ?? "User",
+    }));
+    return res.json({ comments });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch comments" });
+  }
+});
+
+// ── AI comment marketing generator ──────────────────────────────────────────
+router.post("/gen-comments", async (req: Request, res: Response) => {
+  const {
+    product, description = "", targetMarket = "Poland",
+    campaignType = "launch", anthropicKey,
+    realComments = [],
+  } = req.body;
+  if (!product) return res.status(400).json({ error: "product required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const hasReal = Array.isArray(realComments) && realComments.length > 0;
+  const realCtx = hasReal
+    ? `\nREAL YOUTUBE COMMENTS TO ANALYZE:\n${realComments.slice(0, 15).map((c: any, i: number) => `${i + 1}. [👍${c.likes}] "${c.text}"`).join("\n")}`
+    : "";
+
+  const prompt = `You are a social-media comment marketing strategist. Generate strategic marketing comments for YouTube and TikTok.
+
+Product: ${product}
+Description: ${description || "N/A"}
+Target Market: ${targetMarket}
+Campaign Type: ${campaignType}${realCtx}
+
+Return ONLY valid JSON (no markdown):
+{
+  ${hasReal ? `"insights": {
+    "sentiment": "positive | mixed | negative",
+    "topPhrases": ["phrase1", "phrase2", "phrase3"],
+    "audienceDesires": ["desire1", "desire2", "desire3"],
+    "audiencePainPoints": ["pain1", "pain2"],
+    "opportunity": "2-3 sentences: what resonates with this audience and how to position the product"
+  },` : ""}
+  "youtube": {
+    "pinned": "best comment to pin under your own video — adds value, soft CTA",
+    "engagement": [
+      "engaging comment 1 — question that sparks discussion",
+      "engaging comment 2 — relatable observation + social proof",
+      "engaging comment 3 — helpful tip related to product",
+      "engaging comment 4 — share experience naturally",
+      "engaging comment 5 — soft mention of where to get it"
+    ],
+    "replies": [
+      "reply template: someone asks 'where can I buy this?'",
+      "reply template: negative/skeptical comment — turn it around",
+      "reply template: enthusiastic comment — amplify and redirect"
+    ],
+    "viral": "the single comment most likely to get pinned by the channel or go viral"
+  },
+  "tiktok": {
+    "hooks": [
+      "hook comment 1 — stops the scroll in first line",
+      "hook comment 2 — curiosity gap",
+      "hook comment 3 — relatable POV",
+      "hook comment 4 — value proposition",
+      "hook comment 5 — social proof style"
+    ],
+    "duetStitch": "describe which type of TikTok video to duet/stitch and what to say in the comment",
+    "trending": [
+      "trending format comment 1 — current TikTok language, Gen Z tone",
+      "trending format comment 2",
+      "trending format comment 3"
+    ],
+    "replies": [
+      "reply when someone asks 'what's the link?'",
+      "reply to skeptical/dismissive comment"
+    ]
+  }
+}`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 3000,
+        system: "You are a social-media comment marketing expert. Always respond with valid JSON only.",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
+    return res.json(JSON.parse(match[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
 router.post("/generate", async (req: Request, res: Response) => {
   const {
     product, category = "General", priceUSD = 0,

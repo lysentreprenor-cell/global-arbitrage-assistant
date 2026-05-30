@@ -3,10 +3,11 @@ import {
   Megaphone, Globe, Rocket, Copy, CheckCircle, Loader2,
   AlertCircle, ChevronRight, BarChart2, Mail, Search, Users,
   Youtube, DollarSign, Calendar, Lightbulb, Target, Link, X,
+  MessageSquare, ThumbsUp, Send,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
-import { getAnthropicKey } from "@/lib/apiKeys";
+import { getAnthropicKey, getYouTubeKey } from "@/lib/apiKeys";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const COUNTRIES = [
@@ -105,6 +106,12 @@ export default function MarketingPage() {
   const [ytLoading, setYtLoading] = useState(false);
   const [ytMeta, setYtMeta] = useState<{ title: string; channelName: string; thumbnail: string; description: string } | null>(null);
   const [ytError, setYtError] = useState<string | null>(null);
+  const [realComments, setRealComments] = useState<{ text: string; likes: number; author: string }[]>([]);
+  const [realCommentsLoading, setRealCommentsLoading] = useState(false);
+  const [realCommentsError, setRealCommentsError] = useState<string | null>(null);
+  const [commentKit, setCommentKit] = useState<any>(null);
+  const [commentKitLoading, setCommentKitLoading] = useState(false);
+  const [commentKitError, setCommentKitError] = useState<string | null>(null);
   const [product, setProduct] = useState("");
   const [category, setCategory] = useState("General");
   const [priceUSD, setPriceUSD] = useState("");
@@ -131,6 +138,50 @@ export default function MarketingPage() {
       setYtError(e.message);
     }
     setYtLoading(false);
+  };
+
+  const extractVideoId = (url: string): string => {
+    const m = url.match(/[?&]v=([^&]+)/) ?? url.match(/youtu\.be\/([^?&]+)/) ?? url.match(/shorts\/([^?&]+)/);
+    return m ? m[1] : "";
+  };
+
+  const fetchYtComments = async () => {
+    const ytKey = getYouTubeKey();
+    if (!ytKey) { setRealCommentsError("Dodaj YouTube Data API v3 key w ⚙ API"); return; }
+    const videoId = extractVideoId(ytUrl);
+    if (!videoId) { setRealCommentsError("Nie można wyciągnąć ID wideo z podanego URL"); return; }
+    setRealCommentsLoading(true); setRealCommentsError(null);
+    try {
+      const r = await fetch(`/api/marketing/yt-comments?videoId=${videoId}&ytKey=${encodeURIComponent(ytKey)}`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd pobierania komentarzy");
+      setRealComments(data.comments ?? []);
+    } catch (e: any) { setRealCommentsError(e.message); }
+    setRealCommentsLoading(false);
+  };
+
+  const genComments = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setCommentKitError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    setCommentKitLoading(true); setCommentKitError(null);
+    try {
+      const r = await fetch("/api/marketing/gen-comments", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          product: product.trim() || ytMeta?.title || "Produkt",
+          description: description.trim(),
+          targetMarket: selectedMarket,
+          campaignType,
+          anthropicKey: key,
+          realComments,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania komentarzy");
+      setCommentKit(data);
+    } catch (e: any) { setCommentKitError(e.message); }
+    setCommentKitLoading(false);
   };
 
   const generate = async () => {
@@ -192,11 +243,12 @@ export default function MarketingPage() {
 
   const TABS = [
     { id: "strategia", label: "Strategia", icon: <Target size={13} /> },
-    { id: "social", label: "Social Media", icon: <Instagram size={13} /> },
+    { id: "social", label: "Social Media", icon: <Globe size={13} /> },
     { id: "ads", label: "Reklamy", icon: <BarChart2 size={13} /> },
     { id: "email", label: "Email", icon: <Mail size={13} /> },
     { id: "seo", label: "SEO", icon: <Search size={13} /> },
     { id: "plan", label: "Plan kampanii", icon: <Calendar size={13} /> },
+    { id: "comments", label: "Komentarze YT/TT", icon: <MessageSquare size={13} /> },
   ];
 
   return (
@@ -281,9 +333,42 @@ export default function MarketingPage() {
                         <CheckCircle size={11} /> Dane pobrane — formularz wypełniony automatycznie
                       </div>
                     </div>
-                    <button onClick={() => { setYtMeta(null); setYtUrl(""); setYtError(null); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: 4, flexShrink: 0 }}>
+                    <button onClick={() => { setYtMeta(null); setYtUrl(""); setYtError(null); setRealComments([]); setRealCommentsError(null); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: 4, flexShrink: 0 }}>
                       <X size={14} />
                     </button>
+                  </div>
+                )}
+
+                {/* Fetch comments from YouTube */}
+                {ytMeta && (
+                  <div style={{ marginTop: 10 }}>
+                    {realComments.length === 0 ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <button onClick={fetchYtComments} disabled={realCommentsLoading} style={{
+                          display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8,
+                          border: "1px solid rgba(99,102,241,0.4)", background: "rgba(99,102,241,0.08)",
+                          color: "#a5b4fc", fontSize: 12, cursor: "pointer", fontWeight: 600,
+                        }}>
+                          {realCommentsLoading ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <MessageSquare size={12} />}
+                          {realCommentsLoading ? "Pobieranie komentarzy…" : "Pobierz komentarze z YT (opcjonalne)"}
+                        </button>
+                        <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>wymaga YouTube Data API key w ⚙ API</span>
+                      </div>
+                    ) : (
+                      <div style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 10, padding: "12px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <div style={{ color: "#a5b4fc", fontSize: 11, fontWeight: 700 }}>💬 {realComments.length} komentarzy załadowanych</div>
+                          <button onClick={() => setRealComments([])} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", fontSize: 11 }}>usuń</button>
+                        </div>
+                        {realComments.slice(0, 3).map((c, i) => (
+                          <div key={i} style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <span style={{ color: "#6366f1", marginRight: 5 }}>👍{c.likes}</span>{c.text}
+                          </div>
+                        ))}
+                        {realComments.length > 3 && <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>+{realComments.length - 3} więcej</div>}
+                      </div>
+                    )}
+                    {realCommentsError && <div style={{ marginTop: 6, color: "#fca5a5", fontSize: 11 }}>⚠ {realCommentsError}</div>}
                   </div>
                 )}
               </div>
@@ -910,6 +995,195 @@ export default function MarketingPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* ── TAB: Komentarze ── */}
+            {activeTab === "comments" && (
+              <div>
+                {/* Generate button */}
+                {!commentKit && (
+                  <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 16, padding: "24px", textAlign: "center", marginBottom: 16 }}>
+                    <MessageSquare size={32} color="#6366f1" style={{ marginBottom: 12 }} />
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Generuj komentarze marketingowe</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16, maxWidth: 420, margin: "0 auto 16px" }}>
+                      AI stworzy gotowe szablony komentarzy do wklejenia na YouTube i TikTok.
+                      {realComments.length > 0 && ` Masz ${realComments.length} prawdziwych komentarzy z wideo — Claude przeanalizuje je i dopasuje strategię.`}
+                    </div>
+                    {realComments.length > 0 && (
+                      <div style={{ background: "rgba(99,102,241,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <CheckCircle size={12} color="#818cf8" />
+                        <span style={{ color: "#818cf8", fontSize: 12 }}>Analiza {realComments.length} prawdziwych komentarzy z YouTube</span>
+                      </div>
+                    )}
+                    {commentKitError && (
+                      <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}>
+                        <AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{commentKitError}
+                      </div>
+                    )}
+                    <button onClick={genComments} disabled={commentKitLoading} style={{
+                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
+                      background: commentKitLoading ? "rgba(99,102,241,0.2)" : "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                      color: commentKitLoading ? "rgba(255,255,255,0.4)" : "#fff",
+                      fontWeight: 700, fontSize: 14, cursor: commentKitLoading ? "not-allowed" : "pointer",
+                      boxShadow: commentKitLoading ? "none" : "0 4px 16px rgba(99,102,241,0.35)",
+                    }}>
+                      {commentKitLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><MessageSquare size={16} /> Generuj komentarze</>}
+                    </button>
+                  </div>
+                )}
+
+                {commentKit && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {/* Regenerate button */}
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button onClick={() => { setCommentKit(null); setCommentKitError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>
+                        ↺ Generuj ponownie
+                      </button>
+                    </div>
+
+                    {/* Audience insights (from real comments) */}
+                    {commentKit.insights && (
+                      <div style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 14, padding: "18px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                          <Users size={16} color="#818cf8" />
+                          <span style={{ color: "#fff", fontWeight: 700 }}>Analiza komentarzy — Co mówi audytorium</span>
+                          <span style={{ background: "rgba(99,102,241,0.15)", borderRadius: 99, padding: "2px 8px", color: "#818cf8", fontSize: 10, fontWeight: 700 }}>
+                            {commentKit.insights.sentiment === "positive" ? "😊 Pozytywny" : commentKit.insights.sentiment === "negative" ? "😤 Negatywny" : "😐 Mieszany"} sentyment
+                          </span>
+                        </div>
+                        {commentKit.insights.opportunity && (
+                          <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", marginBottom: 12, color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.6 }}>
+                            💡 {commentKit.insights.opportunity}
+                          </div>
+                        )}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                          {commentKit.insights.topPhrases?.length > 0 && (
+                            <div>
+                              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>POPULARNE FRAZY</div>
+                              {commentKit.insights.topPhrases.map((p: string) => <div key={p} style={{ color: "#a5b4fc", fontSize: 11, marginBottom: 3 }}>"{p}"</div>)}
+                            </div>
+                          )}
+                          {commentKit.insights.audienceDesires?.length > 0 && (
+                            <div>
+                              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>PRAGNIENIA</div>
+                              {commentKit.insights.audienceDesires.map((d: string) => <div key={d} style={{ color: "#4ade80", fontSize: 11, marginBottom: 3 }}>✓ {d}</div>)}
+                            </div>
+                          )}
+                          {commentKit.insights.audiencePainPoints?.length > 0 && (
+                            <div>
+                              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>PAIN POINTS</div>
+                              {commentKit.insights.audiencePainPoints.map((p: string) => <div key={p} style={{ color: "#f87171", fontSize: 11, marginBottom: 3 }}>• {p}</div>)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* YouTube comments */}
+                    {commentKit.youtube && (
+                      <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                          <span style={{ fontSize: 20 }}>▶️</span>
+                          <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>YouTube — Szablony komentarzy</span>
+                        </div>
+
+                        {commentKit.youtube.viral && (
+                          <div style={{ background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(239,68,68,0.07))", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 11, padding: "12px 14px", marginBottom: 14 }}>
+                            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: 700, marginBottom: 5 }}>⭐ KOMENTARZ VIRALOWY</div>
+                            <div style={{ color: "#fcd34d", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{commentKit.youtube.viral}</div>
+                            <CopyBtn text={commentKit.youtube.viral} id="yt_viral" />
+                          </div>
+                        )}
+
+                        {commentKit.youtube.pinned && (
+                          <Block label="📌 DO PRZYPIĘCIA POD WŁASNYM WIDEO">
+                            <TextCard text={commentKit.youtube.pinned} id="yt_pinned" />
+                          </Block>
+                        )}
+
+                        <Block label="💬 KOMENTARZE ANGAŻUJĄCE (wklej na innych filmach)">
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {commentKit.youtube.engagement?.map((c: string, i: number) => (
+                              <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 9, padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                <div style={{ flex: 1, color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 1.5 }}>{c}</div>
+                                <CopyBtn text={c} id={`yt_eng${i}`} />
+                              </div>
+                            ))}
+                          </div>
+                        </Block>
+
+                        {commentKit.youtube.replies?.length > 0 && (
+                          <Block label="↩ SZABLONY ODPOWIEDZI">
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {commentKit.youtube.replies.map((r: string, i: number) => (
+                                <div key={i} style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 9, padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                  <Send size={12} color="#818cf8" style={{ marginTop: 3, flexShrink: 0 }} />
+                                  <div style={{ flex: 1, color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.5 }}>{r}</div>
+                                  <CopyBtn text={r} id={`yt_rep${i}`} />
+                                </div>
+                              ))}
+                            </div>
+                          </Block>
+                        )}
+                      </div>
+                    )}
+
+                    {/* TikTok comments */}
+                    {commentKit.tiktok && (
+                      <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                          <span style={{ fontSize: 20 }}>🎵</span>
+                          <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>TikTok — Szablony komentarzy</span>
+                        </div>
+
+                        <Block label="🪝 HOOK COMMENTS (zatrzymują przewijanie)">
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {commentKit.tiktok.hooks?.map((h: string, i: number) => (
+                              <div key={i} style={{ background: "rgba(236,72,153,0.07)", border: "1px solid rgba(236,72,153,0.18)", borderRadius: 9, padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                <div style={{ flex: 1, color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 1.5 }}>{h}</div>
+                                <CopyBtn text={h} id={`tt_hook${i}`} />
+                              </div>
+                            ))}
+                          </div>
+                        </Block>
+
+                        <Block label="🔥 TRENDING FORMAT">
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {commentKit.tiktok.trending?.map((t: string, i: number) => (
+                              <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 9, padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                <div style={{ flex: 1, color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 1.5 }}>{t}</div>
+                                <CopyBtn text={t} id={`tt_trend${i}`} />
+                              </div>
+                            ))}
+                          </div>
+                        </Block>
+
+                        {commentKit.tiktok.duetStitch && (
+                          <Block label="🎬 DUET / STITCH STRATEGIA">
+                            <div style={{ background: "rgba(236,72,153,0.05)", border: "1px solid rgba(236,72,153,0.15)", borderRadius: 9, padding: "12px 14px", color: "rgba(255,255,255,0.6)", fontSize: 13, lineHeight: 1.6 }}>
+                              {commentKit.tiktok.duetStitch}
+                            </div>
+                          </Block>
+                        )}
+
+                        {commentKit.tiktok.replies?.length > 0 && (
+                          <Block label="↩ SZABLONY ODPOWIEDZI">
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {commentKit.tiktok.replies.map((r: string, i: number) => (
+                                <div key={i} style={{ background: "rgba(236,72,153,0.05)", border: "1px solid rgba(236,72,153,0.12)", borderRadius: 9, padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                  <ThumbsUp size={12} color="#f472b6" style={{ marginTop: 3, flexShrink: 0 }} />
+                                  <div style={{ flex: 1, color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.5 }}>{r}</div>
+                                  <CopyBtn text={r} id={`tt_rep${i}`} />
+                                </div>
+                              ))}
+                            </div>
+                          </Block>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -18,6 +18,10 @@ export function getEtsyKey(): string {
   return getApiKeys().etsy?.apiKey ?? "";
 }
 
+export function getYouTubeKey(): string {
+  return getApiKeys().youtube?.apiKey ?? "";
+}
+
 export function getAllegroKeys(): { clientId: string; clientSecret: string } {
   const k = getApiKeys().allegro ?? {};
   return { clientId: k.clientId ?? "", clientSecret: k.clientSecret ?? "" };
