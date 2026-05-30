@@ -334,7 +334,9 @@ export default function MarketingPage() {
         return updated;
       });
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message === "Failed to fetch"
+        ? "Nie można połączyć się z serwerem. Zrestartuj Replit (Stop → Run) i spróbuj ponownie."
+        : e.message);
     }
     setLoading(false);
   };
