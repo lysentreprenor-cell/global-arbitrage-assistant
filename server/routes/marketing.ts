@@ -2,6 +2,57 @@ import { Router, type Request, type Response } from "express";
 
 const router = Router();
 
+// ── YouTube metadata fetch ───────────────────────────────────────────────────
+router.get("/fetch-yt", async (req: Request, res: Response) => {
+  const url = String(req.query.url ?? "").trim();
+  if (!url) return res.status(400).json({ error: "url required" });
+
+  // Validate it's a YouTube URL
+  const ytPattern = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)/i;
+  if (!ytPattern.test(url)) return res.status(400).json({ error: "Not a YouTube URL" });
+
+  try {
+    // 1. oEmbed — title, thumbnail, channel
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const oembed = await fetch(oembedUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!oembed.ok) return res.status(502).json({ error: "Could not fetch YouTube metadata" });
+    const meta = await oembed.json() as any;
+
+    // 2. Fetch the video page to extract description from og:description
+    let videoDescription = "";
+    let keywords = "";
+    try {
+      const page = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      });
+      if (page.ok) {
+        const html = await page.text();
+        // Extract og:description
+        const descMatch = html.match(/<meta\s+(?:name|property)=["'](?:og:description|description)["']\s+content=["']([^"']*?)["']/i)
+          ?? html.match(/content=["']([^"']*?)["']\s+(?:name|property)=["'](?:og:description|description)["']/i);
+        if (descMatch) videoDescription = descMatch[1].replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n)).replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
+
+        // Extract keywords
+        const kwMatch = html.match(/<meta\s+name=["']keywords["']\s+content=["']([^"']*?)["']/i);
+        if (kwMatch) keywords = kwMatch[1];
+      }
+    } catch { /* ignore — oEmbed data is sufficient */ }
+
+    return res.json({
+      title: meta.title ?? "",
+      channelName: meta.author_name ?? "",
+      thumbnail: meta.thumbnail_url ?? "",
+      description: videoDescription,
+      keywords,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch YouTube data" });
+  }
+});
+
 const MARKET_LANGUAGE: Record<string, string> = {
   "Poland": "Polish", "Germany": "German", "France": "French",
   "Italy": "Italian", "Spain": "Spanish", "Netherlands": "Dutch",

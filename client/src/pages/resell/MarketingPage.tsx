@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import {
-  Megaphone, Globe, MapPin, Rocket, Copy, CheckCircle, Loader2,
+  Megaphone, Globe, Rocket, Copy, CheckCircle, Loader2,
   AlertCircle, ChevronRight, BarChart2, Mail, Search, Users,
-  Instagram, Youtube, DollarSign, Calendar, Lightbulb, Target,
+  Youtube, DollarSign, Calendar, Lightbulb, Target, Link, X,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
@@ -100,6 +100,11 @@ export default function MarketingPage() {
     if (t) setMarketType(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
+  const [inputMode, setInputMode] = useState<"manual" | "youtube">("manual");
+  const [ytUrl, setYtUrl] = useState("");
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytMeta, setYtMeta] = useState<{ title: string; channelName: string; thumbnail: string; description: string } | null>(null);
+  const [ytError, setYtError] = useState<string | null>(null);
   const [product, setProduct] = useState("");
   const [category, setCategory] = useState("General");
   const [priceUSD, setPriceUSD] = useState("");
@@ -110,6 +115,23 @@ export default function MarketingPage() {
   const [result, setResult] = useState<Result | null>(null);
   const [activeTab, setActiveTab] = useState("strategia");
   const [copied, setCopied] = useState<Record<string, boolean>>({});
+
+  const fetchYt = async () => {
+    if (!ytUrl.trim()) return;
+    setYtLoading(true); setYtError(null); setYtMeta(null);
+    try {
+      const r = await fetch(`/api/marketing/fetch-yt?url=${encodeURIComponent(ytUrl.trim())}`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Nie udało się pobrać danych z YouTube");
+      setYtMeta(data);
+      // Pre-fill form fields
+      if (data.title) setProduct(data.title.replace(/\s*[-|]\s*YouTube.*$/i, "").trim().slice(0, 120));
+      if (data.description) setDescription(data.description.slice(0, 300));
+    } catch (e: any) {
+      setYtError(e.message);
+    }
+    setYtLoading(false);
+  };
 
   const generate = async () => {
     const key = getAnthropicKey();
@@ -196,12 +218,85 @@ export default function MarketingPage() {
         {!result && (
           <div style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 18, padding: "24px 24px" }}>
 
+            {/* Input mode toggle */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+              {([["manual", "📝", "Wpisz ręcznie"], ["youtube", "▶️", "Link YouTube"]] as const).map(([mode, icon, label]) => (
+                <button key={mode} onClick={() => setInputMode(mode)} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 9,
+                  border: `1px solid ${inputMode === mode ? "rgba(236,72,153,0.5)" : "rgba(255,255,255,0.1)"}`,
+                  background: inputMode === mode ? "rgba(236,72,153,0.12)" : "transparent",
+                  color: inputMode === mode ? "#f9a8d4" : "rgba(255,255,255,0.45)",
+                  fontWeight: inputMode === mode ? 700 : 400, fontSize: 13, cursor: "pointer",
+                }}>
+                  <span>{icon}</span> {label}
+                </button>
+              ))}
+            </div>
+
+            {/* YouTube URL input */}
+            {inputMode === "youtube" && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 10 }}>LINK DO FILMIKU YOUTUBE</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ flex: 1, position: "relative" }}>
+                    <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><Link size={14} color="rgba(255,255,255,0.3)" /></div>
+                    <input
+                      value={ytUrl}
+                      onChange={e => { setYtUrl(e.target.value); setYtMeta(null); setYtError(null); }}
+                      onKeyDown={e => e.key === "Enter" && fetchYt()}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      style={{ ...inp, paddingLeft: 36 }}
+                    />
+                  </div>
+                  <button onClick={fetchYt} disabled={ytLoading || !ytUrl.trim()} style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 9, border: "none",
+                    background: ytUrl.trim() ? "linear-gradient(135deg,#ec4899,#a855f7)" : "rgba(255,255,255,0.08)",
+                    color: ytUrl.trim() ? "#fff" : "rgba(255,255,255,0.3)",
+                    fontWeight: 700, fontSize: 13, cursor: ytUrl.trim() && !ytLoading ? "pointer" : "not-allowed",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {ytLoading ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Youtube size={14} />}
+                    {ytLoading ? "Pobieranie…" : "Pobierz dane"}
+                  </button>
+                </div>
+                {ytError && (
+                  <div style={{ marginTop: 8, color: "#fca5a5", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                    <AlertCircle size={12} /> {ytError}
+                  </div>
+                )}
+
+                {/* Video preview */}
+                {ytMeta && (
+                  <div style={{ marginTop: 14, background: "rgba(236,72,153,0.07)", border: "1px solid rgba(236,72,153,0.25)", borderRadius: 12, padding: "14px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
+                    {ytMeta.thumbnail && (
+                      <div style={{ flexShrink: 0, width: 120, height: 68, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <img src={ytMeta.thumbnail} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="thumbnail" />
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: "#f9a8d4", fontWeight: 700, fontSize: 13, marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ytMeta.title}</div>
+                      {ytMeta.channelName && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginBottom: 6 }}>@{ytMeta.channelName}</div>}
+                      <div style={{ color: "#4ade80", fontSize: 11, display: "flex", alignItems: "center", gap: 5 }}>
+                        <CheckCircle size={11} /> Dane pobrane — formularz wypełniony automatycznie
+                      </div>
+                    </div>
+                    <button onClick={() => { setYtMeta(null); setYtUrl(""); setYtError(null); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: 4, flexShrink: 0 }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Product info */}
             <div style={{ marginBottom: 22 }}>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>PRODUKT</div>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>
+                PRODUKT {inputMode === "youtube" && ytMeta ? <span style={{ color: "#4ade80", fontWeight: 400 }}>· prefilled z YouTube</span> : ""}
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                 <div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 5 }}>NAZWA PRODUKTU *</div>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 5 }}>NAZWA PRODUKTU / TEMAT *</div>
                   <input value={product} onChange={e => setProduct(e.target.value)} placeholder="np. Wiertarka Bosch 18V" style={inp} />
                 </div>
                 <div>
@@ -215,7 +310,7 @@ export default function MarketingPage() {
                   </select>
                 </div>
                 <div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 5 }}>KRÓTKI OPIS (opcjonalnie)</div>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 5 }}>OPIS / KONTEKST</div>
                   <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Stan, kolor, cechy szczególne..." style={inp} />
                 </div>
               </div>
