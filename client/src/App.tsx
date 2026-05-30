@@ -56,8 +56,7 @@ import RecurringPayments from "@/pages/RecurringPayments";
 import SavingsGoals from "@/pages/SavingsGoals";
 import KYCVerification from "@/pages/KYCVerification";
 import ReferralProgram from "@/pages/ReferralProgram";
-import GlobalSearch from "@/pages/GlobalSearch";
-import PublicProfile from "@/pages/PublicProfile";
+import LoanFlow from "@/pages/LoanFlow";
 import AIContracts from "@/pages/AIContracts";
 
 function AuthSplash() {
@@ -115,14 +114,14 @@ function Router() {
 
   if (!isAuthenticated) {
     return (
-      <div className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-hidden flex flex-col transition-colors duration-500">
+      <div data-scroll-root className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-x-hidden overflow-y-auto flex flex-col transition-colors duration-500">
         <Auth />
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-hidden flex flex-col transition-colors duration-500">
+    <div data-scroll-root className="w-full max-w-md mx-auto h-[100dvh] max-h-[100dvh] bg-background relative sm:shadow-2xl sm:border-x border-border/40 overflow-x-hidden overflow-y-auto flex flex-col transition-colors duration-500">
       <Switch>
         <Route path="/auth" component={() => { useEffect(() => setLocation("/"), []); return null; }} />
         <Route path="/" component={Dashboard} />
@@ -151,6 +150,7 @@ function Router() {
         <Route path="/users" component={UserDirectory} />
         {isEnabled("admin") && <Route path="/admin" component={AdminDashboard} />}
         <Route path="/wallet/top-up" component={WalletTopUp} />
+        <Route path="/transfer/loan" component={LoanFlow} />
         <Route path="/agreements" component={Agreements} />
         <Route path="/agreements/new" component={AgreementNew} />
         <Route path="/agreements/:id" component={AgreementDetail} />
@@ -162,8 +162,6 @@ function Router() {
         <Route path="/referral" component={ReferralProgram} />
         <Route path="/verify-email" component={VerifyEmail} />
         <Route path="/ai-contracts" component={AIContracts} />
-        <Route path="/search" component={GlobalSearch} />
-        <Route path="/u/:handle" component={PublicProfile} />
         <Route component={NotFound} />
       </Switch>
       <BottomNav />
@@ -271,7 +269,7 @@ function AppContentInner() {
 
 function AppContent() {
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-background flex justify-center w-full font-sans text-foreground selection:bg-primary/20 transition-colors duration-500">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-x-hidden bg-background flex justify-center w-full font-sans text-foreground selection:bg-primary/20 transition-colors duration-500">
       <AppContentInner />
     </div>
   );
