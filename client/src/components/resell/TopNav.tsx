@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp,
   Camera, ListTodo, Search, Rocket, Bell, Copy, Flame, LineChart,
-  Truck, Crosshair,
+  Truck, Crosshair, Megaphone,
 } from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/resell/saved",        label: "Pipeline",    icon: ListTodo },
   { href: "/resell/pnl",          label: "P&L",         icon: LineChart },
   { href: "/resell/alerts",       label: "Alerty",      icon: Bell, badge: true },
+  { href: "/resell/marketing",    label: "Marketing",   icon: Megaphone },
   { href: "/resell/trends",       label: "Trendy",      icon: Flame },
   { href: "/resell/competitors",  label: "Rywale",      icon: Crosshair },
   { href: "/resell/compare",      label: "Porównaj",    icon: BarChart2 },

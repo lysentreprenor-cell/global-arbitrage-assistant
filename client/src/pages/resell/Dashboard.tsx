@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, TrendingUp, Zap, RefreshCw, Star,
   ExternalLink, Boxes, AlertCircle, X, PlusCircle, Check, BookmarkPlus,
-  ArrowRight, Package, ShieldCheck, ShieldAlert, Clock,
+  ArrowRight, Package, ShieldCheck, ShieldAlert, Clock, Megaphone, ChevronRight,
 } from "lucide-react";
 import { addToPipeline, loadPipeline } from "@/lib/pipeline";
 import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib/apiKeys";
@@ -83,6 +83,83 @@ const PLATFORM_COLOR: Record<string, { bg: string; border: string; text: string 
 function platformStyle(name: string) {
   const key = Object.keys(PLATFORM_COLOR).find(k => name.includes(k)) ?? "default";
   return PLATFORM_COLOR[key];
+}
+
+const QUICK_MARKETS = [
+  { label: "🇵🇱 Polska", value: "Poland" },
+  { label: "🇩🇪 Niemcy", value: "Germany" },
+  { label: "🇺🇸 USA", value: "USA" },
+  { label: "🇬🇧 UK", value: "UK" },
+  { label: "🌍 Europa", value: "Europe", type: "continent" as const },
+  { label: "🌐 Świat", value: "Worldwide", type: "world" as const },
+];
+
+function MarketingLauncher({ opportunities, onNavigate }: { opportunities: Opportunity[]; onNavigate: (p: string) => void }) {
+  const [mkProduct, setMkProduct] = useState("");
+  const [mkMarket, setMkMarket] = useState("Poland");
+  const [mkType, setMkType] = useState<"country" | "continent" | "world">("country");
+
+  const launch = () => {
+    const params = new URLSearchParams({ product: mkProduct, market: mkMarket, type: mkType });
+    onNavigate(`/resell/marketing?${params.toString()}`);
+  };
+
+  const topProduct = opportunities.length > 0 ? opportunities[0].name : "";
+
+  return (
+    <div style={{
+      background: "linear-gradient(135deg, rgba(236,72,153,0.08), rgba(168,85,247,0.06), rgba(99,102,241,0.04))",
+      border: "1px solid rgba(168,85,247,0.25)",
+      borderRadius: 16, padding: "18px 20px", marginBottom: 20,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#ec4899,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 14px rgba(168,85,247,0.35)" }}>
+          <Megaphone size={17} color="#fff" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>Marketing AI</div>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Kampania dla dowolnego produktu — kraj, kontynent lub cały świat</div>
+        </div>
+        <button onClick={() => onNavigate("/resell/marketing")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.3)", background: "transparent", color: "#c4b5fd", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+          Pełne narzędzie <ChevronRight size={12} />
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          value={mkProduct}
+          onChange={e => setMkProduct(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && mkProduct.trim() && launch()}
+          placeholder={topProduct ? `np. ${topProduct.split(" ").slice(0, 3).join(" ")}` : "Nazwa produktu…"}
+          style={{ flex: "1 1 200px", minWidth: 160, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, color: "#fff", fontSize: 13, padding: "9px 12px", outline: "none" }}
+        />
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {QUICK_MARKETS.map(m => (
+            <button key={m.value} onClick={() => { setMkMarket(m.value); setMkType(m.type ?? "country"); }} style={{
+              padding: "7px 11px", borderRadius: 8, fontSize: 11,
+              border: `1px solid ${mkMarket === m.value ? "rgba(236,72,153,0.5)" : "rgba(255,255,255,0.09)"}`,
+              background: mkMarket === m.value ? "rgba(236,72,153,0.15)" : "rgba(255,255,255,0.03)",
+              color: mkMarket === m.value ? "#f9a8d4" : "rgba(255,255,255,0.45)",
+              cursor: "pointer", fontWeight: mkMarket === m.value ? 700 : 400,
+            }}>{m.label}</button>
+          ))}
+        </div>
+        <button
+          onClick={launch}
+          disabled={!mkProduct.trim()}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "9px 18px", borderRadius: 9, border: "none",
+            background: mkProduct.trim() ? "linear-gradient(135deg,#ec4899,#a855f7)" : "rgba(168,85,247,0.15)",
+            color: mkProduct.trim() ? "#fff" : "rgba(255,255,255,0.3)",
+            fontWeight: 800, fontSize: 13, cursor: mkProduct.trim() ? "pointer" : "not-allowed",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Megaphone size={14} /> Generuj <ChevronRight size={13} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -372,6 +449,9 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {/* ── Marketing AI launcher ── */}
+        <MarketingLauncher opportunities={opportunities} onNavigate={setLocation} />
 
         {/* ── Stats row ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 22 }}>

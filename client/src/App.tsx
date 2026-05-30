@@ -22,6 +22,7 @@ import PhotoListingPage from "@/pages/resell/PhotoListingPage";
 import AlertsPage from "@/pages/resell/AlertsPage";
 import QuickListPage from "@/pages/resell/QuickListPage";
 import TrendsPage from "@/pages/resell/TrendsPage";
+import MarketingPage from "@/pages/resell/MarketingPage";
 import PLDashboard from "@/pages/resell/PLDashboard";
 import SuppliersPage from "@/pages/resell/SuppliersPage";
 import CompetitorTracker from "@/pages/resell/CompetitorTracker";
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/resell/pnl" component={PLDashboard} />
         <Route path="/resell/suppliers" component={SuppliersPage} />
         <Route path="/resell/competitors" component={CompetitorTracker} />
+        <Route path="/resell/marketing" component={MarketingPage} />
       </Switch>
       <Toaster />
     </QueryClientProvider>
