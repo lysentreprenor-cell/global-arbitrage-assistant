@@ -3,11 +3,11 @@ import {
   Megaphone, Globe, Rocket, Copy, CheckCircle, Loader2,
   AlertCircle, ChevronRight, BarChart2, Mail, Search, Users,
   Youtube, DollarSign, Calendar, Lightbulb, Target, Link, X,
-  MessageSquare, ThumbsUp, Send,
+  MessageSquare, ThumbsUp, Send, Video, Image, Download, Sparkles,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
-import { getAnthropicKey, getYouTubeKey } from "@/lib/apiKeys";
+import { getAnthropicKey, getYouTubeKey, getGeminiKey } from "@/lib/apiKeys";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const COUNTRIES = [
@@ -112,6 +112,18 @@ export default function MarketingPage() {
   const [commentKit, setCommentKit] = useState<any>(null);
   const [commentKitLoading, setCommentKitLoading] = useState(false);
   const [commentKitError, setCommentKitError] = useState<string | null>(null);
+  // Wideo AI
+  const [imgPrompt, setImgPrompt] = useState("");
+  const [genImgLoading, setGenImgLoading] = useState(false);
+  const [genImgResult, setGenImgResult] = useState<string | null>(null);
+  const [genImgError, setGenImgError] = useState<string | null>(null);
+  const [vidPrompt, setVidPrompt] = useState("");
+  const [vidLoading, setVidLoading] = useState(false);
+  const [vidOpName, setVidOpName] = useState<string | null>(null);
+  const [vidModel, setVidModel] = useState<string | null>(null);
+  const [vidResult, setVidResult] = useState<{ uri: string | null; b64: string | null } | null>(null);
+  const [vidError, setVidError] = useState<string | null>(null);
+  const [vidProgress, setVidProgress] = useState(0);
   const [product, setProduct] = useState("");
   const [category, setCategory] = useState("General");
   const [priceUSD, setPriceUSD] = useState("");
@@ -160,6 +172,78 @@ export default function MarketingPage() {
     setRealCommentsLoading(false);
   };
 
+  const buildDefaultImgPrompt = () => result
+    ? `Professional marketing photo for "${result.meta.product}", ${result.meta.campaignType} campaign targeting ${result.meta.targetMarket}. High quality commercial photography, clean background, product showcase style.`
+    : "";
+
+  const buildDefaultVidPrompt = () => result
+    ? `${result.campaign.social?.tiktok?.hook ?? ""} ${result.campaign.social?.tiktok?.script?.slice(0, 200) ?? ""}. Short 8-second product advertisement for "${result.meta.product}", targeting ${result.meta.targetMarket}. Dynamic, modern, professional.`.trim()
+    : "";
+
+  const genImage = async () => {
+    const key = getGeminiKey();
+    if (!key) { setGenImgError("Dodaj Gemini API key w ⚙ API"); return; }
+    const prompt = imgPrompt || buildDefaultImgPrompt();
+    if (!prompt) return;
+    setGenImgLoading(true); setGenImgError(null); setGenImgResult(null);
+    try {
+      const r = await fetch("/api/marketing/gen-image", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt, geminiKey: key }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania grafiki");
+      setGenImgResult(data.image);
+      if (!imgPrompt) setImgPrompt(prompt);
+    } catch (e: any) { setGenImgError(e.message); }
+    setGenImgLoading(false);
+  };
+
+  const startVideo = async () => {
+    const key = getGeminiKey();
+    if (!key) { setVidError("Dodaj Gemini API key w ⚙ API"); return; }
+    const prompt = vidPrompt || buildDefaultVidPrompt();
+    if (!prompt) return;
+    setVidLoading(true); setVidError(null); setVidOpName(null); setVidResult(null); setVidProgress(5);
+    if (!vidPrompt) setVidPrompt(prompt);
+    try {
+      const r = await fetch("/api/marketing/gen-video", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt, geminiKey: key, withAudio: true }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd uruchamiania Veo");
+      setVidOpName(data.operationName);
+      setVidModel(data.model);
+      setVidProgress(15);
+      // Start polling
+      pollVideo(data.operationName, key, 15);
+    } catch (e: any) { setVidError(e.message); setVidLoading(false); }
+  };
+
+  const pollVideo = async (opName: string, key: string, progress: number) => {
+    const maxAttempts = 36; // ~3 minutes
+    let attempts = 0;
+    const tick = async () => {
+      attempts++;
+      try {
+        const r = await fetch(`/api/marketing/video-status?op=${encodeURIComponent(opName)}&geminiKey=${encodeURIComponent(key)}`);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Błąd sprawdzania statusu");
+        if (data.done) {
+          setVidResult({ uri: data.videoUri, b64: data.videoB64 });
+          setVidLoading(false); setVidProgress(100);
+          return;
+        }
+        const nextProgress = Math.min(90, progress + (80 / maxAttempts));
+        setVidProgress(Math.round(nextProgress));
+        if (attempts < maxAttempts) setTimeout(tick, 5000);
+        else { setVidError("Timeout — wideo trwa zbyt długo. Spróbuj ponownie."); setVidLoading(false); }
+      } catch (e: any) { setVidError(e.message); setVidLoading(false); }
+    };
+    setTimeout(tick, 5000);
+  };
+
   const genComments = async () => {
     const key = getAnthropicKey();
     if (!key) { setCommentKitError("Dodaj klucz Anthropic API w ⚙ API"); return; }
@@ -189,6 +273,7 @@ export default function MarketingPage() {
     if (!key) { setError("Dodaj klucz Anthropic API w ⚙ API"); return; }
     if (!product.trim()) { setError("Wpisz nazwę produktu"); return; }
     setLoading(true); setError(null); setResult(null);
+    setGenImgResult(null); setImgPrompt(""); setVidResult(null); setVidPrompt(""); setVidOpName(null);
     try {
       const r = await fetch("/api/marketing/generate", {
         method: "POST",
@@ -249,6 +334,7 @@ export default function MarketingPage() {
     { id: "seo", label: "SEO", icon: <Search size={13} /> },
     { id: "plan", label: "Plan kampanii", icon: <Calendar size={13} /> },
     { id: "comments", label: "Komentarze YT/TT", icon: <MessageSquare size={13} /> },
+    { id: "video", label: "Wideo AI", icon: <Video size={13} /> },
   ];
 
   return (
@@ -1184,6 +1270,137 @@ export default function MarketingPage() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+            {/* ── TAB: Wideo AI ── */}
+            {activeTab === "video" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+                {/* Imagen 3 — grafika */}
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "20px 22px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#4285f4,#34a853)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Image size={18} color="#fff" />
+                    </div>
+                    <div>
+                      <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Imagen 3 — Grafika reklamowa</div>
+                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Google AI · wymaga Gemini API key w ⚙ API</div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, marginBottom: 6 }}>PROMPT (edytuj lub zostaw domyślny)</div>
+                    <textarea
+                      value={imgPrompt || buildDefaultImgPrompt()}
+                      onChange={e => setImgPrompt(e.target.value)}
+                      rows={3}
+                      style={{ ...inp, resize: "vertical" } as any}
+                      placeholder="Opis grafiki reklamowej..."
+                    />
+                  </div>
+                  {genImgError && <div style={{ color: "#fca5a5", fontSize: 12, marginBottom: 10 }}>⚠ {genImgError}</div>}
+                  <button onClick={genImage} disabled={genImgLoading} style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "none",
+                    background: genImgLoading ? "rgba(66,133,244,0.2)" : "linear-gradient(135deg,#4285f4,#34a853)",
+                    color: genImgLoading ? "rgba(255,255,255,0.4)" : "#fff",
+                    fontWeight: 700, fontSize: 13, cursor: genImgLoading ? "not-allowed" : "pointer",
+                    boxShadow: genImgLoading ? "none" : "0 4px 14px rgba(66,133,244,0.3)",
+                  }}>
+                    {genImgLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><Sparkles size={14} /> Generuj grafikę</>}
+                  </button>
+                  {genImgResult && (
+                    <div style={{ marginTop: 16 }}>
+                      <img src={genImgResult} alt="Marketing graphic" style={{ width: "100%", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)" }} />
+                      <a href={genImgResult} download="marketing-image.png" style={{
+                        display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10,
+                        padding: "8px 16px", borderRadius: 8, background: "rgba(74,222,128,0.12)",
+                        border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", fontSize: 12, textDecoration: "none", fontWeight: 600,
+                      }}>
+                        <Download size={12} /> Pobierz PNG
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Veo 3 — filmik */}
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "20px 22px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#ea4335,#fbbc04)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Video size={18} color="#fff" />
+                    </div>
+                    <div>
+                      <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Veo 3 — Filmik reklamowy z dźwiękiem</div>
+                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Google DeepMind · 8 sekund · lektor + muzyka AI · wymaga dostępu do Veo</div>
+                    </div>
+                    {vidModel && <span style={{ background: "rgba(234,67,53,0.15)", border: "1px solid rgba(234,67,53,0.3)", borderRadius: 99, padding: "2px 8px", color: "#fca5a5", fontSize: 10 }}>{vidModel}</span>}
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, marginBottom: 6 }}>PROMPT WIDEO</div>
+                    <textarea
+                      value={vidPrompt || buildDefaultVidPrompt()}
+                      onChange={e => setVidPrompt(e.target.value)}
+                      rows={3}
+                      style={{ ...inp, resize: "vertical" } as any}
+                      placeholder="Opis filmiku reklamowego..."
+                    />
+                  </div>
+                  {/* Progress bar */}
+                  {vidLoading && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Renderowanie wideo… (ok. 2-3 min)</span>
+                        <span style={{ color: "#f59e0b", fontSize: 11, fontWeight: 700 }}>{vidProgress}%</span>
+                      </div>
+                      <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${vidProgress}%`, background: "linear-gradient(90deg,#ea4335,#fbbc04)", borderRadius: 99, transition: "width 0.5s ease" }} />
+                      </div>
+                    </div>
+                  )}
+                  {vidError && <div style={{ color: "#fca5a5", fontSize: 12, marginBottom: 10 }}>⚠ {vidError}</div>}
+                  {!vidResult && (
+                    <button onClick={startVideo} disabled={vidLoading} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "none",
+                      background: vidLoading ? "rgba(234,67,53,0.15)" : "linear-gradient(135deg,#ea4335,#fbbc04)",
+                      color: vidLoading ? "rgba(255,255,255,0.4)" : "#fff",
+                      fontWeight: 700, fontSize: 13, cursor: vidLoading ? "not-allowed" : "pointer",
+                      boxShadow: vidLoading ? "none" : "0 4px 14px rgba(234,67,53,0.3)",
+                    }}>
+                      {vidLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Renderuję filmik…</> : <><Video size={14} /> Generuj filmik Veo</>}
+                    </button>
+                  )}
+                  {vidResult && (
+                    <div style={{ marginTop: 16 }}>
+                      {vidResult.uri && (
+                        <video controls style={{ width: "100%", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)" }}>
+                          <source src={vidResult.uri} type="video/mp4" />
+                        </video>
+                      )}
+                      {vidResult.b64 && !vidResult.uri && (
+                        <video controls style={{ width: "100%", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)" }}>
+                          <source src={`data:video/mp4;base64,${vidResult.b64}`} type="video/mp4" />
+                        </video>
+                      )}
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        {vidResult.uri && (
+                          <a href={vidResult.uri} download="marketing-video.mp4" style={{
+                            display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8,
+                            background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)",
+                            color: "#4ade80", fontSize: 12, textDecoration: "none", fontWeight: 600,
+                          }}>
+                            <Download size={12} /> Pobierz MP4
+                          </a>
+                        )}
+                        <button onClick={() => { setVidResult(null); setVidOpName(null); setVidProgress(0); }} style={{
+                          display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8,
+                          background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
+                          color: "rgba(255,255,255,0.35)", fontSize: 12, cursor: "pointer",
+                        }}>↺ Nowy filmik</button>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ marginTop: 14, background: "rgba(251,188,4,0.06)", borderRadius: 9, padding: "10px 14px", color: "rgba(251,188,4,0.7)", fontSize: 11 }}>
+                    💡 Veo 3 wymaga dostępu preview w Google AI Studio. Jeśli nie masz dostępu — automatycznie używamy Veo 2 (bez audio).
+                  </div>
+                </div>
               </div>
             )}
           </div>

@@ -18,6 +18,10 @@ export function getEtsyKey(): string {
   return getApiKeys().etsy?.apiKey ?? "";
 }
 
+export function getGeminiKey(): string {
+  return getApiKeys().gemini?.apiKey ?? "";
+}
+
 export function getYouTubeKey(): string {
   return getApiKeys().youtube?.apiKey ?? "";
 }

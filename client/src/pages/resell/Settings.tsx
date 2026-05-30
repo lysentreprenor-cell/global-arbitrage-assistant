@@ -23,6 +23,16 @@ const PLATFORM_APIS: ApiEntry[] = [
     fields: [{ key: "apiKey", label: "ANTHROPIC_API_KEY", placeholder: "sk-ant-..." }],
   },
   {
+    id: "gemini",
+    name: "Google Gemini AI",
+    logo: "✨",
+    color: "#4285f4",
+    description: "Opcjonalne — generowanie filmików reklamowych (Veo 3) i grafik (Imagen 3). Darmowy tier na start. Klucz w Google AI Studio: aistudio.google.com",
+    docsUrl: "https://aistudio.google.com/app/apikey",
+    keyLabel: "API Key",
+    fields: [{ key: "apiKey", label: "GEMINI_API_KEY", placeholder: "AIza..." }],
+  },
+  {
     id: "youtube",
     name: "YouTube Data API v3",
     logo: "▶️",

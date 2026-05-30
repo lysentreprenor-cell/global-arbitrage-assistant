@@ -84,6 +84,108 @@ const CONTINENT_CONTEXT: Record<string, string> = {
   "Worldwide": "Global campaign — adapt for top markets simultaneously: US (English), Germany (German), Poland (Polish), Japan (Japanese). Focus on universal value propositions.",
 };
 
+// ── Imagen 3 — marketing image generation ────────────────────────────────────
+router.post("/gen-image", async (req: Request, res: Response) => {
+  const { prompt, geminiKey } = req.body;
+  const key: string = geminiKey || process.env.GEMINI_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Gemini API key required" });
+  if (!prompt) return res.status(400).json({ error: "prompt required" });
+
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${key}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: { sampleCount: 1, aspectRatio: "16:9" },
+        }),
+      }
+    );
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Imagen API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const b64 = data.predictions?.[0]?.bytesBase64Encoded;
+    if (!b64) return res.status(502).json({ error: "No image in response" });
+    return res.json({ image: `data:image/png;base64,${b64}` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Image generation failed" });
+  }
+});
+
+// ── Veo — start video generation ─────────────────────────────────────────────
+router.post("/gen-video", async (req: Request, res: Response) => {
+  const { prompt, geminiKey, withAudio = true } = req.body;
+  const key: string = geminiKey || process.env.GEMINI_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Gemini API key required" });
+  if (!prompt) return res.status(400).json({ error: "prompt required" });
+
+  // Try Veo 3 (with audio) first, fall back to Veo 2
+  const models = withAudio
+    ? ["veo-3.0-generate-preview", "veo-2.0-generate-001"]
+    : ["veo-2.0-generate-001"];
+
+  for (const model of models) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateVideos?key=${key}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            prompt: { text: prompt },
+            generationConfig: {
+              durationSeconds: 8,
+              aspectRatio: "16:9",
+              ...(withAudio && model.includes("veo-3") ? { generateAudio: true } : {}),
+            },
+          }),
+        }
+      );
+      if (r.status === 404 || r.status === 400) continue; // model not available, try next
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({})) as any;
+        return res.status(502).json({ error: err.error?.message || `Veo API error ${r.status}` });
+      }
+      const data = await r.json() as any;
+      return res.json({ operationName: data.name, model });
+    } catch { continue; }
+  }
+  return res.status(502).json({ error: "Veo model not available for your API key. Check Google AI Studio for Veo access." });
+});
+
+// ── Veo — poll video status ───────────────────────────────────────────────────
+router.get("/video-status", async (req: Request, res: Response) => {
+  const operationName = String(req.query.op ?? "").trim();
+  const key: string = String(req.query.geminiKey ?? "").trim();
+  if (!operationName || !key) return res.status(400).json({ error: "op and geminiKey required" });
+
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${key}`
+    );
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || "Status check failed" });
+    }
+    const data = await r.json() as any;
+    if (!data.done) return res.json({ done: false });
+
+    const samples = data.response?.generateVideoResponse?.generatedSamples ?? [];
+    const first = samples[0]?.video ?? {};
+    return res.json({
+      done: true,
+      videoUri: first.uri ?? null,
+      videoB64: first.encodedVideo ?? null,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Status check failed" });
+  }
+});
+
 // ── YouTube comments fetch (requires YouTube Data API v3 key) ────────────────
 router.get("/yt-comments", async (req: Request, res: Response) => {
   const videoId = String(req.query.videoId ?? "").trim();
