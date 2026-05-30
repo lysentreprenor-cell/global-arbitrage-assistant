@@ -328,6 +328,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     : "";
 
   const budgetLabels: Record<string, string> = {
+    free: "ZERO paid budget — 100% organic and free strategies only. Focus exclusively on: strategic comment marketing (YouTube, TikTok, Facebook groups, Reddit, forums), SEO content, free social media posting, community engagement, influencer barter/gifting (no cash), email list building with free tools, Quora/Reddit answers, Pinterest organic, Google My Business. Do NOT recommend any paid ads. All budget fields should show 0. Provide a detailed free-only action plan.",
     auto: "flexible — recommend what's appropriate for this product and market",
     micro: "very tight, under $300/month — focus on free/organic + minimal paid",
     small: "$300–1,000/month — lean paid social only, no Google Ads yet",

@@ -672,7 +672,8 @@ export default function MarketingPage() {
               <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>MIESIĘCZNY BUDŻET KAMPANII</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {[
-                  { value: "auto",   label: "🤖 AI zdecyduje",   desc: "AI dopasuje do rynku" },
+                  { value: "free",   label: "🆓 Darmowy",         desc: "Zero budżetu reklamowego" },
+                  { value: "auto",   label: "🤖 AI zdecyduje",    desc: "AI dopasuje do rynku" },
                   { value: "micro",  label: "💸 Do 300 USD",      desc: "Mikro / testowy" },
                   { value: "small",  label: "💰 300–1 000 USD",   desc: "Mały biznes" },
                   { value: "medium", label: "🚀 1 000–5 000 USD", desc: "Rosnący sklep" },
