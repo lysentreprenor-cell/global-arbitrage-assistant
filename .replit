@@ -1,4 +1,4 @@
-run = "npm run build && npm start"
+run = "NODE_ENV=production npx tsx server/index.ts"
 entrypoint = "server/index.ts"
 modules = ["nodejs-22"]
 
@@ -39,5 +39,5 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run build && npm start"
+args = "NODE_ENV=production npx tsx server/index.ts"
 waitForPort = 3000
