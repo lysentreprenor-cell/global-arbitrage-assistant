@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import {
   Sparkles, ArrowDownLeft, MoreHorizontal,
   ArrowUpRight, Eye, EyeOff, ArrowLeftRight, Loader2,
-  Send, FileText, Plus, ChevronRight,
+  Send, FileText, Plus, ChevronRight, Clock, Target, BarChart2, TrendingDown, TrendingUp,
 } from "lucide-react";
 import { useAppStore, CurrencyCode, CURRENCY_SYMBOLS, WALLET_FLAGS, formatMoney, formatMoneyCompact, getCurrencyName, CORE_WALLET_CURRENCIES } from "@/lib/store";
 import { luxuryTheme, luxuryGradients } from "@/theme/luxuryTheme";
@@ -12,7 +12,6 @@ import { useFeatures } from "@/hooks/useFeatures";
 import { type FeatureKey } from "@/lib/features";
 import React, { useState, useEffect, useMemo } from "react";
 import { FloatingTopPanel } from "@/components/FloatingTopPanel";
-import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 
 const c = luxuryTheme.colors;
 const r = luxuryTheme.radius;
@@ -34,34 +33,70 @@ function CardSheen({ radius = 28, color = "rgba(255,255,255,0.06)" }: { radius?:
   );
 }
 
-type TileKey = "FORECAST" | "REQUEST" | "INVEST" | "CARDS";
+type TileKey = "FORECAST" | "REQUEST" | "INVEST" | "CARDS" | "HISTORY" | "GOALS" | "BUDGET" | "EXCHANGE";
 
 const TILE: Record<TileKey, { bg: string; iconColor: string; shadow: string; border: string }> = {
   FORECAST: {
     bg:        "linear-gradient(160deg, rgba(140,10,55,0.72) 0%, rgba(70,4,26,0.90) 100%)",
-    iconColor: "#ff5fa0",
-    border:    "rgba(220,30,110,0.22)",
+    iconColor: "#ff5fa0", border: "rgba(220,30,110,0.22)",
     shadow:    "0 6px 18px rgba(180,10,80,0.22), inset 0 1.5px 0 rgba(255,150,200,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   REQUEST: {
     bg:        "linear-gradient(160deg, rgba(140,10,55,0.72) 0%, rgba(70,4,26,0.90) 100%)",
-    iconColor: "#ff5fa0",
-    border:    "rgba(220,30,110,0.22)",
+    iconColor: "#ff5fa0", border: "rgba(220,30,110,0.22)",
     shadow:    "0 6px 18px rgba(180,10,80,0.22), inset 0 1.5px 0 rgba(255,150,200,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   INVEST: {
     bg:        "linear-gradient(160deg, rgba(10,80,44,0.80) 0%, rgba(4,34,18,0.95) 100%)",
-    iconColor: "#24d487",
-    border:    "rgba(36,212,135,0.22)",
+    iconColor: "#24d487", border: "rgba(36,212,135,0.22)",
     shadow:    "0 6px 18px rgba(20,180,90,0.18), inset 0 1.5px 0 rgba(100,255,180,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
   CARDS: {
     bg:        "linear-gradient(160deg, rgba(18,42,100,0.72) 0%, rgba(8,20,52,0.90) 100%)",
-    iconColor: "#a0bcff",
-    border:    "rgba(100,150,255,0.20)",
+    iconColor: "#a0bcff", border: "rgba(100,150,255,0.20)",
     shadow:    "0 6px 18px rgba(60,100,255,0.15), inset 0 1.5px 0 rgba(160,200,255,0.10), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
   },
+  HISTORY: {
+    bg:        "linear-gradient(160deg, rgba(80,30,120,0.72) 0%, rgba(40,10,70,0.90) 100%)",
+    iconColor: "#c084fc", border: "rgba(147,51,234,0.28)",
+    shadow:    "0 6px 18px rgba(120,40,200,0.22), inset 0 1.5px 0 rgba(200,150,255,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
+  GOALS: {
+    bg:        "linear-gradient(160deg, rgba(120,80,0,0.72) 0%, rgba(60,36,0,0.90) 100%)",
+    iconColor: "#fbbf24", border: "rgba(212,160,32,0.30)",
+    shadow:    "0 6px 18px rgba(180,130,0,0.22), inset 0 1.5px 0 rgba(255,210,80,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
+  BUDGET: {
+    bg:        "linear-gradient(160deg, rgba(10,80,44,0.80) 0%, rgba(4,34,18,0.95) 100%)",
+    iconColor: "#34d399", border: "rgba(36,212,135,0.22)",
+    shadow:    "0 6px 18px rgba(20,180,90,0.18), inset 0 1.5px 0 rgba(100,255,180,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
+  EXCHANGE: {
+    bg:        "linear-gradient(160deg, rgba(18,42,100,0.72) 0%, rgba(8,20,52,0.90) 100%)",
+    iconColor: "#60a5fa", border: "rgba(96,165,250,0.25)",
+    shadow:    "0 6px 18px rgba(60,120,255,0.18), inset 0 1.5px 0 rgba(150,200,255,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
+  },
 };
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  food:"🍕", jedzenie:"🍕", restauracja:"🍕", restaurant:"🍕",
+  transport:"🚗", uber:"🚗", taxi:"🚗",
+  shopping:"🛍️", zakupy:"🛍️",
+  contract:"📋", umowa:"📋",
+  exchange:"💱", wymiana:"💱",
+  health:"💊", zdrowie:"💊", apteka:"💊",
+  entertainment:"🎬", rozrywka:"🎬",
+  travel:"✈️", podróż:"✈️",
+  salary:"💰", wynagrodzenie:"💰", przelew:"💸",
+  housing:"🏠", mieszkanie:"🏠", czynsz:"🏠",
+  sport:"🏋️", fitness:"🏋️",
+  education:"📚", edukacja:"📚",
+};
+function getCatEmoji(category?: string): string {
+  if (!category) return "💳";
+  const key = category.toLowerCase().trim();
+  return CATEGORY_EMOJI[key] ?? "💳";
+}
 
 
 
@@ -105,7 +140,8 @@ export default function Dashboard() {
       const alerts: CurrencyAlert[] = JSON.parse(stored);
       alerts.forEach(alert => {
         if (alert.triggered) return;
-        const rate = fxRates[`${alert.from}_${alert.to}`] || (fxRates[alert.from] && fxRates[alert.to] ? fxRates[alert.to] / fxRates[alert.from] : null);
+        const rates = fxRates as Record<string, number>;
+        const rate = rates[`${alert.from}_${alert.to}`] || (rates[alert.from] && rates[alert.to] ? rates[alert.to] / rates[alert.from] : null);
         if (!rate) return;
         const triggered = alert.condition === "above" ? rate > alert.threshold : rate < alert.threshold;
         if (triggered) {
@@ -117,16 +153,6 @@ export default function Dashboard() {
     } catch {}
   }, [fxRates]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [cardStats, setCardStats] = useState<{ total: number; active: number } | null>(null);
-  useEffect(() => {
-    fetch("/api/cards")
-      .then(r => r.ok ? r.json() : [])
-      .then((cards: { status: string }[]) => {
-        const active = cards.filter(c => c.status === "active").length;
-        setCardStats({ total: cards.length, active });
-      })
-      .catch(() => {});
-  }, []);
 
   const [contractCount, setContractCount] = useState<{ active: number; total: number; needsAction: number; overdue: number }>({ active: 0, total: 0, needsAction: 0, overdue: 0 });
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<Array<{ id: string; title: string; deadline: string; daysLeft: number }>>([]);
@@ -236,30 +262,36 @@ export default function Dashboard() {
 
   const tileConfig = TILE;
 
-  const savingsGoals = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("finlys_goals") || "[]").slice(0, 3); }
-    catch { return []; }
-  }, []);
-
-  const currencyChartData = useMemo(() => {
-    if (!fxRates) return [];
-    const fromRate = fxRates[exFrom] || 1;
-    const toRate = fxRates[exTo] || 1;
-    const currentRate = toRate / fromRate;
-    const seed = exFrom.charCodeAt(0) + exTo.charCodeAt(0);
-    return Array.from({ length: 30 }, (_, i) => {
-      const variation = (Math.sin(i * seed * 0.3) * 0.015 + Math.cos(i * 0.7) * 0.008);
-      return { day: i, rate: parseFloat((currentRate * (1 + variation - 0.01 + i * 0.0003)).toFixed(4)) };
-    });
-  }, [fxRates, exFrom, exTo]);
-
-  type QuickAction = { icon: React.ReactNode; label: TileKey; labelKey: "forecast"|"request"|"invest"|"exchange"|"cards"; feature: FeatureKey; onClick: () => void; testId: string };
+  type QuickAction = { icon: React.ReactNode; label: TileKey; text: string; feature: FeatureKey; onClick: () => void; testId: string };
   const quickActions: QuickAction[] = ([
-    { icon: <Sparkles size={22} />,       label: "FORECAST" as TileKey, labelKey: "forecast", feature: "budget-forecast" as FeatureKey, onClick: () => setLocation("/budget"),                                                   testId: "action-forecast" },
-    { icon: <ArrowDownLeft size={22} />,  label: "REQUEST"  as TileKey, labelKey: "request",  feature: "transfer"        as FeatureKey, onClick: () => setLocation("/transfer?mode=request"),                                    testId: "action-request"  },
-    { icon: <ArrowLeftRight size={22} />, label: "INVEST"   as TileKey, labelKey: "exchange", feature: "transfer"        as FeatureKey, onClick: () => { setShowExchange(s => !s); setExResult(null); setExError(null); },       testId: "action-exchange" },
-    { icon: <MoreHorizontal size={22} />, label: "CARDS"    as TileKey, labelKey: "cards",    feature: "cards"           as FeatureKey, onClick: () => setLocation("/cards"),                                                    testId: "action-cards"    },
+    { icon: <Clock size={22} />,          label: "HISTORY"  as TileKey, text: lang === "pl" ? "HISTORIA" : "HISTORY",  feature: "transfer"        as FeatureKey, onClick: () => setLocation("/history"),                                            testId: "action-history"  },
+    { icon: <Target size={22} />,         label: "GOALS"    as TileKey, text: lang === "pl" ? "CELE"    : "GOALS",    feature: "transfer"        as FeatureKey, onClick: () => setLocation("/savings"),                                            testId: "action-goals"    },
+    { icon: <BarChart2 size={22} />,      label: "BUDGET"   as TileKey, text: lang === "pl" ? "BUDŻET"  : "BUDGET",   feature: "budget-forecast" as FeatureKey, onClick: () => setLocation("/budget"),                                             testId: "action-budget"   },
+    { icon: <ArrowLeftRight size={22} />, label: "EXCHANGE" as TileKey, text: lang === "pl" ? "WYMIANA" : "EXCHANGE", feature: "transfer"        as FeatureKey, onClick: () => { setShowExchange(s => !s); setExResult(null); setExError(null); }, testId: "action-exchange" },
   ] as QuickAction[]).filter(a => isEnabled(a.feature));
+
+  const topCategories = useMemo(() => {
+    const now = new Date();
+    const byCategory: Record<string, number> = {};
+    transactions
+      .filter(tx => tx.amount < 0 && new Date(tx.date).getMonth() === now.getMonth() && new Date(tx.date).getFullYear() === now.getFullYear())
+      .forEach(tx => {
+        const cat = tx.category || "Inne";
+        byCategory[cat] = (byCategory[cat] || 0) + Math.abs(tx.amount);
+      });
+    return Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  }, [transactions]);
+
+  const [topGoal, setTopGoal] = useState<{ emoji: string; name: string; target: number; saved: number; currency: string } | null>(null);
+  useEffect(() => {
+    try {
+      const goals = JSON.parse(localStorage.getItem("finlys_goals") || "[]");
+      const active = goals.filter((g: any) => g.saved < g.target);
+      if (active.length > 0) {
+        setTopGoal(active.sort((a: any, b: any) => (b.saved / b.target) - (a.saved / a.target))[0]);
+      }
+    } catch {}
+  }, []);
 
   const goldStyle: React.CSSProperties = {
     background: th.primaryGradient,
@@ -267,6 +299,12 @@ export default function Dashboard() {
     WebkitTextFillColor: "transparent",
     backgroundClip: "text",
   };
+
+  const hour = new Date().getHours();
+  const greeting = lang === "pl"
+    ? (hour < 12 ? "Dzień dobry" : hour < 18 ? "Dzień dobry" : "Dobry wieczór")
+    : (hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
+  const firstName = user?.name?.split(" ")[0] || "";
 
   const handleExchange = async () => {
     const amt = parseFloat(exAmount);
@@ -322,8 +360,14 @@ export default function Dashboard() {
           }}>
             <CardSheen radius={r.xl} color={th.sheenTop} />
 
+            {firstName && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.42)", letterSpacing: 0.6, marginBottom: 10, position: "relative" }}>
+                {greeting}, {firstName} 👋
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, position: "relative" }}>
-              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 3.6, ...goldStyle }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: th.textMuted, position: "relative" }}>
                 {t.totalWealth}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -372,15 +416,23 @@ export default function Dashboard() {
                 {balanceVisible ? formattedBalance : maskedBalance}
               </div>
               {ratesUpdatedLabel && !ratesUnavailable && (
-                <div style={{ marginTop: 5, fontSize: 11, color: "rgba(255,255,255,0.28)", letterSpacing: 0.8 }}>
-                  Kursy: {ratesUpdatedLabel}
+                <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", letterSpacing: 0.8 }}>
+                    Kursy: {ratesUpdatedLabel}
+                  </span>
+                  <button
+                    onClick={() => setShowAlertModal(true)}
+                    title={lang === "pl" ? "Ustaw alert kursowy" : "Set rate alert"}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1, color: "rgba(255,255,255,0.35)" }}
+                  >🔔</button>
                 </div>
               )}
               <div style={{ position: "absolute", bottom: -10, left: 0, width: "55%", height: 1,
                 background: `linear-gradient(90deg, ${th.glow}, transparent)` }} />
             </div>
 
-            <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ marginTop: 28, display: "flex", flexDirection: "row", gap: 10 }}>
+              {/* Żółty — Dodaj Środki */}
               <button
                 data-testid="btn-add-funds"
                 onClick={() => setLocation("/wallet/top-up")}
@@ -390,8 +442,8 @@ export default function Dashboard() {
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
-                  height: 56, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 14, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
+                  flex: 1, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
                   background: th.primaryGradient,
                   boxShadow: th.primaryBtnShadow,
                   position: "relative", overflow: "hidden",
@@ -404,361 +456,38 @@ export default function Dashboard() {
                 {t.addFunds}
               </button>
 
+              {/* Fiolet→Złoty 3D — Nowa umowa */}
               <button
-                data-testid="btn-transfer"
-                onClick={() => setLocation("/transfer")}
+                data-testid="btn-new-agreement-pill"
+                onClick={() => setLocation("/agreements/new?new=1")}
                 onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
                 onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
                 style={{
-                  height: 56, borderRadius: 999, cursor: "pointer",
-                  fontSize: 14, fontWeight: 700,
-                  color: th.secondaryBtnColor,
-                  letterSpacing: 0.3,
-                  background: th.secondaryBtnBg,
-                  border: `1px solid ${th.secondaryBtnBorder}`,
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.20)",
+                  flex: 1, height: 52, borderRadius: 999, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 800, color: "#000", letterSpacing: 0.3,
+                  background: "linear-gradient(135deg, #1e40af, #3b82f6)",
+                  boxShadow: "inset 0 1.5px 0 rgba(255,255,255,0.30), inset 0 -2px 0 rgba(0,0,0,0.22), 0 3px 0 rgba(14,42,115,0.90), 0 8px 20px rgba(37,99,235,0.45)",
+                  position: "relative", overflow: "hidden",
                   transition: "transform 0.15s ease",
-                }}
-              >
-                {t.transfer}
-              </button>
-            </div>
-
-            {/* ── Umowy AI — green CTA ── */}
-            <button
-              data-testid="btn-ai-contracts"
-              onClick={() => setLocation("/ai-contracts")}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.97)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              style={{
-                marginTop: 10, width: "100%", height: 50,
-                borderRadius: 999, border: "none", cursor: "pointer",
-                fontSize: 14, fontWeight: 800, letterSpacing: 0.3,
-                color: "#0a2016",
-                background: "linear-gradient(135deg, #34d399 0%, #10b981 60%, #059669 100%)",
-                boxShadow: "0 4px 18px rgba(52,211,153,0.38), inset 0 1px 0 rgba(255,255,255,0.25)",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                transition: "transform 0.15s ease",
-                position: "relative", overflow: "hidden",
-              }}
-            >
-              <div style={{
-                position: "absolute", top: 0, left: "20%", right: "20%", height: "45%",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 100%)",
-                borderRadius: "0 0 50% 50%", pointerEvents: "none",
-              }} />
-              <Sparkles size={16} />
-              Umowy AI
-            </button>
-          </div>
-        </div>
-
-        {/* ── Przelewy ── */}
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
-            Przelewy
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div
-              data-testid="btn-hero-send"
-              onClick={() => setLocation("/transfer")}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              style={{
-                borderRadius: r.md, padding: "18px 16px", cursor: "pointer",
-                background: "linear-gradient(150deg, rgba(140,10,55,0.85) 0%, rgba(70,4,26,0.96) 100%)",
-                border: "1px solid rgba(220,30,110,0.30)",
-                boxShadow: "0 8px 24px rgba(180,10,80,0.30), inset 0 1.5px 0 rgba(255,150,200,0.18), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
-                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
-                position: "relative", overflow: "hidden",
-                transition: "transform 0.15s ease",
-              }}
-            >
-              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
-                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: "rgba(255,255,255,0.10)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#ff5fa0",
-                boxShadow: "0 0 14px rgba(255,95,160,0.35)",
-              }}>
-                <Send size={18} />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: 0.2 }}>Wyślij</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2, lineHeight: 1.3 }}>Przelej pieniądze</div>
-              </div>
-            </div>
-
-            <div
-              data-testid="btn-hero-request"
-              onClick={() => setLocation("/transfer?mode=request")}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              style={{
-                borderRadius: r.md, padding: "18px 16px", cursor: "pointer",
-                background: "linear-gradient(150deg, rgba(10,80,44,0.85) 0%, rgba(4,34,18,0.96) 100%)",
-                border: "1px solid rgba(36,212,135,0.25)",
-                boxShadow: "0 8px 24px rgba(20,180,90,0.22), inset 0 1.5px 0 rgba(100,255,180,0.14), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
-                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
-                position: "relative", overflow: "hidden",
-                transition: "transform 0.15s ease",
-              }}
-            >
-              <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
-                borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: "rgba(255,255,255,0.10)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#24d487",
-                boxShadow: "0 0 14px rgba(36,212,135,0.30)",
-              }}>
-                <ArrowDownLeft size={18} />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: 0.2 }}>Poproś</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 2, lineHeight: 1.3 }}>Żądanie przelewu</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Umowy ── */}
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
-            Umowy
-          </div>
-          <div style={{
-            borderRadius: r.lg, padding: "18px 20px",
-            background: "linear-gradient(150deg, rgba(18,42,100,0.80) 0%, rgba(8,20,52,0.95) 100%)",
-            border: "1px solid rgba(100,150,255,0.22)",
-            boxShadow: "0 8px 28px rgba(40,80,220,0.20), inset 0 1.5px 0 rgba(160,200,255,0.12), inset 0 -1.5px 0 rgba(0,0,0,0.40)",
-            position: "relative", overflow: "hidden",
-          }}>
-            <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "30%",
-              background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%)",
-              borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 14,
-                  background: "rgba(100,150,255,0.15)",
-                  border: "1px solid rgba(100,150,255,0.25)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#a0bcff",
-                  boxShadow: "0 0 16px rgba(100,150,255,0.25)",
-                }}>
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>
-                    {contractCount.active > 0
-                      ? `${contractCount.active} aktywn${contractCount.active === 1 ? "a" : contractCount.active < 5 ? "e" : "ych"}`
-                      : "Brak aktywnych"}
-                  </div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 1 }}>
-                    {contractCount.total > 0 ? `${contractCount.total} umów łącznie` : "Stwórz pierwszą umowę"}
-                  </div>
-                </div>
-              </div>
-
-              {contractCount.overdue > 0 ? (
-                <div style={{
-                  padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
-                  color: "#fca5a5",
-                  background: "rgba(220,38,38,0.18)",
-                  border: "1px solid rgba(220,38,38,0.35)",
-                  letterSpacing: 0.6,
-                }}>
-                  ⚠ {contractCount.overdue} PO TERMINIE
-                </div>
-              ) : contractCount.needsAction > 0 ? (
-                <div style={{
-                  padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
-                  color: "#fde68a",
-                  background: "rgba(245,158,11,0.18)",
-                  border: "1px solid rgba(245,158,11,0.35)",
-                  letterSpacing: 0.6,
-                }}>
-                  {contractCount.needsAction} DO ZROBIENIA
-                </div>
-              ) : contractCount.active > 0 ? (
-                <div style={{
-                  padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
-                  color: "#7df0ba",
-                  background: "rgba(35,183,118,0.18)",
-                  border: "1px solid rgba(80,225,155,0.28)",
-                  letterSpacing: 0.6,
-                }}>
-                  AKTYWNE
-                </div>
-              ) : null}
-            </div>
-
-            {upcomingDeadlines.length > 0 && (
-              <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 12, position: "relative" }}>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: "rgba(255,255,255,0.38)", marginBottom: 8 }}>
-                  NADCHODZĄCE TERMINY
-                </div>
-                {upcomingDeadlines.map(c => (
-                  <div
-                    key={c.id}
-                    onClick={() => setLocation("/agreements")}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer" }}
-                  >
-                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "75%" }}>{c.title}</div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: c.daysLeft <= 2 ? "#f87171" : "#fbbf24", flexShrink: 0 }}>
-                      {c.daysLeft === 0 ? "Dziś" : `${c.daysLeft}d`}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, position: "relative" }}>
-              <button
-                data-testid="btn-new-agreement"
-                onClick={() => setLocation("/agreements/new?new=1")}
-                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                style={{
-                  height: 42, borderRadius: 999, border: "none", cursor: "pointer",
-                  fontSize: 13, fontWeight: 800, color: th.primaryBtnColor, letterSpacing: 0.3,
-                  background: th.primaryGradient,
-                  boxShadow: th.primaryBtnShadow,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  transition: "transform 0.15s ease",
                 }}
               >
-                <Plus size={14} /> Nowa umowa
-              </button>
-              <button
-                data-testid="btn-all-agreements"
-                onClick={() => setLocation("/agreements")}
-                onMouseDown={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={e => { e.currentTarget.style.transform = "scale(0.96)"; }}
-                onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                style={{
-                  height: 42, borderRadius: 999, cursor: "pointer",
-                  fontSize: 13, fontWeight: 700,
-                  color: th.secondaryBtnColor,
-                  background: th.secondaryBtnBg,
-                  border: `1px solid ${th.secondaryBtnBorder}`,
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 14px rgba(0,0,0,0.20)",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  transition: "transform 0.15s ease",
-                }}
-              >
-                Przeglądaj <ChevronRight size={14} />
+                <div style={{ position: "absolute", top: 0, left: "18%", right: "18%", height: "44%",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.24) 0%, transparent 100%)",
+                  borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
+                <Plus size={15} />
+                {lang === "pl" ? "Nowa umowa" : "New Contract"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* ── Savings Goals ── */}
-        {savingsGoals.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: "rgba(255,255,255,0.45)", marginBottom: 10, textTransform: "uppercase" }}>
-              {lang === "pl" ? "Cele oszczędnościowe" : "Savings Goals"}
-            </div>
-            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }} className="scrollbar-hide">
-              {savingsGoals.map((g: any) => {
-                const pct = g.target > 0 ? Math.min(1, g.saved / g.target) : 0;
-                return (
-                  <div
-                    key={g.id}
-                    onClick={() => setLocation("/savings")}
-                    style={{ flexShrink: 0, width: 140, borderRadius: 16, padding: "14px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer" }}
-                  >
-                    <div style={{ fontSize: 24, marginBottom: 6 }}>{g.emoji}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-foreground)", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
-                    <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, marginBottom: 4 }}>
-                      <div style={{ height: "100%", width: `${pct * 100}%`, background: "var(--color-primary)", borderRadius: 2 }} />
-                    </div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>{Math.round(pct * 100)}% • {(g.saved || 0).toFixed(0)} / {(g.target || 0).toFixed(0)}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
-        {/* ── Currency Accounts ── */}
+        {/* ── Currency Tile placeholder (removed) ── */}
         <div style={{ marginTop: 14 }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10,
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 3, color: th.textMuted }}>
-              {t.currencies}
-            </div>
-          </div>
-
-          <div style={{ position: "relative" }}>
-            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-              {enabledCurrencies.map(cur => {
-                const active = activeWallet === cur;
-                const curRate = fxRates[cur];
-                const tileValue = curRate && curRate > 0 ? parseFloat((totalUSD * curRate).toFixed(2)) : 0;
-                return (
-                  <button
-                    key={cur}
-                    data-testid={`wallet-card-${cur}`}
-                    onClick={() => setActiveWallet(cur)}
-                    style={{
-                      flexShrink: 0, width: 148, borderRadius: r.md, padding: "14px 16px",
-                      display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6,
-                      textAlign: "left", cursor: "pointer",
-                      border: `1.5px solid ${active ? th.activeTileBorder : "rgba(255,255,255,0.08)"}`,
-                      background: active ? th.activeTileBg : "rgba(255,255,255,0.03)",
-                      boxShadow: active ? th.activeTileGlow : "0 4px 12px rgba(0,0,0,0.28)",
-                      transition: "all 0.22s ease",
-                    }}
-                  >
-                    <span style={{ fontSize: 28, lineHeight: 1 }}>{WALLET_FLAGS[cur]}</span>
-                    <span style={{
-                      fontSize: 18, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1,
-                      color: active ? th.activeTileColor : th.textPrimary,
-                      whiteSpace: "nowrap",
-                    }}>
-                      {balanceVisible ? formatMoneyCompact(tileValue, cur) : "•••"}
-                    </span>
-                    <span style={{
-                      fontSize: 11, letterSpacing: 0.3, lineHeight: 1.2,
-                      color: th.textMuted, whiteSpace: "nowrap",
-                      overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
-                    }}>
-                      {getCurrencyName(cur, lang)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{
-              position: "absolute", top: 0, right: 0, bottom: 4, width: 56,
-              background: `linear-gradient(90deg, transparent, ${th.pageBg})`,
-              pointerEvents: "none",
-            }} />
-          </div>
 
           {showExchange && (
             <div style={{
@@ -773,7 +502,7 @@ export default function Dashboard() {
 
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>Z waluty</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>{lang === "pl" ? "Z waluty" : "From"}</div>
                   <select
                     data-testid="exchange-from"
                     value={exFrom}
@@ -792,8 +521,8 @@ export default function Dashboard() {
                   </select>
                   <div style={{ fontSize: 14, color: (wallets[exFrom] ?? 0) === 0 ? "#ff6060" : th.textMuted, marginTop: 3, fontWeight: 600 }}>
                     {(wallets[exFrom] ?? 0) === 0
-                      ? `Brak środków w ${exFrom}. Wybierz walutę, w której masz saldo.`
-                      : `Dostępne: ${formatMoney(wallets[exFrom] ?? 0, exFrom)}`
+                      ? (lang === "pl" ? `Brak środków w ${exFrom}` : `No funds in ${exFrom}`)
+                      : `${lang === "pl" ? "Dostępne" : "Available"}: ${formatMoney(wallets[exFrom] ?? 0, exFrom)}`
                     }
                   </div>
                 </div>
@@ -801,7 +530,7 @@ export default function Dashboard() {
                   <ArrowLeftRight size={16} color={th.textMuted} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>Na walutę</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: th.textMuted, marginBottom: 3, textTransform: "uppercase" }}>{lang === "pl" ? "Na walutę" : "To"}</div>
                   <select
                     data-testid="exchange-to"
                     value={exTo}
@@ -824,31 +553,16 @@ export default function Dashboard() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontSize: 14, color: th.textMuted, letterSpacing: 0.5 }}>
                   {ratesUnavailable
-                    ? "Kursy walut tymczasowo niedostępne"
+                    ? (lang === "pl" ? "Kursy walut tymczasowo niedostępne" : "Exchange rates temporarily unavailable")
                     : `1 ${exFrom} = ${(fxRates[exTo] / fxRates[exFrom]).toFixed(4)} ${exTo}`
                   }
                 </div>
                 {ratesUpdatedLabel && !ratesUnavailable && (
                   <div style={{ fontSize: 14, color: th.textMuted, letterSpacing: 0.3 }}>
-                    Kursy: {ratesUpdatedLabel}
+                    {lang === "pl" ? "Kursy" : "Rates"}: {ratesUpdatedLabel}
                   </div>
                 )}
               </div>
-
-              {currencyChartData.length > 0 && (
-                <div style={{ height: 60, marginBottom: 12 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={currencyChartData}>
-                      <Line type="monotone" dataKey="rate" stroke="var(--color-primary)" strokeWidth={1.5} dot={false} />
-                      <Tooltip
-                        contentStyle={{ background: "rgba(20,20,30,0.95)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 8, fontSize: 11, color: "#fff" }}
-                        formatter={(v: any) => [v, `${exFrom}/${exTo}`]}
-                        labelFormatter={() => ""}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
 
               <div style={{ display: "flex", gap: 8 }}>
                 <input
@@ -893,7 +607,7 @@ export default function Dashboard() {
                   border: "1px solid rgba(36,212,135,0.25)",
                   fontSize: 14, fontWeight: 700, color: "#70f0aa",
                 }}>
-                  ✓ Wymiana zakończona — {formatMoney(exResult.fromAmount, exResult.from)} → {formatMoney(exResult.received, exResult.currency)}
+                  ✓ {lang === "pl" ? "Wymiana zakończona" : "Exchange complete"} — {formatMoney(exResult.fromAmount, exResult.from)} → {formatMoney(exResult.received, exResult.currency)}
                 </div>
               )}
               {exError && (
@@ -907,10 +621,10 @@ export default function Dashboard() {
                   {exError === "Brak wystarczających środków" && exAmount && parseFloat(exAmount) > 0 && (
                     <>
                       <div style={{ marginTop: 4, fontWeight: 600, opacity: 0.85 }}>
-                        Dostępne: {formatMoney(wallets[exFrom] ?? 0, exFrom)}
+                        {lang === "pl" ? "Dostępne" : "Available"}: {formatMoney(wallets[exFrom] ?? 0, exFrom)}
                       </div>
                       <div style={{ fontWeight: 600, opacity: 0.85 }}>
-                        Brakuje: {formatMoney(Math.max(0, parseFloat(exAmount) - (wallets[exFrom] ?? 0)), exFrom)}
+                        {lang === "pl" ? "Brakuje" : "Shortfall"}: {formatMoney(Math.max(0, parseFloat(exAmount) - (wallets[exFrom] ?? 0)), exFrom)}
                       </div>
                     </>
                   )}
@@ -918,55 +632,6 @@ export default function Dashboard() {
               )}
             </div>
           )}
-        </div>
-
-        {/* ── Quick Actions ── */}
-        <div style={{ marginTop: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3.5, color: th.textMuted, marginBottom: 10, textTransform: "uppercase" }}>
-            Szybkie akcje
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-            {quickActions.map(action => {
-              const tile = tileConfig[action.label];
-              return (
-                <div
-                  key={action.label}
-                  data-testid={action.testId}
-                  onClick={action.onClick}
-                  onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-                  onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                  onTouchStart={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
-                  onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-                  style={{
-                    aspectRatio: "1 / 1", borderRadius: r.md, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: tile.bg, border: `1px solid ${tile.border}`,
-                    boxShadow: tile.shadow, color: tile.iconColor,
-                    position: "relative", overflow: "hidden",
-                    transition: "transform 0.15s ease, background 0.4s ease",
-                  }}
-                >
-                  <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
-                    background: "rgba(255,255,255,0.20)", pointerEvents: "none" }} />
-                  <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "42%",
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)",
-                    borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                  <div style={{ display: "flex", filter: `drop-shadow(0 2px 5px rgba(0,0,0,0.50)) drop-shadow(0 0 4px ${tile.iconColor}44)` }}>
-                    {action.icon}
-                  </div>
-                  <div style={{
-                    position: "absolute", bottom: 8, left: 2, right: 2,
-                    fontSize: 10, letterSpacing: 1.5, fontWeight: 800,
-                    color: "rgba(255,255,255,0.85)", textAlign: "center",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.70)", lineHeight: 1.1,
-                  }}>
-                    {t[action.labelKey]}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* ── Cash Flow Card ── */}
@@ -978,16 +643,14 @@ export default function Dashboard() {
           transition: "background 0.5s ease",
         }}>
           <CardSheen radius={r.lg} color={th.sheenTop} />
-
           <div style={{ fontSize: 15, letterSpacing: 3.4, fontWeight: 700, color: th.textMuted, position: "relative" }}>
             {t.cashFlow}
           </div>
-
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, position: "relative" }}>
             {[
-              { label: "Wpływy", value: monthIn, color: "#24d487", sign: "+" },
-              { label: "Wydatki", value: monthOut, color: "#ff8080", sign: "−" },
-              { label: "Bilans miesiąca", value: monthBalance, color: monthBalance >= 0 ? "#24d487" : "#ff8080", sign: monthBalance >= 0 ? "+" : "" },
+              { label: lang === "pl" ? "Wpływy" : "Income",  value: monthIn,     color: "#24d487", sign: "+" },
+              { label: lang === "pl" ? "Wydatki" : "Expenses", value: monthOut,  color: "#ff8080", sign: "−" },
+              { label: lang === "pl" ? "Bilans miesiąca" : "Monthly balance", value: monthBalance, color: monthBalance >= 0 ? "#24d487" : "#ff8080", sign: monthBalance >= 0 ? "+" : "" },
             ].map(({ label, value, color, sign }) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 13, color: th.textMuted, fontWeight: 600 }}>{label}</div>
@@ -997,150 +660,104 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-
           <div style={{ marginTop: 12, height: 1, background: "rgba(255,255,255,0.06)" }} />
-
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
             <div style={{
-              padding: "3px 9px", borderRadius: 999,
-              fontSize: 12, fontWeight: 700,
+              padding: "3px 9px", borderRadius: 999, fontSize: 12, fontWeight: 700,
               color: trendColor === "positive" ? "#7df0ba" : "#ff8080",
               background: trendColor === "positive" ? "rgba(35,183,118,0.16)" : "rgba(200,30,80,0.18)",
               border: `1px solid ${trendColor === "positive" ? "rgba(80,225,155,0.24)" : "rgba(200,30,80,0.30)"}`,
             }}>
-              vs. poprzedni miesiąc {trendLabel}
+              {lang === "pl" ? "vs. poprzedni miesiąc" : "vs. prev. month"} {trendLabel}
             </div>
-            <button
-              onClick={() => setLocation("/history")}
-              style={{
-                fontSize: 12, fontWeight: 800, letterSpacing: 1.5,
-                color: th.primary, background: "none", border: "none",
-                cursor: "pointer", textTransform: "uppercase", padding: 0,
-              }}
-            >
-              HISTORIA →
+            <button onClick={() => setLocation("/history")} style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.5, color: th.primary, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", padding: 0 }}>
+              {lang === "pl" ? "HISTORIA" : "HISTORY"} →
             </button>
           </div>
-
           <div style={{ marginTop: 10, height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
-            <div style={{
-              height: "100%", width: barWidth, borderRadius: 99,
-              background: "linear-gradient(90deg, rgba(36,212,135,0.5), rgba(36,212,135,0.9))",
-              boxShadow: "0 0 8px rgba(36,212,135,0.50)",
-              transition: "width 0.6s ease",
-            }} />
+            <div style={{ height: "100%", width: barWidth, borderRadius: 99, background: "linear-gradient(90deg, rgba(36,212,135,0.5), rgba(36,212,135,0.9))", boxShadow: "0 0 8px rgba(36,212,135,0.50)", transition: "width 0.6s ease" }} />
           </div>
         </div>
 
-        {/* ── Cards Summary ── */}
-        {cardStats !== null && (
-          <div
-            data-testid="dashboard-cards-summary"
-            style={{
-              marginTop: 14, borderRadius: r.md, padding: "14px 18px",
-              background: th.cardAltBg, border: `1px solid ${th.border}`,
-              boxShadow: "0 4px 18px rgba(0,0,0,0.32)",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              cursor: "pointer",
-            }}
-            onClick={() => setLocation("/cards")}
-          >
-            <div style={{ fontSize: 15, letterSpacing: 2.4, fontWeight: 700, color: th.textMuted }}>
-              {t.yourCards}
+        {/* ── Top Spending Categories ── */}
+        {topCategories.length > 0 && (
+          <div style={{
+            marginTop: 14, borderRadius: r.lg, padding: "16px 18px",
+            background: th.cardAltBg, border: `1px solid ${th.border}`,
+            boxShadow: "0 4px 18px rgba(0,0,0,0.32)",
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 3, color: th.textMuted, textTransform: "uppercase", marginBottom: 12 }}>
+              {lang === "pl" ? "Wydatki tego miesiąca" : "This month's spending"}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>
-                <span style={{ color: "#24d487" }}>{cardStats.active}</span>
-                <span style={{ color: th.textMuted }}> / {cardStats.total} {t.activeCards}</span>
-              </div>
-              <div style={{
-                padding: "3px 9px", borderRadius: 999,
-                fontSize: 13, fontWeight: 800, letterSpacing: 1,
-                color: "#7df0ba",
-                background: "rgba(35,183,118,0.16)",
-                border: "1px solid rgba(80,225,155,0.24)",
-              }}>
-                {cardStats.active > 0 ? t.activeStatus : t.noCards}
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {topCategories.map(([cat, amount], i) => {
+                const maxAmt = topCategories[0][1];
+                const pct = maxAmt > 0 ? (amount / maxAmt) * 100 : 0;
+                const catColors = ["#a78bfa", "#60a5fa", "#34d399", "#f472b6"];
+                const color = catColors[i] || "#a78bfa";
+                return (
+                  <div key={cat}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: th.textPrimary }}>
+                        <span style={{ fontSize: 15 }}>{getCatEmoji(cat)}</span>
+                        <span style={{ textTransform: "capitalize" }}>{cat}</span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color }}>{amount.toLocaleString(lang === "pl" ? "pl-PL" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeWallet}</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.07)" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: color, transition: "width 0.6s ease" }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* ── Recent Operations ── */}
-        <div style={{ marginTop: 20 }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginBottom: 12, borderBottom: `1px solid ${th.sectionBorder}`, paddingBottom: 10,
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary, letterSpacing: 0.2 }}>
-              {t.recentOperations}
-            </div>
-            <button
-              data-testid="btn-see-all"
-              onClick={() => setLocation("/history")}
-              style={{ fontSize: 13, fontWeight: 800, letterSpacing: 2, color: th.primary,
-                background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", padding: 0 }}
-            >
-              {t.seeAll}
-            </button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {transactions.slice(0, 5).map(tx => {
-              const isIn = tx.amount > 0;
-              return (
-                <div
-                  key={tx.id}
-                  data-testid={`tx-row-${tx.id}`}
-                  onClick={() => setLocation(`/transaction/${tx.id}`)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "12px 14px", borderRadius: r.md, cursor: "pointer",
-                    background: th.txRowBg, border: `1px solid ${th.borderMuted}`,
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.05)",
-                    position: "relative", overflow: "hidden",
-                    transition: "background 0.4s ease",
-                  }}
-                >
-                  <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1,
-                    background: `linear-gradient(90deg, transparent, ${th.sheenTop}, transparent)`, pointerEvents: "none" }} />
-
-                  <div style={{
-                    width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: isIn
-                      ? "radial-gradient(circle at 35% 30%, rgba(60,220,140,0.38) 0%, rgba(10,60,32,0.90) 60%, rgba(3,20,10,1) 100%)"
-                      : "radial-gradient(circle at 35% 30%, rgba(255,100,150,0.32) 0%, rgba(80,10,36,0.90) 60%, rgba(20,3,10,1) 100%)",
-                    color: isIn ? c.green : c.pink,
-                    border: `1px solid ${isIn ? "rgba(36,212,135,0.24)" : "rgba(255,95,151,0.24)"}`,
-                    boxShadow: `0 6px 18px rgba(0,0,0,0.45), inset 0 1.5px 0 ${isIn ? "rgba(100,255,180,0.20)" : "rgba(255,130,170,0.18)"}`,
-                  }}>
-                    {isIn ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />}
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: th.textPrimary,
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {tx.title}
-                    </div>
-                    <div style={{ fontSize: 13, color: th.subLabelColor, marginTop: 2 }}>
-                      {tx.subtitle}
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: isIn ? "#24d487" : th.textPrimary }}>
-                      {isIn ? "+" : ""}{tx.amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-                    </div>
-                    <div style={{ fontSize: 13, color: th.textMuted, marginTop: 2, textTransform: "uppercase", letterSpacing: 1 }}>
-                      {new Date(tx.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </div>
-                  </div>
+        {/* ── Top Savings Goal ── */}
+        {topGoal && (
+          <div
+            style={{
+              marginTop: 14, borderRadius: r.lg, padding: "16px 18px",
+              background: th.cardAltBg, border: `1px solid ${th.border}`,
+              boxShadow: "0 4px 18px rgba(0,0,0,0.32)",
+              cursor: "pointer",
+            }}
+            onClick={() => setLocation("/savings")}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 3, color: th.textMuted, textTransform: "uppercase", marginBottom: 4 }}>
+                  {lang === "pl" ? "Cel oszczędnościowy" : "Savings goal"}
                 </div>
-              );
-            })}
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ fontSize: 20 }}>{topGoal.emoji}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>{topGoal.name}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#a78bfa" }}>
+                  {((topGoal.saved / topGoal.target) * 100).toFixed(0)}%
+                </div>
+                <div style={{ fontSize: 11, color: th.textMuted, marginTop: 1 }}>
+                  {topGoal.saved.toFixed(0)} / {topGoal.target.toFixed(0)} {topGoal.currency}
+                </div>
+              </div>
+            </div>
+            <div style={{ height: 6, borderRadius: 99, background: "rgba(255,255,255,0.07)" }}>
+              <div style={{
+                height: "100%",
+                width: `${Math.min((topGoal.saved / topGoal.target) * 100, 100)}%`,
+                borderRadius: 99,
+                background: "linear-gradient(90deg, #7c3aed, #a78bfa)",
+                boxShadow: "0 0 10px rgba(167,139,250,0.45)",
+                transition: "width 0.6s ease",
+              }} />
+            </div>
           </div>
-        </div>
+        )}
+
+
 
       </div>
 
@@ -1149,55 +766,23 @@ export default function Dashboard() {
         <div
           data-testid="modal-currency-picker"
           onClick={() => { setShowCurrencyPicker(false); setShowAddCurrency(false); }}
-          style={{
-            position: "fixed", inset: 0, zIndex: 1000,
-            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
-            display: "flex", alignItems: "flex-end",
-          }}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end" }}
         >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: "100%", maxHeight: "85vh", overflowY: "auto",
-              borderRadius: "24px 24px 0 0",
-              background: "#0f1528",
-              border: "1px solid rgba(255,255,255,0.08)",
-              boxShadow: "0 -8px 40px rgba(0,0,0,0.40)",
-              padding: "0 0 40px",
-            }}
-          >
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "85vh", overflowY: "auto", borderRadius: "24px 24px 0 0", background: "#0f1528", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 -8px 40px rgba(0,0,0,0.40)", padding: "0 0 40px" }}>
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 0" }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)" }} />
             </div>
-
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 8px" }}>
               <div>
-                {showAddCurrency ? (
-                  <button
-                    onClick={() => setShowAddCurrency(false)}
-                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#a0bcff", padding: 0 }}
-                  >
-                    ← Back
-                  </button>
-                ) : null}
+                {showAddCurrency && (
+                  <button onClick={() => setShowAddCurrency(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#a0bcff", padding: 0 }}>← Back</button>
+                )}
                 <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 3, color: "rgba(255,255,255,0.70)", marginTop: 4 }}>
                   {showAddCurrency ? t.addCurrency.toUpperCase() : t.selectCurrency}
                 </div>
               </div>
-              <button
-                data-testid="btn-close-currency-picker"
-                onClick={() => { setShowCurrencyPicker(false); setShowAddCurrency(false); }}
-                style={{
-                  width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "rgba(255,255,255,0.50)",
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-                }}
-              >
-                ×
-              </button>
+              <button data-testid="btn-close-currency-picker" onClick={() => { setShowCurrencyPicker(false); setShowAddCurrency(false); }} style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>×</button>
             </div>
-
             <div style={{ padding: "4px 16px 8px" }}>
               {!showAddCurrency ? (
                 <>
@@ -1205,68 +790,28 @@ export default function Dashboard() {
                     const isPrimary = cur === primaryCurrency;
                     return (
                       <div key={cur} style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
-                        <div
-                          data-testid={`currency-pick-${cur}`}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            saveCurrencySettings(enabledCurrencies, cur);
-                            setActiveWallet(cur);
-                            setShowCurrencyPicker(false);
-                            setShowAddCurrency(false);
-                          }}
+                        <div data-testid={`currency-pick-${cur}`} role="button" tabIndex={0}
+                          onClick={() => { saveCurrencySettings(enabledCurrencies, cur); setActiveWallet(cur); setShowCurrencyPicker(false); setShowAddCurrency(false); }}
                           onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); saveCurrencySettings(enabledCurrencies, cur); setActiveWallet(cur); setShowCurrencyPicker(false); setShowAddCurrency(false); } }}
-                          style={{
-                            flex: 1, display: "flex", alignItems: "center", gap: 14,
-                            padding: "14px 16px", borderRadius: 16,
-                            background: isPrimary ? "rgba(247,210,72,0.08)" : "rgba(255,255,255,0.04)",
-                            border: `1.5px solid ${isPrimary ? "rgba(247,210,72,0.35)" : "rgba(255,255,255,0.07)"}`,
-                            cursor: "pointer", textAlign: "left",
-                          }}
+                          style={{ flex: 1, display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 16, background: isPrimary ? "rgba(247,210,72,0.08)" : "rgba(255,255,255,0.04)", border: `1.5px solid ${isPrimary ? "rgba(247,210,72,0.35)" : "rgba(255,255,255,0.07)"}`, cursor: "pointer", textAlign: "left" }}
                         >
                           <span style={{ fontSize: 26 }}>{WALLET_FLAGS[cur]}</span>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 14, fontWeight: 700, color: isPrimary ? "#f7d248" : th.textPrimary }}>{cur}</div>
                             <div style={{ fontSize: 14, color: th.textMuted, marginTop: 1 }}>{getCurrencyName(cur, lang)}</div>
                           </div>
-                          {isPrimary && (
-                            <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.2, color: "#f7d248", background: "rgba(247,210,72,0.15)", padding: "3px 8px", borderRadius: 99 }}>
-                              {t.primaryBadge}
-                            </div>
-                          )}
+                          {isPrimary && <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.2, color: "#f7d248", background: "rgba(247,210,72,0.15)", padding: "3px 8px", borderRadius: 99 }}>{t.primaryBadge}</div>}
                         </div>
                         {enabledCurrencies.length > 1 && !isPrimary && (
-                          <button
-                            data-testid={`btn-remove-currency-${cur}`}
-                            onClick={() => {
-                              const next = enabledCurrencies.filter(c => c !== cur);
-                              saveCurrencySettings(next, primaryCurrency);
-                              if (activeWallet === cur) setActiveWallet(primaryCurrency);
-                            }}
-                            style={{
-                              width: 32, height: 32, borderRadius: "50%", border: "none", cursor: "pointer",
-                              background: "rgba(255,80,80,0.15)", color: "#ff8080",
-                              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0,
-                            }}
-                          >
-                            ×
-                          </button>
+                          <button data-testid={`btn-remove-currency-${cur}`}
+                            onClick={() => { const next = enabledCurrencies.filter(c => c !== cur); saveCurrencySettings(next, primaryCurrency); if (activeWallet === cur) setActiveWallet(primaryCurrency); }}
+                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", cursor: "pointer", background: "rgba(255,80,80,0.15)", color: "#ff8080", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}
+                          >×</button>
                         )}
                       </div>
                     );
                   })}
-
-                  <button
-                    data-testid="btn-add-currency"
-                    onClick={() => setShowAddCurrency(true)}
-                    style={{
-                      width: "100%", padding: "14px 16px", borderRadius: 16, marginTop: 4,
-                      border: "1.5px dashed rgba(255,255,255,0.12)",
-                      background: "transparent", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 10,
-                      color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 700,
-                    }}
-                  >
+                  <button data-testid="btn-add-currency" onClick={() => setShowAddCurrency(true)} style={{ width: "100%", padding: "14px 16px", borderRadius: 16, marginTop: 4, border: "1.5px dashed rgba(255,255,255,0.12)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 700 }}>
                     <span style={{ fontSize: 20 }}>+</span> {t.addCurrency}
                   </button>
                 </>
@@ -1275,50 +820,79 @@ export default function Dashboard() {
                   const allCurrencies: CurrencyCode[] = ["NOK","USD","EUR","GBP","CHF","PLN","SEK","DKK","CAD","AUD","JPY"];
                   const available = allCurrencies.filter(c => !enabledCurrencies.includes(c));
                   return available.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "30px 0", color: th.textMuted, fontSize: 14 }}>
-                      All currencies are already added.
-                    </div>
+                    <div style={{ textAlign: "center", padding: "30px 0", color: th.textMuted, fontSize: 14 }}>All currencies already added.</div>
                   ) : available.map(cur => (
-                    <button
-                      key={cur}
-                      data-testid={`currency-add-${cur}`}
-                      onClick={() => {
-                        const next = [...enabledCurrencies, cur];
-                        saveCurrencySettings(next, primaryCurrency);
-                        setShowAddCurrency(false);
-                      }}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 14,
-                        padding: "14px 16px", borderRadius: 16, marginBottom: 6,
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.07)",
-                        cursor: "pointer", textAlign: "left",
-                      }}
+                    <button key={cur} data-testid={`currency-add-${cur}`}
+                      onClick={() => { const next = [...enabledCurrencies, cur]; saveCurrencySettings(next, primaryCurrency); setShowAddCurrency(false); }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 16, marginBottom: 6, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", cursor: "pointer", textAlign: "left" }}
                     >
                       <span style={{ fontSize: 26 }}>{WALLET_FLAGS[cur]}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>{cur}</div>
                         <div style={{ fontSize: 14, color: th.textMuted, marginTop: 1 }}>{getCurrencyName(cur, lang)}</div>
                       </div>
-                      <div style={{
-                        fontSize: 13, fontWeight: 700, color: th.textMuted,
-                        background: "rgba(255,255,255,0.07)", padding: "3px 8px", borderRadius: 99,
-                      }}>
-                        {CURRENCY_SYMBOLS[cur]}
-                      </div>
-                      <div style={{
-                        width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                        background: "rgba(255,255,255,0.08)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 16, color: "rgba(255,255,255,0.50)",
-                      }}>
-                        +
-                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: th.textMuted, background: "rgba(255,255,255,0.07)", padding: "3px 8px", borderRadius: 99 }}>{CURRENCY_SYMBOLS[cur]}</div>
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "rgba(255,255,255,0.50)" }}>+</div>
                     </button>
                   ));
                 })()
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ——— Modal: Alert kursowy ——— */}
+      {showAlertModal && (
+        <div
+          onClick={() => setShowAlertModal(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "flex-end" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: "100%", background: "var(--background,#0d0d0f)", borderRadius: "24px 24px 0 0", padding: "24px 20px 44px", boxShadow: "0 -8px 40px rgba(0,0,0,0.5)" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h3 style={{ fontWeight: 900, fontSize: 18, color: "white", margin: 0 }}>🔔 {lang === "pl" ? "Alert kursowy" : "Rate Alert"}</h3>
+              <button onClick={() => setShowAlertModal(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", color: "rgba(255,255,255,0.5)", fontSize: 16 }}>×</button>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              {(["EUR","USD","GBP","CHF","NOK"] as const).map(c => (
+                <button key={c} onClick={() => setAlertFrom(c)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1.5px solid ${alertFrom === c ? "rgba(212,160,32,0.5)" : "rgba(255,255,255,0.08)"}`, background: alertFrom === c ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.04)", color: alertFrom === c ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>{c}</button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{lang === "pl" ? "Powiadom gdy kurs" : "Alert when rate is"}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[{ v: "above" as const, l: lang === "pl" ? "Powyżej" : "Above" }, { v: "below" as const, l: lang === "pl" ? "Poniżej" : "Below" }].map(opt => (
+                <button key={opt.v} onClick={() => setAlertCondition(opt.v)} style={{ padding: "10px 0", borderRadius: 12, border: `1.5px solid ${alertCondition === opt.v ? "rgba(212,160,32,0.5)" : "rgba(255,255,255,0.08)"}`, background: alertCondition === opt.v ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.04)", color: alertCondition === opt.v ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{opt.l}</button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{lang === "pl" ? `Próg kursu ${alertFrom}/${alertTo}` : `${alertFrom}/${alertTo} threshold`}</div>
+            <input
+              type="number" inputMode="decimal" step="0.0001"
+              placeholder={`np. ${(fxRates as any)[alertFrom] ? ((fxRates as any)[alertTo] / (fxRates as any)[alertFrom]).toFixed(4) : "4.2500"}`}
+              value={alertThreshold}
+              onChange={e => setAlertThreshold(e.target.value)}
+              style={{ width: "100%", padding: "13px 16px", borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 16, fontWeight: 700, outline: "none", boxSizing: "border-box", marginBottom: 16 }}
+            />
+
+            <button
+              onClick={() => {
+                if (!alertThreshold) return;
+                const alerts = JSON.parse(localStorage.getItem("itemprise_fx_alerts") || "[]");
+                alerts.push({ from: alertFrom, to: alertTo, threshold: parseFloat(alertThreshold), condition: alertCondition, createdAt: Date.now() });
+                localStorage.setItem("itemprise_fx_alerts", JSON.stringify(alerts));
+                addNotification({ type: "info", title: "🔔 Alert ustawiony", message: `${alertFrom}/${alertTo} ${alertCondition === "above" ? ">" : "<"} ${alertThreshold}` });
+                setAlertThreshold("");
+                setShowAlertModal(false);
+              }}
+              style={{ width: "100%", padding: "14px", borderRadius: 14, background: "linear-gradient(180deg,#fff4b8 0%,#f9d95e 22%,#d4a020 62%,#b8880a 100%)", color: "#1a1400", border: "none", fontSize: 15, fontWeight: 900, cursor: "pointer" }}
+            >
+              {lang === "pl" ? "Zapisz alert" : "Save alert"}
+            </button>
           </div>
         </div>
       )}
