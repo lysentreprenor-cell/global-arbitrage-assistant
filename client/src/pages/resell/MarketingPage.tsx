@@ -808,29 +808,38 @@ export default function MarketingPage() {
         {result && (
           <div>
             {/* Result header */}
-            <div style={{ background: "linear-gradient(135deg,rgba(236,72,153,0.12),rgba(168,85,247,0.08))", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 16, padding: "18px 22px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div style={{ color: "#c4b5fd", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>KAMPANIA GOTOWA</div>
-                <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>{result.meta.product}</div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>
-                  {result.meta.targetMarket} · {result.meta.language} · {result.meta.currency} · {CAMPAIGN_TYPES.find(c => c.value === result.meta.campaignType)?.label}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {result.campaign.summary.expectedROAS && (
-                  <div style={{ background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 10, padding: "8px 14px", textAlign: "center" }}>
-                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700 }}>ROAS</div>
-                    <div style={{ color: "#4ade80", fontSize: 16, fontWeight: 900 }}>{result.campaign.summary.expectedROAS}</div>
+            <div style={{ background: "linear-gradient(135deg,rgba(236,72,153,0.12),rgba(168,85,247,0.08))", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 16, padding: "18px 22px", marginBottom: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <div style={{ color: "#c4b5fd", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>KAMPANIA GOTOWA</div>
+                  <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>{result.meta.product}</div>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>
+                    {result.meta.targetMarket} · {result.meta.language} · {result.meta.currency} · {CAMPAIGN_TYPES.find(c => c.value === result.meta.campaignType)?.label}
                   </div>
-                )}
-                <div style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 10, padding: "8px 14px", textAlign: "center" }}>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700 }}>BUDŻET</div>
-                  <div style={{ color: "#f59e0b", fontSize: 14, fontWeight: 900 }}>{result.campaign.budget?.monthly_min}–{result.campaign.budget?.monthly_max} {result.meta.currency}</div>
                 </div>
-                <button onClick={() => setResult(null)} style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: 12, cursor: "pointer" }}>
-                  ← Nowa kampania
-                </button>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {result.campaign.summary.expectedROAS && (
+                    <div style={{ background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 10, padding: "8px 14px", textAlign: "center" }}>
+                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700 }}>ROAS</div>
+                      <div style={{ color: "#4ade80", fontSize: 16, fontWeight: 900 }}>{result.campaign.summary.expectedROAS}</div>
+                    </div>
+                  )}
+                  <div style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 10, padding: "8px 14px", textAlign: "center" }}>
+                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700 }}>BUDŻET</div>
+                    <div style={{ color: "#f59e0b", fontSize: 14, fontWeight: 900 }}>{result.campaign.budget?.monthly_min}–{result.campaign.budget?.monthly_max} {result.meta.currency}</div>
+                  </div>
+                </div>
               </div>
+              {/* Prominent new campaign button */}
+              <button onClick={() => setResult(null)} style={{
+                width: "100%", padding: "12px 20px", borderRadius: 11,
+                border: "1px solid rgba(168,85,247,0.4)",
+                background: "rgba(168,85,247,0.15)",
+                color: "#c4b5fd", fontWeight: 700, fontSize: 14,
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}>
+                <Megaphone size={16} /> ← Nowa kampania / zmień budżet
+              </button>
             </div>
 
             {/* Tabs */}
@@ -1988,6 +1997,26 @@ export default function MarketingPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Floating bottom bar when result is shown ── */}
+        {result && (
+          <div style={{
+            position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 999,
+            background: "rgba(0,10,3,0.92)", backdropFilter: "blur(12px)",
+            borderTop: "1px solid rgba(168,85,247,0.3)",
+            padding: "12px 16px", display: "flex", gap: 10, alignItems: "center",
+          }}>
+            <button onClick={() => setResult(null)} style={{
+              flex: 1, padding: "13px 20px", borderRadius: 11, border: "none",
+              background: "linear-gradient(135deg,#ec4899,#a855f7,#6366f1)",
+              color: "#fff", fontWeight: 900, fontSize: 14, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              boxShadow: "0 4px 20px rgba(168,85,247,0.45)",
+            }}>
+              <Megaphone size={16} /> Nowa kampania
+            </button>
           </div>
         )}
 
