@@ -308,6 +308,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     product, category = "General", priceUSD = 0,
     description = "", targetMarket, marketType = "country",
     campaignType = "launch", anthropicKey, voice = "professional",
+    campaignBudget = "auto",
   } = req.body;
 
   if (!product) return res.status(400).json({ error: "product required" });
@@ -325,6 +326,16 @@ router.post("/generate", async (req: Request, res: Response) => {
     : marketType === "world"
     ? CONTINENT_CONTEXT["Worldwide"]
     : "";
+
+  const budgetLabels: Record<string, string> = {
+    auto: "flexible — recommend what's appropriate for this product and market",
+    micro: "very tight, under $300/month — focus on free/organic + minimal paid",
+    small: "$300–1,000/month — lean paid social only, no Google Ads yet",
+    medium: "$1,000–5,000/month — paid social + Google Ads",
+    large: "$5,000–20,000/month — full multi-channel paid campaigns",
+    enterprise: "$20,000+/month — aggressive scaling across all channels",
+  };
+  const budgetCtx = budgetLabels[campaignBudget] ?? budgetLabels.auto;
 
   const campaignLabels: Record<string, string> = {
     launch: "New Product Launch",
@@ -346,6 +357,7 @@ CAMPAIGN BRIEF:
 - Primary Language for Content: ${language}
 - Currency: ${currency}
 - Voice/Tone: ${voice}
+- Monthly Campaign Budget: ${budgetCtx}
 ${continentCtx ? `- Market Context: ${continentCtx}` : ""}
 
 Create a COMPLETE, ACTIONABLE marketing campaign kit. All ad copy and social content MUST be written in ${language}. If the language is not English, still keep JSON keys in English.
