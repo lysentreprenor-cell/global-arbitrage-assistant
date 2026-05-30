@@ -52,7 +52,6 @@ const CATEGORY_CHIPS = [
   { id: "korepetycje", label: "Korepetycje",   icon: "📚" },
   { id: "remont",      label: "Remont",        icon: "🏗️" },
   { id: "opieka",      label: "Opieka",        icon: "🤝" },
-  { id: "pożyczka",   label: "Pożyczka",      icon: "💸" },
   { id: "inne",        label: "Inne",          icon: "📄" },
 ];
 
@@ -313,10 +312,16 @@ function StepDescribe({ data, setData, onNext }: { data: FormData; setData: (d: 
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {["Usługa sprzątania", "Pożyczka 3000 zł", "Wynajem pokoju", "Lekcje angielskiego"].map(s => (
+        {[
+          "Remont łazienki, 3 dni robocze, 2500 zł, materiały wykonawcy",
+          "Korepetycje z matematyki, 80 zł/h, 2x tydzień, online",
+          "Wynajem pokoju, 1800 zł/mies, media w cenie, kaucja 2 miesiące",
+          "Malowanie 400m2, 400 zł/h, ok. 300h, tygodniówka, 50% depozytu",
+        ].map(s => (
           <button key={s} onClick={() => setData({ ...data, description: s })} style={{
             padding: "6px 12px", borderRadius: 999, cursor: "pointer", fontSize: 12, fontWeight: 600,
             background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: G.muted,
+            textAlign: "left",
           }}>{s}</button>
         ))}
       </div>
