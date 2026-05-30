@@ -1,4 +1,4 @@
-run = "npm run dev"
+run = "npm run build && npm start"
 entrypoint = "server/index.ts"
 modules = ["nodejs-22"]
 
@@ -39,5 +39,5 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
+args = "npm run build && npm start"
 waitForPort = 3000

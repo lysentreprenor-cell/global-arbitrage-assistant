@@ -4,19 +4,15 @@ set -e
 BRANCH="claude/teraz-YKMDA"
 
 echo "==> Pobieranie zmian z GitHub..."
-git fetch origin
-
-echo "==> Przełączanie na gałąź: $BRANCH"
+git fetch https://github.com/lysentreprenor-cell/global-arbitrage-assistant.git "$BRANCH"
 git checkout "$BRANCH"
+git pull https://github.com/lysentreprenor-cell/global-arbitrage-assistant.git "$BRANCH"
 
-echo "==> Pull latest..."
-git pull origin "$BRANCH"
-
-echo "==> Instalacja zależności (jeśli potrzeba)..."
+echo "==> Instalacja zależności..."
 npm install --legacy-peer-deps
 
 echo "==> Budowanie projektu..."
 npm run build
 
 echo ""
-echo "✅ Gotowe! Aplikacja zaktualizowana z GitHub."
+echo "✅ Gotowe! Kliknij Stop ■ i Run ▶ w Replit żeby uruchomić aplikację."
