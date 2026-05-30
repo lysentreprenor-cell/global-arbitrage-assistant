@@ -912,7 +912,7 @@ export default function AIContracts() {
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto", paddingBottom: 90 }}>
         {step === "describe"   && <StepDescribe   data={data} setData={setData} onNext={() => setStep("details")} />}
         {step === "details"    && <StepDetails    data={data} setData={setData} onNext={() => setStep("generating")} onBack={() => setStep("describe")} />}
         {step === "generating" && <StepGenerating onDone={handleGeneratingDone} />}
