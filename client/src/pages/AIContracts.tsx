@@ -21,6 +21,9 @@ interface FormData {
   depositMode: DepositMode;
   depositAmount: string;
   category: string;
+  paymentSchedule: "on_completion" | "weekly" | "monthly" | "milestone";
+  hourlyRate: string;
+  estimatedHours: string;
 }
 
 interface UserResult {
@@ -58,9 +61,19 @@ function buildContract(data: FormData): string {
   const today = new Date().toLocaleDateString("pl-PL");
   const sym = CURRENCY_SYMBOLS[data.currency as keyof typeof CURRENCY_SYMBOLS] || data.currency;
   const amt = data.amount ? `${parseFloat(data.amount).toFixed(2)} ${sym}` : "(kwota do ustalenia)";
+  const scheduleLabel: Record<string, string> = {
+    on_completion: "jednorazowo po zakończeniu prac",
+    weekly: "co tydzień (tygodniówka), proporcjonalnie do wykonanych prac",
+    monthly: "co miesiąc, do 10. dnia każdego miesiąca",
+    milestone: "etapami — po zakończeniu każdego etapu",
+  };
+  const schedule = scheduleLabel[data.paymentSchedule] || scheduleLabel.on_completion;
+  const hourlyLine = data.hourlyRate && data.estimatedHours
+    ? `\nStawka godzinowa: ${data.hourlyRate} ${sym}/h × szacunkowo ${data.estimatedHours} godz. = ${amt} łącznie`
+    : "";
   const depositLine = data.depositMode !== "none"
-    ? `\nWynagrodzenie płatne w dwóch transzach:\n  - Zaliczka/depozyt: ${parseFloat(data.depositAmount || "0").toFixed(2)} ${sym} — przed przystąpieniem do pracy\n  - Pozostała kwota: ${(parseFloat(data.amount || "0") - parseFloat(data.depositAmount || "0")).toFixed(2)} ${sym} — po zakończeniu`
-    : `\nWynagrodzenie: ${amt} — płatne po zakończeniu prac`;
+    ? `${hourlyLine}\nWynagrodzenie płatne w dwóch transzach:\n  - Zaliczka/depozyt: ${parseFloat(data.depositAmount || "0").toFixed(2)} ${sym} — przed przystąpieniem do pracy\n  - Pozostała kwota: ${(parseFloat(data.amount || "0") - parseFloat(data.depositAmount || "0")).toFixed(2)} ${sym} — ${schedule}`
+    : `${hourlyLine}\nWynagrodzenie: ${amt} — płatne ${schedule}`;
 
   return `${title.toUpperCase()}
 
@@ -189,6 +202,79 @@ function useTypewriter(text: string, speed = 8) {
   return { displayed, done };
 }
 
+// ── Description parser — extracts contract details from natural language ───────
+function parseDescription(text: string, data: FormData): Partial<FormData> {
+  const t = text.toLowerCase();
+  const result: Partial<FormData> = {};
+
+  // ── Category detection ──────────────────────────────────────────────────────
+  if (!data.category || data.category === "inne") {
+    if (/remont|malowanie|podłog|tynk|kafelek|glazur|budowlan|hydraul|elektryk|ocieplen/.test(t)) result.category = "remont";
+    else if (/korepetycj|lekcj|nauka|kurs|szkolenie|angielski|matematyk|nauczanie/.test(t)) result.category = "korepetycje";
+    else if (/opieka|pet.sit|kot|pies|zwierzę|babysit|dziecko/.test(t)) result.category = "opieka";
+    else if (/wynajm|najem|mieszkan|pokój|lokal/.test(t)) result.category = "wynajem";
+    else if (/sprzedaż|sprzedaj|kupno|kupuj/.test(t)) result.category = "sprzedaż";
+    else if (/pożycz|pożyczka|dług/.test(t)) result.category = "pożyczka";
+    else if (/projekt|programi|strona|aplikacja|design|grafik/.test(t)) result.category = "usługa";
+  }
+
+  // ── Hourly rate & hours → total amount ────────────────────────────────────
+  const rateMatch = t.match(/(\d[\d\s]*)\s*(zł|pln|eur|nok|usd|gbp)?\s*\/\s*h|(\d[\d\s]*)\s*(zł|pln)?\s*(?:za|na)\s*godzin/);
+  const hoursMatch = t.match(/(?:ok\.?|około|~)?\s*(\d+)\s*h(?:our|godzin)?|(\d+)\s*godzin/);
+  if (rateMatch && hoursMatch) {
+    const rate = parseFloat((rateMatch[1] || rateMatch[3] || "0").replace(/\s/g, ""));
+    const hours = parseFloat((hoursMatch[1] || hoursMatch[2] || "0").replace(/\s/g, ""));
+    if (rate > 0 && hours > 0) result.amount = String(Math.round(rate * hours));
+  }
+
+  // ── Direct amount if no hourly calc ───────────────────────────────────────
+  if (!result.amount) {
+    const amtMatch = t.match(/(\d[\d\s]*(?:[.,]\d+)?)\s*(tys\.?|k)?\s*(zł|pln|eur|usd|nok|gbp)/);
+    if (amtMatch) {
+      let val = parseFloat(amtMatch[1].replace(/\s/g, "").replace(",", "."));
+      if (amtMatch[2]) val *= 1000;
+      if (val > 0) result.amount = String(Math.round(val));
+    }
+  }
+
+  // ── Currency ───────────────────────────────────────────────────────────────
+  if (/\beur\b|€/.test(t)) result.currency = "EUR";
+  else if (/\bnok\b/.test(t)) result.currency = "NOK";
+  else if (/\busd\b|\$/.test(t)) result.currency = "USD";
+  else if (/\bgbp\b|£/.test(t)) result.currency = "GBP";
+
+  // ── Payment schedule ──────────────────────────────────────────────────────
+  if (/tygodniówk|co tydzień|tydzień|weekly/.test(t)) result.paymentSchedule = "weekly";
+  else if (/miesięczn|co miesiąc|monthly/.test(t)) result.paymentSchedule = "monthly";
+  else if (/etap|milestone/.test(t)) result.paymentSchedule = "milestone";
+
+  // ── Store hourly rate & hours separately ──────────────────────────────────
+  if (rateMatch) {
+    const rate = parseFloat((rateMatch[1] || rateMatch[3] || "0").replace(/\s/g, ""));
+    if (rate > 0) result.hourlyRate = String(rate);
+  }
+  if (hoursMatch) {
+    const hours = parseFloat((hoursMatch[1] || hoursMatch[2] || "0").replace(/\s/g, ""));
+    if (hours > 0) result.estimatedHours = String(hours);
+  }
+
+  // ── Deposit ────────────────────────────────────────────────────────────────
+  if (/połow|50\s*%|pół/.test(t)) {
+    result.depositMode = "partial";
+    if (result.amount) result.depositAmount = String(Math.round(parseFloat(result.amount) * 0.5));
+  } else if (/25\s*%|ćwierć/.test(t)) {
+    result.depositMode = "partial";
+    if (result.amount) result.depositAmount = String(Math.round(parseFloat(result.amount) * 0.25));
+  } else if (/z góry|całość|z\.góry/.test(t)) {
+    result.depositMode = "full";
+    if (result.amount) result.depositAmount = result.amount;
+  } else if (/depozyt|zaliczk|zadatek/.test(t)) {
+    result.depositMode = "partial";
+  }
+
+  return result;
+}
+
 // ── Step 1 — Describe ─────────────────────────────────────────────────────────
 function StepDescribe({ data, setData, onNext }: { data: FormData; setData: (d: FormData) => void; onNext: () => void }) {
   return (
@@ -237,13 +323,17 @@ function StepDescribe({ data, setData, onNext }: { data: FormData; setData: (d: 
 
       <div style={{ flex: 1 }} />
 
-      <button onClick={onNext} disabled={!data.description.trim()} style={{
+      <button onClick={() => {
+        const parsed = parseDescription(data.description, data);
+        if (Object.keys(parsed).length) setData({ ...data, ...parsed });
+        onNext();
+      }} disabled={!data.description.trim()} style={{
         height: 54, borderRadius: 999, border: "none", cursor: data.description.trim() ? "pointer" : "not-allowed",
         fontSize: 15, fontWeight: 800, color: data.description.trim() ? "#0a0f0c" : G.muted,
         background: data.description.trim() ? "linear-gradient(135deg, #34d399 0%, #10b981 100%)" : "rgba(255,255,255,0.06)",
         boxShadow: data.description.trim() ? "0 4px 20px rgba(52,211,153,0.35)" : "none",
         transition: "all 0.25s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-      }}>Dalej <ChevronRight size={18} /></button>
+      }}>Analizuj opis <Wand2 size={16} /></button>
     </div>
   );
 }
@@ -295,6 +385,42 @@ function StepDetails({ data, setData, onNext, onBack }: { data: FormData; setDat
       </div>
 
       <Field label="Termin wykonania" value={data.deadline} onChange={v => setData({ ...data, deadline: v })} type="date" />
+
+      {(data.hourlyRate || data.estimatedHours) && (
+        <div style={{ padding: "12px 16px", borderRadius: 14, background: G.greenDim, border: `1px solid ${G.border}` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: G.green, marginBottom: 8, textTransform: "uppercase" }}>✦ Wykryto — stawka godzinowa</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: G.muted, marginBottom: 4 }}>Stawka /h</div>
+              <input type="number" value={data.hourlyRate} onChange={e => {
+                const r = e.target.value; const h = data.estimatedHours;
+                setData({ ...data, hourlyRate: r, amount: r && h ? String(Math.round(parseFloat(r)*parseFloat(h))) : data.amount });
+              }} style={{ width: "100%", height: 40, padding: "0 12px", borderRadius: 10, border: `1px solid ${G.border}`, background: "rgba(52,211,153,0.04)", color: G.text, fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: G.muted, marginBottom: 4 }}>Godz. szacunkowo</div>
+              <input type="number" value={data.estimatedHours} onChange={e => {
+                const h = e.target.value; const r = data.hourlyRate;
+                setData({ ...data, estimatedHours: h, amount: r && h ? String(Math.round(parseFloat(r)*parseFloat(h))) : data.amount });
+              }} style={{ width: "100%", height: 40, padding: "0 12px", borderRadius: 10, border: `1px solid ${G.border}`, background: "rgba(52,211,153,0.04)", color: G.text, fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: G.muted, marginBottom: 8, textTransform: "uppercase" }}>Harmonogram płatności</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {([["on_completion","Po zakończeniu"],["weekly","Co tydzień"],["monthly","Co miesiąc"],["milestone","Etapami"]] as const).map(([id,label]) => (
+            <button key={id} onClick={() => setData({ ...data, paymentSchedule: id })} style={{
+              padding: "8px 14px", borderRadius: 999, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              background: data.paymentSchedule === id ? G.greenDim : "rgba(255,255,255,0.05)",
+              border: `1px solid ${data.paymentSchedule === id ? G.green : "rgba(255,255,255,0.08)"}`,
+              color: data.paymentSchedule === id ? G.green : G.muted, transition: "all 0.2s ease",
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
 
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: G.muted, marginBottom: 10, textTransform: "uppercase" }}>Depozyt / zaliczka</div>
@@ -712,6 +838,9 @@ export default function AIContracts() {
     depositMode: "none",
     depositAmount: "",
     category: "usługa",
+    paymentSchedule: "on_completion",
+    hourlyRate: "",
+    estimatedHours: "",
   });
 
   const stepIndex: Record<Step, number> = { describe: 0, details: 1, generating: 2, preview: 3, send: 4 };
