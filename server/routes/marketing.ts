@@ -307,7 +307,7 @@ router.post("/generate", async (req: Request, res: Response) => {
   const {
     product, category = "General", priceUSD = 0,
     description = "", targetMarket, marketType = "country",
-    campaignType = "launch", anthropicKey,
+    campaignType = "launch", anthropicKey, voice = "professional",
   } = req.body;
 
   if (!product) return res.status(400).json({ error: "product required" });
@@ -345,6 +345,7 @@ CAMPAIGN BRIEF:
 - Campaign Type: ${campaignLabels[campaignType] ?? campaignType}
 - Primary Language for Content: ${language}
 - Currency: ${currency}
+- Voice/Tone: ${voice}
 ${continentCtx ? `- Market Context: ${continentCtx}` : ""}
 
 Create a COMPLETE, ACTIONABLE marketing campaign kit. All ad copy and social content MUST be written in ${language}. If the language is not English, still keep JSON keys in English.
@@ -449,7 +450,14 @@ Return ONLY a valid JSON object (no markdown, no explanation):
     { "week": 2, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1", "platform2"], "budget_pct": "25%" },
     { "week": 3, "focus": "...", "actions": ["action1"], "platforms": ["platform1", "platform2"], "budget_pct": "25%" },
     { "week": 4, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1"], "budget_pct": "20%" }
-  ]
+  ],
+  "influencer": {
+    "idealProfile": "description of ideal influencer type for this product+market",
+    "outreachSubject": "email subject line for influencer outreach",
+    "outreachBody": "full outreach email body (150-200 words) in ${language}",
+    "brief": "content brief: key messages to include, things to avoid, format recommendation",
+    "compensation": "suggested deal structure (barter/paid/affiliate commission %)"
+  }
 }`;
 
   try {
@@ -478,6 +486,215 @@ Return ONLY a valid JSON object (no markdown, no explanation):
       campaign,
       meta: { product, targetMarket, marketType, campaignType, language, currency },
     });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
+// ── 5-email drip sequence ─────────────────────────────────────────────────────
+router.post("/gen-sequence", async (req: Request, res: Response) => {
+  const {
+    product, description = "", targetMarket = "Poland",
+    campaignType = "launch", voice = "professional", anthropicKey,
+  } = req.body;
+  if (!product) return res.status(400).json({ error: "product required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const language = MARKET_LANGUAGE[targetMarket] ?? "English";
+
+  const prompt = `You are an email marketing expert. Create a 5-email drip sequence for:
+Product: ${product}
+Description: ${description || "N/A"}
+Target Market: ${targetMarket}
+Campaign Type: ${campaignType}
+Voice/Tone: ${voice}
+Language: ${language}
+
+Return ONLY a valid JSON array of 5 email objects (no markdown):
+[
+  {
+    "timing": "Dzień 0 — od razu",
+    "goal": "Powitanie i pierwsza wartość",
+    "subject": "email subject in ${language}",
+    "preheader": "email preheader in ${language}",
+    "body": "full email body 200-300 words in ${language}",
+    "cta": "button text in ${language}"
+  }
+]
+Write all content (subject, preheader, body, cta) in ${language}. Keep JSON keys in English.`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4000,
+        system: "You are an email marketing expert. Always respond with valid JSON only.",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return res.status(502).json({ error: "No JSON array in response", raw: text.slice(0, 400) });
+    return res.json(JSON.parse(match[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
+// ── Landing page copy generator ───────────────────────────────────────────────
+router.post("/gen-landing", async (req: Request, res: Response) => {
+  const {
+    product, description = "", targetMarket = "Poland",
+    priceUSD = 0, voice = "professional", anthropicKey,
+  } = req.body;
+  if (!product) return res.status(400).json({ error: "product required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const language = MARKET_LANGUAGE[targetMarket] ?? "English";
+
+  const prompt = `You are a world-class copywriter specializing in high-converting landing pages. Create full landing page copy for:
+Product: ${product}
+Description: ${description || "N/A"}
+Target Market: ${targetMarket}
+Price: $${priceUSD} USD
+Voice/Tone: ${voice}
+Language: ${language}
+
+Return ONLY a valid JSON object (no markdown):
+{
+  "hero": {
+    "headline": "main headline in ${language}",
+    "subheadline": "supporting subheadline in ${language}",
+    "cta": "primary CTA button text in ${language}",
+    "socialProofLine": "e.g. 2,400+ satisfied customers"
+  },
+  "problem": {
+    "heading": "section heading in ${language}",
+    "points": ["pain point 1 in ${language}", "pain point 2", "pain point 3"]
+  },
+  "solution": {
+    "heading": "section heading in ${language}",
+    "description": "2-3 sentence solution description in ${language}",
+    "bullets": ["feature benefit 1 in ${language}", "feature benefit 2", "feature benefit 3"]
+  },
+  "features": [
+    { "emoji": "🔍", "title": "feature title in ${language}", "desc": "1-2 sentence description in ${language}" },
+    { "emoji": "⚡", "title": "feature title in ${language}", "desc": "1-2 sentence description in ${language}" },
+    { "emoji": "🎯", "title": "feature title in ${language}", "desc": "1-2 sentence description in ${language}" },
+    { "emoji": "💎", "title": "feature title in ${language}", "desc": "1-2 sentence description in ${language}" },
+    { "emoji": "🚀", "title": "feature title in ${language}", "desc": "1-2 sentence description in ${language}" }
+  ],
+  "socialProof": {
+    "heading": "section heading in ${language}",
+    "testimonials": [
+      { "text": "testimonial quote in ${language}", "author": "Name Surname", "role": "Job Title, Company" },
+      { "text": "testimonial quote in ${language}", "author": "Name Surname", "role": "Job Title, Company" },
+      { "text": "testimonial quote in ${language}", "author": "Name Surname", "role": "Job Title, Company" }
+    ]
+  },
+  "faq": [
+    { "q": "question in ${language}", "a": "answer in ${language}" },
+    { "q": "question in ${language}", "a": "answer in ${language}" },
+    { "q": "question in ${language}", "a": "answer in ${language}" },
+    { "q": "question in ${language}", "a": "answer in ${language}" }
+  ],
+  "finalCta": {
+    "headline": "closing headline in ${language}",
+    "subtext": "closing subtext in ${language}",
+    "cta": "CTA button text in ${language}"
+  }
+}
+Write all user-facing content in ${language}. Keep JSON keys in English.`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4000,
+        system: "You are a world-class conversion copywriter. Always respond with valid JSON only.",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
+    return res.json(JSON.parse(match[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
+// ── 30-day content calendar ───────────────────────────────────────────────────
+router.post("/gen-calendar", async (req: Request, res: Response) => {
+  const {
+    product, description = "", targetMarket = "Poland",
+    campaignType = "launch", voice = "professional", anthropicKey,
+  } = req.body;
+  if (!product) return res.status(400).json({ error: "product required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const language = MARKET_LANGUAGE[targetMarket] ?? "English";
+
+  const prompt = `You are a social media strategist. Create a 30-day content calendar for:
+Product: ${product}
+Description: ${description || "N/A"}
+Target Market: ${targetMarket}
+Campaign Type: ${campaignType}
+Voice/Tone: ${voice}
+Language: ${language}
+
+Return ONLY a valid JSON array of exactly 30 items (no markdown):
+[
+  {
+    "day": 1,
+    "label": "Tydzień 1 — Poniedziałek",
+    "platform": "TikTok",
+    "type": "Reel",
+    "hook": "first sentence that stops scroll in ${language}",
+    "content": "brief description of what to post in ${language}",
+    "hashtags": ["#tag1", "#tag2", "#tag3"],
+    "bestTime": "18:00–20:00"
+  }
+]
+Use platforms: TikTok, Instagram, Facebook, YouTube. Vary them across days. Write hook and content in ${language}. Keep JSON keys in English. Return all 30 days.`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4000,
+        system: "You are a social media content strategist. Always respond with valid JSON only.",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return res.status(502).json({ error: "No JSON array in response", raw: text.slice(0, 400) });
+    return res.json(JSON.parse(match[0]));
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });
   }

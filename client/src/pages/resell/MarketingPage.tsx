@@ -129,11 +129,31 @@ export default function MarketingPage() {
   const [priceUSD, setPriceUSD] = useState("");
   const [description, setDescription] = useState("");
   const [campaignType, setCampaignType] = useState("launch");
+  const [voice, setVoice] = useState("professional");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [activeTab, setActiveTab] = useState("strategia");
   const [copied, setCopied] = useState<Record<string, boolean>>({});
+  // Campaign history
+  const [history, setHistory] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem("resell_marketing_history") || "[]"); } catch { return []; }
+  });
+  const [showHistory, setShowHistory] = useState(false);
+  // Email sequence
+  const [emailSeq, setEmailSeq] = useState<any[]>([]);
+  const [emailSeqLoading, setEmailSeqLoading] = useState(false);
+  const [emailSeqError, setEmailSeqError] = useState<string | null>(null);
+  const [emailSeqExpanded, setEmailSeqExpanded] = useState<Record<number, boolean>>({});
+  // Landing page
+  const [landingPage, setLandingPage] = useState<any>(null);
+  const [landingLoading, setLandingLoading] = useState(false);
+  const [landingError, setLandingError] = useState<string | null>(null);
+  const [faqExpanded, setFaqExpanded] = useState<Record<number, boolean>>({});
+  // Content calendar
+  const [calendar, setCalendar] = useState<any[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
 
   const fetchYt = async () => {
     if (!ytUrl.trim()) return;
@@ -274,6 +294,10 @@ export default function MarketingPage() {
     if (!product.trim()) { setError("Wpisz nazwę produktu"); return; }
     setLoading(true); setError(null); setResult(null);
     setGenImgResult(null); setImgPrompt(""); setVidResult(null); setVidPrompt(""); setVidOpName(null);
+    // Reset sub-generators
+    setEmailSeq([]); setEmailSeqError(null);
+    setLandingPage(null); setLandingError(null);
+    setCalendar([]); setCalendarError(null);
     try {
       const r = await fetch("/api/marketing/generate", {
         method: "POST",
@@ -281,17 +305,93 @@ export default function MarketingPage() {
         body: JSON.stringify({
           product: product.trim(), category, priceUSD: parseFloat(priceUSD) || 0,
           description: description.trim(), targetMarket: selectedMarket,
-          marketType, campaignType, anthropicKey: key,
+          marketType, campaignType, voice, anthropicKey: key,
         }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Błąd generowania");
       setResult(data);
       setActiveTab("strategia");
+      // Save to history (max 5, newest first)
+      const entry = {
+        id: Date.now(),
+        product: product.trim(),
+        targetMarket: selectedMarket,
+        campaignType,
+        voice,
+        createdAt: new Date().toISOString(),
+        result: data,
+      };
+      setHistory(prev => {
+        const updated = [entry, ...prev].slice(0, 5);
+        localStorage.setItem("resell_marketing_history", JSON.stringify(updated));
+        return updated;
+      });
     } catch (e: any) {
       setError(e.message);
     }
     setLoading(false);
+  };
+
+  const genEmailSeq = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setEmailSeqError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    setEmailSeqLoading(true); setEmailSeqError(null);
+    try {
+      const r = await fetch("/api/marketing/gen-sequence", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          product: product.trim(), description: description.trim(),
+          targetMarket: selectedMarket, campaignType, voice, anthropicKey: key,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania sekwencji");
+      setEmailSeq(Array.isArray(data) ? data : []);
+    } catch (e: any) { setEmailSeqError(e.message); }
+    setEmailSeqLoading(false);
+  };
+
+  const genLanding = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setLandingError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    setLandingLoading(true); setLandingError(null);
+    try {
+      const r = await fetch("/api/marketing/gen-landing", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          product: product.trim(), description: description.trim(),
+          targetMarket: selectedMarket, priceUSD: parseFloat(priceUSD) || 0,
+          voice, anthropicKey: key,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania landing page");
+      setLandingPage(data);
+    } catch (e: any) { setLandingError(e.message); }
+    setLandingLoading(false);
+  };
+
+  const genCalendar = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setCalendarError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    setCalendarLoading(true); setCalendarError(null);
+    try {
+      const r = await fetch("/api/marketing/gen-calendar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          product: product.trim(), description: description.trim(),
+          targetMarket: selectedMarket, campaignType, voice, anthropicKey: key,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania kalendarza");
+      setCalendar(Array.isArray(data) ? data : []);
+    } catch (e: any) { setCalendarError(e.message); }
+    setCalendarLoading(false);
   };
 
   const copyText = async (text: string, key: string) => {
@@ -333,6 +433,10 @@ export default function MarketingPage() {
     { id: "email", label: "Email", icon: <Mail size={13} /> },
     { id: "seo", label: "SEO", icon: <Search size={13} /> },
     { id: "plan", label: "Plan kampanii", icon: <Calendar size={13} /> },
+    { id: "influencer", label: "Influencerzy", icon: <Users size={13} /> },
+    { id: "sequence", label: "Sekwencja Email", icon: <Mail size={13} /> },
+    { id: "landing", label: "Landing Page", icon: <Globe size={13} /> },
+    { id: "calendar", label: "Kalendarz 30 dni", icon: <Calendar size={13} /> },
     { id: "comments", label: "Komentarze YT/TT", icon: <MessageSquare size={13} /> },
     { id: "video", label: "Wideo AI", icon: <Video size={13} /> },
   ];
@@ -484,6 +588,55 @@ export default function MarketingPage() {
                   <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 5 }}>OPIS / KONTEKST</div>
                   <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Stan, kolor, cechy szczególne..." style={inp} />
                 </div>
+              </div>
+            </div>
+
+            {/* Campaign history */}
+            {history.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <button onClick={() => setShowHistory(prev => !prev)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "rgba(168,85,247,0.8)", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: showHistory ? 10 : 0 }}>
+                  <Calendar size={12} /> Historia kampanii ({history.length}) {showHistory ? "▲" : "▼"}
+                </button>
+                {showHistory && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {history.map((h: any) => (
+                      <button key={h.id} onClick={() => {
+                        setProduct(h.product);
+                        setSelectedMarket(h.targetMarket);
+                        setCampaignType(h.campaignType);
+                        setVoice(h.voice || "professional");
+                        setResult(h.result);
+                        setActiveTab("strategia");
+                        setShowHistory(false);
+                      }} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", padding: "7px 12px", borderRadius: 9, border: "1px solid rgba(168,85,247,0.3)", background: "rgba(168,85,247,0.07)", cursor: "pointer", textAlign: "left" }}>
+                        <span style={{ color: "#c4b5fd", fontSize: 11, fontWeight: 700 }}>{h.product} → {h.targetMarket}</span>
+                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9 }}>{new Date(h.createdAt).toLocaleDateString("pl-PL")}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Voice selector */}
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>TON / GŁOS MARKI</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { value: "professional", label: "👔 Profesjonalny" },
+                  { value: "casual", label: "🙂 Przyjazny" },
+                  { value: "luxury", label: "💎 Luksusowy" },
+                  { value: "aggressive", label: "🔥 Agresywny" },
+                  { value: "humor", label: "😂 Humorystyczny" },
+                ].map(v => (
+                  <button key={v.value} onClick={() => setVoice(v.value)} style={{
+                    padding: "8px 14px", borderRadius: 10,
+                    border: `1px solid ${voice === v.value ? "rgba(168,85,247,0.5)" : "rgba(255,255,255,0.1)"}`,
+                    background: voice === v.value ? "rgba(168,85,247,0.15)" : "transparent",
+                    color: voice === v.value ? "#c4b5fd" : "rgba(255,255,255,0.45)",
+                    fontWeight: voice === v.value ? 700 : 400, fontSize: 12, cursor: "pointer",
+                  }}>{v.label}</button>
+                ))}
               </div>
             </div>
 
@@ -1081,6 +1234,365 @@ export default function MarketingPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* ── TAB: Influencerzy ── */}
+            {activeTab === "influencer" && (() => {
+              const inf = result.campaign.influencer as any;
+              if (!inf) return <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Brak danych influencer — wygeneruj kampanię ponownie.</div>;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 14, padding: "20px 22px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                      <Users size={18} color="#a855f7" />
+                      <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Influencer Marketing</span>
+                    </div>
+                    <Block label="IDEALNY PROFIL INFLUENCERA">
+                      <div style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 10, padding: "12px 14px", color: "#c4b5fd", fontSize: 13, lineHeight: 1.6 }}>{inf.idealProfile}</div>
+                    </Block>
+                    <Block label="TEMAT WIADOMOŚCI DO INFLUENCERA">
+                      <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <span style={{ color: "#c4b5fd", fontWeight: 600, fontSize: 14 }}>{inf.outreachSubject}</span>
+                        <CopyBtn text={inf.outreachSubject} id="inf_subj" />
+                      </div>
+                    </Block>
+                    <Block label="TREŚĆ WIADOMOŚCI OUTREACH">
+                      <TextCard text={inf.outreachBody} id="inf_body" />
+                    </Block>
+                    <Block label="BRIEF TREŚCI">
+                      <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.6, position: "relative" }}>
+                        <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={inf.brief} id="inf_brief" /></div>
+                        <div style={{ paddingRight: 80, whiteSpace: "pre-wrap" }}>{inf.brief}</div>
+                      </div>
+                    </Block>
+                    <Block label="STRUKTURA WSPÓŁPRACY / WYNAGRODZENIE">
+                      <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "12px 14px", color: "#4ade80", fontSize: 13 }}>{inf.compensation}</div>
+                    </Block>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── TAB: Sekwencja Email ── */}
+            {activeTab === "sequence" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {emailSeq.length === 0 ? (
+                  <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
+                    <Mail size={32} color="#60a5fa" style={{ marginBottom: 12 }} />
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>5-emailowa sekwencja drip</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI stworzy kompletną sekwencję follow-up dostosowaną do Twojego produktu i rynku.</div>
+                    {emailSeqError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{emailSeqError}</div>}
+                    <button onClick={genEmailSeq} disabled={emailSeqLoading} style={{
+                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
+                      background: emailSeqLoading ? "rgba(96,165,250,0.2)" : "linear-gradient(135deg,#3b82f6,#6366f1)",
+                      color: emailSeqLoading ? "rgba(255,255,255,0.4)" : "#fff",
+                      fontWeight: 700, fontSize: 14, cursor: emailSeqLoading ? "not-allowed" : "pointer",
+                      boxShadow: emailSeqLoading ? "none" : "0 4px 16px rgba(99,102,241,0.3)",
+                    }}>
+                      {emailSeqLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję sekwencję…</> : <><Mail size={16} /> Generuj sekwencję email</>}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                      <button onClick={() => { setEmailSeq([]); setEmailSeqError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
+                    </div>
+                    {emailSeq.map((email: any, i: number) => (
+                      <div key={i} style={{ background: "rgba(96,165,250,0.04)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 14, padding: "18px 20px", marginBottom: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                          <div style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)", borderRadius: 8, padding: "4px 12px", color: "#fff", fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{email.timing}</div>
+                          <div style={{ color: "#93c5fd", fontSize: 13, fontWeight: 600 }}>{email.goal}</div>
+                        </div>
+                        <Block label="TEMAT">
+                          <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ color: "#60a5fa", fontWeight: 600, fontSize: 13 }}>{email.subject}</span>
+                            <CopyBtn text={email.subject} id={`seq_sub${i}`} />
+                          </div>
+                        </Block>
+                        <Block label="PREHEADER">
+                          <div style={{ background: "rgba(0,0,0,0.15)", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}>{email.preheader}</span>
+                            <CopyBtn text={email.preheader} id={`seq_pre${i}`} />
+                          </div>
+                        </Block>
+                        <Block label="TREŚĆ EMAILA">
+                          <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, overflow: "hidden" }}>
+                            <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <button onClick={() => setEmailSeqExpanded(prev => ({ ...prev, [i]: !prev[i] }))} style={{ background: "none", border: "none", color: "#93c5fd", fontSize: 12, cursor: "pointer", padding: 0 }}>
+                                {emailSeqExpanded[i] ? "▲ Zwiń" : "▼ Rozwiń treść"}
+                              </button>
+                              <CopyBtn text={email.body} id={`seq_body${i}`} />
+                            </div>
+                            {emailSeqExpanded[i] && <div style={{ padding: "0 14px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{email.body}</div>}
+                          </div>
+                        </Block>
+                        <div style={{ display: "inline-block", background: "linear-gradient(135deg,#3b82f6,#6366f1)", borderRadius: 8, padding: "8px 20px" }}>
+                          <span style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{email.cta}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── TAB: Landing Page ── */}
+            {activeTab === "landing" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {!landingPage ? (
+                  <div style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
+                    <Globe size={32} color="#22c55e" style={{ marginBottom: 12 }} />
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Landing Page Copy</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI wygeneruje kompletny tekst strony sprzedażowej — hero, problemy, rozwiązanie, social proof, FAQ i CTA.</div>
+                    {landingError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{landingError}</div>}
+                    <button onClick={genLanding} disabled={landingLoading} style={{
+                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
+                      background: landingLoading ? "rgba(34,197,94,0.2)" : "linear-gradient(135deg,#22c55e,#16a34a)",
+                      color: landingLoading ? "rgba(255,255,255,0.4)" : "#fff",
+                      fontWeight: 700, fontSize: 14, cursor: landingLoading ? "not-allowed" : "pointer",
+                      boxShadow: landingLoading ? "none" : "0 4px 16px rgba(34,197,94,0.3)",
+                    }}>
+                      {landingLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję landing page…</> : <><Globe size={16} /> Generuj landing page</>}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                      <button onClick={() => { setLandingPage(null); setLandingError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
+                    </div>
+
+                    {/* Hero */}
+                    {landingPage.hero && (
+                      <div style={{ background: "linear-gradient(135deg,rgba(34,197,94,0.08),rgba(16,163,74,0.05))", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 14, padding: "20px 22px", marginBottom: 12 }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 12 }}>HERO SECTION</div>
+                        <Block label="HEADLINE">
+                          <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 9, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ color: "#22c55e", fontWeight: 800, fontSize: 18 }}>{landingPage.hero.headline}</span>
+                            <CopyBtn text={landingPage.hero.headline} id="lp_hero_h" />
+                          </div>
+                        </Block>
+                        <Block label="SUBHEADLINE"><TextCard text={landingPage.hero.subheadline} id="lp_hero_sub" /></Block>
+                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                          <div style={{ display: "inline-block", background: "linear-gradient(135deg,#22c55e,#16a34a)", borderRadius: 9, padding: "10px 24px" }}>
+                            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{landingPage.hero.cta}</span>
+                          </div>
+                          {landingPage.hero.socialProofLine && <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>✓ {landingPage.hero.socialProofLine}</span>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Problem */}
+                    {landingPage.problem && (
+                      <div style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: 14, padding: "20px 22px", marginBottom: 12 }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 10 }}>PROBLEM SECTION</div>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 12 }}>{landingPage.problem.heading}</div>
+                        {landingPage.problem.points?.map((p: string, i: number) => (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                            <span style={{ color: "#f87171", fontWeight: 700 }}>✗</span>
+                            <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{p}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Solution */}
+                    {landingPage.solution && (
+                      <div style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.15)", borderRadius: 14, padding: "20px 22px", marginBottom: 12 }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 10 }}>SOLUTION SECTION</div>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 10 }}>{landingPage.solution.heading}</div>
+                        <Block label="OPIS"><TextCard text={landingPage.solution.description} id="lp_sol_desc" /></Block>
+                        {landingPage.solution.bullets?.map((b: string, i: number) => (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                            <span style={{ color: "#22c55e", fontWeight: 700 }}>✓</span>
+                            <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{b}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Features */}
+                    {landingPage.features?.length > 0 && (
+                      <div style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.15)", borderRadius: 14, padding: "20px 22px", marginBottom: 12 }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 14 }}>FEATURES SECTION</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          {landingPage.features.map((f: any, i: number) => (
+                            <div key={i} style={{ background: "rgba(168,85,247,0.07)", border: "1px solid rgba(168,85,247,0.15)", borderRadius: 10, padding: "14px 16px" }}>
+                              <div style={{ fontSize: 22, marginBottom: 8 }}>{f.emoji}</div>
+                              <div style={{ color: "#c4b5fd", fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{f.title}</div>
+                              <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.5 }}>{f.desc}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Social proof */}
+                    {landingPage.socialProof && (
+                      <div style={{ background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.15)", borderRadius: 14, padding: "20px 22px", marginBottom: 12 }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 10 }}>SOCIAL PROOF</div>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 14 }}>{landingPage.socialProof.heading}</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {landingPage.socialProof.testimonials?.map((t: any, i: number) => (
+                            <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "14px 16px" }}>
+                              <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 1.6, marginBottom: 8, fontStyle: "italic" }}>"{t.text}"</div>
+                              <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 700 }}>{t.author}</div>
+                              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>{t.role}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* FAQ */}
+                    {landingPage.faq?.length > 0 && (
+                      <div style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 14, padding: "20px 22px", marginBottom: 12 }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 14 }}>FAQ</div>
+                        {landingPage.faq.map((item: any, i: number) => (
+                          <div key={i} style={{ borderBottom: i < landingPage.faq.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none", paddingBottom: 12, marginBottom: 12 }}>
+                            <button onClick={() => setFaqExpanded(prev => ({ ...prev, [i]: !prev[i] }))} style={{ background: "none", border: "none", color: "#a5b4fc", fontWeight: 700, fontSize: 13, cursor: "pointer", padding: 0, textAlign: "left", width: "100%" }}>
+                              {faqExpanded[i] ? "▲" : "▶"} {item.q}
+                            </button>
+                            {faqExpanded[i] && <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, lineHeight: 1.6, marginTop: 8, paddingLeft: 16 }}>{item.a}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Final CTA */}
+                    {landingPage.finalCta && (
+                      <div style={{ background: "linear-gradient(135deg,rgba(34,197,94,0.1),rgba(16,163,74,0.07))", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 14, padding: "24px 22px", textAlign: "center" }}>
+                        <div style={{ color: "#fff", fontWeight: 800, fontSize: 20, marginBottom: 8 }}>{landingPage.finalCta.headline}</div>
+                        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginBottom: 20 }}>{landingPage.finalCta.subtext}</div>
+                        <div style={{ display: "inline-block", background: "linear-gradient(135deg,#22c55e,#16a34a)", borderRadius: 11, padding: "14px 36px" }}>
+                          <span style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>{landingPage.finalCta.cta}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── TAB: Kalendarz 30 dni ── */}
+            {activeTab === "calendar" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {calendar.length === 0 ? (
+                  <div style={{ background: "rgba(236,72,153,0.06)", border: "1px solid rgba(236,72,153,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
+                    <Calendar size={32} color="#ec4899" style={{ marginBottom: 12 }} />
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>30-dniowy Kalendarz Contentowy</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI stworzy dzienny plan publikacji na TikTok, Instagram, Facebook i YouTube.</div>
+                    {calendarError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{calendarError}</div>}
+                    <button onClick={genCalendar} disabled={calendarLoading} style={{
+                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
+                      background: calendarLoading ? "rgba(236,72,153,0.2)" : "linear-gradient(135deg,#ec4899,#a855f7)",
+                      color: calendarLoading ? "rgba(255,255,255,0.4)" : "#fff",
+                      fontWeight: 700, fontSize: 14, cursor: calendarLoading ? "not-allowed" : "pointer",
+                      boxShadow: calendarLoading ? "none" : "0 4px 16px rgba(168,85,247,0.3)",
+                    }}>
+                      {calendarLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję kalendarz…</> : <><Calendar size={16} /> Generuj kalendarz 30 dni</>}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                      <button onClick={() => { setCalendar([]); setCalendarError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
+                    </div>
+                    {[0, 1, 2, 3].map(week => {
+                      const weekDays = calendar.slice(week * 7, week * 7 + 7);
+                      if (weekDays.length === 0) return null;
+                      return (
+                        <div key={week} style={{ marginBottom: 20 }}>
+                          <div style={{ color: "#c4b5fd", fontWeight: 700, fontSize: 12, letterSpacing: 1, marginBottom: 10, paddingLeft: 4 }}>TYDZIEŃ {week + 1}</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {weekDays.map((day: any) => {
+                              const platformColors: Record<string, string> = {
+                                TikTok: "rgba(236,72,153,0.8)", Instagram: "rgba(168,85,247,0.8)",
+                                Facebook: "rgba(59,130,246,0.8)", YouTube: "rgba(239,68,68,0.8)",
+                              };
+                              const platformBg: Record<string, string> = {
+                                TikTok: "rgba(236,72,153,0.15)", Instagram: "rgba(168,85,247,0.15)",
+                                Facebook: "rgba(59,130,246,0.15)", YouTube: "rgba(239,68,68,0.15)",
+                              };
+                              const color = platformColors[day.platform] ?? "rgba(255,255,255,0.6)";
+                              const bg = platformBg[day.platform] ?? "rgba(255,255,255,0.06)";
+                              return (
+                                <div key={day.day} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "14px 16px" }}>
+                                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                      <div style={{ width: 28, height: 28, borderRadius: 7, background: "linear-gradient(135deg,#ec4899,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <span style={{ color: "#fff", fontWeight: 900, fontSize: 11 }}>{day.day}</span>
+                                      </div>
+                                      <div>
+                                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9 }}>{day.label}</div>
+                                        <div style={{ display: "flex", gap: 5, marginTop: 3 }}>
+                                          <span style={{ background: bg, borderRadius: 99, padding: "1px 8px", color, fontSize: 10, fontWeight: 700 }}>{day.platform}</span>
+                                          <span style={{ background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "1px 8px", color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{day.type}</span>
+                                          {day.bestTime && <span style={{ background: "rgba(245,158,11,0.1)", borderRadius: 99, padding: "1px 8px", color: "#f59e0b", fontSize: 10 }}>⏰ {day.bestTime}</span>}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 200 }}>
+                                      <div style={{ color: "#f9a8d4", fontWeight: 600, fontSize: 12, marginBottom: 4 }}>🪝 {day.hook}</div>
+                                      <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, lineHeight: 1.5, marginBottom: 6 }}>{day.content}</div>
+                                      {day.hashtags?.length > 0 && (
+                                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                          {day.hashtags.map((h: string) => <span key={h} style={{ color: color, fontSize: 10 }}>{h}</span>)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Days 29-30 (remainder) */}
+                    {calendar.length > 28 && (
+                      <div style={{ marginBottom: 20 }}>
+                        <div style={{ color: "#c4b5fd", fontWeight: 700, fontSize: 12, letterSpacing: 1, marginBottom: 10, paddingLeft: 4 }}>OSTATNIE DNI</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {calendar.slice(28).map((day: any) => {
+                            const platformColors: Record<string, string> = { TikTok: "rgba(236,72,153,0.8)", Instagram: "rgba(168,85,247,0.8)", Facebook: "rgba(59,130,246,0.8)", YouTube: "rgba(239,68,68,0.8)" };
+                            const platformBg: Record<string, string> = { TikTok: "rgba(236,72,153,0.15)", Instagram: "rgba(168,85,247,0.15)", Facebook: "rgba(59,130,246,0.15)", YouTube: "rgba(239,68,68,0.15)" };
+                            const color = platformColors[day.platform] ?? "rgba(255,255,255,0.6)";
+                            const bg = platformBg[day.platform] ?? "rgba(255,255,255,0.06)";
+                            return (
+                              <div key={day.day} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "14px 16px" }}>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                    <div style={{ width: 28, height: 28, borderRadius: 7, background: "linear-gradient(135deg,#ec4899,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <span style={{ color: "#fff", fontWeight: 900, fontSize: 11 }}>{day.day}</span>
+                                    </div>
+                                    <div>
+                                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9 }}>{day.label}</div>
+                                      <div style={{ display: "flex", gap: 5, marginTop: 3 }}>
+                                        <span style={{ background: bg, borderRadius: 99, padding: "1px 8px", color, fontSize: 10, fontWeight: 700 }}>{day.platform}</span>
+                                        <span style={{ background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "1px 8px", color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{day.type}</span>
+                                        {day.bestTime && <span style={{ background: "rgba(245,158,11,0.1)", borderRadius: 99, padding: "1px 8px", color: "#f59e0b", fontSize: 10 }}>⏰ {day.bestTime}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 200 }}>
+                                    <div style={{ color: "#f9a8d4", fontWeight: 600, fontSize: 12, marginBottom: 4 }}>🪝 {day.hook}</div>
+                                    <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, lineHeight: 1.5, marginBottom: 6 }}>{day.content}</div>
+                                    {day.hashtags?.length > 0 && (
+                                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                        {day.hashtags.map((h: string) => <span key={h} style={{ color, fontSize: 10 }}>{h}</span>)}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
