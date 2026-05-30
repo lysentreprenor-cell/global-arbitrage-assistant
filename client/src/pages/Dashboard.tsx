@@ -481,7 +481,17 @@ export default function Dashboard() {
                 <Plus size={15} />
                 {lang === "pl" ? "Nowa umowa" : "New Contract"}
               </button>
-            <button onClick={() => setLocation("/ai-contracts")} style={{ marginTop:10, width:"100%", height:50, borderRadius:999, border:"none", cursor:"pointer", fontSize:14, fontWeight:800, color:"#0a2016", background:"linear-gradient(135deg,#34d399 0%,#10b981 60%,#059669 100%)", boxShadow:"0 4px 18px rgba(52,211,153,0.38)", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>✨ Umowy AI</button>
+            <button
+              onClick={() => setLocation("/ai-contracts")}
+              style={{
+                marginTop: 10, width: "100%", height: 50,
+                borderRadius: 999, border: "none", cursor: "pointer",
+                fontSize: 14, fontWeight: 800, color: "#0a2016",
+                background: "linear-gradient(135deg,#34d399 0%,#10b981 60%,#059669 100%)",
+                boxShadow: "0 4px 18px rgba(52,211,153,0.38)",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >✨ Umowy AI</button>
             </div>
           </div>
         </div>
