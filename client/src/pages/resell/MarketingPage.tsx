@@ -133,6 +133,7 @@ export default function MarketingPage() {
   const [campaignBudget, setCampaignBudget] = useState("auto");
   const [sections, setSections] = useState<string[]>(["strategy","social","ads","email","seo","plan"]);
   const [sectionDetail, setSectionDetail] = useState<Record<string, "s"|"m"|"l">>({ strategy:"m", social:"m", ads:"m", email:"m", seo:"m", plan:"m" });
+  const [lastUsage, setLastUsage] = useState<{ input_tokens: number; output_tokens: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -323,6 +324,7 @@ export default function MarketingPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Błąd generowania");
       setResult(data);
+      if (data.usage) setLastUsage(data.usage);
       setActiveTab("strategia");
       // Save to history (max 5, newest first)
       const entry = {
@@ -703,67 +705,87 @@ export default function MarketingPage() {
             </div>
 
             {/* Sections selector */}
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8 }}>CO GENEROWAĆ ({sections.length}/6)</div>
-                {(() => {
-                  const hasLong = sections.some(s => sectionDetail[s] === "l");
-                  const useHaiku = sections.length <= 3 && !hasLong;
-                  return useHaiku
-                    ? <span style={{ color: "#4ade80", fontSize: 10 }}>⚡ Haiku — szybki i tani</span>
-                    : <span style={{ color: "#fbbf24", fontSize: 10 }}>✦ Sonnet — dokładny</span>;
-                })()}
-              </div>
-              <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginBottom: 10 }}>Kliknij sekcję żeby ją włączyć/wyłączyć. S = skrótowo, M = standardowo, L = szczegółowo.</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[
-                  { value: "strategy", label: "📊 Strategia",       desc: "Rynek, audience, budżet" },
-                  { value: "social",   label: "📱 Social media",     desc: "Instagram, Facebook, TikTok" },
-                  { value: "ads",      label: "📣 Reklamy",          desc: "Google Ads, Meta Ads" },
-                  { value: "email",    label: "📧 Email",            desc: "Subject, treść, CTA" },
-                  { value: "seo",      label: "🔍 SEO",              desc: "Title, meta, słowa kluczowe" },
-                  { value: "plan",     label: "📅 Plan 4 tygodnie",  desc: "Tygodniowy harmonogram" },
-                ].map(s => {
-                  const active = sections.includes(s.value);
-                  const dl = sectionDetail[s.value] ?? "m";
-                  return (
-                    <div key={s.value} role="button" tabIndex={0}
-                      onClick={() => setSections(prev =>
-                        prev.includes(s.value)
-                          ? prev.length > 1 ? prev.filter(x => x !== s.value) : prev
-                          : [...prev, s.value]
-                      )}
-                      onKeyDown={e => e.key === "Enter" && setSections(prev =>
-                        prev.includes(s.value)
-                          ? prev.length > 1 ? prev.filter(x => x !== s.value) : prev
-                          : [...prev, s.value]
-                      )}
-                      style={{
-                        padding: "8px 12px", borderRadius: 10,
-                        border: `1px solid ${active ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.1)"}`,
-                        background: active ? "rgba(34,197,94,0.12)" : "transparent",
-                        color: active ? "#4ade80" : "rgba(255,255,255,0.3)",
-                        cursor: "pointer", textAlign: "left", userSelect: "none",
-                      }}>
-                      <div style={{ fontWeight: 700, fontSize: 12 }}>{s.label}</div>
-                      <div style={{ fontSize: 10, opacity: 0.6, marginTop: 2 }}>{s.desc}</div>
-                      {active && (
-                        <div style={{ display: "flex", gap: 4, marginTop: 6 }} onClick={e => e.stopPropagation()}>
-                          {(["s","m","l"] as const).map(d => (
-                            <button key={d} onClick={() => setSectionDetail(prev => ({ ...prev, [s.value]: d }))} style={{
-                              padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700, cursor: "pointer",
-                              border: `1px solid ${dl === d ? "rgba(34,197,94,0.9)" : "rgba(255,255,255,0.18)"}`,
-                              background: dl === d ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.04)",
-                              color: dl === d ? "#4ade80" : "rgba(255,255,255,0.35)",
-                            }}>{d.toUpperCase()}</button>
-                          ))}
-                        </div>
-                      )}
+            {(() => {
+              const SECS = [
+                { value: "strategy", label: "📊 Strategia",      desc: "Rynek, audience, budżet" },
+                { value: "social",   label: "📱 Social media",    desc: "Instagram, Facebook, TikTok" },
+                { value: "ads",      label: "📣 Reklamy",         desc: "Google Ads, Meta Ads" },
+                { value: "email",    label: "📧 Email",           desc: "Subject, treść, CTA" },
+                { value: "seo",      label: "🔍 SEO",             desc: "Title, meta, słowa kluczowe" },
+                { value: "plan",     label: "📅 Plan 4 tygodnie", desc: "Tygodniowy harmonogram" },
+              ];
+              const tokenW: Record<string, number> = { s: 600, m: 1600, l: 3200 };
+              const estTokens = sections.reduce((acc, s) => acc + (tokenW[sectionDetail[s] ?? "m"] || 1600), 0);
+              const hasLong = sections.some(s => sectionDetail[s] === "l");
+              const useHaiku = sections.length <= 3 && !hasLong;
+              const maxTok = Math.min(useHaiku ? 6000 : 16000, Math.max(2000, estTokens + 600));
+              const pct = Math.round((estTokens / maxTok) * 100);
+              return (
+                <div style={{ marginBottom: 22 }}>
+                  {/* Header row */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8 }}>CO GENEROWAĆ ({sections.length}/6)</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {useHaiku
+                        ? <span style={{ color: "#4ade80", fontSize: 10, fontWeight: 700 }}>⚡ Haiku</span>
+                        : <span style={{ color: "#fbbf24", fontSize: 10, fontWeight: 700 }}>✦ Sonnet</span>
+                      }
+                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>~{estTokens} / {maxTok} tok</span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+                  {/* Token bar */}
+                  <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.07)", marginBottom: 10, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, borderRadius: 2, background: pct > 85 ? "#f87171" : useHaiku ? "#4ade80" : "#fbbf24", transition: "width 0.3s" }} />
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginBottom: 10 }}>Zaznacz sekcje. Dla każdej aktywnej wybierz S (skrótowo) / M (standardowo) / L (szczegółowo).</div>
+                  {/* Section toggle chips */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                    {SECS.map(s => {
+                      const active = sections.includes(s.value);
+                      return (
+                        <button key={s.value} onClick={() => setSections(prev =>
+                          prev.includes(s.value)
+                            ? prev.length > 1 ? prev.filter(x => x !== s.value) : prev
+                            : [...prev, s.value]
+                        )} style={{
+                          padding: "8px 12px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                          border: `1px solid ${active ? "rgba(34,197,94,0.55)" : "rgba(255,255,255,0.1)"}`,
+                          background: active ? "rgba(34,197,94,0.12)" : "transparent",
+                          color: active ? "#4ade80" : "rgba(255,255,255,0.3)",
+                        }}>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{s.label}</div>
+                          <div style={{ fontSize: 10, opacity: 0.55, marginTop: 2 }}>{s.desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* S/M/L detail rows for active sections */}
+                  {sections.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {SECS.filter(s => sections.includes(s.value)).map(s => {
+                        const dl = sectionDetail[s.value] ?? "m";
+                        const labels: Record<string, string> = { s: "S — skrótowo", m: "M — standardowo", l: "L — szczegółowo" };
+                        return (
+                          <div key={s.value} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", minWidth: 120, flexShrink: 0 }}>{s.label}</span>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              {(["s","m","l"] as const).map(d => (
+                                <button key={d} onClick={() => setSectionDetail(prev => ({ ...prev, [s.value]: d }))} style={{
+                                  padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                                  border: `1px solid ${dl === d ? "rgba(34,197,94,0.8)" : "rgba(255,255,255,0.12)"}`,
+                                  background: dl === d ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.03)",
+                                  color: dl === d ? "#4ade80" : "rgba(255,255,255,0.3)",
+                                }}>{labels[d]}</button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Campaign type */}
             <div style={{ marginBottom: 22 }}>
@@ -887,6 +909,11 @@ export default function MarketingPage() {
                   <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>
                     {result.meta.targetMarket} · {result.meta.language} · {result.meta.currency} · {CAMPAIGN_TYPES.find(c => c.value === result.meta.campaignType)?.label}
                   </div>
+                  {lastUsage && (
+                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginTop: 5 }}>
+                      Tokeny: <span style={{ color: "#a78bfa" }}>{lastUsage.output_tokens.toLocaleString()} out</span> · {lastUsage.input_tokens.toLocaleString()} in
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {result.campaign.summary.expectedROAS && (
