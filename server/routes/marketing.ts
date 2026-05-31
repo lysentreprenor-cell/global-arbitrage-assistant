@@ -309,6 +309,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     description = "", targetMarket, marketType = "country",
     campaignType = "launch", anthropicKey, voice = "professional",
     campaignBudget = "auto",
+    sections = ["strategy","social","ads","email","seo","plan"],
   } = req.body;
 
   if (!product) return res.status(400).json({ error: "product required" });
@@ -346,133 +347,147 @@ router.post("/generate", async (req: Request, res: Response) => {
     retargeting: "Retargeting / Win-back",
   };
 
-  const prompt = `You are a world-class performance marketing strategist specializing in international e-commerce, cross-border reselling, and digital advertising. Your campaigns consistently achieve 4-8x ROAS.
+  const sel = Array.isArray(sections) ? sections : ["strategy","social","ads","email","seo","plan"];
+
+  const sectionBlocks: Record<string, string> = {
+    strategy: `
+  "summary": {
+    "marketOverview": "2-3 sentences on market opportunity in ${targetMarket}",
+    "uniqueSellingPoint": "strongest selling angle for ${targetMarket}",
+    "expectedROAS": "e.g. 3-5x",
+    "seasonality": "best months/seasons in ${targetMarket}",
+    "complianceNote": "legal/regulatory notes for ${targetMarket}"
+  },
+  "audience": {
+    "ageRange": "e.g. 25-44",
+    "gender": "Male / Female / All",
+    "income": "Lower / Middle / Upper-Middle / Affluent",
+    "interests": ["interest1","interest2","interest3","interest4","interest5"],
+    "psychographics": "1-2 sentences on buyer mindset",
+    "painPoints": ["pain1","pain2","pain3"],
+    "buyingTriggers": ["trigger1","trigger2","trigger3"]
+  },
+  "platforms": [
+    {"platform":"name","priority":1,"reason":"why it works","expectedCPM":"CPM in ${currency}","bestFormat":"format"}
+  ],
+  "budget": {
+    "monthly_min": 0,
+    "monthly_max": 0,
+    "allocation": {"paid_social":"40%","google":"35%","influencer":"15%","email":"10%"},
+    "tip": "1 sentence budget tip for ${targetMarket}"
+  },
+  "localInsights": "2-3 key cultural insights for ${targetMarket}"`,
+
+    social: `
+  "social": {
+    "instagram": {
+      "caption": "Instagram caption in ${language} (max 400 chars, include emojis)",
+      "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5","#tag6","#tag7","#tag8"],
+      "cta": "CTA text",
+      "format": "Reel / Carousel / Single Post / Story",
+      "visualIdea": "visual concept description"
+    },
+    "facebook": {
+      "headline": "headline max 40 chars in ${language}",
+      "primaryText": "primary text max 150 chars in ${language}",
+      "linkDescription": "link desc max 30 chars in ${language}",
+      "audienceNote": "targeting suggestion"
+    },
+    "tiktok": {
+      "hook": "3-second hook in ${language}",
+      "script": "TikTok script in ${language} (max 50 words)",
+      "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5"],
+      "musicMood": "music style",
+      "trendSuggestion": "TikTok trend to leverage"
+    },
+    "youtube": {
+      "title": "YouTube title in ${language}",
+      "description": "YouTube description max 120 chars in ${language}",
+      "tags": ["tag1","tag2","tag3","tag4","tag5"]
+    }
+  }`,
+
+    ads: `
+  "ads": {
+    "google": {
+      "headlines": ["h1 max 30 chars","h2","h3","h4","h5"],
+      "descriptions": ["desc1 max 90 chars","desc2"],
+      "displayUrl": "example.com/keyword",
+      "exactKeywords": ["kw1","kw2","kw3","kw4"],
+      "broadKeywords": ["broad1","broad2","broad3"],
+      "negativeKeywords": ["neg1","neg2","neg3"],
+      "bidStrategy": "bid strategy",
+      "shoppingFeedTitle": "optimized Google Shopping title"
+    },
+    "meta": {
+      "primaryText": "Meta primary text in ${language}",
+      "headline": "Meta headline max 40 chars in ${language}",
+      "description": "Meta desc max 30 chars in ${language}",
+      "cta": "Shop Now / Learn More / etc.",
+      "audienceTargeting": "interests + behaviors",
+      "lookalike": "lookalike audience profile"
+    }
+  }`,
+
+    email: `
+  "email": {
+    "subject": "subject in ${language} (2 A/B variations separated by |)",
+    "preheader": "preheader in ${language}",
+    "body": "email body in ${language} (max 100 words)",
+    "cta": "CTA button text in ${language}"
+  }`,
+
+    seo: `
+  "seo": {
+    "pageTitle": "SEO title in ${language} (max 60 chars)",
+    "metaDescription": "meta description in ${language} (max 155 chars)",
+    "h1": "H1 heading in ${language}",
+    "primaryKeywords": ["kw1","kw2","kw3"],
+    "longTailKeywords": ["long tail 1","long tail 2","long tail 3"],
+    "contentIdeas": ["blog idea 1","blog idea 2","video idea"]
+  }`,
+
+    plan: `
+  "launchPlan": [
+    {"week":1,"focus":"...","actions":["action1","action2"],"platforms":["platform1"],"budget_pct":"30%"},
+    {"week":2,"focus":"...","actions":["action1","action2"],"platforms":["platform1","platform2"],"budget_pct":"25%"},
+    {"week":3,"focus":"...","actions":["action1"],"platforms":["platform1","platform2"],"budget_pct":"25%"},
+    {"week":4,"focus":"...","actions":["action1","action2"],"platforms":["platform1"],"budget_pct":"20%"}
+  ]`,
+  };
+
+  const jsonBody = sel.map(s => sectionBlocks[s]).filter(Boolean).join(",");
+
+  const prompt = `You are a world-class performance marketing strategist. Create a targeted marketing campaign.
 
 CAMPAIGN BRIEF:
 - Product: ${product}
 - Category: ${category}
 - Price: $${priceUSD} USD
 - Description: ${description || "Not provided"}
-- Target Market: ${targetMarket} (type: ${marketType})
+- Target Market: ${targetMarket} (${marketType})
 - Campaign Type: ${campaignLabels[campaignType] ?? campaignType}
-- Primary Language for Content: ${language}
+- Language: ${language}
 - Currency: ${currency}
 - Voice/Tone: ${voice}
-- Monthly Campaign Budget: ${budgetCtx}
+- Budget: ${budgetCtx}
 ${continentCtx ? `- Market Context: ${continentCtx}` : ""}
 
-Create a COMPLETE, ACTIONABLE marketing campaign kit. All ad copy and social content MUST be written in ${language}. If the language is not English, still keep JSON keys in English.
-
-Return ONLY a valid JSON object (no markdown, no explanation):
-{
-  "summary": {
-    "marketOverview": "2-3 sentences about the market opportunity for this product in ${targetMarket}",
-    "uniqueSellingPoint": "The single most powerful selling angle for ${targetMarket}",
-    "expectedROAS": "e.g. 3-5x",
-    "seasonality": "best months/seasons to advertise this product in ${targetMarket}",
-    "complianceNote": "any legal/regulatory notes for selling in ${targetMarket} (taxes, certifications, bans)"
-  },
-  "audience": {
-    "ageRange": "e.g. 25-44",
-    "gender": "Male / Female / All",
-    "income": "Lower / Middle / Upper-Middle / Affluent",
-    "interests": ["interest1", "interest2", "interest3", "interest4", "interest5"],
-    "psychographics": "1-2 sentences describing buyer mindset and motivations",
-    "painPoints": ["pain1", "pain2", "pain3"],
-    "buyingTriggers": ["trigger1", "trigger2", "trigger3"]
-  },
-  "platforms": [
-    {
-      "platform": "platform name",
-      "priority": 1,
-      "reason": "why this platform works for this product + market",
-      "expectedCPM": "estimated CPM in ${currency}",
-      "bestFormat": "e.g. Video Reel / Carousel / Story"
-    }
-  ],
-  "budget": {
-    "monthly_min": number (${currency}),
-    "monthly_max": number (${currency}),
-    "allocation": { "paid_social": "40%", "google": "35%", "influencer": "15%", "email": "10%" },
-    "tip": "practical budget advice for ${targetMarket}"
-  },
-  "social": {
-    "instagram": {
-      "caption": "Instagram caption in ${language} (max 500 chars, include emojis)",
-      "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6", "#tag7", "#tag8", "#tag9", "#tag10"],
-      "cta": "call to action text",
-      "format": "Reel / Carousel / Single Post / Story",
-      "visualIdea": "describe the ideal visual/video concept"
-    },
-    "facebook": {
-      "headline": "Facebook ad headline (max 40 chars) in ${language}",
-      "primaryText": "Facebook primary text in ${language} (max 150 chars)",
-      "linkDescription": "link description in ${language} (max 30 chars)",
-      "audienceNote": "specific Facebook audience targeting suggestion"
-    },
-    "tiktok": {
-      "hook": "first 3 seconds hook in ${language} — must stop the scroll",
-      "script": "TikTok script in ${language} (max 15 seconds / 50 words)",
-      "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
-      "musicMood": "ideal background music style",
-      "trendSuggestion": "current TikTok trend to leverage"
-    },
-    "youtube": {
-      "title": "YouTube video title in ${language}",
-      "description": "YouTube description in ${language} (max 120 chars)",
-      "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-    }
-  },
-  "ads": {
-    "google": {
-      "headlines": ["headline 1 (max 30 chars)", "headline 2", "headline 3", "headline 4", "headline 5"],
-      "descriptions": ["description 1 (max 90 chars)", "description 2"],
-      "displayUrl": "example.com/product-keyword",
-      "exactKeywords": ["keyword1", "keyword2", "keyword3", "keyword4"],
-      "broadKeywords": ["broad kw 1", "broad kw 2", "broad kw 3"],
-      "negativeKeywords": ["neg1", "neg2", "neg3"],
-      "bidStrategy": "Target CPA / Maximize Conversions / etc.",
-      "shoppingFeedTitle": "optimized product title for Google Shopping"
-    },
-    "meta": {
-      "primaryText": "Meta Ads primary text in ${language}",
-      "headline": "Meta Ads headline in ${language} (max 40 chars)",
-      "description": "Meta Ads description in ${language} (max 30 chars)",
-      "cta": "Shop Now / Learn More / Buy Now / etc.",
-      "audienceTargeting": "detailed interests + behaviors to target",
-      "lookalike": "what customer profile to use for lookalike audience"
-    }
-  },
-  "email": {
-    "subject": "email subject line in ${language} (A/B test: write 2 variations separated by | )",
-    "preheader": "email preheader in ${language}",
-    "body": "promotional email body in ${language} (max 120 words)",
-    "cta": "email CTA button text in ${language}"
-  },
-  "seo": {
-    "pageTitle": "SEO page title in ${language} (max 60 chars)",
-    "metaDescription": "SEO meta description in ${language} (max 155 chars)",
-    "h1": "main heading in ${language}",
-    "primaryKeywords": ["keyword1", "keyword2", "keyword3"],
-    "longTailKeywords": ["long tail 1", "long tail 2", "long tail 3"],
-    "contentIdeas": ["blog post idea 1", "blog post idea 2", "video idea 1"]
-  },
-  "localInsights": "2-3 key cultural insights for ${targetMarket}: what resonates, what to avoid, local payment/delivery preferences",
-  "launchPlan": [
-    { "week": 1, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1"], "budget_pct": "30%" },
-    { "week": 2, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1", "platform2"], "budget_pct": "25%" },
-    { "week": 3, "focus": "...", "actions": ["action1"], "platforms": ["platform1", "platform2"], "budget_pct": "25%" },
-    { "week": 4, "focus": "...", "actions": ["action1", "action2"], "platforms": ["platform1"], "budget_pct": "20%" }
-  ]
+All copy MUST be in ${language}. Keep JSON keys in English.
+Return ONLY valid JSON (no markdown):
+{${jsonBody}
 }`;
+
+  const model = sel.length <= 3 ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6";
+  const maxTok = sel.length <= 3 ? 6000 : 12000;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 16000,
+        model,
+        max_tokens: maxTok,
         system: "You are a world-class international performance marketing strategist. Generate complete, ready-to-use marketing campaigns. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
