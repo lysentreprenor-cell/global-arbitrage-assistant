@@ -566,6 +566,7 @@ Return ONLY valid JSON (no markdown):
       campaign,
       meta: { product, targetMarket, marketType, campaignType, language, currency },
       usage: data.usage ?? null,
+      model,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });

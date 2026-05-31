@@ -8,6 +8,7 @@ import {
 import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey, getYouTubeKey, getGeminiKey } from "@/lib/apiKeys";
+import { recordTokenUsage } from "@/lib/tokenUsage";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const COUNTRIES = [
@@ -324,7 +325,10 @@ export default function MarketingPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Błąd generowania");
       setResult(data);
-      if (data.usage) setLastUsage(data.usage);
+      if (data.usage) {
+        setLastUsage(data.usage);
+        recordTokenUsage(data.usage, data.model || "claude-haiku-4-5-20251001");
+      }
       setActiveTab("strategia");
       // Save to history (max 5, newest first)
       const entry = {

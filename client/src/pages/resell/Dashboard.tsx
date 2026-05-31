@@ -6,6 +6,7 @@ import {
   ArrowRight, Package, ShieldCheck, ShieldAlert, Clock, Megaphone, ChevronRight,
 } from "lucide-react";
 import { addToPipeline, loadPipeline } from "@/lib/pipeline";
+import { loadTokenStats, estimateCostUSD, type TokenStats } from "@/lib/tokenUsage";
 import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib/apiKeys";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
@@ -191,6 +192,13 @@ export default function Dashboard() {
   });
   const [toast, setToast] = useState<string | null>(null);
   const [previewImg, setPreviewImg] = useState<{ src: string; name: string; rect: DOMRect } | null>(null);
+  const [tokenStats, setTokenStats] = useState<TokenStats>(() => loadTokenStats());
+
+  useEffect(() => {
+    const refresh = () => setTokenStats(loadTokenStats());
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
 
   const filtered = opportunities
     .filter(o =>
@@ -404,6 +412,39 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {/* ── AI token usage strip ── */}
+        {(() => {
+          const s = tokenStats;
+          const cost = estimateCostUSD(s);
+          const monthLabel = s.month ? new Date(s.month + "-01").toLocaleString("pl-PL", { month: "long", year: "numeric" }) : "";
+          if (!s.calls) return null;
+          return (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+              background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.18)",
+              borderRadius: 10, padding: "8px 14px", marginBottom: 16,
+            }}>
+              <span style={{ color: "#a78bfa", fontSize: 11, fontWeight: 700 }}>🤖 Tokeny AI</span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
+              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{monthLabel}</span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
+              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
+                <span style={{ color: "#c4b5fd" }}>{s.outputTotal.toLocaleString()}</span> out
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
+              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
+                {s.inputTotal.toLocaleString()} in
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
+              <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 700 }}>~${cost.toFixed(3)}</span>
+              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{s.calls} {s.calls === 1 ? "zapytanie" : "zapytań"}</span>
+              {s.haikuCalls > 0 && <span style={{ color: "#4ade80", fontSize: 10 }}>⚡{s.haikuCalls}×H</span>}
+              {s.sonnetCalls > 0 && <span style={{ color: "#fbbf24", fontSize: 10 }}>✦{s.sonnetCalls}×S</span>}
+            </div>
+          );
+        })()}
 
         {/* ── Error banner ── */}
         {scanError && (
