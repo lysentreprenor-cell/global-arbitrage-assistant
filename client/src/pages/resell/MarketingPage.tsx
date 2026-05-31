@@ -132,6 +132,7 @@ export default function MarketingPage() {
   const [voice, setVoice] = useState("professional");
   const [campaignBudget, setCampaignBudget] = useState("auto");
   const [sections, setSections] = useState<string[]>(["strategy","social","ads","email","seo","plan"]);
+  const [sectionDetail, setSectionDetail] = useState<Record<string, "s"|"m"|"l">>({ strategy:"m", social:"m", ads:"m", email:"m", seo:"m", plan:"m" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -312,7 +313,7 @@ export default function MarketingPage() {
         body: JSON.stringify({
           product: product.trim(), category, priceUSD: parseFloat(priceUSD) || 0,
           description: description.trim(), targetMarket: selectedMarket,
-          marketType, campaignType, voice, campaignBudget, sections, anthropicKey: key,
+          marketType, campaignType, voice, campaignBudget, sections, sectionDetail, anthropicKey: key,
         }),
       });
       const ct = r.headers.get("content-type") || "";
@@ -705,12 +706,15 @@ export default function MarketingPage() {
             <div style={{ marginBottom: 22 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
                 <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8 }}>CO GENEROWAĆ ({sections.length}/6)</div>
-                {sections.length <= 3
-                  ? <span style={{ color: "#4ade80", fontSize: 10 }}>⚡ Haiku — szybki i tani</span>
-                  : <span style={{ color: "#fbbf24", fontSize: 10 }}>✦ Sonnet — pełna kampania</span>
-                }
+                {(() => {
+                  const hasLong = sections.some(s => sectionDetail[s] === "l");
+                  const useHaiku = sections.length <= 3 && !hasLong;
+                  return useHaiku
+                    ? <span style={{ color: "#4ade80", fontSize: 10 }}>⚡ Haiku — szybki i tani</span>
+                    : <span style={{ color: "#fbbf24", fontSize: 10 }}>✦ Sonnet — dokładny</span>;
+                })()}
               </div>
-              <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginBottom: 10 }}>Im mniej sekcji, tym szybciej i taniej. Odznacz czego nie potrzebujesz.</div>
+              <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginBottom: 10 }}>Kliknij sekcję żeby ją włączyć/wyłączyć. S = skrótowo, M = standardowo, L = szczegółowo.</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {[
                   { value: "strategy", label: "📊 Strategia",       desc: "Rynek, audience, budżet" },
@@ -721,21 +725,41 @@ export default function MarketingPage() {
                   { value: "plan",     label: "📅 Plan 4 tygodnie",  desc: "Tygodniowy harmonogram" },
                 ].map(s => {
                   const active = sections.includes(s.value);
+                  const dl = sectionDetail[s.value] ?? "m";
                   return (
-                    <button key={s.value} onClick={() => setSections(prev =>
-                      prev.includes(s.value)
-                        ? prev.length > 1 ? prev.filter(x => x !== s.value) : prev
-                        : [...prev, s.value]
-                    )} style={{
-                      padding: "8px 14px", borderRadius: 10,
-                      border: `1px solid ${active ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.1)"}`,
-                      background: active ? "rgba(34,197,94,0.12)" : "transparent",
-                      color: active ? "#4ade80" : "rgba(255,255,255,0.3)",
-                      cursor: "pointer", textAlign: "left",
-                    }}>
+                    <div key={s.value} role="button" tabIndex={0}
+                      onClick={() => setSections(prev =>
+                        prev.includes(s.value)
+                          ? prev.length > 1 ? prev.filter(x => x !== s.value) : prev
+                          : [...prev, s.value]
+                      )}
+                      onKeyDown={e => e.key === "Enter" && setSections(prev =>
+                        prev.includes(s.value)
+                          ? prev.length > 1 ? prev.filter(x => x !== s.value) : prev
+                          : [...prev, s.value]
+                      )}
+                      style={{
+                        padding: "8px 12px", borderRadius: 10,
+                        border: `1px solid ${active ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.1)"}`,
+                        background: active ? "rgba(34,197,94,0.12)" : "transparent",
+                        color: active ? "#4ade80" : "rgba(255,255,255,0.3)",
+                        cursor: "pointer", textAlign: "left", userSelect: "none",
+                      }}>
                       <div style={{ fontWeight: 700, fontSize: 12 }}>{s.label}</div>
                       <div style={{ fontSize: 10, opacity: 0.6, marginTop: 2 }}>{s.desc}</div>
-                    </button>
+                      {active && (
+                        <div style={{ display: "flex", gap: 4, marginTop: 6 }} onClick={e => e.stopPropagation()}>
+                          {(["s","m","l"] as const).map(d => (
+                            <button key={d} onClick={() => setSectionDetail(prev => ({ ...prev, [s.value]: d }))} style={{
+                              padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700, cursor: "pointer",
+                              border: `1px solid ${dl === d ? "rgba(34,197,94,0.9)" : "rgba(255,255,255,0.18)"}`,
+                              background: dl === d ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.04)",
+                              color: dl === d ? "#4ade80" : "rgba(255,255,255,0.35)",
+                            }}>{d.toUpperCase()}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

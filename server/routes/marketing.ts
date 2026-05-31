@@ -310,6 +310,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     campaignType = "launch", anthropicKey, voice = "professional",
     campaignBudget = "auto",
     sections = ["strategy","social","ads","email","seo","plan"],
+    sectionDetail = {} as Record<string, string>,
   } = req.body;
 
   if (!product) return res.status(400).json({ error: "product required" });
@@ -348,6 +349,37 @@ router.post("/generate", async (req: Request, res: Response) => {
   };
 
   const sel = Array.isArray(sections) ? sections : ["strategy","social","ads","email","seo","plan"];
+  const det = (s: string): "s" | "m" | "l" => {
+    const v = sectionDetail?.[s];
+    return (v === "s" || v === "m" || v === "l") ? v : "m";
+  };
+
+  const detailLabels: Record<string, Record<string, string>> = {
+    s: {
+      strategy: "BRIEF — max 12 words per text field, max 3 items per array, 1 platform entry",
+      social:   "BRIEF — captions max 80 chars, TikTok script max 15 words, 3 hashtags only",
+      ads:      "BRIEF — 3 headlines, 1 description, 3 keywords each category",
+      email:    "BRIEF — body max 25 words",
+      seo:      "BRIEF — 2 primary keywords, 2 long-tail, 1 content idea",
+      plan:     "BRIEF — 1 action per week",
+    },
+    m: {
+      strategy: "STANDARD — 25-40 words per text field, 5 items per array, 3 platform entries",
+      social:   "STANDARD — captions up to 400 chars, TikTok script up to 50 words, 8 hashtags",
+      ads:      "STANDARD — 5 headlines, 2 descriptions, 5 keywords each category",
+      email:    "STANDARD — body 50-100 words",
+      seo:      "STANDARD — 3 primary keywords, 3 long-tail, 3 content ideas",
+      plan:     "STANDARD — 2 actions per week",
+    },
+    l: {
+      strategy: "DETAILED — 60-80 words per text field, 7 items per array, 5 platform entries with full reasoning",
+      social:   "DETAILED — captions up to 600 chars, TikTok script up to 100 words, 12 hashtags, rich descriptions",
+      ads:      "DETAILED — 8 headlines, 3 descriptions, 8 keywords per category with match type notes",
+      email:    "DETAILED — body 150-200 words with storytelling and personalization",
+      seo:      "DETAILED — 5 primary keywords, 6 long-tail, 5 content ideas with brief explanations",
+      plan:     "DETAILED — 4 actions per week with KPIs and explanations",
+    },
+  };
 
   const sectionBlocks: Record<string, string> = {
     strategy: `
@@ -458,6 +490,8 @@ router.post("/generate", async (req: Request, res: Response) => {
 
   const jsonBody = sel.map(s => sectionBlocks[s]).filter(Boolean).join(",");
 
+  const detailSection = sel.map(s => `- ${s}: ${detailLabels[det(s)][s] ?? detailLabels.m[s]}`).join("\n");
+
   const prompt = `You are a world-class performance marketing strategist. Create a targeted marketing campaign.
 
 CAMPAIGN BRIEF:
@@ -473,13 +507,20 @@ CAMPAIGN BRIEF:
 - Budget: ${budgetCtx}
 ${continentCtx ? `- Market Context: ${continentCtx}` : ""}
 
+VERBOSITY REQUIREMENTS PER SECTION (follow strictly):
+${detailSection}
+
 All copy MUST be in ${language}. Keep JSON keys in English.
 Return ONLY valid JSON (no markdown):
 {${jsonBody}
 }`;
 
-  const model = sel.length <= 3 ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6";
-  const maxTok = sel.length <= 3 ? 6000 : 12000;
+  const tokenPerSection: Record<string, number> = { s: 600, m: 1600, l: 3200 };
+  const totalEst = sel.reduce((sum, s) => sum + (tokenPerSection[det(s)] || 1600), 0);
+  const hasLong = sel.some(s => det(s) === "l");
+  const useHaiku = sel.length <= 3 && !hasLong;
+  const model = useHaiku ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6";
+  const maxTok = Math.min(useHaiku ? 6000 : 16000, Math.max(2000, totalEst + 600));
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
