@@ -314,6 +314,10 @@ export default function MarketingPage() {
           marketType, campaignType, voice, campaignBudget, anthropicKey: key,
         }),
       });
+      const ct = r.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        throw new Error("Serwer nie odpowiada — kliknij Stop ■ i Run ▶ w Replit, odczekaj 15 sekund i spróbuj ponownie.");
+      }
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Błąd generowania");
       setResult(data);
