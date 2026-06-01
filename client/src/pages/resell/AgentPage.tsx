@@ -126,26 +126,30 @@ export default function AgentPage() {
                 } catch {}
               });
               setSavedCount(saved);
-              // Auto-create draft listing for champion
-              if (r.champion && r.top3?.[0]) {
-                const ch = r.champion;
-                const t = r.top3[0];
+              // Auto-create draft listing for all top3 items
+              const top3 = r.top3 ?? [];
+              const ch = r.champion;
+              let draftsCreated = 0;
+              const createDrafts = top3.map((item: any, idx: number) =>
                 fetch("/api/dropship/listings", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
                   body: JSON.stringify({
-                    product: ch.product,
-                    platform: ch.platforms?.[0] ?? "eBay USA",
-                    category: ch.category ?? "General",
-                    buyPrice: t.buy ?? 0,
+                    product: item.product,
+                    platform: (idx === 0 && ch?.platforms?.[0]) ? ch.platforms[0] : "eBay USA",
+                    category: item.category ?? "General",
+                    buyPrice: item.buy ?? 0,
                     buyCurrency: "USD",
-                    sellPrice: t.sell ?? 0,
-                    buyHint: ch.sourceAt ?? "",
-                    description: r.summary ?? "",
+                    sellPrice: item.sell ?? 0,
+                    buyHint: idx === 0 ? (ch?.sourceAt ?? "") : "",
+                    description: idx === 0 ? (r.summary ?? "") : item.reason ?? "",
                     anthropicKey: key,
                   }),
-                }).then(() => setDraftCreated(true)).catch(() => {});
-              }
+                }).then(() => { draftsCreated++; }).catch(() => {})
+              );
+              Promise.all(createDrafts).then(() => {
+                if (draftsCreated > 0) setDraftCreated(true);
+              });
             } else setError("Agent nie zwrócił raportu — spróbuj ponownie.");
           }
           else if (ev === "error") setError(payload.message);
@@ -331,7 +335,7 @@ export default function AgentPage() {
                 {draftCreated && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <CheckCircle size={13} color="#4ade80" style={{ flexShrink: 0 }} />
-                    <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>Draft listing gotowy w Dropship Managerze</span>
+                    <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{savedCount} draft listingi gotowe w Dropship Managerze</span>
                   </div>
                 )}
               </div>
