@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Megaphone, Globe, Rocket, Copy, CheckCircle, Loader2,
-  AlertCircle, ChevronRight, BarChart2, Mail, Search, Users,
+  AlertCircle, ChevronRight, ChevronDown, BarChart2, Mail, Search, Users,
   Youtube, DollarSign, Calendar, Lightbulb, Target, Link, X,
   MessageSquare, ThumbsUp, Send, Video, Image, Download, Sparkles, Bot,
 } from "lucide-react";
