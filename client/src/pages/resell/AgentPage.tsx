@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import {
   Bot, Zap, TrendingUp, DollarSign, Target,
   ChevronRight, AlertCircle, CheckCircle, Loader2,
-  Star, BookmarkPlus, ExternalLink, BarChart2,
+  Star, BookmarkPlus, ExternalLink, BarChart2, ShoppingBag, ListTodo,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
@@ -30,6 +31,7 @@ function loadOpportunities(): any[] {
 }
 
 export default function AgentPage() {
+  const [, setLocation] = useLocation();
   const [goal, setGoal] = useState<"profit" | "safety" | "volume">("profit");
   const [monthlyGoal, setMonthlyGoal] = useState(500);
   const [running, setRunning] = useState(false);
@@ -317,27 +319,46 @@ export default function AgentPage() {
             </div>
 
             {/* ARIA Actions banner */}
-            {(savedCount > 0 || draftCreated) && (
-              <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
-                <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 11, marginBottom: 8 }}>⚡ ARIA WYKONAŁA AUTOMATYCZNIE</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {savedCount > 0 && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <CheckCircle size={13} color="#4ade80" />
-                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Zapisała <strong style={{ color: "#4ade80" }}>{savedCount} okazje</strong> do Pipeline → sprawdź zakładkę Pipeline</span>
-                      <BookmarkPlus size={13} color="#4ade80" />
-                    </div>
-                  )}
-                  {draftCreated && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <CheckCircle size={13} color="#93c5fd" />
-                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Utworzyła <strong style={{ color: "#93c5fd" }}>draft listing</strong> w Dropship Managerze → aktywuj gdy gotowy</span>
-                      <ExternalLink size={13} color="#93c5fd" />
-                    </div>
-                  )}
-                </div>
+            <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
+              <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 11, marginBottom: 10 }}>⚡ CO TERAZ ZROBIĆ</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {savedCount > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <CheckCircle size={13} color="#4ade80" style={{ flexShrink: 0 }} />
+                    <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{savedCount} okazje zapisane do Pipeline automatycznie</span>
+                  </div>
+                )}
+                {draftCreated && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <CheckCircle size={13} color="#4ade80" style={{ flexShrink: 0 }} />
+                    <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>Draft listing gotowy w Dropship Managerze</span>
+                  </div>
+                )}
               </div>
-            )}
+              {/* CTA buttons */}
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button onClick={() => setLocation("/resell/dropship")} style={{
+                  flex: 1, minWidth: 140, padding: "11px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+                  background: "linear-gradient(135deg,#2563eb,#3b82f6)",
+                  color: "#fff", fontWeight: 700, fontSize: 13,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                  boxShadow: "0 4px 14px rgba(59,130,246,0.35)",
+                }}>
+                  <ShoppingBag size={15} /> Dropship Manager
+                </button>
+                <button onClick={() => setLocation("/resell/saved")} style={{
+                  flex: 1, minWidth: 140, padding: "11px 16px", borderRadius: 10, cursor: "pointer",
+                  border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.08)",
+                  color: "#4ade80", fontWeight: 700, fontSize: 13,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                }}>
+                  <ListTodo size={15} /> Pipeline
+                </button>
+              </div>
+              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.03)", fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
+                💡 <strong style={{ color: "rgba(255,255,255,0.5)" }}>Dropship Manager</strong> → znajdź draft → skopiuj tytuł i opis → wstaw ręcznie na eBay/Etsy. Nie kupujesz nic dopóki ktoś nie zapłaci.
+              </div>
+            </div>
 
             {/* Goal plan */}
             {report.goalPlan && (
