@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Search, TrendingUp, Zap, RefreshCw, Star,
   ExternalLink, Boxes, AlertCircle, X, PlusCircle, Check, BookmarkPlus,
-  ArrowRight, Package, ShieldCheck, ShieldAlert, Clock, Megaphone, ChevronRight,
+  ArrowRight, Package, ShieldCheck, ShieldAlert, Clock, Megaphone, ChevronRight, Bot,
 } from "lucide-react";
 import { addToPipeline, loadPipeline } from "@/lib/pipeline";
 import { loadTokenStats, estimateCostUSD, type TokenStats } from "@/lib/tokenUsage";
@@ -490,6 +490,25 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {/* ── Agent AI launcher ── */}
+        <div
+          onClick={() => setLocation("/resell/agent")}
+          style={{
+            background: "linear-gradient(135deg,rgba(34,197,94,0.1),rgba(74,222,128,0.06))",
+            border: "1px solid rgba(34,197,94,0.3)", borderRadius: 14,
+            padding: "14px 18px", marginBottom: 16, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 12,
+          }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg,#16a34a,#22c55e)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 14px rgba(34,197,94,0.35)" }}>
+            <Bot size={18} color="#fff" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>ARIA — Agent AI</div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Analizuje rynek i tworzy plan zarobku — kliknij żeby uruchomić</div>
+          </div>
+          <ChevronRight size={16} color="rgba(34,197,94,0.6)" />
+        </div>
 
         {/* ── Marketing AI launcher ── */}
         <MarketingLauncher opportunities={opportunities} onNavigate={setLocation} />

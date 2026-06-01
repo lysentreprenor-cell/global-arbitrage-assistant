@@ -9,12 +9,12 @@ import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
 const NAV_ITEMS = [
   { href: "/resell",              label: "Dashboard",   icon: LayoutDashboard },
+  { href: "/resell/agent",        label: "Agent AI",    icon: Bot },
+  { href: "/resell/marketing",    label: "Marketing",   icon: Megaphone },
   { href: "/resell/search",       label: "Szukaj",      icon: Search },
   { href: "/resell/saved",        label: "Pipeline",    icon: ListTodo },
   { href: "/resell/pnl",          label: "P&L",         icon: LineChart },
   { href: "/resell/alerts",       label: "Alerty",      icon: Bell, badge: true },
-  { href: "/resell/agent",         label: "Agent AI",    icon: Bot },
-  { href: "/resell/marketing",    label: "Marketing",   icon: Megaphone },
   { href: "/resell/trends",       label: "Trendy",      icon: Flame },
   { href: "/resell/competitors",  label: "Rywale",      icon: Crosshair },
   { href: "/resell/compare",      label: "Porównaj",    icon: BarChart2 },
