@@ -1045,6 +1045,162 @@ export default function MarketingPage() {
               </button>
             </div>
 
+            {/* ── RAPORT DYSTRYBUCJI ── */}
+            {(() => {
+              const c = result.campaign;
+              const gExact    = c.ads?.google?.exactKeywords?.length    ?? 0;
+              const gBroad    = c.ads?.google?.broadKeywords?.length    ?? 0;
+              const gNeg      = c.ads?.google?.negativeKeywords?.length ?? 0;
+              const gHeadlines= c.ads?.google?.headlines?.length        ?? 0;
+              const gDesc     = c.ads?.google?.descriptions?.length     ?? 0;
+              const seoMain   = c.seo?.primaryKeywords?.length          ?? 0;
+              const seoLong   = c.seo?.longTailKeywords?.length         ?? 0;
+              const seoIdeas  = c.seo?.contentIdeas?.length             ?? 0;
+              const igHash    = c.social?.instagram?.hashtags?.length   ?? 0;
+              const ttHash    = c.social?.tiktok?.hashtags?.length      ?? 0;
+              const ytTags    = c.social?.youtube?.tags?.length         ?? 0;
+              const totalKw   = gExact + gBroad + gNeg + seoMain + seoLong;
+              const totalHash = igHash + ttHash + ytTags;
+              const totalContent = (c.social?.instagram?.caption ? 1 : 0) + (c.social?.facebook?.headline ? 1 : 0) + (c.social?.tiktok?.script ? 1 : 0) + (c.social?.youtube?.title ? 1 : 0) + (c.email?.subject ? 1 : 0) + seoIdeas;
+              const topPlatforms = (c.platforms ?? []).slice(0, 4);
+              const [showReport, setShowReport] = React.useState(true);
+              const allKeywords = [
+                ...(c.ads?.google?.exactKeywords ?? []),
+                ...(c.ads?.google?.broadKeywords ?? []),
+                ...(c.seo?.primaryKeywords ?? []),
+                ...(c.seo?.longTailKeywords ?? []),
+              ];
+              const allHashtags = [
+                ...(c.social?.instagram?.hashtags ?? []),
+                ...(c.social?.tiktok?.hashtags ?? []),
+              ];
+              return (
+                <div style={{ background: "rgba(34,197,94,0.04)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 14, marginBottom: 20, overflow: "hidden" }}>
+                  <button onClick={() => setShowReport(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <BarChart2 size={14} color="#4ade80" />
+                      <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 800, letterSpacing: 0.3 }}>RAPORT DYSTRYBUCJI KAMPANII</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <span style={{ color: "#4ade80", fontSize: 13, fontWeight: 900 }}>{totalKw} kw</span>
+                      <span style={{ color: "#a78bfa", fontSize: 13, fontWeight: 900 }}>{totalHash} #</span>
+                      <span style={{ color: "#f5c842", fontSize: 13, fontWeight: 900 }}>{totalContent} treści</span>
+                      <ChevronDown size={13} color="rgba(255,255,255,0.3)" style={{ transform: showReport ? "rotate(180deg)" : "none", transition: "0.15s" }} />
+                    </div>
+                  </button>
+                  {showReport && (
+                    <div style={{ padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+                      {/* Keywords grid */}
+                      <div>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>SŁOWA KLUCZOWE — ŁĄCZNIE {totalKw}</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 7 }}>
+                          {[
+                            { label: "Google Ads (exact)", count: gExact, color: "#4285f4" },
+                            { label: "Google Ads (broad)", count: gBroad, color: "#60a5fa" },
+                            { label: "Google Ads (neg.)",  count: gNeg,   color: "#f87171" },
+                            { label: "Google headlines",   count: gHeadlines, color: "#93c5fd" },
+                            { label: "Google desc.",       count: gDesc,  color: "#bfdbfe" },
+                            { label: "SEO primary",        count: seoMain, color: "#4ade80" },
+                            { label: "SEO long-tail",      count: seoLong, color: "#86efac" },
+                            { label: "SEO content ideas",  count: seoIdeas, color: "#a7f3d0" },
+                          ].filter(r => r.count > 0).map(r => (
+                            <div key={r.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, padding: "8px 11px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{r.label}</span>
+                              <span style={{ color: r.color, fontWeight: 900, fontSize: 16, minWidth: 24, textAlign: "right" }}>{r.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {allKeywords.length > 0 && (
+                          <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 5 }}>
+                            {allKeywords.slice(0, 12).map((kw, i) => (
+                              <button key={i} onClick={() => navigator.clipboard.writeText(kw).catch(() => {})}
+                                style={{ padding: "3px 9px", borderRadius: 6, border: "1px solid rgba(74,222,128,0.2)", background: "rgba(74,222,128,0.05)", color: "#86efac", fontSize: 10, cursor: "pointer" }}
+                                title="Kopiuj">
+                                {kw}
+                              </button>
+                            ))}
+                            {allKeywords.length > 12 && <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, alignSelf: "center" }}>+{allKeywords.length - 12} więcej w zakładkach</span>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Hashtags */}
+                      {totalHash > 0 && (
+                        <div>
+                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>HASHTAGI — ŁĄCZNIE {totalHash}</div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
+                            {[
+                              { label: "Instagram", count: igHash, color: "#f472b6", tags: c.social?.instagram?.hashtags },
+                              { label: "TikTok",    count: ttHash, color: "#a78bfa", tags: c.social?.tiktok?.hashtags },
+                              { label: "YouTube",   count: ytTags, color: "#f87171", tags: c.social?.youtube?.tags },
+                            ].filter(r => r.count > 0).map(r => (
+                              <button key={r.label} onClick={() => navigator.clipboard.writeText((r.tags ?? []).join(" ")).catch(() => {})}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: `1px solid ${r.color}30`, background: `${r.color}08`, color: r.color, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                                title="Kopiuj wszystkie hashtagi">
+                                {PLATFORM_ICONS[r.label] || "#"} {r.label}: <strong>{r.count}</strong> hashtagów — 📋 kopiuj
+                              </button>
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {allHashtags.slice(0, 15).map((h, i) => (
+                              <span key={i} style={{ padding: "2px 8px", borderRadius: 5, background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.15)", color: "#c4b5fd", fontSize: 10 }}>{h.startsWith("#") ? h : `#${h}`}</span>
+                            ))}
+                            {allHashtags.length > 15 && <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, alignSelf: "center" }}>+{allHashtags.length - 15}</span>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Content pieces + platforms */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        <div>
+                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 7 }}>GOTOWE TREŚCI</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                            {[
+                              { label: "Instagram post", ok: !!c.social?.instagram?.caption },
+                              { label: "Facebook ad",    ok: !!c.social?.facebook?.headline },
+                              { label: "TikTok script",  ok: !!c.social?.tiktok?.script },
+                              { label: "YouTube desc.",  ok: !!c.social?.youtube?.description },
+                              { label: "Email template", ok: !!c.email?.subject },
+                              { label: "Google Ads copy",ok: gHeadlines > 0 },
+                              { label: "Meta Ads copy",  ok: !!c.ads?.meta?.primaryText },
+                              { label: "SEO page title", ok: !!c.seo?.pageTitle },
+                            ].map(r => (
+                              <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: r.ok ? "#4ade80" : "rgba(255,255,255,0.1)", flexShrink: 0 }} />
+                                <span style={{ color: r.ok ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)", fontSize: 11 }}>{r.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 7 }}>TOP PLATFORMY</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {topPlatforms.map((p, i) => (
+                              <div key={p.platform} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11, minWidth: 14 }}>{i + 1}.</span>
+                                <span style={{ fontSize: 14 }}>{PLATFORM_ICONS[p.platform] || "📣"}</span>
+                                <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>{p.platform}</span>
+                                {p.expectedCPM && <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginLeft: "auto" }}>CPM {p.expectedCPM}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Copy all keywords CTA */}
+                      {allKeywords.length > 0 && (
+                        <button onClick={() => navigator.clipboard.writeText(allKeywords.join("\n")).catch(() => {})}
+                          style={{ width: "100%", padding: "9px", borderRadius: 9, border: "1px solid rgba(74,222,128,0.3)", background: "rgba(74,222,128,0.07)", color: "#4ade80", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                          📋 Kopiuj wszystkie słowa kluczowe ({allKeywords.length}) — do wklejenia w Google Ads
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Tabs */}
             <div style={{ display: "flex", gap: 4, marginBottom: 22, overflowX: "auto", scrollbarWidth: "none" }}>
               {TABS.map(tab => (
