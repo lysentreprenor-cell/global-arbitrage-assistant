@@ -232,6 +232,20 @@ async function runStartupMigrations() {
     console.warn("[startup] No DATABASE_URL — skipping migrations and backup");
   }
 
+  // ── Keepalive ping — zapobiega uśpieniu przez Replit ──────────────────────
+  app.get("/api/ping", (_req: Request, res: Response) => {
+    res.json({ ok: true, ts: Date.now() });
+  });
+
+  // Self-ping co 4 minuty — Replit śpi po ~30 min braku ruchu
+  const SELF_URL = process.env.REPLIT_DEV_DOMAIN
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/ping`
+    : `http://localhost:${process.env.PORT || 3000}/api/ping`;
+  setInterval(() => {
+    fetch(SELF_URL).catch(() => {});
+  }, 4 * 60 * 1000);
+  log(`keepalive self-ping → ${SELF_URL} (every 4 min)`);
+
   // ── Wersja build (dla auto-update) ─────────────────────────────────────────
   app.get("/api/version", (_req: Request, res: Response) => {
     res.json({ version: BUILD_TS });
