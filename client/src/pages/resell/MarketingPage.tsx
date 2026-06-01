@@ -140,6 +140,7 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [showReport, setShowReport] = useState(true);
   const [activeTab, setActiveTab] = useState("strategia");
   const [copied, setCopied] = useState<Record<string, boolean>>({});
   // Campaign history
@@ -1063,7 +1064,6 @@ export default function MarketingPage() {
               const totalHash = igHash + ttHash + ytTags;
               const totalContent = (c.social?.instagram?.caption ? 1 : 0) + (c.social?.facebook?.headline ? 1 : 0) + (c.social?.tiktok?.script ? 1 : 0) + (c.social?.youtube?.title ? 1 : 0) + (c.email?.subject ? 1 : 0) + seoIdeas;
               const topPlatforms = (c.platforms ?? []).slice(0, 4);
-              const [showReport, setShowReport] = React.useState(true);
               const allKeywords = [
                 ...(c.ads?.google?.exactKeywords ?? []),
                 ...(c.ads?.google?.broadKeywords ?? []),
