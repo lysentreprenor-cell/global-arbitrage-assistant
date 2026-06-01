@@ -33,11 +33,23 @@ export default function AgentPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [oppCount, setOppCount] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setOppCount(loadOpportunities().length);
   }, []);
+
+  useEffect(() => {
+    if (running) {
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [running]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -185,7 +197,7 @@ export default function AgentPage() {
               boxShadow: running || oppCount === 0 ? "none" : "0 4px 20px rgba(34,197,94,0.4)",
             }}>
               {running
-                ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> ARIA analizuje rynek...</>
+                ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> ARIA analizuje rynek... {elapsed > 0 && <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>({elapsed}s)</span>}</>
                 : <><Bot size={18} /> Uruchom Agenta ARIA <ChevronRight size={16} /></>}
             </button>
 

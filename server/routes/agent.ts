@@ -96,10 +96,14 @@ router.post("/run", async (req: Request, res: Response) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
   const send = (event: string, data: any) =>
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+  // keepalive ping every 10s so mobile/proxy doesn't drop the connection
+  const ping = setInterval(() => { try { res.write(": ping\n\n"); } catch {} }, 10_000);
 
   const oppsSlice = opportunities.slice(0, 20).map((o: any) => ({
     name: o.name, buy: o.buy, sell: o.sell,
@@ -212,6 +216,7 @@ WORKFLOW (use tools in this order):
 
       if (!r.ok) {
         const e = await r.json().catch(() => ({})) as any;
+        clearInterval(ping);
         send("error", { message: e.error?.message || `Claude API error ${r.status}` });
         res.end(); return;
       }
@@ -223,6 +228,7 @@ WORKFLOW (use tools in this order):
         const match = text.match(/\{[\s\S]*\}/);
         let report: any = null;
         if (match) { try { report = JSON.parse(match[0]); } catch {} }
+        clearInterval(ping);
         send("done", { report, raw: report ? undefined : text.slice(0, 500) });
         res.end(); return;
       }
@@ -246,9 +252,11 @@ WORKFLOW (use tools in this order):
 
       break;
     }
+    clearInterval(ping);
     send("error", { message: "Agent przekroczył limit iteracji — spróbuj ponownie" });
     res.end();
   } catch (err: any) {
+    clearInterval(ping);
     send("error", { message: err.message || "Błąd wewnętrzny agenta" });
     res.end();
   }
