@@ -2,6 +2,28 @@ import { Router, type Request, type Response } from "express";
 
 const router = Router();
 
+function parseJsonSalvage(text: string): any {
+  // Try object first, then array
+  for (const re of [/\{[\s\S]*\}/, /\[[\s\S]*\]/]) {
+    const m = text.match(re);
+    if (!m) continue;
+    try { return JSON.parse(m[0]); } catch { /* try salvage */ }
+    let partial = m[0];
+    // Remove trailing incomplete key/value pair
+    partial = partial.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, "").replace(/,\s*$/, "");
+    // Close open structures
+    const stack: string[] = [];
+    for (const ch of partial) {
+      if (ch === "{") stack.push("}");
+      else if (ch === "[") stack.push("]");
+      else if (ch === "}" || ch === "]") stack.pop();
+    }
+    partial += stack.reverse().join("");
+    try { return JSON.parse(partial); } catch { /* next pattern */ }
+  }
+  return null;
+}
+
 // ── YouTube metadata fetch ───────────────────────────────────────────────────
 router.get("/fetch-yt", async (req: Request, res: Response) => {
   const url = String(req.query.url ?? "").trim();
@@ -673,8 +695,8 @@ Rules:
         method: "POST",
         headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 3000,
+          model: "claude-sonnet-4-6",
+          max_tokens: 4000,
           system: systemPrompt,
           tools: [TOOL],
           messages,
@@ -702,7 +724,7 @@ Rules:
             campaign,
             meta: { product, targetMarket, marketType, campaignType, language, currency },
             usage: data.usage ?? null,
-            model: "claude-haiku-4-5-20251001",
+            model: "claude-sonnet-4-6",
           });
         }
         res.end(); return;
@@ -739,7 +761,7 @@ Rules:
           // Actually just emit done now
           const campaign: any = {};
           for (const [, content] of Object.entries(collectedSections)) Object.assign(campaign, content);
-          send("done", { campaign, meta: { product, targetMarket, marketType, campaignType, language, currency }, model: "claude-haiku-4-5-20251001" });
+          send("done", { campaign, meta: { product, targetMarket, marketType, campaignType, language, currency }, model: "claude-sonnet-4-6" });
           res.end(); return;
         }
         continue;
@@ -794,7 +816,7 @@ Write all content (subject, preheader, body, cta) in ${language}. Keep JSON keys
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 4000,
+        max_tokens: 6000,
         system: "You are an email marketing expert. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
@@ -805,9 +827,9 @@ Write all content (subject, preheader, body, cta) in ${language}. Keep JSON keys
     }
     const data = await r.json() as any;
     const text: string = data.content?.[0]?.text ?? "";
-    const match = text.match(/\[[\s\S]*\]/);
-    if (!match) return res.status(502).json({ error: "No JSON array in response", raw: text.slice(0, 400) });
-    return res.json(JSON.parse(match[0]));
+    const parsed = parseJsonSalvage(text);
+    if (!Array.isArray(parsed)) return res.status(502).json({ error: "No JSON array in response", raw: text.slice(0, 400) });
+    return res.json(parsed);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });
   }
@@ -885,7 +907,7 @@ Write all user-facing content in ${language}. Keep JSON keys in English.`;
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 4000,
+        max_tokens: 6000,
         system: "You are a world-class conversion copywriter. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
@@ -896,9 +918,9 @@ Write all user-facing content in ${language}. Keep JSON keys in English.`;
     }
     const data = await r.json() as any;
     const text: string = data.content?.[0]?.text ?? "";
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
-    return res.json(JSON.parse(match[0]));
+    const parsed = parseJsonSalvage(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
+    return res.json(parsed);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });
   }
@@ -944,8 +966,8 @@ Use platforms: TikTok, Instagram, Facebook, YouTube. Vary them across days. Writ
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 4000,
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
         system: "You are a social media content strategist. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
@@ -956,9 +978,9 @@ Use platforms: TikTok, Instagram, Facebook, YouTube. Vary them across days. Writ
     }
     const data = await r.json() as any;
     const text: string = data.content?.[0]?.text ?? "";
-    const match = text.match(/\[[\s\S]*\]/);
-    if (!match) return res.status(502).json({ error: "No JSON array in response", raw: text.slice(0, 400) });
-    return res.json(JSON.parse(match[0]));
+    const parsed = parseJsonSalvage(text);
+    if (!Array.isArray(parsed)) return res.status(502).json({ error: "No JSON array in response", raw: text.slice(0, 400) });
+    return res.json(parsed);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });
   }
@@ -1012,9 +1034,9 @@ Write all user-facing text in ${language}. Keep JSON keys in English.`;
     }
     const data = await r.json() as any;
     const text: string = data.content?.[0]?.text ?? "";
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
-    return res.json(JSON.parse(match[0]));
+    const parsed = parseJsonSalvage(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
+    return res.json(parsed);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });
   }

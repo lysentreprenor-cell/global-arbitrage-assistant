@@ -1229,8 +1229,14 @@ export default function MarketingPage() {
                 );
               };
 
-              const { summary, audience, platforms, budget } = result.campaign;
-              const { social, ads, email: emailData, seo } = result.campaign;
+              const summary = result.campaign?.summary ?? {} as any;
+              const audience = result.campaign?.audience ?? {} as any;
+              const platforms: any[] = result.campaign?.platforms ?? [];
+              const budget = result.campaign?.budget ?? {} as any;
+              const social = result.campaign?.social ?? {} as any;
+              const ads = result.campaign?.ads ?? {} as any;
+              const emailData = result.campaign?.email ?? {} as any;
+              const seo = result.campaign?.seo ?? {} as any;
 
               return (
                 <div>
