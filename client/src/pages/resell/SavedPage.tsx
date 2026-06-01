@@ -420,8 +420,11 @@ export default function SavedPage() {
                           const done = item.listedOn.includes(platform);
                           const url = item.sellUrls?.[platform] || item.sellUrl || "";
                           const isEbay = platform === "eBay USA";
+                          const isEtsy = platform === "Etsy";
                           const eStatus = ebayStatus[k];
                           const eListed = eStatus === "listed" || done;
+                          const etStatus = etsyStatus[k];
+                          const etListed = etStatus === "listed" || (isEtsy && done);
 
                           if (isEbay) {
                             return (
@@ -454,6 +457,37 @@ export default function SavedPage() {
                             );
                           }
 
+                          if (isEtsy) {
+                            return (
+                              <div key={platform} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                {etListed ? (
+                                  <a href={etsyUrls[k] || url || undefined} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
+                                    <Check size={10} /> Etsy — wystawione ↗
+                                  </a>
+                                ) : (
+                                  <button
+                                    onClick={() => postToEtsy(item)}
+                                    disabled={etStatus === "listing"}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "none", cursor: etStatus === "listing" ? "not-allowed" : "pointer", background: etStatus === "listing" ? "rgba(249,115,22,0.1)" : "linear-gradient(135deg,#c2410c,#ea580c,#f97316)", color: etStatus === "listing" ? "#f97316" : "#fff", fontWeight: 800, fontSize: 12 }}>
+                                    <Zap size={12} />
+                                    {etStatus === "listing" ? "Wystawianie..." : "Wystaw na Etsy automatycznie"}
+                                  </button>
+                                )}
+                                {!etListed && (
+                                  <button
+                                    onClick={() => {
+                                      const listedOn = done ? item.listedOn.filter(p => p !== platform) : [...item.listedOn, platform];
+                                      update(item.id, item.name, { listedOn, status: listedOn.length > 0 ? "listed" : item.status });
+                                    }}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.25)", padding: 2, fontSize: 10 }}
+                                    title="Zaznacz ręcznie jako wystawione"
+                                  >○</button>
+                                )}
+                              </div>
+                            );
+                          }
+
                           return (
                             <div key={platform} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                               <a href={url || undefined} target="_blank" rel="noopener noreferrer"
@@ -471,7 +505,7 @@ export default function SavedPage() {
                             </div>
                           );
                         })}
-                        {item.listedOn.length < platforms.length && !platforms.some(p => p === "eBay USA" && !item.listedOn.includes(p) && ebayStatus[k] !== "listed") && (
+                        {item.listedOn.length < platforms.length && !platforms.some(p => (p === "eBay USA" && !item.listedOn.includes(p) && ebayStatus[k] !== "listed") || (p === "Etsy" && !item.listedOn.includes(p) && etsyStatus[k] !== "listed")) && (
                           <button
                             onClick={() => update(item.id, item.name, { listedOn: platforms, status: "listed" })}
                             style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.1)", color: "#a78bfa", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
@@ -482,6 +516,12 @@ export default function SavedPage() {
                       {ebayErrors[k] && (
                         <div style={{ marginTop: 6, color: "#f87171", fontSize: 11, background: "rgba(248,113,113,0.08)", borderRadius: 7, padding: "5px 10px" }}>
                           {ebayErrors[k]}
+                        </div>
+                      )}
+                      {/* Etsy error feedback */}
+                      {etsyErrors[k] && (
+                        <div style={{ marginTop: 6, color: "#f87171", fontSize: 11, background: "rgba(248,113,113,0.08)", borderRadius: 7, padding: "5px 10px" }}>
+                          {etsyErrors[k]}
                         </div>
                       )}
                     </div>
