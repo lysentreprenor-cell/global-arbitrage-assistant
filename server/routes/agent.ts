@@ -260,6 +260,17 @@ WORKFLOW (use ALL tools in order):
     "buySource":"primary EU sourcing site",
     "timeToSell":"e.g. 7-14 days"
   },
+  "listingDrafts": [
+    {
+      "rank": 1,
+      "product": "exact product name",
+      "platform": "eBay USA",
+      "price": 0,
+      "title": "READY-TO-PASTE eBay/Etsy title max 80 chars — keyword dense, include brand+model+year+condition",
+      "description": "3-5 sentence persuasive English description: key features, provenance, condition, why collectors want it, shipping note",
+      "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7"]
+    }
+  ],
   "goalPlan":{
     "monthlyTarget":${monthlyGoal},
     "unitsNeeded":0,

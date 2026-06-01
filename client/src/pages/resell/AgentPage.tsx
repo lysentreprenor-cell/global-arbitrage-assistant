@@ -18,6 +18,7 @@ type Report = {
     steps: string[]; platforms: string[]; buySource: string; timeToSell: string;
   };
   goalPlan?: { monthlyTarget: number; unitsNeeded: number; daysPerUnit: number; feasibility: string; note: string };
+  listingDrafts?: { rank: number; product: string; platform: string; price: number; title: string; description: string; tags: string[] }[];
   monthlyEstimate: { low: number; target: number; high: number };
   quickWins: string[];
   warnings: string[];
@@ -42,6 +43,7 @@ export default function AgentPage() {
   const [elapsed, setElapsed] = useState(0);
   const [savedCount, setSavedCount] = useState(0);
   const [draftCreated, setDraftCreated] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -490,6 +492,73 @@ export default function AgentPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Listing Drafts — ready to paste on eBay/Etsy */}
+            {report.listingDrafts && report.listingDrafts.length > 0 && (
+              <div style={{ ...card, marginBottom: 16 }}>
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, marginBottom: 14, letterSpacing: 0.8 }}>
+                  📋 GOTOWE OGŁOSZENIA — skopiuj i wstaw na eBay/Etsy
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {report.listingDrafts.map((d, i) => {
+                    const key = `${i}`;
+                    const copy = (text: string, field: string) => {
+                      navigator.clipboard?.writeText(text).then(() => {
+                        setCopiedField(field);
+                        setTimeout(() => setCopiedField(null), 2000);
+                      });
+                    };
+                    return (
+                      <div key={i} style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${i === 0 ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.07)"}`, borderRadius: 12, padding: "14px 16px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ width: 20, height: 20, borderRadius: "50%", background: i === 0 ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900, color: i === 0 ? "#4ade80" : "rgba(255,255,255,0.4)" }}>#{i+1}</div>
+                            <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{d.platform} · ${d.price}</span>
+                          </div>
+                        </div>
+
+                        {/* Title */}
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>TYTUŁ OGŁOSZENIA</div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                            <div style={{ flex: 1, background: "rgba(0,0,0,0.3)", borderRadius: 7, padding: "8px 10px", fontSize: 12, color: "#e2e8f0", lineHeight: 1.5 }}>{d.title}</div>
+                            <button onClick={() => copy(d.title, `title-${key}`)} style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 7, border: "1px solid rgba(34,197,94,0.3)", background: copiedField === `title-${key}` ? "rgba(34,197,94,0.2)" : "rgba(34,197,94,0.07)", color: copiedField === `title-${key}` ? "#4ade80" : "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+                              {copiedField === `title-${key}` ? "✓" : "📋"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>OPIS</div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                            <div style={{ flex: 1, background: "rgba(0,0,0,0.3)", borderRadius: 7, padding: "8px 10px", fontSize: 11, color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>{d.description}</div>
+                            <button onClick={() => copy(d.description, `desc-${key}`)} style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 7, border: "1px solid rgba(96,165,250,0.3)", background: copiedField === `desc-${key}` ? "rgba(96,165,250,0.2)" : "rgba(96,165,250,0.07)", color: copiedField === `desc-${key}` ? "#93c5fd" : "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+                              {copiedField === `desc-${key}` ? "✓" : "📋"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tags */}
+                        {d.tags && d.tags.length > 0 && (
+                          <div>
+                            <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>TAGI</div>
+                            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                              {d.tags.map((t: string) => (
+                                <span key={t} style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 5, padding: "2px 7px", fontSize: 10, color: "#c4b5fd" }}>{t}</span>
+                              ))}
+                              <button onClick={() => copy(d.tags.join(", "), `tags-${key}`)} style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid rgba(168,85,247,0.3)", background: "transparent", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 10 }}>
+                                {copiedField === `tags-${key}` ? "✓ skopiowane" : "📋 kopiuj"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
