@@ -3,13 +3,21 @@ import { useLocation } from "wouter";
 import {
   Bookmark, Trash2, ExternalLink, ChevronDown, ChevronRight,
   Check, Clock, ShoppingCart, Tag, Trophy, Ban, Plus, Pencil,
-  AlertTriangle, TrendingDown, DollarSign, BarChart2,
+  AlertTriangle, TrendingDown, DollarSign, BarChart2, Zap,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import {
   loadPipeline, savePipeline, updatePipelineItem, removeFromPipeline,
   type PipelineItem, type PipelineStatus,
 } from "@/lib/pipeline";
+import { getValidAccessToken, isEbayConnected } from "@/lib/ebayAuth";
+
+function loadEbayCredentials(): { clientId: string; certId: string } {
+  try {
+    const keys = JSON.parse(localStorage.getItem("resell_api_keys") || "{}");
+    return { clientId: keys.ebay?.appId || "", certId: keys.ebay?.certId || "" };
+  } catch { return { clientId: "", certId: "" }; }
+}
 
 const STATUS_CONFIG: Record<PipelineStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   planned:   { label: "Planowane",  color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  icon: <Clock size={11} /> },
@@ -48,6 +56,9 @@ export default function SavedPage() {
   const [noteText, setNoteText] = useState("");
   const [filterStatus, setFilterStatus] = useState<PipelineStatus | "all">("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [ebayStatus, setEbayStatus] = useState<Record<string, "idle" | "listing" | "listed" | "error">>({});
+  const [ebayUrls, setEbayUrls] = useState<Record<string, string>>({});
+  const [ebayErrors, setEbayErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const reload = () => setItems(loadPipeline());
@@ -97,6 +108,53 @@ export default function SavedPage() {
     ? Math.round((totalPotential / capitalTied / avgFlipDays) * 365 * 100)
     : null;
   const [showCapital, setShowCapital] = useState(false);
+
+  const postToEbay = async (item: PipelineItem) => {
+    const k = key(item);
+    const { clientId, certId } = loadEbayCredentials();
+    if (!isEbayConnected()) {
+      setEbayErrors(e => ({ ...e, [k]: "Brak połączenia z eBay. Idź do Ustawień → eBay → Połącz konto." }));
+      return;
+    }
+    setEbayStatus(s => ({ ...s, [k]: "listing" }));
+    setEbayErrors(e => ({ ...e, [k]: "" }));
+    try {
+      const token = await getValidAccessToken(clientId, certId);
+      if (!token) {
+        setEbayStatus(s => ({ ...s, [k]: "error" }));
+        setEbayErrors(e => ({ ...e, [k]: "Token wygasł. Wejdź w Ustawienia i połącz eBay ponownie." }));
+        return;
+      }
+      const r = await fetch("/api/ebay/list", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          accessToken: token,
+          title: item.name,
+          description: item.tip || item.name,
+          price: item.sell,
+          category: item.category,
+        }),
+      });
+      const d = await r.json() as any;
+      if (!r.ok || !d.success) {
+        setEbayStatus(s => ({ ...s, [k]: "error" }));
+        setEbayErrors(e => ({ ...e, [k]: d.error || "Błąd wystawiania" }));
+        return;
+      }
+      setEbayStatus(s => ({ ...s, [k]: "listed" }));
+      setEbayUrls(u => ({ ...u, [k]: d.listingUrl }));
+      update(item.id, item.name, {
+        status: "listed",
+        listedAt: Date.now(),
+        listedOn: [...new Set([...item.listedOn, "eBay USA"])],
+        sellUrls: { ...item.sellUrls, "eBay USA": d.listingUrl },
+      });
+    } catch (e: any) {
+      setEbayStatus(s => ({ ...s, [k]: "error" }));
+      setEbayErrors(er => ({ ...er, [k]: e.message || "Nieznany błąd" }));
+    }
+  };
 
   return (
     <ResellLayout>
@@ -309,6 +367,41 @@ export default function SavedPage() {
                         {platforms.map(platform => {
                           const done = item.listedOn.includes(platform);
                           const url = item.sellUrls?.[platform] || item.sellUrl || "";
+                          const isEbay = platform === "eBay USA";
+                          const eStatus = ebayStatus[k];
+                          const eListed = eStatus === "listed" || done;
+
+                          if (isEbay) {
+                            return (
+                              <div key={platform} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                {eListed ? (
+                                  <a href={ebayUrls[k] || url || undefined} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
+                                    <Check size={10} /> eBay USA — wystawione ↗
+                                  </a>
+                                ) : (
+                                  <button
+                                    onClick={() => postToEbay(item)}
+                                    disabled={eStatus === "listing"}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "none", cursor: eStatus === "listing" ? "not-allowed" : "pointer", background: eStatus === "listing" ? "rgba(245,200,66,0.1)" : "linear-gradient(135deg,#b45309,#d97706,#f5c842)", color: eStatus === "listing" ? "#f5c842" : "#000", fontWeight: 800, fontSize: 12 }}>
+                                    <Zap size={12} />
+                                    {eStatus === "listing" ? "Wystawianie..." : "Wystaw na eBay automatycznie"}
+                                  </button>
+                                )}
+                                {!eListed && (
+                                  <button
+                                    onClick={() => {
+                                      const listedOn = done ? item.listedOn.filter(p => p !== platform) : [...item.listedOn, platform];
+                                      update(item.id, item.name, { listedOn, status: listedOn.length > 0 ? "listed" : item.status });
+                                    }}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.25)", padding: 2, fontSize: 10 }}
+                                    title="Zaznacz ręcznie jako wystawione"
+                                  >○</button>
+                                )}
+                              </div>
+                            );
+                          }
+
                           return (
                             <div key={platform} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                               <a href={url || undefined} target="_blank" rel="noopener noreferrer"
@@ -317,32 +410,28 @@ export default function SavedPage() {
                               </a>
                               <button
                                 onClick={() => {
-                                  const listedOn = done
-                                    ? item.listedOn.filter(p => p !== platform)
-                                    : [...item.listedOn, platform];
-                                  const newStatus = listedOn.length > 0 && item.status === "bought" ? "listed" : item.status;
-                                  update(item.id, item.name, { listedOn, status: newStatus });
+                                  const listedOn = done ? item.listedOn.filter(p => p !== platform) : [...item.listedOn, platform];
+                                  update(item.id, item.name, { listedOn, status: listedOn.length > 0 && item.status === "bought" ? "listed" : item.status });
                                 }}
                                 style={{ background: "none", border: "none", cursor: "pointer", color: done ? "#4ade80" : "rgba(255,255,255,0.25)", padding: 2, fontSize: 10 }}
-                                title={done ? "Odznacz jako wystawione" : "Zaznacz jako wystawione"}
-                              >
-                                {done ? "✓" : "○"}
-                              </button>
+                                title={done ? "Odznacz" : "Zaznacz jako wystawione"}
+                              >{done ? "✓" : "○"}</button>
                             </div>
                           );
                         })}
-                        {item.listedOn.length < platforms.length && (
+                        {item.listedOn.length < platforms.length && !platforms.some(p => p === "eBay USA" && !item.listedOn.includes(p) && ebayStatus[k] !== "listed") && (
                           <button
-                            onClick={() => update(item.id, item.name, {
-                              listedOn: platforms,
-                              status: "listed",
-                            })}
+                            onClick={() => update(item.id, item.name, { listedOn: platforms, status: "listed" })}
                             style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.1)", color: "#a78bfa", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
-                          >
-                            ✓ Wszystkie
-                          </button>
+                          >✓ Wszystkie</button>
                         )}
                       </div>
+                      {/* eBay error feedback */}
+                      {ebayErrors[k] && (
+                        <div style={{ marginTop: 6, color: "#f87171", fontSize: 11, background: "rgba(248,113,113,0.08)", borderRadius: 7, padding: "5px 10px" }}>
+                          {ebayErrors[k]}
+                        </div>
+                      )}
                     </div>
 
                     {/* Notes */}
