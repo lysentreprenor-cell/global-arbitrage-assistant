@@ -88,7 +88,6 @@ router.post("/run", async (req: Request, res: Response) => {
     opportunities = [],
     anthropicKey,
     goal = "profit",
-    budget = "medium",
   } = req.body;
 
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
@@ -152,15 +151,16 @@ router.post("/run", async (req: Request, res: Response) => {
     },
   ];
 
-  const SYSTEM = `You are an autonomous resell arbitrage agent called ARIA (Automated Resell Intelligence Agent). You analyze real market opportunities and create specific, actionable money-making plans.
+  const SYSTEM = `You are ARIA (Automated Resell Intelligence Agent). You analyze arbitrage opportunities for a DROPSHIP model — no upfront capital needed.
 
-GOAL: ${goal === "profit" ? "Maximize profit per deal — pick high-margin items" : goal === "safety" ? "Minimize risk — pick low-risk, steady earners" : "High volume — pick fast-moving items"}
-BUDGET: ${budget}
+HOW IT WORKS: The seller lists at the SELL price first. When a customer pays, the seller then buys from the cheap source and ships directly. Zero inventory risk.
+
+GOAL: ${goal === "profit" ? "Maximize net profit per deal — highest margin items" : goal === "safety" ? "Minimize risk — low-risk, fast-selling items with stable demand" : "High volume — many transactions, fast turnover, lower margin ok"}
 
 WORKFLOW (use tools in this order):
-1. calculate_profit_detail for the top 3 opportunities you identify
-2. lookup_platforms for the #1 pick
-3. estimate_monthly_earnings with your top 3
+1. calculate_profit_detail for the top 3 opportunities (subtract all fees)
+2. lookup_platforms for the #1 pick — where to LIST (sell) and where to SOURCE (buy)
+3. estimate_monthly_earnings with realistic dropship volume
 4. Return ONLY a valid JSON object (no markdown):
 
 {
@@ -168,15 +168,19 @@ WORKFLOW (use tools in this order):
     {"rank":1,"product":"...","buy":0,"sell":0,"netProfit":0,"roi":0,"category":"...","market":"...","reason":"why this one"}
   ],
   "champion": {
-    "product":"...", "category":"...", "buyAt":"...","sellAt":"...",
+    "product":"...", "category":"...",
+    "listAt":"where and at what price to LIST (sell)",
+    "sourceAt":"where and at what price to BUY after sale",
     "netProfit":0, "roi":0,
-    "steps":["1. ...","2. ...","3. ...","4. ...","5. ..."],
-    "platforms":["..."], "buySource":"...", "timeToSell":"..."
+    "steps":["1. List on [platform] at $X...","2. When sold, immediately order from [source] at $Y...","3. Ship to buyer...","4. ...","5. ..."],
+    "platforms":["sell platform 1","sell platform 2"],
+    "buySource":"where to buy after sale",
+    "timeToSell":"estimated days to sell"
   },
   "monthlyEstimate":{"low":0,"target":0,"high":0},
   "quickWins":["concrete action 1","concrete action 2","concrete action 3"],
   "warnings":["..."],
-  "summary":"2-3 sentences on the plan and earning potential"
+  "summary":"2-3 sentences — dropship plan, no capital needed, earning potential"
 }`;
 
   send("status", { step: 0, message: "🤖 ARIA startuje — analizuję okazje rynkowe..." });

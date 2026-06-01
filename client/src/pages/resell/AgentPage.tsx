@@ -10,7 +10,7 @@ import { getAnthropicKey } from "@/lib/apiKeys";
 type Report = {
   top3: { rank: number; product: string; buy: number; sell: number; netProfit: number; roi: number; category: string; market: string; reason: string }[];
   champion: {
-    product: string; category: string; buyAt: string; sellAt: string;
+    product: string; category: string; listAt: string; sourceAt: string;
     netProfit: number; roi: number;
     steps: string[]; platforms: string[]; buySource: string; timeToSell: string;
   };
@@ -28,7 +28,6 @@ function loadOpportunities(): any[] {
 
 export default function AgentPage() {
   const [goal, setGoal] = useState<"profit" | "safety" | "volume">("profit");
-  const [budget, setBudget] = useState("medium");
   const [running, setRunning] = useState(false);
   const [statusLog, setStatusLog] = useState<{ step: number; message: string }[]>([]);
   const [report, setReport] = useState<Report | null>(null);
@@ -58,7 +57,7 @@ export default function AgentPage() {
       const r = await fetch("/api/agent/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ opportunities: opps, anthropicKey: key, goal, budget }),
+        body: JSON.stringify({ opportunities: opps, anthropicKey: key, goal }),
       });
 
       if (!r.ok || !r.body) { throw new Error("Błąd połączenia z agentem"); }
@@ -165,25 +164,8 @@ export default function AgentPage() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, marginBottom: 10 }}>BUDŻET NA START</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[
-                  { value: "micro",    label: "Do $300" },
-                  { value: "small",    label: "$300–1k" },
-                  { value: "medium",   label: "$1k–5k" },
-                  { value: "large",    label: "$5k–20k" },
-                  { value: "enterprise", label: "$20k+" },
-                ].map(b => (
-                  <button key={b.value} onClick={() => setBudget(b.value)} style={{
-                    padding: "8px 14px", borderRadius: 9, cursor: "pointer",
-                    border: `1px solid ${budget === b.value ? "rgba(245,158,11,0.5)" : "rgba(255,255,255,0.1)"}`,
-                    background: budget === b.value ? "rgba(245,158,11,0.1)" : "transparent",
-                    color: budget === b.value ? "#fcd34d" : "rgba(255,255,255,0.4)",
-                    fontWeight: budget === b.value ? 700 : 400, fontSize: 12,
-                  }}>{b.label}</button>
-                ))}
-              </div>
+            <div style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 18, fontSize: 11, color: "rgba(255,255,255,0.4)", lineHeight: 1.7 }}>
+              💡 <strong style={{ color: "rgba(255,255,255,0.6)" }}>Model dropship:</strong> wystawiasz po wyższej cenie → czekasz na kupującego → kupujesz taniej ze źródła i wysyłasz. Brak własnego kapitału.
             </div>
 
             {error && (
@@ -275,16 +257,16 @@ export default function AgentPage() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                  {report.champion.buyAt && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 9, padding: "10px 14px" }}>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>KUP</div>
-                      <div style={{ color: "#fff", fontSize: 12 }}>{report.champion.buyAt}</div>
+                  {report.champion.listAt && (
+                    <div style={{ background: "rgba(34,197,94,0.05)", borderRadius: 9, padding: "10px 14px", border: "1px solid rgba(34,197,94,0.15)" }}>
+                      <div style={{ color: "#4ade80", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>1. WYSTAW (sprzedaj)</div>
+                      <div style={{ color: "#fff", fontSize: 12 }}>{report.champion.listAt}</div>
                     </div>
                   )}
-                  {report.champion.sellAt && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 9, padding: "10px 14px" }}>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>SPRZEDAJ</div>
-                      <div style={{ color: "#fff", fontSize: 12 }}>{report.champion.sellAt}</div>
+                  {report.champion.sourceAt && (
+                    <div style={{ background: "rgba(96,165,250,0.05)", borderRadius: 9, padding: "10px 14px", border: "1px solid rgba(96,165,250,0.15)" }}>
+                      <div style={{ color: "#93c5fd", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>2. KUP (po sprzedaży)</div>
+                      <div style={{ color: "#fff", fontSize: 12 }}>{report.champion.sourceAt}</div>
                     </div>
                   )}
                 </div>
