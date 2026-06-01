@@ -573,6 +573,188 @@ Return ONLY valid JSON (no markdown):
   }
 });
 
+// ── Marketing Agent — section-by-section SSE ─────────────────────────────────
+router.post("/agent-run", async (req: Request, res: Response) => {
+  const {
+    product, category = "General", priceUSD = 0,
+    description = "", targetMarket = "Poland", marketType = "country",
+    campaignType = "launch", anthropicKey, voice = "professional",
+    campaignBudget = "auto",
+    sections = ["strategy","social","ads","email","seo","plan"],
+  } = req.body;
+
+  if (!product) { res.status(400).json({ error: "product required" }); return; }
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) { res.status(400).json({ error: "Anthropic API key required" }); return; }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: any) =>
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+  const language = marketType === "country" ? (MARKET_LANGUAGE[targetMarket] ?? "English") : "English";
+  const currency = marketType === "country" ? (MARKET_CURRENCY[targetMarket] ?? "USD") : "USD";
+  const continentCtx = marketType === "continent" ? (CONTINENT_CONTEXT[targetMarket] ?? "") : marketType === "world" ? CONTINENT_CONTEXT["Worldwide"] : "";
+  const budgetLabels: Record<string, string> = {
+    free: "ZERO paid budget — 100% organic only (comments, SEO, social posts, community)",
+    auto: "flexible — recommend what fits",
+    micro: "under $300/month", small: "$300–1,000/month",
+    medium: "$1,000–5,000/month", large: "$5,000–20,000/month", enterprise: "$20,000+/month",
+  };
+  const campaignLabels: Record<string, string> = {
+    launch: "New Product Launch", seasonal: "Seasonal/Holiday",
+    clearance: "Clearance Sale", brand: "Brand Awareness", retargeting: "Retargeting",
+  };
+
+  const sel = Array.isArray(sections) ? sections : ["strategy","social","ads","email","seo","plan"];
+
+  const SECTION_SCHEMAS: Record<string, string> = {
+    strategy: `"summary":{"marketOverview":"...","uniqueSellingPoint":"...","expectedROAS":"3-5x","seasonality":"...","complianceNote":"..."},"audience":{"ageRange":"...","gender":"...","income":"...","interests":["..."],"psychographics":"...","painPoints":["..."],"buyingTriggers":["..."]},"platforms":[{"platform":"...","priority":1,"reason":"...","expectedCPM":"...","bestFormat":"..."}],"budget":{"monthly_min":0,"monthly_max":0,"allocation":{"paid_social":"40%","google":"35%","influencer":"15%","email":"10%"},"tip":"..."},"localInsights":"..."`,
+    social: `"social":{"instagram":{"caption":"... (in ${language})","hashtags":["#tag"],"cta":"...","format":"Reel","visualIdea":"..."},"facebook":{"headline":"...","primaryText":"...","linkDescription":"...","audienceNote":"..."},"tiktok":{"hook":"...","script":"... max 50 words","hashtags":["#tag"],"musicMood":"...","trendSuggestion":"..."},"youtube":{"title":"...","description":"...","tags":["..."]}}`,
+    ads: `"ads":{"google":{"headlines":["h1","h2","h3","h4","h5"],"descriptions":["d1","d2"],"displayUrl":"example.com/kw","exactKeywords":["kw1","kw2","kw3"],"broadKeywords":["b1","b2"],"negativeKeywords":["n1","n2"],"bidStrategy":"...","shoppingFeedTitle":"..."},"meta":{"primaryText":"...","headline":"...","description":"...","cta":"Shop Now","audienceTargeting":"...","lookalike":"..."}}`,
+    email: `"email":{"subject":"... (in ${language})","preheader":"...","body":"... 60-100 words in ${language}","cta":"..."}`,
+    seo: `"seo":{"pageTitle":"... (in ${language})","metaDescription":"...","h1":"...","primaryKeywords":["kw1","kw2","kw3"],"longTailKeywords":["lt1","lt2","lt3"],"contentIdeas":["idea1","idea2","idea3"]}`,
+    plan: `"launchPlan":[{"week":1,"focus":"...","actions":["a1","a2"],"platforms":["p1"],"budget_pct":"30%"},{"week":2,"focus":"...","actions":["a1","a2"],"platforms":["p1"],"budget_pct":"25%"},{"week":3,"focus":"...","actions":["a1"],"platforms":["p1"],"budget_pct":"25%"},{"week":4,"focus":"...","actions":["a1","a2"],"platforms":["p1"],"budget_pct":"20%"}]`,
+  };
+
+  const SECTION_LABELS: Record<string, string> = {
+    strategy: "📊 Analizuję rynek i tworzę strategię...",
+    social: "📱 Piszę treści social media...",
+    ads: "📣 Tworzę kampanie reklamowe...",
+    email: "📧 Piszę kampanię email...",
+    seo: "🔍 Optymalizuję SEO...",
+    plan: "📅 Układam harmonogram kampanii...",
+  };
+
+  const TOOL = {
+    name: "submit_section",
+    description: "Submit the completed content for one campaign section. Call this once per section.",
+    input_schema: {
+      type: "object",
+      properties: {
+        section: { type: "string", enum: sel, description: "Which section this is" },
+        content: { type: "object", description: "Complete JSON content for this section" },
+      },
+      required: ["section", "content"],
+    },
+  };
+
+  const systemPrompt = `You are an expert performance marketing strategist building a campaign section by section.
+
+PRODUCT: ${product} | CATEGORY: ${category} | PRICE: $${priceUSD}
+DESCRIPTION: ${description || "N/A"}
+MARKET: ${targetMarket} (${marketType}) | LANGUAGE: ${language} | CURRENCY: ${currency}
+CAMPAIGN TYPE: ${campaignLabels[campaignType] ?? campaignType}
+VOICE: ${voice} | BUDGET: ${budgetLabels[campaignBudget] ?? budgetLabels.auto}
+${continentCtx ? `MARKET CONTEXT: ${continentCtx}` : ""}
+
+Generate these sections IN ORDER: ${sel.join(", ")}
+
+For each section call submit_section with the content matching this structure:
+${sel.map(s => `\n[${s}]: {${SECTION_SCHEMAS[s] ?? ""}}`).join("")}
+
+Rules:
+- All copy in ${language}. Keep JSON keys in English.
+- Each section builds on the context of previous ones.
+- Be specific and actionable. No placeholders.
+- After submitting all ${sel.length} sections, respond with "CAMPAIGN COMPLETE".`;
+
+  send("status", { step: 0, message: "🤖 Agent startuje — buduję kampanię sekcja po sekcji..." });
+
+  const collectedSections: Record<string, any> = {};
+  let messages: any[] = [{ role: "user", content: `Build the marketing campaign now. Generate all ${sel.length} sections: ${sel.join(", ")}.` }];
+
+  try {
+    for (let i = 0; i < 20; i++) {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 3000,
+          system: systemPrompt,
+          tools: [TOOL],
+          messages,
+        }),
+      });
+
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({})) as any;
+        send("error", { message: e.error?.message || `Claude API error ${r.status}` });
+        res.end(); return;
+      }
+
+      const data = await r.json() as any;
+
+      if (data.stop_reason === "end_turn") {
+        // Done — assemble campaign from collected sections
+        const campaign: any = {};
+        for (const [, content] of Object.entries(collectedSections)) {
+          Object.assign(campaign, content);
+        }
+        if (Object.keys(campaign).length === 0) {
+          send("error", { message: "Agent nie zwrócił żadnych sekcji — spróbuj ponownie." });
+        } else {
+          send("done", {
+            campaign,
+            meta: { product, targetMarket, marketType, campaignType, language, currency },
+            usage: data.usage ?? null,
+            model: "claude-haiku-4-5-20251001",
+          });
+        }
+        res.end(); return;
+      }
+
+      if (data.stop_reason === "tool_use") {
+        messages.push({ role: "assistant", content: data.content });
+        const results: any[] = [];
+
+        for (const block of data.content) {
+          if (block.type !== "tool_use") continue;
+          const { section, content } = block.input ?? {};
+          if (section && content) {
+            collectedSections[section] = content;
+            send("status", { step: Object.keys(collectedSections).length, message: SECTION_LABELS[section] ?? `✅ ${section} gotowe`, section });
+
+            // If we have all sections, tell Claude to wrap up
+            if (Object.keys(collectedSections).length >= sel.length) {
+              results.push({ type: "tool_result", tool_use_id: block.id, content: "Section received. All sections complete." });
+            } else {
+              const remaining = sel.filter(s => !collectedSections[s]);
+              results.push({ type: "tool_result", tool_use_id: block.id, content: `Section received. Remaining: ${remaining.join(", ")}` });
+            }
+          } else {
+            results.push({ type: "tool_result", tool_use_id: block.id, content: "Error: missing section or content" });
+          }
+        }
+
+        messages.push({ role: "user", content: results });
+
+        // All sections collected — force final assembly on next iteration
+        if (Object.keys(collectedSections).length >= sel.length) {
+          messages.push({ role: "user", content: "All sections received. Respond with 'CAMPAIGN COMPLETE'." });
+          // Actually just emit done now
+          const campaign: any = {};
+          for (const [, content] of Object.entries(collectedSections)) Object.assign(campaign, content);
+          send("done", { campaign, meta: { product, targetMarket, marketType, campaignType, language, currency }, model: "claude-haiku-4-5-20251001" });
+          res.end(); return;
+        }
+        continue;
+      }
+
+      break;
+    }
+    send("error", { message: "Agent przekroczył limit iteracji" });
+    res.end();
+  } catch (err: any) {
+    send("error", { message: err.message || "Błąd wewnętrzny" });
+    res.end();
+  }
+});
+
 // ── 5-email drip sequence ─────────────────────────────────────────────────────
 router.post("/gen-sequence", async (req: Request, res: Response) => {
   const {

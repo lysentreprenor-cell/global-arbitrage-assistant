@@ -3,7 +3,7 @@ import {
   Megaphone, Globe, Rocket, Copy, CheckCircle, Loader2,
   AlertCircle, ChevronRight, BarChart2, Mail, Search, Users,
   Youtube, DollarSign, Calendar, Lightbulb, Target, Link, X,
-  MessageSquare, ThumbsUp, Send, Video, Image, Download, Sparkles,
+  MessageSquare, ThumbsUp, Send, Video, Image, Download, Sparkles, Bot,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
@@ -135,6 +135,8 @@ export default function MarketingPage() {
   const [sections, setSections] = useState<string[]>(["strategy","social","ads","email","seo","plan"]);
   const [sectionDetail, setSectionDetail] = useState<Record<string, "s"|"m"|"l">>({ strategy:"m", social:"m", ads:"m", email:"m", seo:"m", plan:"m" });
   const [lastUsage, setLastUsage] = useState<{ input_tokens: number; output_tokens: number } | null>(null);
+  const [genMode, setGenMode] = useState<"form" | "agent">("form");
+  const [agentLog, setAgentLog] = useState<{ step: number; message: string; section?: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -349,6 +351,59 @@ export default function MarketingPage() {
       setError(e.message === "Failed to fetch"
         ? "Nie można połączyć się z serwerem. Zrestartuj Replit (Stop → Run) i spróbuj ponownie."
         : e.message);
+    }
+    setLoading(false);
+  };
+
+  const agentGenerate = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    if (!product.trim()) { setError("Wpisz nazwę produktu"); return; }
+    setLoading(true); setError(null); setResult(null); setAgentLog([]);
+    setGenImgResult(null); setImgPrompt(""); setVidResult(null); setVidPrompt(""); setVidOpName(null);
+    setEmailSeq([]); setEmailSeqError(null); setLandingPage(null); setLandingError(null);
+    setCalendar([]); setCalendarError(null); setInfluencer(null); setInfluencerError(null);
+    try {
+      const r = await fetch("/api/marketing/agent-run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          product: product.trim(), category, priceUSD: parseFloat(priceUSD) || 0,
+          description: description.trim(), targetMarket: selectedMarket,
+          marketType, campaignType, voice, campaignBudget, sections, anthropicKey: key,
+        }),
+      });
+      if (!r.ok || !r.body) throw new Error("Błąd połączenia z agentem");
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+        for (const chunk of parts) {
+          const ev = chunk.split("\n").find(l => l.startsWith("event: "))?.slice(7) ?? "status";
+          const dl = chunk.split("\n").find(l => l.startsWith("data: "));
+          if (!dl) continue;
+          const payload = JSON.parse(dl.slice(6));
+          if (ev === "status") setAgentLog(p => [...p, payload]);
+          else if (ev === "done") {
+            if (payload.campaign) {
+              const data = payload;
+              setResult(data);
+              setActiveTab("strategia");
+              if (payload.usage) { setLastUsage(payload.usage); recordTokenUsage(payload.usage, payload.model || "claude-haiku-4-5-20251001"); }
+              const entry = { id: Date.now(), product: product.trim(), targetMarket: selectedMarket, campaignType, voice, createdAt: new Date().toISOString(), result: data };
+              setHistory(prev => { const updated = [entry, ...prev].slice(0, 5); localStorage.setItem("resell_marketing_history", JSON.stringify(updated)); return updated; });
+            } else { setError("Agent nie zwrócił kampanii — spróbuj ponownie."); }
+          }
+          else if (ev === "error") setError(payload.message);
+        }
+      }
+    } catch (e: any) {
+      setError(e.message === "Failed to fetch" ? "Nie można połączyć się z serwerem. Zrestartuj Replit (Stop → Run)." : e.message);
     }
     setLoading(false);
   };
@@ -870,25 +925,71 @@ export default function MarketingPage() {
               )}
             </div>
 
+            {/* Mode toggle */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+              {([
+                { v: "form",  icon: <Megaphone size={13} />, label: "Formularz" },
+                { v: "agent", icon: <Bot size={13} />,      label: "🤖 Agent AI" },
+              ] as const).map(m => (
+                <button key={m.v} onClick={() => setGenMode(m.v as any)} style={{
+                  flex: 1, padding: "9px 12px", borderRadius: 10, cursor: "pointer",
+                  border: `1px solid ${genMode === m.v ? "rgba(168,85,247,0.5)" : "rgba(255,255,255,0.1)"}`,
+                  background: genMode === m.v ? "rgba(168,85,247,0.15)" : "transparent",
+                  color: genMode === m.v ? "#c4b5fd" : "rgba(255,255,255,0.35)",
+                  fontWeight: genMode === m.v ? 700 : 400, fontSize: 13,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}>{m.icon} {m.label}</button>
+              ))}
+            </div>
+            {genMode === "agent" && (
+              <div style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.18)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
+                Agent generuje każdą sekcję osobno, budując kontekst między nimi. Wolniej, ale lepiej dopasowane treści.
+              </div>
+            )}
+
             {error && (
               <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 9, padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8, color: "#fca5a5", fontSize: 13 }}>
                 <AlertCircle size={14} /> {error}
               </div>
             )}
 
-            <button onClick={generate} disabled={loading || !product.trim()} style={{
+            <button onClick={genMode === "agent" ? agentGenerate : generate} disabled={loading || !product.trim()} style={{
               width: "100%", padding: "14px 24px", borderRadius: 12, border: "none",
-              background: loading || !product.trim() ? "rgba(168,85,247,0.2)" : "linear-gradient(135deg, #ec4899, #a855f7, #6366f1)",
-              color: loading || !product.trim() ? "rgba(255,255,255,0.3)" : "#fff",
+              background: loading || !product.trim() ? "rgba(168,85,247,0.2)"
+                : genMode === "agent" ? "linear-gradient(135deg,#16a34a,#22c55e,#4ade80)"
+                : "linear-gradient(135deg, #ec4899, #a855f7, #6366f1)",
+              color: loading || !product.trim() ? "rgba(255,255,255,0.3)" : genMode === "agent" ? "#000" : "#fff",
               fontWeight: 900, fontSize: 15, cursor: loading || !product.trim() ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              boxShadow: loading || !product.trim() ? "none" : "0 4px 20px rgba(168,85,247,0.4)",
+              boxShadow: loading || !product.trim() ? "none" : genMode === "agent" ? "0 4px 20px rgba(34,197,94,0.4)" : "0 4px 20px rgba(168,85,247,0.4)",
               transition: "all 0.2s",
             }}>
-              {loading ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Generuję kampanię marketingową…</> : <><Megaphone size={18} /> Generuj kampanię marketingową <ChevronRight size={16} /></>}
+              {loading
+                ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> {genMode === "agent" ? "Agent pracuje..." : "Generuję kampanię…"}</>
+                : genMode === "agent"
+                  ? <><Bot size={18} /> Uruchom Agent AI <ChevronRight size={16} /></>
+                  : <><Megaphone size={18} /> Generuj kampanię marketingową <ChevronRight size={16} /></>}
             </button>
 
-            {loading && (
+            {/* Agent live log */}
+            {genMode === "agent" && (loading || agentLog.length > 0) && (
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 7 }}>
+                {agentLog.map((entry, i) => {
+                  const done = i < agentLog.length - 1 || !loading;
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {done
+                        ? <CheckCircle size={13} color="#22c55e" style={{ flexShrink: 0 }} />
+                        : <Loader2 size={13} color="#22c55e" style={{ animation: "spin 1s linear infinite", flexShrink: 0 }} />}
+                      <span style={{ color: done ? "rgba(255,255,255,0.35)" : "#fff", fontSize: 12 }}>{entry.message}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Form mode loading dots */}
+            {genMode === "form" && loading && (
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
                 {["🎯 Analiza rynku i grupy docelowej", "📱 Generowanie treści social media", "📣 Tworzenie copy reklamowego", "📧 Budowanie strategii email", "🔍 Optymalizacja SEO", "📅 Plan wdrożenia kampanii"].map((s, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
