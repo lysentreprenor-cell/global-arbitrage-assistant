@@ -11,6 +11,7 @@ import {
   type PipelineItem, type PipelineStatus,
 } from "@/lib/pipeline";
 import { getValidAccessToken, isEbayConnected } from "@/lib/ebayAuth";
+import { getValidEtsyToken, isEtsyConnected } from "@/lib/etsyAuth";
 
 function loadEbayCredentials(): { clientId: string; certId: string } {
   try {
@@ -59,6 +60,9 @@ export default function SavedPage() {
   const [ebayStatus, setEbayStatus] = useState<Record<string, "idle" | "listing" | "listed" | "error">>({});
   const [ebayUrls, setEbayUrls] = useState<Record<string, string>>({});
   const [ebayErrors, setEbayErrors] = useState<Record<string, string>>({});
+  const [etsyStatus, setEtsyStatus] = useState<Record<string, "idle" | "listing" | "listed" | "error">>({});
+  const [etsyUrls, setEtsyUrls] = useState<Record<string, string>>({});
+  const [etsyErrors, setEtsyErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const reload = () => setItems(loadPipeline());
@@ -153,6 +157,54 @@ export default function SavedPage() {
     } catch (e: any) {
       setEbayStatus(s => ({ ...s, [k]: "error" }));
       setEbayErrors(er => ({ ...er, [k]: e.message || "Nieznany błąd" }));
+    }
+  };
+
+  const postToEtsy = async (item: PipelineItem) => {
+    const k = key(item);
+    if (!isEtsyConnected()) {
+      setEtsyErrors(e => ({ ...e, [k]: "Brak połączenia z Etsy. Idź do Ustawień → Etsy → Połącz konto." }));
+      return;
+    }
+    setEtsyStatus(s => ({ ...s, [k]: "listing" }));
+    setEtsyErrors(e => ({ ...e, [k]: "" }));
+    try {
+      const tokenData = await getValidEtsyToken();
+      if (!tokenData) {
+        setEtsyStatus(s => ({ ...s, [k]: "error" }));
+        setEtsyErrors(e => ({ ...e, [k]: "Token wygasł. Wejdź w Ustawienia i połącz Etsy ponownie." }));
+        return;
+      }
+      const { accessToken, clientId } = tokenData;
+      const r = await fetch("/api/etsy/list", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          accessToken,
+          clientId,
+          title: item.name,
+          description: item.tip || item.name,
+          price: item.sell,
+          category: item.category,
+        }),
+      });
+      const d = await r.json() as { success?: boolean; listingId?: number; listingUrl?: string; error?: string };
+      if (!r.ok || !d.success) {
+        setEtsyStatus(s => ({ ...s, [k]: "error" }));
+        setEtsyErrors(e => ({ ...e, [k]: d.error || "Błąd wystawiania na Etsy" }));
+        return;
+      }
+      setEtsyStatus(s => ({ ...s, [k]: "listed" }));
+      setEtsyUrls(u => ({ ...u, [k]: d.listingUrl! }));
+      update(item.id, item.name, {
+        status: "listed",
+        listedAt: Date.now(),
+        listedOn: [...new Set([...item.listedOn, "Etsy"])],
+        sellUrls: { ...item.sellUrls, "Etsy": d.listingUrl! },
+      });
+    } catch (e: any) {
+      setEtsyStatus(s => ({ ...s, [k]: "error" }));
+      setEtsyErrors(er => ({ ...er, [k]: e.message || "Nieznany błąd" }));
     }
   };
 

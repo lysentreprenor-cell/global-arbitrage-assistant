@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Settings as SettingsIcon, Key, Eye, EyeOff, Check, ExternalLink, Trash2, Plus, AlertCircle, CheckCircle, Link2 } from "lucide-react";
 import { loadEbayToken, saveEbayToken, clearEbayToken, isEbayConnected } from "@/lib/ebayAuth";
+import { saveEtsyToken, clearEtsyToken, isEtsyConnected } from "@/lib/etsyAuth";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 
 type ApiEntry = {
@@ -154,6 +155,9 @@ export default function Settings() {
   const [ebayConnected, setEbayConnected] = useState(isEbayConnected);
   const [ebayConnecting, setEbayConnecting] = useState(false);
   const [ebayError, setEbayError] = useState<string | null>(null);
+  const [etsyConnected, setEtsyConnected] = useState(isEtsyConnected);
+  const [etsyConnecting, setEtsyConnecting] = useState(false);
+  const [etsyError, setEtsyError] = useState<string | null>(null);
 
   const connectEbay = async () => {
     const appId  = keys.ebay?.appId  || "";
@@ -192,6 +196,51 @@ export default function Settings() {
       // Fallback: if popup closed without message
       const check = setInterval(() => { if (popup?.closed) { clearInterval(check); window.removeEventListener("message", handler); setEbayConnecting(false); } }, 500);
     } catch (e: any) { setEbayError(e.message); setEbayConnecting(false); }
+  };
+
+  const connectEtsy = async () => {
+    const apiKey = keys.etsy?.apiKey || "";
+    if (!apiKey) {
+      setEtsyError("Uzupełnij Keystring (API Key) Etsy przed połączeniem."); return;
+    }
+    setEtsyConnecting(true); setEtsyError(null);
+    const redirectUri = `${window.location.origin}/api/etsy/callback`;
+    try {
+      const r = await fetch(`/api/etsy/auth-url?clientId=${encodeURIComponent(apiKey)}&redirectUri=${encodeURIComponent(redirectUri)}`);
+      const { url, state, error } = await r.json() as { url?: string; state?: string; error?: string };
+      if (error || !url) { setEtsyError(error || "Nie można wygenerować URL"); setEtsyConnecting(false); return; }
+
+      const popup = window.open(url, "etsy-oauth", "width=600,height=700,left=200,top=100");
+      const handler = async (e: MessageEvent) => {
+        if (e.data?.type === "ETSY_CODE") {
+          window.removeEventListener("message", handler);
+          const { code, state: returnedState } = e.data as { code: string; state: string };
+          const tr = await fetch("/api/etsy/exchange-token", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ code, clientId: apiKey, redirectUri, state: returnedState ?? state }),
+          });
+          const td = await tr.json() as { accessToken?: string; refreshToken?: string; expiresIn?: number; error?: string };
+          if (td.error) { setEtsyError(td.error); setEtsyConnecting(false); return; }
+          saveEtsyToken({
+            accessToken: td.accessToken!,
+            refreshToken: td.refreshToken!,
+            expiry: Date.now() + (td.expiresIn ?? 3600) * 1000,
+            clientId: apiKey,
+          });
+          setEtsyConnected(true); setEtsyConnecting(false);
+        }
+        if (e.data?.type === "ETSY_ERROR") {
+          window.removeEventListener("message", handler);
+          setEtsyError((e.data as { error?: string }).error || "Błąd autoryzacji Etsy"); setEtsyConnecting(false);
+        }
+      };
+      window.addEventListener("message", handler);
+      // Fallback: if popup closed without message
+      const check = setInterval(() => { if (popup?.closed) { clearInterval(check); window.removeEventListener("message", handler); setEtsyConnecting(false); } }, 500);
+    } catch (e: unknown) {
+      setEtsyError(e instanceof Error ? e.message : "Nieznany błąd"); setEtsyConnecting(false);
+    }
   };
 
   const update = (platformId: string, field: string, value: string) => {
@@ -373,6 +422,31 @@ export default function Settings() {
                       ) : (
                         <button onClick={connectEbay} disabled={ebayConnecting} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: ebayConnecting ? "not-allowed" : "pointer", background: ebayConnecting ? "rgba(245,200,66,0.1)" : "linear-gradient(135deg,#b45309,#d97706,#f5c842)", color: ebayConnecting ? "#f5c842" : "#000", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                           <Link2 size={14} /> {ebayConnecting ? "Otwieranie eBay..." : "Połącz konto eBay (OAuth)"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Etsy OAuth Connect section */}
+                  {platform.id === "etsy" && (
+                    <div style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.15)", borderRadius: 10, padding: "12px 14px", marginTop: 4 }}>
+                      <div style={{ color: "#f97316", fontSize: 10, fontWeight: 700, marginBottom: 8 }}>🔑 AUTORYZUJ KONTO ETSY (OAuth)</div>
+                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10, lineHeight: 1.6 }}>
+                        W developer.etsy.com → Twoja aplikacja → <strong style={{ color: "rgba(255,255,255,0.6)" }}>Redirect URIs</strong> → dodaj:<br />
+                        <span style={{ fontFamily: "monospace", color: "#93c5fd", fontSize: 10, wordBreak: "break-all" }}>{window.location.origin}/api/etsy/callback</span>
+                      </div>
+                      {etsyError && (
+                        <div style={{ color: "#f87171", fontSize: 11, marginBottom: 8, background: "rgba(248,113,113,0.1)", borderRadius: 6, padding: "6px 10px" }}>{etsyError}</div>
+                      )}
+                      {etsyConnected ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <CheckCircle size={14} color="#4ade80" />
+                          <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 700, flex: 1 }}>Konto Etsy połączone — możesz wystawiać ogłoszenia z Agent AI</span>
+                          <button onClick={() => { clearEtsyToken(); setEtsyConnected(false); }} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid rgba(248,113,113,0.3)", background: "transparent", color: "#f87171", cursor: "pointer", fontSize: 11 }}>Rozłącz</button>
+                        </div>
+                      ) : (
+                        <button onClick={connectEtsy} disabled={etsyConnecting} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: etsyConnecting ? "not-allowed" : "pointer", background: etsyConnecting ? "rgba(249,115,22,0.1)" : "linear-gradient(135deg,#c2410c,#ea580c,#f97316)", color: etsyConnecting ? "#f97316" : "#fff", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <Link2 size={14} /> {etsyConnecting ? "Otwieranie Etsy..." : "Połącz konto Etsy (OAuth)"}
                         </button>
                       )}
                     </div>

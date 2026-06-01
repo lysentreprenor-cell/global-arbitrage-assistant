@@ -29,6 +29,7 @@ import autopilotRouter from "./routes/autopilot";
 import marketingRouter from "./routes/marketing";
 import agentRouter from "./routes/agent";
 import ebayRouter from "./routes/ebay";
+import etsyRouter from "./routes/etsy";
 
 const app = express();
 const httpServer = createServer(app);
@@ -296,6 +297,7 @@ async function runStartupMigrations() {
   app.use("/api/marketing", marketingRouter);
   app.use("/api/agent", agentRouter);
   app.use("/api/ebay", ebayRouter);
+  app.use("/api/etsy", etsyRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
