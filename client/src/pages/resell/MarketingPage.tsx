@@ -141,7 +141,7 @@ export default function MarketingPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [showReport, setShowReport] = useState(true);
-  const [activeTab, setActiveTab] = useState("strategia");
+  const [openChannels, setOpenChannels] = useState<Record<string, boolean>>({ strategia: true });
   const [copied, setCopied] = useState<Record<string, boolean>>({});
   // Campaign history
   const [history, setHistory] = useState<any[]>(() => {
@@ -332,7 +332,7 @@ export default function MarketingPage() {
         setLastUsage(data.usage);
         recordTokenUsage(data.usage, data.model || "claude-haiku-4-5-20251001");
       }
-      setActiveTab("strategia");
+      setOpenChannels({ strategia: true });
       // Save to history (max 5, newest first)
       const entry = {
         id: Date.now(),
@@ -394,7 +394,7 @@ export default function MarketingPage() {
             if (payload.campaign) {
               const data = payload;
               setResult(data);
-              setActiveTab("strategia");
+              setOpenChannels({ strategia: true });
               if (payload.usage) { setLastUsage(payload.usage); recordTokenUsage(payload.usage, payload.model || "claude-haiku-4-5-20251001"); }
               const entry = { id: Date.now(), product: product.trim(), targetMarket: selectedMarket, campaignType, voice, createdAt: new Date().toISOString(), result: data };
               setHistory(prev => { const updated = [entry, ...prev].slice(0, 5); localStorage.setItem("resell_marketing_history", JSON.stringify(updated)); return updated; });
@@ -523,20 +523,7 @@ export default function MarketingPage() {
     borderRadius: 9, color: "#fff", fontSize: 13, padding: "9px 12px", outline: "none", boxSizing: "border-box",
   };
 
-  const TABS = [
-    { id: "strategia", label: "Strategia", icon: <Target size={13} /> },
-    { id: "social", label: "Social Media", icon: <Globe size={13} /> },
-    { id: "ads", label: "Reklamy", icon: <BarChart2 size={13} /> },
-    { id: "email", label: "Email", icon: <Mail size={13} /> },
-    { id: "seo", label: "SEO", icon: <Search size={13} /> },
-    { id: "plan", label: "Plan kampanii", icon: <Calendar size={13} /> },
-    { id: "influencer", label: "Influencerzy", icon: <Users size={13} /> },
-    { id: "sequence", label: "Sekwencja Email", icon: <Mail size={13} /> },
-    { id: "landing", label: "Landing Page", icon: <Globe size={13} /> },
-    { id: "calendar", label: "Kalendarz 30 dni", icon: <Calendar size={13} /> },
-    { id: "comments", label: "Komentarze YT/TT", icon: <MessageSquare size={13} /> },
-    { id: "video", label: "Wideo AI", icon: <Video size={13} /> },
-  ];
+  const toggleCh = (id: string) => setOpenChannels(p => ({ ...p, [id]: !p[id] }));
 
   return (
     <ResellLayout>
@@ -703,7 +690,7 @@ export default function MarketingPage() {
                         setCampaignType(h.campaignType);
                         setVoice(h.voice || "professional");
                         setResult(h.result);
-                        setActiveTab("strategia");
+                        setOpenChannels({ strategia: true });
                         setShowHistory(false);
                       }} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", padding: "7px 12px", borderRadius: 9, border: "1px solid rgba(168,85,247,0.3)", background: "rgba(168,85,247,0.07)", cursor: "pointer", textAlign: "left" }}>
                         <span style={{ color: "#c4b5fd", fontSize: 11, fontWeight: 700 }}>{h.product} → {h.targetMarket}</span>
@@ -1200,540 +1187,455 @@ export default function MarketingPage() {
               } catch { return null; }
             })()}
 
-            {/* Tabs */}
-            <div style={{ display: "flex", gap: 4, marginBottom: 22, overflowX: "auto", scrollbarWidth: "none" }}>
-              {TABS.map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                  display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, whiteSpace: "nowrap",
-                  border: `1px solid ${activeTab === tab.id ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.08)"}`,
-                  background: activeTab === tab.id ? "rgba(168,85,247,0.15)" : "transparent",
-                  color: activeTab === tab.id ? "#c4b5fd" : "rgba(255,255,255,0.45)",
-                  fontWeight: activeTab === tab.id ? 700 : 400, fontSize: 12, cursor: "pointer",
-                }}>
-                  {tab.icon} {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* ── SEKCJE KANAŁÓW (accordion) ── */}
 
-            {/* ── TAB: Strategia ── */}
-            {activeTab === "strategia" && (() => {
+            {/* helper styles */}
+            {(() => {
+              const Ch = ({ id, icon, label, subtitle, color, status, count, children }: {
+                id: string; icon: string; label: string; subtitle?: string; color: string;
+                status: "done" | "missing" | "generator"; count?: string; children: React.ReactNode;
+              }) => {
+                const open = openChannels[id];
+                const statusLabel = status === "done" ? "✓ GOTOWE" : status === "generator" ? "⚡ GENERATOR" : "— BRAK";
+                const statusColor = status === "done" ? "#4ade80" : status === "generator" ? "#a78bfa" : "rgba(255,255,255,0.2)";
+                const statusBg = status === "done" ? "rgba(74,222,128,0.1)" : status === "generator" ? "rgba(167,139,250,0.1)" : "rgba(255,255,255,0.04)";
+                return (
+                  <div style={{ border: `1px solid ${open ? color + "40" : "rgba(255,255,255,0.08)"}`, borderRadius: 14, marginBottom: 10, overflow: "hidden", transition: "border-color 0.2s" }}>
+                    <button onClick={() => toggleCh(id)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: open ? `${color}08` : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, border: `1px solid ${color}35`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{icon}</div>
+                        <div>
+                          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>{label}</div>
+                          {subtitle && <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 }}>{subtitle}</div>}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <span style={{ background: statusBg, color: statusColor, borderRadius: 99, padding: "3px 9px", fontSize: 10, fontWeight: 700 }}>{statusLabel}</span>
+                        {count && <span style={{ color, fontSize: 12, fontWeight: 700 }}>{count}</span>}
+                        <ChevronDown size={14} color="rgba(255,255,255,0.3)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "0.15s", flexShrink: 0 }} />
+                      </div>
+                    </button>
+                    {open && <div style={{ padding: "4px 18px 20px", borderTop: `1px solid ${color}20` }}>{children}</div>}
+                  </div>
+                );
+              };
+
               const { summary, audience, platforms, budget } = result.campaign;
+              const { social, ads, email: emailData, seo } = result.campaign;
+
               return (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
 
-                  {/* Market overview */}
-                  <div style={{ gridColumn: "1/-1", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <Globe size={16} color="#a78bfa" />
-                      <span style={{ color: "#fff", fontWeight: 700 }}>Analiza rynku</span>
-                    </div>
-                    <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.7, marginBottom: 12 }}>{summary.marketOverview}</div>
-                    <div style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 10 }}>
-                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 4 }}>UNIQUE SELLING POINT</div>
-                      <div style={{ color: "#c4b5fd", fontSize: 13, fontWeight: 600 }}>{summary.uniqueSellingPoint}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <div style={{ flex: 1, minWidth: 140, background: "rgba(74,222,128,0.06)", borderRadius: 8, padding: "8px 12px" }}>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>SEZONOWOŚĆ</div>
-                        <div style={{ color: "#4ade80", fontSize: 12, marginTop: 3 }}>{summary.seasonality}</div>
-                      </div>
-                      {summary.complianceNote && (
-                        <div style={{ flex: 1, minWidth: 140, background: "rgba(245,158,11,0.06)", borderRadius: 8, padding: "8px 12px" }}>
-                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>COMPLIANCE</div>
-                          <div style={{ color: "#fbbf24", fontSize: 12, marginTop: 3 }}>{summary.complianceNote}</div>
+                  {/* ── 1. STRATEGIA ── */}
+                  <Ch id="strategia" icon="📊" label="Strategia & Rynek" subtitle={`${result.meta.targetMarket} · ROAS ${summary.expectedROAS ?? "–"}`} color="#a78bfa" status="done" count={`${platforms?.length ?? 0} platform`}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+                      <div style={{ gridColumn: "1/-1", background: "rgba(168,85,247,0.07)", border: "1px solid rgba(168,85,247,0.18)", borderRadius: 12, padding: "14px 16px" }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>ANALIZA RYNKU</div>
+                        <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 1.7, marginBottom: 10 }}>{summary.marketOverview}</div>
+                        <div style={{ background: "rgba(168,85,247,0.12)", borderRadius: 9, padding: "9px 13px", marginBottom: 10 }}>
+                          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, marginBottom: 3 }}>UNIQUE SELLING POINT</div>
+                          <div style={{ color: "#c4b5fd", fontSize: 13, fontWeight: 600 }}>{summary.uniqueSellingPoint}</div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Audience */}
-                  <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                      <Users size={16} color="#60a5fa" />
-                      <span style={{ color: "#fff", fontWeight: 700 }}>Grupa docelowa</span>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                      {[["Wiek", audience.ageRange], ["Płeć", audience.gender], ["Dochód", audience.income]].map(([l, v]) => (
-                        <div key={l} style={{ background: "rgba(96,165,250,0.06)", borderRadius: 8, padding: "7px 10px" }}>
-                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>{l}</div>
-                          <div style={{ color: "#93c5fd", fontSize: 12, fontWeight: 600, marginTop: 2 }}>{v}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>{audience.psychographics}</div>
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>ZAINTERESOWANIA</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                        {audience.interests?.map(i => (
-                          <span key={i} style={{ background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 99, padding: "3px 10px", color: "#93c5fd", fontSize: 11 }}>{i}</span>
-                        ))}
-                      </div>
-                    </div>
-                    {audience.painPoints?.length > 0 && (
-                      <div>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>PAIN POINTS</div>
-                        {audience.painPoints.map(p => (
-                          <div key={p} style={{ color: "rgba(248,113,113,0.8)", fontSize: 11, marginBottom: 3 }}>• {p}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Platforms */}
-                  <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                      <Rocket size={16} color="#f59e0b" />
-                      <span style={{ color: "#fff", fontWeight: 700 }}>Najlepsze platformy</span>
-                    </div>
-                    {platforms?.sort((a, b) => a.priority - b.priority).map(p => (
-                      <div key={p.platform} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 16 }}>{PLATFORM_ICONS[p.platform] ?? "📣"}</span>
-                            <span style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{p.platform}</span>
-                            <span style={{ background: "rgba(245,158,11,0.15)", borderRadius: 5, padding: "1px 6px", color: "#f5c842", fontSize: 10, fontWeight: 700 }}>#{p.priority}</span>
-                          </div>
-                          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>CPM: {p.expectedCPM}</span>
-                        </div>
-                        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{p.reason}</div>
-                        <div style={{ color: "rgba(168,85,247,0.8)", fontSize: 10, marginTop: 3 }}>Format: {p.bestFormat}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Budget */}
-                  <div style={{ gridColumn: "1/-1", background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 14, padding: "18px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                      <DollarSign size={16} color="#f59e0b" />
-                      <span style={{ color: "#fff", fontWeight: 700 }}>Budżet i alokacja</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                      <div style={{ background: "rgba(245,158,11,0.1)", borderRadius: 10, padding: "10px 16px" }}>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>MIESIĘCZNY BUDŻET</div>
-                        <div style={{ color: "#f59e0b", fontSize: 20, fontWeight: 900 }}>{budget.monthly_min}–{budget.monthly_max} {result.meta.currency}</div>
-                      </div>
-                    </div>
-                    {budget.allocation && (
-                      <div>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 8 }}>ALOKACJA</div>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {Object.entries(budget.allocation).map(([ch, pct]) => (
-                            <div key={ch} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "7px 12px", textAlign: "center" }}>
-                              <div style={{ color: "#f5c842", fontWeight: 700, fontSize: 13 }}>{String(pct)}</div>
-                              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{ch.replace("_", " ")}</div>
+                          <div style={{ flex: 1, minWidth: 130, background: "rgba(74,222,128,0.07)", borderRadius: 8, padding: "7px 10px" }}>
+                            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>SEZONOWOŚĆ</div>
+                            <div style={{ color: "#4ade80", fontSize: 12, marginTop: 2 }}>{summary.seasonality}</div>
+                          </div>
+                          {summary.complianceNote && (
+                            <div style={{ flex: 1, minWidth: 130, background: "rgba(245,158,11,0.07)", borderRadius: 8, padding: "7px 10px" }}>
+                              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700 }}>COMPLIANCE</div>
+                              <div style={{ color: "#fbbf24", fontSize: 12, marginTop: 2 }}>{summary.complianceNote}</div>
                             </div>
-                          ))}
+                          )}
                         </div>
+                      </div>
+                      <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.14)", borderRadius: 12, padding: "14px 16px" }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 8 }}>GRUPA DOCELOWA</div>
+                        {[["Wiek", audience.ageRange], ["Płeć", audience.gender], ["Dochód", audience.income]].map(([l, v]) => v && (
+                          <div key={l} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{l}</span>
+                            <span style={{ color: "#93c5fd", fontSize: 11, fontWeight: 600 }}>{v}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                          {audience.interests?.map(i => <span key={i} style={{ background: "rgba(96,165,250,0.1)", borderRadius: 99, padding: "2px 8px", color: "#93c5fd", fontSize: 10 }}>{i}</span>)}
+                        </div>
+                      </div>
+                      <div style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.14)", borderRadius: 12, padding: "14px 16px" }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 8 }}>TOP PLATFORMY</div>
+                        {platforms?.sort((a, b) => a.priority - b.priority).slice(0, 4).map(p => (
+                          <div key={p.platform} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 14 }}>{PLATFORM_ICONS[p.platform] ?? "📣"}</span>
+                              <span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{p.platform}</span>
+                              <span style={{ background: "rgba(245,158,11,0.15)", borderRadius: 4, padding: "0 5px", color: "#f5c842", fontSize: 9, fontWeight: 700 }}>#{p.priority}</span>
+                            </div>
+                            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>CPM {p.expectedCPM}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ gridColumn: "1/-1", background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.14)", borderRadius: 12, padding: "14px 16px" }}>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>BUDŻET MIESIĘCZNY</div>
+                        <div style={{ color: "#f59e0b", fontSize: 22, fontWeight: 900, marginBottom: 8 }}>{budget.monthly_min}–{budget.monthly_max} {result.meta.currency}</div>
+                        {budget.allocation && (
+                          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                            {Object.entries(budget.allocation).map(([ch, pct]) => (
+                              <div key={ch} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "5px 10px", textAlign: "center" }}>
+                                <div style={{ color: "#f5c842", fontWeight: 700, fontSize: 12 }}>{String(pct)}</div>
+                                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9 }}>{ch.replace("_", " ")}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {budget.tip && <div style={{ marginTop: 10, color: "rgba(255,200,80,0.65)", fontSize: 11, fontStyle: "italic" }}>💡 {budget.tip}</div>}
+                      </div>
+                      {result.campaign.localInsights && (
+                        <div style={{ gridColumn: "1/-1", background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.18)", borderRadius: 12, padding: "12px 14px" }}>
+                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 5 }}>LOKALNE INSIGHTY — {result.meta.targetMarket}</div>
+                          <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.7 }}>{result.campaign.localInsights}</div>
+                        </div>
+                      )}
+                    </div>
+                  </Ch>
+
+                  {/* ── 2. INSTAGRAM ── */}
+                  <Ch id="instagram" icon="📸" label="Instagram" subtitle="Caption · Hashtagi · Visual idea" color="#ec4899"
+                    status={social?.instagram?.caption ? "done" : "missing"}
+                    count={social?.instagram?.hashtags?.length ? `${social.instagram.hashtags.length} #` : undefined}>
+                    {social?.instagram && (
+                      <div style={{ marginTop: 14 }}>
+                        {social.instagram.format && <span style={{ background: "rgba(236,72,153,0.15)", borderRadius: 99, padding: "2px 8px", color: "#f472b6", fontSize: 10, marginBottom: 10, display: "inline-block" }}>{social.instagram.format}</span>}
+                        <Block label="CAPTION"><TextCard text={social.instagram.caption} id="ig_caption" /></Block>
+                        <Block label="HASHTAGI">
+                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+                            {social.instagram.hashtags?.map(h => <span key={h} style={{ background: "rgba(236,72,153,0.1)", borderRadius: 99, padding: "3px 10px", color: "#f9a8d4", fontSize: 11 }}>{h}</span>)}
+                          </div>
+                          <CopyBtn text={social.instagram.hashtags?.join(" ")} id="ig_hash" />
+                        </Block>
+                        {social.instagram.visualIdea && <Block label="IDEA WIZUALNA"><div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.6, background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "10px 12px" }}>{social.instagram.visualIdea}</div></Block>}
+                        {social.instagram.cta && <Block label="CTA"><div style={{ color: "#f472b6", fontSize: 13, fontWeight: 600 }}>{social.instagram.cta}</div></Block>}
                       </div>
                     )}
-                    {budget.tip && <div style={{ marginTop: 12, color: "rgba(255,200,80,0.7)", fontSize: 12, fontStyle: "italic" }}>💡 {budget.tip}</div>}
-                  </div>
+                  </Ch>
 
-                  {/* Local insights */}
-                  {result.campaign.localInsights && (
-                    <div style={{ gridColumn: "1/-1", background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 14, padding: "18px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                        <Lightbulb size={16} color="#34d399" />
-                        <span style={{ color: "#fff", fontWeight: 700 }}>Lokalne insighty — {result.meta.targetMarket}</span>
-                      </div>
-                      <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, lineHeight: 1.7 }}>{result.campaign.localInsights}</div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* ── TAB: Social Media ── */}
-            {activeTab === "social" && (() => {
-              const { social } = result.campaign;
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-                  {/* Instagram */}
-                  {social.instagram && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 20 }}>📸</span>
-                          <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Instagram</span>
-                          <span style={{ background: "rgba(236,72,153,0.15)", borderRadius: 99, padding: "2px 8px", color: "#f472b6", fontSize: 10 }}>{social.instagram.format}</span>
+                  {/* ── 3. FACEBOOK ── */}
+                  <Ch id="facebook" icon="📘" label="Facebook" subtitle="Headline · Primary text · Audience note" color="#3b82f6"
+                    status={social?.facebook?.headline ? "done" : "missing"}>
+                    {social?.facebook && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                          <Block label="HEADLINE"><TextCard text={social.facebook.headline} id="fb_h" /></Block>
+                          <Block label="LINK DESCRIPTION"><TextCard text={social.facebook.linkDescription} id="fb_ld" /></Block>
                         </div>
+                        <Block label="PRIMARY TEXT"><TextCard text={social.facebook.primaryText} id="fb_pt" /></Block>
+                        {social.facebook.audienceNote && <div style={{ color: "rgba(96,165,250,0.8)", fontSize: 12, fontStyle: "italic", marginTop: 8 }}>🎯 {social.facebook.audienceNote}</div>}
                       </div>
-                      <Block label="CAPTION">
-                        <TextCard text={social.instagram.caption} id="ig_caption" />
-                      </Block>
-                      <Block label="HASHTAGI">
-                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
-                          {social.instagram.hashtags?.map(h => <span key={h} style={{ background: "rgba(236,72,153,0.1)", borderRadius: 99, padding: "3px 10px", color: "#f9a8d4", fontSize: 11 }}>{h}</span>)}
-                        </div>
-                        <CopyBtn text={social.instagram.hashtags?.join(" ")} id="ig_hash" />
-                      </Block>
-                      <Block label="IDEA WIZUALNA">
-                        <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.6, background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "10px 12px" }}>{social.instagram.visualIdea}</div>
-                      </Block>
-                    </div>
-                  )}
+                    )}
+                  </Ch>
 
-                  {/* Facebook */}
-                  {social.facebook && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                        <span style={{ fontSize: 20 }}>📘</span>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Facebook Ads</span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        <Block label="HEADLINE">
-                          <TextCard text={social.facebook.headline} id="fb_h" />
+                  {/* ── 4. TIKTOK ── */}
+                  <Ch id="tiktok" icon="🎵" label="TikTok" subtitle="Hook · Skrypt · Hashtagi · Muzyka" color="#f472b6"
+                    status={social?.tiktok?.script ? "done" : "missing"}
+                    count={social?.tiktok?.hashtags?.length ? `${social.tiktok.hashtags.length} #` : undefined}>
+                    {social?.tiktok && (
+                      <div style={{ marginTop: 14 }}>
+                        <Block label="HOOK — pierwsze 3 sekundy">
+                          <div style={{ background: "rgba(236,72,153,0.1)", border: "1px solid rgba(236,72,153,0.25)", borderRadius: 10, padding: "12px 14px", position: "relative" }}>
+                            <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={social.tiktok.hook} id="tt_hook" /></div>
+                            <div style={{ color: "#f9a8d4", fontSize: 14, fontWeight: 700, paddingRight: 80 }}>{social.tiktok.hook}</div>
+                          </div>
                         </Block>
-                        <Block label="LINK DESCRIPTION">
-                          <TextCard text={social.facebook.linkDescription} id="fb_ld" />
-                        </Block>
-                      </div>
-                      <Block label="PRIMARY TEXT">
-                        <TextCard text={social.facebook.primaryText} id="fb_pt" />
-                      </Block>
-                      {social.facebook.audienceNote && (
-                        <div style={{ color: "rgba(96,165,250,0.8)", fontSize: 12, fontStyle: "italic" }}>🎯 {social.facebook.audienceNote}</div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* TikTok */}
-                  {social.tiktok && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                        <span style={{ fontSize: 20 }}>🎵</span>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>TikTok</span>
-                      </div>
-                      <Block label="HOOK (pierwsze 3 sekundy)">
-                        <div style={{ background: "rgba(236,72,153,0.1)", border: "1px solid rgba(236,72,153,0.25)", borderRadius: 10, padding: "12px 14px", position: "relative" }}>
-                          <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={social.tiktok.hook} id="tt_hook" /></div>
-                          <div style={{ color: "#f9a8d4", fontSize: 14, fontWeight: 700, paddingRight: 80 }}>{social.tiktok.hook}</div>
+                        <Block label="SKRYPT WIDEO"><TextCard text={social.tiktok.script} id="tt_script" /></Block>
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <div style={{ flex: 1 }}>
+                            <Block label="HASHTAGI">
+                              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                                {social.tiktok.hashtags?.map(h => <span key={h} style={{ background: "rgba(236,72,153,0.1)", borderRadius: 99, padding: "3px 10px", color: "#f9a8d4", fontSize: 11 }}>{h}</span>)}
+                              </div>
+                              <div style={{ marginTop: 6 }}><CopyBtn text={social.tiktok.hashtags?.join(" ")} id="tt_hash_all" /></div>
+                            </Block>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <Block label="MUZYKA / NASTRÓJ">
+                              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{social.tiktok.musicMood}</div>
+                            </Block>
+                          </div>
                         </div>
-                      </Block>
-                      <Block label="SKRYPT WIDEO">
-                        <TextCard text={social.tiktok.script} id="tt_script" />
-                      </Block>
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <Block label="HASHTAGI">
+                        {social.tiktok.trendSuggestion && <div style={{ color: "rgba(236,72,153,0.7)", fontSize: 12, fontStyle: "italic", marginTop: 4 }}>💡 Trend: {social.tiktok.trendSuggestion}</div>}
+                      </div>
+                    )}
+                  </Ch>
+
+                  {/* ── 5. YOUTUBE ── */}
+                  <Ch id="youtube" icon="▶️" label="YouTube" subtitle="Tytuł · Opis · Tagi" color="#ef4444"
+                    status={social?.youtube?.title ? "done" : "missing"}
+                    count={social?.youtube?.tags?.length ? `${social.youtube.tags.length} tagów` : undefined}>
+                    {social?.youtube && (
+                      <div style={{ marginTop: 14 }}>
+                        <Block label="TYTUŁ WIDEO"><TextCard text={social.youtube.title} id="yt_title" /></Block>
+                        <Block label="OPIS"><TextCard text={social.youtube.description} id="yt_desc" /></Block>
+                        {social.youtube.tags?.length > 0 && (
+                          <Block label="TAGI">
                             <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                              {social.tiktok.hashtags?.map(h => <span key={h} style={{ background: "rgba(236,72,153,0.1)", borderRadius: 99, padding: "3px 10px", color: "#f9a8d4", fontSize: 11 }}>{h}</span>)}
+                              {social.youtube.tags.map(t => <span key={t} style={{ background: "rgba(239,68,68,0.1)", borderRadius: 99, padding: "3px 10px", color: "#fca5a5", fontSize: 11 }}>{t}</span>)}
                             </div>
+                            <div style={{ marginTop: 6 }}><CopyBtn text={social.youtube.tags.join(", ")} id="yt_tags_all" /></div>
                           </Block>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <Block label="MUZYKA">
-                            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{social.tiktok.musicMood}</div>
-                          </Block>
-                        </div>
+                        )}
                       </div>
-                      {social.tiktok.trendSuggestion && (
-                        <div style={{ color: "rgba(236,72,153,0.7)", fontSize: 12, fontStyle: "italic" }}>💡 Trend: {social.tiktok.trendSuggestion}</div>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </Ch>
 
-                  {/* YouTube */}
-                  {social.youtube && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                        <span style={{ fontSize: 20 }}>▶️</span>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>YouTube</span>
-                      </div>
-                      <Block label="TYTUŁ WIDEO">
-                        <TextCard text={social.youtube.title} id="yt_title" />
-                      </Block>
-                      <Block label="OPIS">
-                        <TextCard text={social.youtube.description} id="yt_desc" />
-                      </Block>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* ── TAB: Ads ── */}
-            {activeTab === "ads" && (() => {
-              const { ads } = result.campaign;
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-                  {/* Google Ads */}
-                  {ads.google && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                        <span style={{ fontSize: 20 }}>🔍</span>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Google Ads</span>
-                        {ads.google.bidStrategy && <span style={{ background: "rgba(96,165,250,0.1)", borderRadius: 99, padding: "2px 8px", color: "#93c5fd", fontSize: 10 }}>{ads.google.bidStrategy}</span>}
-                      </div>
-                      {ads.google.shoppingFeedTitle && (
-                        <Block label="TYTUŁ GOOGLE SHOPPING">
-                          <TextCard text={ads.google.shoppingFeedTitle} id="g_shop" />
+                  {/* ── 6. GOOGLE ADS ── */}
+                  <Ch id="google" icon="🔍" label="Google Ads" subtitle="Nagłówki · Opisy · Słowa kluczowe" color="#4285f4"
+                    status={ads?.google?.headlines?.length ? "done" : "missing"}
+                    count={ads?.google?.exactKeywords?.length ? `${(ads.google.exactKeywords?.length ?? 0) + (ads.google.broadKeywords?.length ?? 0)} kw` : undefined}>
+                    {ads?.google && (
+                      <div style={{ marginTop: 14 }}>
+                        {ads.google.bidStrategy && <div style={{ marginBottom: 10 }}><span style={{ background: "rgba(96,165,250,0.1)", borderRadius: 99, padding: "3px 10px", color: "#93c5fd", fontSize: 11 }}>{ads.google.bidStrategy}</span></div>}
+                        {ads.google.shoppingFeedTitle && <Block label="TYTUŁ GOOGLE SHOPPING"><TextCard text={ads.google.shoppingFeedTitle} id="g_shop" /></Block>}
+                        <Block label="NAGŁÓWKI (max 30 znaków)">
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {ads.google.headlines?.map((h, i) => (
+                              <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ color: "#60a5fa", fontSize: 13 }}>{h}</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ color: h.length > 30 ? "#f87171" : "rgba(255,255,255,0.2)", fontSize: 10 }}>{h.length}/30</span>
+                                  <CopyBtn text={h} id={`g_h${i}`} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </Block>
-                      )}
-                      <Block label="NAGŁÓWKI (max 30 znaków)">
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {ads.google.headlines?.map((h, i) => (
-                            <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                              <span style={{ color: "#60a5fa", fontSize: 13 }}>{h}</span>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>{h.length}/30</span>
-                                <CopyBtn text={h} id={`g_h${i}`} />
+                        <Block label="OPISY (max 90 znaków)">
+                          {ads.google.descriptions?.map((d, i) => (
+                            <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "8px 12px", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, flex: 1, marginRight: 8 }}>{d}</span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                <span style={{ color: d.length > 90 ? "#f87171" : "rgba(255,255,255,0.2)", fontSize: 10 }}>{d.length}/90</span>
+                                <CopyBtn text={d} id={`g_d${i}`} />
                               </div>
                             </div>
                           ))}
+                        </Block>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                          <Block label="✅ DOKŁADNE">
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              {ads.google.exactKeywords?.map(k => (
+                                <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ color: "#4ade80", fontSize: 11 }}>[{k}]</span>
+                                  <CopyBtn text={k} id={`kw_ex_${k}`} />
+                                </div>
+                              ))}
+                            </div>
+                          </Block>
+                          <Block label="🌐 SZEROKIE">
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              {ads.google.broadKeywords?.map(k => (
+                                <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ color: "#f5c842", fontSize: 11 }}>{k}</span>
+                                  <CopyBtn text={k} id={`kw_br_${k}`} />
+                                </div>
+                              ))}
+                            </div>
+                          </Block>
+                          <Block label="❌ WYKLUCZAJĄCE">
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              {ads.google.negativeKeywords?.map(k => (
+                                <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ color: "#f87171", fontSize: 11 }}>−{k}</span>
+                                  <CopyBtn text={k} id={`kw_neg_${k}`} />
+                                </div>
+                              ))}
+                            </div>
+                          </Block>
                         </div>
-                      </Block>
-                      <Block label="OPISY (max 90 znaków)">
-                        {ads.google.descriptions?.map((d, i) => (
-                          <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "8px 12px", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{d}</span>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>{d.length}/90</span>
-                              <CopyBtn text={d} id={`g_d${i}`} />
+                        {ads.google.exactKeywords?.length > 0 && (
+                          <button onClick={() => { const all = [...(ads.google.exactKeywords ?? []), ...(ads.google.broadKeywords ?? [])].join("\n"); navigator.clipboard.writeText(all).catch(() => {}); setCopied(p => ({ ...p, "g_all": true })); setTimeout(() => setCopied(p => ({ ...p, "g_all": false })), 2000); }}
+                            style={{ marginTop: 10, width: "100%", padding: "9px", borderRadius: 9, border: "1px solid rgba(66,133,244,0.3)", background: "rgba(66,133,244,0.07)", color: "#93c5fd", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                            {copied["g_all"] ? "✓ Skopiowano!" : `📋 Kopiuj wszystkie słowa kluczowe (${(ads.google.exactKeywords?.length ?? 0) + (ads.google.broadKeywords?.length ?? 0)})`}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </Ch>
+
+                  {/* ── 7. META ADS ── */}
+                  <Ch id="meta" icon="📣" label="Meta Ads" subtitle="Facebook Ads · Instagram Ads" color="#1877f2"
+                    status={ads?.meta?.primaryText ? "done" : "missing"}>
+                    {ads?.meta && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                          <Block label="HEADLINE"><TextCard text={ads.meta.headline} id="meta_h" /></Block>
+                          <Block label="DESCRIPTION"><TextCard text={ads.meta.description} id="meta_d" /></Block>
+                        </div>
+                        <Block label="PRIMARY TEXT"><TextCard text={ads.meta.primaryText} id="meta_pt" /></Block>
+                        {ads.meta.audienceTargeting && <div style={{ color: "rgba(96,165,250,0.7)", fontSize: 12, fontStyle: "italic", marginTop: 8 }}>🎯 Targeting: {ads.meta.audienceTargeting}</div>}
+                        {ads.meta.lookalike && <div style={{ color: "rgba(96,165,250,0.5)", fontSize: 12, marginTop: 4 }}>👥 Lookalike: {ads.meta.lookalike}</div>}
+                        {ads.meta.cta && <Block label="CTA BUTTON"><div style={{ display: "inline-block", background: "linear-gradient(135deg,#1877f2,#0a52cc)", borderRadius: 9, padding: "10px 24px" }}><span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{ads.meta.cta}</span></div></Block>}
+                      </div>
+                    )}
+                  </Ch>
+
+                  {/* ── 8. EMAIL MARKETING ── */}
+                  <Ch id="email" icon="📧" label="Email Marketing" subtitle="Temat · Preheader · Treść · CTA" color="#60a5fa"
+                    status={emailData?.subject ? "done" : "missing"}>
+                    {emailData && (
+                      <div style={{ marginTop: 14 }}>
+                        <Block label="TEMAT — A/B test (wybierz jeden)">
+                          {emailData.subject?.split("|").map((s, i) => (
+                            <div key={i} style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 9, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span style={{ color: "#93c5fd", fontWeight: 600, fontSize: 14 }}>{s.trim()}</span>
+                              <CopyBtn text={s.trim()} id={`em_sub${i}`} />
+                            </div>
+                          ))}
+                        </Block>
+                        <Block label="PREHEADER"><TextCard text={emailData.preheader} id="em_pre" /></Block>
+                        <Block label="TREŚĆ EMAILA"><TextCard text={emailData.body} id="em_body" /></Block>
+                        <Block label="CTA BUTTON">
+                          <div style={{ display: "inline-block", background: "linear-gradient(135deg,#ec4899,#a855f7)", borderRadius: 9, padding: "10px 24px" }}>
+                            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{emailData.cta}</span>
+                          </div>
+                        </Block>
+                      </div>
+                    )}
+                  </Ch>
+
+                  {/* ── 9. SEO ── */}
+                  <Ch id="seo" icon="🔎" label="SEO" subtitle="Page title · Meta · Słowa kluczowe · Content ideas" color="#4ade80"
+                    status={seo?.pageTitle ? "done" : "missing"}
+                    count={seo ? `${(seo.primaryKeywords?.length ?? 0) + (seo.longTailKeywords?.length ?? 0)} kw` : undefined}>
+                    {seo && (
+                      <div style={{ marginTop: 14 }}>
+                        <Block label="PAGE TITLE (max 60 znaków)">
+                          <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 9, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ color: "#60a5fa", fontSize: 14, fontWeight: 600, flex: 1, marginRight: 8 }}>{seo.pageTitle}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                              <span style={{ color: (seo.pageTitle?.length ?? 0) > 60 ? "#f87171" : "rgba(255,255,255,0.25)", fontSize: 10 }}>{seo.pageTitle?.length ?? 0}/60</span>
+                              <CopyBtn text={seo.pageTitle} id="seo_title" />
                             </div>
                           </div>
-                        ))}
-                      </Block>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                        <Block label="SŁOWA DOKŁADNE">
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {ads.google.exactKeywords?.map(k => <span key={k} style={{ color: "#4ade80", fontSize: 11 }}>+{k}</span>)}
+                        </Block>
+                        <Block label="META DESCRIPTION (max 155 znaków)">
+                          <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 9, padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10 }}>
+                            <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{seo.metaDescription}</span>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                              <span style={{ color: (seo.metaDescription?.length ?? 0) > 155 ? "#f87171" : "rgba(255,255,255,0.25)", fontSize: 10 }}>{seo.metaDescription?.length ?? 0}/155</span>
+                              <CopyBtn text={seo.metaDescription} id="seo_desc" />
+                            </div>
                           </div>
                         </Block>
-                        <Block label="SŁOWA SZEROKIE">
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {ads.google.broadKeywords?.map(k => <span key={k} style={{ color: "#f5c842", fontSize: 11 }}>{k}</span>)}
+                        {seo.h1 && <Block label="H1"><TextCard text={seo.h1} id="seo_h1" /></Block>}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                          <Block label="SŁOWA GŁÓWNE">
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {seo.primaryKeywords?.map(k => <span key={k} style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 99, padding: "3px 10px", color: "#4ade80", fontSize: 11 }}>{k}</span>)}
+                            </div>
+                          </Block>
+                          <Block label="DŁUGI OGON">
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {seo.longTailKeywords?.map(k => <span key={k} style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>• {k}</span>)}
+                            </div>
+                          </Block>
+                        </div>
+                        {seo.contentIdeas?.length > 0 && (
+                          <Block label="POMYSŁY NA CONTENT">
+                            {seo.contentIdeas.map(c => (
+                              <div key={c} style={{ background: "rgba(168,85,247,0.07)", borderRadius: 8, padding: "8px 12px", marginBottom: 6, color: "rgba(255,255,255,0.6)", fontSize: 12 }}>💡 {c}</div>
+                            ))}
+                          </Block>
+                        )}
+                      </div>
+                    )}
+                  </Ch>
+
+                  {/* ── 10. PLAN KAMPANII ── */}
+                  <Ch id="plan" icon="📅" label="Plan Kampanii" subtitle="Tygodniowy harmonogram działań" color="#f59e0b"
+                    status={result.campaign.launchPlan?.length ? "done" : "missing"}
+                    count={result.campaign.launchPlan?.length ? `${result.campaign.launchPlan.length} tygodnie` : undefined}>
+                    <div style={{ marginTop: 14 }}>
+                      {result.campaign.launchPlan?.map(week => (
+                        <div key={week.week} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ width: 30, height: 30, borderRadius: 7, background: "linear-gradient(135deg,#ec4899,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <span style={{ color: "#fff", fontWeight: 900, fontSize: 12 }}>{week.week}</span>
+                              </div>
+                              <div>
+                                <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>Tydzień {week.week}</div>
+                                <div style={{ color: "#c4b5fd", fontSize: 11 }}>{week.focus}</div>
+                              </div>
+                            </div>
+                            <span style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 7, padding: "3px 10px", color: "#f59e0b", fontWeight: 700, fontSize: 11 }}>{week.budget_pct}</span>
                           </div>
-                        </Block>
-                        <Block label="WYKLUCZAJĄCE">
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {ads.google.negativeKeywords?.map(k => <span key={k} style={{ color: "#f87171", fontSize: 11 }}>−{k}</span>)}
+                          <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                            {week.platforms?.map(p => <span key={p} style={{ background: "rgba(168,85,247,0.1)", borderRadius: 99, padding: "2px 8px", color: "#c4b5fd", fontSize: 10 }}>{PLATFORM_ICONS[p] ?? ""} {p}</span>)}
                           </div>
-                        </Block>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Meta Ads */}
-                  {ads.meta && (
-                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                        <span style={{ fontSize: 20 }}>📘</span>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Meta Ads (Facebook / Instagram)</span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        <Block label="HEADLINE">
-                          <TextCard text={ads.meta.headline} id="meta_h" />
-                        </Block>
-                        <Block label="DESCRIPTION">
-                          <TextCard text={ads.meta.description} id="meta_d" />
-                        </Block>
-                      </div>
-                      <Block label="PRIMARY TEXT">
-                        <TextCard text={ads.meta.primaryText} id="meta_pt" />
-                      </Block>
-                      {ads.meta.audienceTargeting && (
-                        <div style={{ color: "rgba(96,165,250,0.7)", fontSize: 12, fontStyle: "italic" }}>🎯 Targeting: {ads.meta.audienceTargeting}</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* ── TAB: Email ── */}
-            {activeTab === "email" && (() => {
-              const { email } = result.campaign;
-              return (
-                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "20px 22px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                    <Mail size={18} color="#60a5fa" />
-                    <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Email Marketing</span>
-                  </div>
-                  <Block label="TEMAT (A/B test — wybierz jeden)">
-                    {email.subject?.split("|").map((s, i) => (
-                      <div key={i} style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 9, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ color: "#93c5fd", fontWeight: 600, fontSize: 14 }}>{s.trim()}</span>
-                        <CopyBtn text={s.trim()} id={`em_sub${i}`} />
-                      </div>
-                    ))}
-                  </Block>
-                  <Block label="PREHEADER">
-                    <TextCard text={email.preheader} id="em_pre" />
-                  </Block>
-                  <Block label="TREŚĆ EMAILA">
-                    <TextCard text={email.body} id="em_body" />
-                  </Block>
-                  <Block label="CTA BUTTON">
-                    <div style={{ display: "inline-block", background: "linear-gradient(135deg,#ec4899,#a855f7)", borderRadius: 9, padding: "10px 24px" }}>
-                      <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{email.cta}</span>
-                    </div>
-                  </Block>
-                </div>
-              );
-            })()}
-
-            {/* ── TAB: SEO ── */}
-            {activeTab === "seo" && (() => {
-              const { seo } = result.campaign;
-              return (
-                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "20px 22px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                    <Search size={18} color="#4ade80" />
-                    <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>SEO</span>
-                  </div>
-                  <Block label="PAGE TITLE (max 60 znaków)">
-                    <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 9, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ color: "#60a5fa", fontSize: 14, fontWeight: 600 }}>{seo.pageTitle}</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ color: seo.pageTitle?.length > 60 ? "#f87171" : "rgba(255,255,255,0.25)", fontSize: 10 }}>{seo.pageTitle?.length ?? 0}/60</span>
-                        <CopyBtn text={seo.pageTitle} id="seo_title" />
-                      </div>
-                    </div>
-                  </Block>
-                  <Block label="META DESCRIPTION (max 155 znaków)">
-                    <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 9, padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10 }}>
-                      <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{seo.metaDescription}</span>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                        <span style={{ color: seo.metaDescription?.length > 155 ? "#f87171" : "rgba(255,255,255,0.25)", fontSize: 10 }}>{seo.metaDescription?.length ?? 0}/155</span>
-                        <CopyBtn text={seo.metaDescription} id="seo_desc" />
-                      </div>
-                    </div>
-                  </Block>
-                  <Block label="H1">
-                    <TextCard text={seo.h1} id="seo_h1" />
-                  </Block>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <Block label="SŁOWA KLUCZOWE (główne)">
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {seo.primaryKeywords?.map(k => <span key={k} style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 99, padding: "3px 10px", color: "#4ade80", fontSize: 11 }}>{k}</span>)}
-                      </div>
-                    </Block>
-                    <Block label="DŁUGI OGON">
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {seo.longTailKeywords?.map(k => <span key={k} style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>• {k}</span>)}
-                      </div>
-                    </Block>
-                  </div>
-                  {seo.contentIdeas?.length > 0 && (
-                    <Block label="POMYSŁY NA CONTENT">
-                      {seo.contentIdeas.map(c => (
-                        <div key={c} style={{ background: "rgba(168,85,247,0.07)", borderRadius: 8, padding: "8px 12px", marginBottom: 6, color: "rgba(255,255,255,0.6)", fontSize: 12 }}>💡 {c}</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            {week.actions?.map(a => <div key={a} style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>→ {a}</div>)}
+                          </div>
+                        </div>
                       ))}
-                    </Block>
-                  )}
-                </div>
-              );
-            })()}
+                    </div>
+                  </Ch>
 
-            {/* ── TAB: Plan kampanii ── */}
-            {activeTab === "plan" && (
-              <div>
-                {result.campaign.launchPlan?.map(week => (
-                  <div key={week.week} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#ec4899,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <span style={{ color: "#fff", fontWeight: 900, fontSize: 13 }}>{week.week}</span>
-                        </div>
-                        <div>
-                          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Tydzień {week.week}</div>
-                          <div style={{ color: "#c4b5fd", fontSize: 12 }}>{week.focus}</div>
-                        </div>
+                  {/* ── 11. INFLUENCERZY ── */}
+                  <Ch id="influencer" icon="👥" label="Influencer Marketing" subtitle="Generator: profil · outreach · brief · wynagrodzenie" color="#8b5cf6"
+                    status={influencer ? "done" : "generator"}>
+                    <div style={{ marginTop: 14 }}>
+                    {!influencer ? (
+                      <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 12, padding: "22px 20px", textAlign: "center" }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 5 }}>Kit Influencer Marketingu</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 14 }}>AI stworzy profil idealnego influencera, wiadomość outreach, brief i propozycję współpracy.</div>
+                        {influencerError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{influencerError}</div>}
+                        <button onClick={genInfluencer} disabled={influencerLoading} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 24px", borderRadius: 10, border: "none", background: influencerLoading ? "rgba(168,85,247,0.2)" : "linear-gradient(135deg,#a855f7,#7c3aed)", color: influencerLoading ? "rgba(255,255,255,0.4)" : "#fff", fontWeight: 700, fontSize: 13, cursor: influencerLoading ? "not-allowed" : "pointer" }}>
+                          {influencerLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><Users size={14} /> Generuj kit influencer</>}
+                        </button>
                       </div>
-                      <div style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 8, padding: "4px 12px" }}>
-                        <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: 12 }}>{week.budget_pct}</span>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                      {week.platforms?.map(p => <span key={p} style={{ background: "rgba(168,85,247,0.1)", borderRadius: 99, padding: "3px 10px", color: "#c4b5fd", fontSize: 11 }}>{PLATFORM_ICONS[p] ?? ""} {p}</span>)}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                      {week.actions?.map(a => <div key={a} style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}>→ {a}</div>)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ── TAB: Influencerzy ── */}
-            {activeTab === "influencer" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {!influencer ? (
-                  <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
-                    <Users size={32} color="#a855f7" style={{ marginBottom: 12 }} />
-                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Kit Influencer Marketingu</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI stworzy profil idealnego influencera, wiadomość outreach, brief treści i propozycję współpracy.</div>
-                    {influencerError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{influencerError}</div>}
-                    <button onClick={genInfluencer} disabled={influencerLoading} style={{
-                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
-                      background: influencerLoading ? "rgba(168,85,247,0.2)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
-                      color: influencerLoading ? "rgba(255,255,255,0.4)" : "#fff",
-                      fontWeight: 700, fontSize: 14, cursor: influencerLoading ? "not-allowed" : "pointer",
-                      boxShadow: influencerLoading ? "none" : "0 4px 16px rgba(168,85,247,0.35)",
-                    }}>
-                      {influencerLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję kit influencer…</> : <><Users size={16} /> Generuj kit influencer</>}
-                    </button>
-                  </div>
-                ) : (
+                    ) : (
                   <div>
                     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
                       <button onClick={() => { setInfluencer(null); setInfluencerError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
                     </div>
-                    <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 14, padding: "20px 22px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                        <Users size={18} color="#a855f7" />
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Influencer Marketing</span>
+                    <Block label="IDEALNY PROFIL INFLUENCERA">
+                      <div style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 10, padding: "12px 14px", color: "#c4b5fd", fontSize: 13, lineHeight: 1.6 }}>{influencer.idealProfile}</div>
+                    </Block>
+                    <Block label="TEMAT WIADOMOŚCI DO INFLUENCERA">
+                      <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <span style={{ color: "#c4b5fd", fontWeight: 600, fontSize: 14 }}>{influencer.outreachSubject}</span>
+                        <CopyBtn text={influencer.outreachSubject} id="inf_subj" />
                       </div>
-                      <Block label="IDEALNY PROFIL INFLUENCERA">
-                        <div style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 10, padding: "12px 14px", color: "#c4b5fd", fontSize: 13, lineHeight: 1.6 }}>{influencer.idealProfile}</div>
-                      </Block>
-                      <Block label="TEMAT WIADOMOŚCI DO INFLUENCERA">
-                        <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                          <span style={{ color: "#c4b5fd", fontWeight: 600, fontSize: 14 }}>{influencer.outreachSubject}</span>
-                          <CopyBtn text={influencer.outreachSubject} id="inf_subj" />
-                        </div>
-                      </Block>
-                      <Block label="TREŚĆ WIADOMOŚCI OUTREACH">
-                        <TextCard text={influencer.outreachBody} id="inf_body" />
-                      </Block>
-                      <Block label="BRIEF TREŚCI">
-                        <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.6, position: "relative" }}>
-                          <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={influencer.brief} id="inf_brief" /></div>
-                          <div style={{ paddingRight: 80, whiteSpace: "pre-wrap" }}>{influencer.brief}</div>
-                        </div>
-                      </Block>
-                      <Block label="STRUKTURA WSPÓŁPRACY / WYNAGRODZENIE">
-                        <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "12px 14px", color: "#4ade80", fontSize: 13 }}>{influencer.compensation}</div>
-                      </Block>
-                    </div>
+                    </Block>
+                    <Block label="TREŚĆ WIADOMOŚCI OUTREACH"><TextCard text={influencer.outreachBody} id="inf_body" /></Block>
+                    <Block label="BRIEF TREŚCI">
+                      <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.6, position: "relative" }}>
+                        <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={influencer.brief} id="inf_brief" /></div>
+                        <div style={{ paddingRight: 80, whiteSpace: "pre-wrap" }}>{influencer.brief}</div>
+                      </div>
+                    </Block>
+                    <Block label="WYNAGRODZENIE / WSPÓŁPRACA">
+                      <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "12px 14px", color: "#4ade80", fontSize: 13 }}>{influencer.compensation}</div>
+                    </Block>
                   </div>
                 )}
-              </div>
-            )}
+                </div>
+                  </Ch>
 
-            {/* ── TAB: Sekwencja Email ── */}
-            {activeTab === "sequence" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {emailSeq.length === 0 ? (
-                  <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
-                    <Mail size={32} color="#60a5fa" style={{ marginBottom: 12 }} />
-                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>5-emailowa sekwencja drip</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI stworzy kompletną sekwencję follow-up dostosowaną do Twojego produktu i rynku.</div>
-                    {emailSeqError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{emailSeqError}</div>}
-                    <button onClick={genEmailSeq} disabled={emailSeqLoading} style={{
-                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
-                      background: emailSeqLoading ? "rgba(96,165,250,0.2)" : "linear-gradient(135deg,#3b82f6,#6366f1)",
-                      color: emailSeqLoading ? "rgba(255,255,255,0.4)" : "#fff",
-                      fontWeight: 700, fontSize: 14, cursor: emailSeqLoading ? "not-allowed" : "pointer",
-                      boxShadow: emailSeqLoading ? "none" : "0 4px 16px rgba(99,102,241,0.3)",
-                    }}>
-                      {emailSeqLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję sekwencję…</> : <><Mail size={16} /> Generuj sekwencję email</>}
-                    </button>
-                  </div>
-                ) : (
+                  {/* ── 12. SEKWENCJA EMAIL ── */}
+                  <Ch id="sequence" icon="📨" label="Sekwencja Email (5 wiadomości)" subtitle="Generator: drip kampania follow-up" color="#6366f1"
+                    status={emailSeq.length > 0 ? "done" : "generator"}
+                    count={emailSeq.length > 0 ? `${emailSeq.length} emaile` : undefined}>
+                    <div style={{ marginTop: 14 }}>
+                    {emailSeq.length === 0 ? (
+                      <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 12, padding: "22px 20px", textAlign: "center" }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 5 }}>5-emailowa sekwencja drip</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 14 }}>AI stworzy kompletną sekwencję follow-up dostosowaną do Twojego produktu i rynku.</div>
+                        {emailSeqError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{emailSeqError}</div>}
+                        <button onClick={genEmailSeq} disabled={emailSeqLoading} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 24px", borderRadius: 10, border: "none", background: emailSeqLoading ? "rgba(96,165,250,0.2)" : "linear-gradient(135deg,#3b82f6,#6366f1)", color: emailSeqLoading ? "rgba(255,255,255,0.4)" : "#fff", fontWeight: 700, fontSize: 13, cursor: emailSeqLoading ? "not-allowed" : "pointer" }}>
+                          {emailSeqLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><Mail size={14} /> Generuj sekwencję email</>}
+                        </button>
+                      </div>
+                    ) : (
                   <div>
                     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
                       <button onClick={() => { setEmailSeq([]); setEmailSeqError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
@@ -1774,35 +1676,29 @@ export default function MarketingPage() {
                     ))}
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* ── TAB: Landing Page ── */}
-            {activeTab === "landing" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {!landingPage ? (
-                  <div style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
-                    <Globe size={32} color="#22c55e" style={{ marginBottom: 12 }} />
-                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Landing Page Copy</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI wygeneruje kompletny tekst strony sprzedażowej — hero, problemy, rozwiązanie, social proof, FAQ i CTA.</div>
-                    {landingError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{landingError}</div>}
-                    <button onClick={genLanding} disabled={landingLoading} style={{
-                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
-                      background: landingLoading ? "rgba(34,197,94,0.2)" : "linear-gradient(135deg,#22c55e,#16a34a)",
-                      color: landingLoading ? "rgba(255,255,255,0.4)" : "#fff",
-                      fontWeight: 700, fontSize: 14, cursor: landingLoading ? "not-allowed" : "pointer",
-                      boxShadow: landingLoading ? "none" : "0 4px 16px rgba(34,197,94,0.3)",
-                    }}>
-                      {landingLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję landing page…</> : <><Globe size={16} /> Generuj landing page</>}
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                      <button onClick={() => { setLandingPage(null); setLandingError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
                     </div>
+                  </Ch>
 
-                    {/* Hero */}
+                  {/* ── 13. LANDING PAGE ── */}
+                  <Ch id="landing" icon="🌐" label="Landing Page" subtitle="Generator: hero · problem · solution · FAQ · CTA" color="#22c55e"
+                    status={landingPage ? "done" : "generator"}>
+                    <div style={{ marginTop: 14 }}>
+                    {!landingPage ? (
+                      <div style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 12, padding: "22px 20px", textAlign: "center" }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 5 }}>Landing Page Copy</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 14 }}>AI wygeneruje kompletny tekst strony — hero, problem, rozwiązanie, social proof, FAQ i CTA.</div>
+                        {landingError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{landingError}</div>}
+                        <button onClick={genLanding} disabled={landingLoading} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 24px", borderRadius: 10, border: "none", background: landingLoading ? "rgba(34,197,94,0.2)" : "linear-gradient(135deg,#22c55e,#16a34a)", color: landingLoading ? "rgba(255,255,255,0.4)" : "#fff", fontWeight: 700, fontSize: 13, cursor: landingLoading ? "not-allowed" : "pointer" }}>
+                          {landingLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><Globe size={14} /> Generuj landing page</>}
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                          <button onClick={() => { setLandingPage(null); setLandingError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
+                        </div>
+
+                        {/* Hero */}
                     {landingPage.hero && (
                       <div style={{ background: "linear-gradient(135deg,rgba(34,197,94,0.08),rgba(16,163,74,0.05))", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 14, padding: "20px 22px", marginBottom: 12 }}>
                         <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 12 }}>HERO SECTION</div>
@@ -1911,33 +1807,28 @@ export default function MarketingPage() {
                     )}
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* ── TAB: Kalendarz 30 dni ── */}
-            {activeTab === "calendar" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {calendar.length === 0 ? (
-                  <div style={{ background: "rgba(236,72,153,0.06)", border: "1px solid rgba(236,72,153,0.2)", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
-                    <Calendar size={32} color="#ec4899" style={{ marginBottom: 12 }} />
-                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>30-dniowy Kalendarz Contentowy</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16 }}>AI stworzy dzienny plan publikacji na TikTok, Instagram, Facebook i YouTube.</div>
-                    {calendarError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{calendarError}</div>}
-                    <button onClick={genCalendar} disabled={calendarLoading} style={{
-                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
-                      background: calendarLoading ? "rgba(236,72,153,0.2)" : "linear-gradient(135deg,#ec4899,#a855f7)",
-                      color: calendarLoading ? "rgba(255,255,255,0.4)" : "#fff",
-                      fontWeight: 700, fontSize: 14, cursor: calendarLoading ? "not-allowed" : "pointer",
-                      boxShadow: calendarLoading ? "none" : "0 4px 16px rgba(168,85,247,0.3)",
-                    }}>
-                      {calendarLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję kalendarz…</> : <><Calendar size={16} /> Generuj kalendarz 30 dni</>}
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                      <button onClick={() => { setCalendar([]); setCalendarError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
                     </div>
+                  </Ch>
+
+                  {/* ── 14. KALENDARZ 30 DNI ── */}
+                  <Ch id="calendar" icon="📆" label="Kalendarz 30 dni" subtitle="Generator: dzienny plan TikTok · IG · FB · YT" color="#ec4899"
+                    status={calendar.length > 0 ? "done" : "generator"}
+                    count={calendar.length > 0 ? `${calendar.length} dni` : undefined}>
+                    <div style={{ marginTop: 14 }}>
+                    {calendar.length === 0 ? (
+                      <div style={{ background: "rgba(236,72,153,0.06)", border: "1px solid rgba(236,72,153,0.2)", borderRadius: 12, padding: "22px 20px", textAlign: "center" }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 5 }}>30-dniowy Kalendarz Contentowy</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 14 }}>AI stworzy dzienny plan publikacji na TikTok, Instagram, Facebook i YouTube.</div>
+                        {calendarError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{calendarError}</div>}
+                        <button onClick={genCalendar} disabled={calendarLoading} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 24px", borderRadius: 10, border: "none", background: calendarLoading ? "rgba(236,72,153,0.2)" : "linear-gradient(135deg,#ec4899,#a855f7)", color: calendarLoading ? "rgba(255,255,255,0.4)" : "#fff", fontWeight: 700, fontSize: 13, cursor: calendarLoading ? "not-allowed" : "pointer" }}>
+                          {calendarLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><Calendar size={14} /> Generuj kalendarz 30 dni</>}
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                          <button onClick={() => { setCalendar([]); setCalendarError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
+                        </div>
                     {[0, 1, 2, 3].map(week => {
                       const weekDays = calendar.slice(week * 7, week * 7 + 7);
                       if (weekDays.length === 0) return null;
@@ -2031,45 +1922,35 @@ export default function MarketingPage() {
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── TAB: Komentarze ── */}
-            {activeTab === "comments" && (
-              <div>
-                {/* Generate button */}
-                {!commentKit && (
-                  <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 16, padding: "24px", textAlign: "center", marginBottom: 16 }}>
-                    <MessageSquare size={32} color="#6366f1" style={{ marginBottom: 12 }} />
-                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Generuj komentarze marketingowe</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 16, maxWidth: 420, margin: "0 auto 16px" }}>
-                      AI stworzy gotowe szablony komentarzy do wklejenia na YouTube i TikTok.
-                      {realComments.length > 0 && ` Masz ${realComments.length} prawdziwych komentarzy z wideo — Claude przeanalizuje je i dopasuje strategię.`}
                     </div>
-                    {realComments.length > 0 && (
-                      <div style={{ background: "rgba(99,102,241,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <CheckCircle size={12} color="#818cf8" />
-                        <span style={{ color: "#818cf8", fontSize: 12 }}>Analiza {realComments.length} prawdziwych komentarzy z YouTube</span>
+                    )}
+                    </div>
+                  </Ch>
+
+                  {/* ── 15. KOMENTARZE YT/TT ── */}
+                  <Ch id="comments" icon="💬" label="Komentarze YT / TikTok" subtitle="Generator: szablony komentarzy marketingowych" color="#818cf8"
+                    status={commentKit ? "done" : "generator"}>
+                    <div style={{ marginTop: 14 }}>
+                    {!commentKit && (
+                      <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "22px 20px", textAlign: "center" }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 5 }}>Szablony komentarzy marketingowych</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 14 }}>
+                          AI stworzy gotowe komentarze do wklejenia na YouTube i TikTok.
+                          {realComments.length > 0 && ` Masz ${realComments.length} prawdziwych komentarzy — Claude przeanalizuje je i dopasuje strategię.`}
+                        </div>
+                        {realComments.length > 0 && (
+                          <div style={{ background: "rgba(99,102,241,0.1)", borderRadius: 9, padding: "7px 12px", marginBottom: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <CheckCircle size={11} color="#818cf8" />
+                            <span style={{ color: "#818cf8", fontSize: 11 }}>Analiza {realComments.length} komentarzy z YouTube</span>
+                          </div>
+                        )}
+                        {commentKitError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{commentKitError}</div>}
+                        <button onClick={genComments} disabled={commentKitLoading} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 24px", borderRadius: 10, border: "none", background: commentKitLoading ? "rgba(99,102,241,0.2)" : "linear-gradient(135deg,#6366f1,#8b5cf6)", color: commentKitLoading ? "rgba(255,255,255,0.4)" : "#fff", fontWeight: 700, fontSize: 13, cursor: commentKitLoading ? "not-allowed" : "pointer" }}>
+                          {commentKitLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><MessageSquare size={14} /> Generuj komentarze</>}
+                        </button>
                       </div>
                     )}
-                    {commentKitError && (
-                      <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}>
-                        <AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{commentKitError}
-                      </div>
-                    )}
-                    <button onClick={genComments} disabled={commentKitLoading} style={{
-                      display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", borderRadius: 11, border: "none",
-                      background: commentKitLoading ? "rgba(99,102,241,0.2)" : "linear-gradient(135deg,#6366f1,#8b5cf6)",
-                      color: commentKitLoading ? "rgba(255,255,255,0.4)" : "#fff",
-                      fontWeight: 700, fontSize: 14, cursor: commentKitLoading ? "not-allowed" : "pointer",
-                      boxShadow: commentKitLoading ? "none" : "0 4px 16px rgba(99,102,241,0.35)",
-                    }}>
-                      {commentKitLoading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Generuję…</> : <><MessageSquare size={16} /> Generuj komentarze</>}
-                    </button>
-                  </div>
-                )}
+
 
                 {commentKit && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -2220,13 +2101,15 @@ export default function MarketingPage() {
                         )}
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-            )}
-            {/* ── TAB: Wideo AI ── */}
-            {activeTab === "video" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                      </div>
+                    )}
+                    </div>
+                  </Ch>
+
+                  {/* ── 16. WIDEO AI ── */}
+                  <Ch id="video" icon="🎬" label="Wideo AI" subtitle="Imagen 3 — grafika · Veo 3 — filmik reklamowy" color="#ea4335"
+                    status={genImgResult || vidResult ? "done" : "generator"}>
+                    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 18 }}>
 
                 {/* Imagen 3 — grafika */}
                 <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "20px 22px" }}>
@@ -2352,9 +2235,13 @@ export default function MarketingPage() {
                   <div style={{ marginTop: 14, background: "rgba(251,188,4,0.06)", borderRadius: 9, padding: "10px 14px", color: "rgba(251,188,4,0.7)", fontSize: 11 }}>
                     💡 Veo 3 wymaga dostępu preview w Google AI Studio. Jeśli nie masz dostępu — automatycznie używamy Veo 2 (bez audio).
                   </div>
+                    </div>
+                    </div>
+                  </Ch>
+
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
