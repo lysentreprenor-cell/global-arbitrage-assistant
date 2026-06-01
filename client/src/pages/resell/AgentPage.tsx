@@ -1,19 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Bot, Play, Zap, TrendingUp, DollarSign, Target,
+  Bot, Zap, TrendingUp, DollarSign, Target,
   ChevronRight, AlertCircle, CheckCircle, Loader2,
-  ShoppingCart, Store, Calendar, Star, Shield,
+  Star, BookmarkPlus, ExternalLink, BarChart2,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+import { addToPipeline } from "@/lib/pipeline";
 
 type Report = {
   top3: { rank: number; product: string; buy: number; sell: number; netProfit: number; roi: number; category: string; market: string; reason: string }[];
   champion: {
     product: string; category: string; listAt: string; sourceAt: string;
+    searchTerms?: string[]; season?: string;
     netProfit: number; roi: number;
     steps: string[]; platforms: string[]; buySource: string; timeToSell: string;
   };
+  goalPlan?: { monthlyTarget: number; unitsNeeded: number; daysPerUnit: number; feasibility: string; note: string };
   monthlyEstimate: { low: number; target: number; high: number };
   quickWins: string[];
   warnings: string[];
@@ -28,12 +31,15 @@ function loadOpportunities(): any[] {
 
 export default function AgentPage() {
   const [goal, setGoal] = useState<"profit" | "safety" | "volume">("profit");
+  const [monthlyGoal, setMonthlyGoal] = useState(500);
   const [running, setRunning] = useState(false);
   const [statusLog, setStatusLog] = useState<{ step: number; message: string }[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [oppCount, setOppCount] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [savedCount, setSavedCount] = useState(0);
+  const [draftCreated, setDraftCreated] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -69,7 +75,7 @@ export default function AgentPage() {
       const r = await fetch("/api/agent/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ opportunities: opps, anthropicKey: key, goal }),
+        body: JSON.stringify({ opportunities: opps, anthropicKey: key, goal, monthlyGoal }),
       });
 
       if (!r.ok || !r.body) { throw new Error("Błąd połączenia z agentem"); }
@@ -92,8 +98,53 @@ export default function AgentPage() {
           const payload = JSON.parse(dataLine.slice(6));
           if (ev === "status") setStatusLog(p => [...p, payload]);
           else if (ev === "done") {
-            if (payload.report) setReport(payload.report);
-            else setError("Agent nie zwrócił raportu — spróbuj ponownie.");
+            if (payload.report) {
+              setReport(payload.report);
+              // Auto-execute: save top3 to Pipeline
+              const r = payload.report;
+              let saved = 0;
+              (r.top3 ?? []).forEach((item: any, idx: number) => {
+                try {
+                  addToPipeline({
+                    id: Date.now() + idx,
+                    name: item.product,
+                    buy: item.buy ?? 0,
+                    sell: item.sell ?? 0,
+                    profit: item.netProfit ?? 0,
+                    netProfit: item.netProfit ?? 0,
+                    margin: item.roi ?? 0,
+                    market: item.market ?? "eBay USA",
+                    category: item.category ?? "General",
+                    score: 80,
+                    flag: "🌍→🇺🇸",
+                    risk: "medium",
+                    tip: item.reason,
+                  });
+                  saved++;
+                } catch {}
+              });
+              setSavedCount(saved);
+              // Auto-create draft listing for champion
+              if (r.champion && r.top3?.[0]) {
+                const ch = r.champion;
+                const t = r.top3[0];
+                fetch("/api/dropship/listings", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({
+                    product: ch.product,
+                    platform: ch.platforms?.[0] ?? "eBay USA",
+                    category: ch.category ?? "General",
+                    buyPrice: t.buy ?? 0,
+                    buyCurrency: "USD",
+                    sellPrice: t.sell ?? 0,
+                    buyHint: ch.sourceAt ?? "",
+                    description: r.summary ?? "",
+                    anthropicKey: key,
+                  }),
+                }).then(() => setDraftCreated(true)).catch(() => {});
+              }
+            } else setError("Agent nie zwrócił raportu — spróbuj ponownie.");
           }
           else if (ev === "error") setError(payload.message);
         }
@@ -155,8 +206,27 @@ export default function AgentPage() {
               </div>
             )}
 
+            {/* Monthly goal */}
             <div style={{ marginBottom: 18 }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, marginBottom: 10 }}>CEL AGENTA</div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, marginBottom: 10 }}>
+                CEL MIESIĘCZNY
+                <span style={{ marginLeft: 8, color: "#fbbf24", fontWeight: 900, fontSize: 13 }}>${monthlyGoal}</span>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[200, 500, 1000, 2000, 5000].map(v => (
+                  <button key={v} onClick={() => setMonthlyGoal(v)} style={{
+                    padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12,
+                    border: `1px solid ${monthlyGoal === v ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.1)"}`,
+                    background: monthlyGoal === v ? "rgba(251,191,36,0.12)" : "transparent",
+                    color: monthlyGoal === v ? "#fbbf24" : "rgba(255,255,255,0.4)",
+                  }}>${v}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Strategy */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, marginBottom: 10 }}>STRATEGIA</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {[
                   { value: "profit",  icon: "💰", label: "Maks. zysk",   desc: "Najwyższa marża per deal" },
@@ -177,7 +247,7 @@ export default function AgentPage() {
             </div>
 
             <div style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 18, fontSize: 11, color: "rgba(255,255,255,0.4)", lineHeight: 1.7 }}>
-              💡 <strong style={{ color: "rgba(255,255,255,0.6)" }}>Model dropship:</strong> wystawiasz po wyższej cenie → czekasz na kupującego → kupujesz taniej ze źródła i wysyłasz. Brak własnego kapitału.
+              💡 <strong style={{ color: "rgba(255,255,255,0.6)" }}>Model dropship:</strong> wystawiasz → czekasz na kupującego → kupujesz ze źródła i wysyłasz. Brak kapitału. ARIA automatycznie zapisze wyniki do Pipeline i Dropship Managera.
             </div>
 
             {error && (
@@ -241,10 +311,63 @@ export default function AgentPage() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => { setReport(null); setStatusLog([]); }} style={{ marginTop: 14, width: "100%", padding: "10px", borderRadius: 10, border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.08)", color: "#4ade80", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              <button onClick={() => { setReport(null); setStatusLog([]); setSavedCount(0); setDraftCreated(false); }} style={{ marginTop: 14, width: "100%", padding: "10px", borderRadius: 10, border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.08)", color: "#4ade80", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 ← Uruchom ponownie z innymi ustawieniami
               </button>
             </div>
+
+            {/* ARIA Actions banner */}
+            {(savedCount > 0 || draftCreated) && (
+              <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
+                <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 11, marginBottom: 8 }}>⚡ ARIA WYKONAŁA AUTOMATYCZNIE</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {savedCount > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <CheckCircle size={13} color="#4ade80" />
+                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Zapisała <strong style={{ color: "#4ade80" }}>{savedCount} okazje</strong> do Pipeline → sprawdź zakładkę Pipeline</span>
+                      <BookmarkPlus size={13} color="#4ade80" />
+                    </div>
+                  )}
+                  {draftCreated && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <CheckCircle size={13} color="#93c5fd" />
+                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Utworzyła <strong style={{ color: "#93c5fd" }}>draft listing</strong> w Dropship Managerze → aktywuj gdy gotowy</span>
+                      <ExternalLink size={13} color="#93c5fd" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Goal plan */}
+            {report.goalPlan && (
+              <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 14, padding: "14px 18px", marginBottom: 16 }}>
+                <div style={{ color: "#fbbf24", fontWeight: 700, fontSize: 11, marginBottom: 10 }}>
+                  <BarChart2 size={12} style={{ display: "inline", marginRight: 4 }} />
+                  PLAN NA CEL ${report.goalPlan.monthlyTarget}/MIESIĄC
+                </div>
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ color: "#fbbf24", fontSize: 22, fontWeight: 900 }}>{report.goalPlan.unitsNeeded}</div>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9 }}>SPRZEDAŻY/MIESIĄC</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ color: "#fbbf24", fontSize: 22, fontWeight: 900 }}>{report.goalPlan.daysPerUnit}</div>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9 }}>DNI/SPRZEDAŻ</div>
+                  </div>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
+                    <div>
+                      <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginBottom: 2 }}>{report.goalPlan.note}</div>
+                      <div style={{
+                        display: "inline-block", padding: "2px 8px", borderRadius: 5, fontSize: 10, fontWeight: 700,
+                        background: report.goalPlan.feasibility === "easy" ? "rgba(34,197,94,0.2)" : report.goalPlan.feasibility === "realistic" ? "rgba(251,191,36,0.2)" : "rgba(248,113,113,0.2)",
+                        color: report.goalPlan.feasibility === "easy" ? "#4ade80" : report.goalPlan.feasibility === "realistic" ? "#fbbf24" : "#f87171",
+                      }}>{report.goalPlan.feasibility?.toUpperCase()}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Champion deal */}
             {report.champion && (
@@ -289,6 +412,20 @@ export default function AgentPage() {
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {report.champion.platforms.map((p: string) => (
                         <span key={p} style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", borderRadius: 6, padding: "3px 10px", color: "#c4b5fd", fontSize: 11 }}>{p}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {report.champion.searchTerms && report.champion.searchTerms.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, marginBottom: 6 }}>🔍 SZUKAJ TEGO (kopiuj i wklej)</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {report.champion.searchTerms.map((t: string, i: number) => (
+                        <div key={i} style={{ background: "rgba(0,0,0,0.3)", borderRadius: 6, padding: "5px 10px", fontFamily: "monospace", fontSize: 11, color: "#a3e635", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          {t}
+                          <button onClick={() => navigator.clipboard?.writeText(t)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 10, padding: "0 4px" }}>📋</button>
+                        </div>
                       ))}
                     </div>
                   </div>
