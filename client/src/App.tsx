@@ -23,6 +23,7 @@ import AlertsPage from "@/pages/resell/AlertsPage";
 import QuickListPage from "@/pages/resell/QuickListPage";
 import TrendsPage from "@/pages/resell/TrendsPage";
 import MarketingPage from "@/pages/resell/MarketingPage";
+import AgentPage from "@/pages/resell/AgentPage";
 import PLDashboard from "@/pages/resell/PLDashboard";
 import SuppliersPage from "@/pages/resell/SuppliersPage";
 import CompetitorTracker from "@/pages/resell/CompetitorTracker";
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/resell/suppliers" component={SuppliersPage} />
         <Route path="/resell/competitors" component={CompetitorTracker} />
         <Route path="/resell/marketing" component={MarketingPage} />
+        <Route path="/resell/agent" component={AgentPage} />
       </Switch>
       <Toaster />
     </QueryClientProvider>

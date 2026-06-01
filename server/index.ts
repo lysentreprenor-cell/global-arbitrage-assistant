@@ -27,6 +27,7 @@ import settingsRouter from "./routes/settings";
 import notificationsRouter from "./routes/notifications";
 import autopilotRouter from "./routes/autopilot";
 import marketingRouter from "./routes/marketing";
+import agentRouter from "./routes/agent";
 
 const app = express();
 const httpServer = createServer(app);
@@ -278,6 +279,7 @@ async function runStartupMigrations() {
   app.use("/api/compare", compareRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/marketing", marketingRouter);
+  app.use("/api/agent", agentRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
