@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Key, Eye, EyeOff, Check, ExternalLink, Trash2, Plus, AlertCircle, CheckCircle } from "lucide-react";
+import { Settings as SettingsIcon, Key, Eye, EyeOff, Check, ExternalLink, Trash2, Plus, AlertCircle, CheckCircle, Link2 } from "lucide-react";
+import { loadEbayToken, saveEbayToken, clearEbayToken, isEbayConnected } from "@/lib/ebayAuth";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 
 type ApiEntry = {
@@ -47,12 +48,13 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "eBay",
     logo: "🛒",
     color: "#f5c842",
-    description: "Opcjonalne — żywe ceny z eBay, dokładniejsze wyniki skanowania",
+    description: "Skanowanie cen + wystawianie ogłoszeń przez API (OAuth). Klucze z developer.ebay.com",
     docsUrl: "https://developer.ebay.com/my/keys",
     keyLabel: "App ID",
     fields: [
-      { key: "appId", label: "App ID (Client ID)", placeholder: "YourApp-xxxxx-PRD-xxxxxxxx" },
+      { key: "appId",  label: "App ID (Client ID)",    placeholder: "YourApp-xxxxx-PRD-xxxxxxxx" },
       { key: "certId", label: "Cert ID (Client Secret)", placeholder: "PRD-xxxxxxxxxxxxxxxx" },
+      { key: "ruName", label: "RuName (Redirect URL Name)", placeholder: "YourApp-YourApp-PRD-xx-xxxxxxxx" },
     ],
   },
   {
@@ -149,6 +151,48 @@ export default function Settings() {
   const [customApis, setCustomApis] = useState<{ id: string; name: string; baseUrl: string; apiKey: string }[]>(() => {
     try { return JSON.parse(localStorage.getItem("resell_custom_apis") || "[]"); } catch { return []; }
   });
+  const [ebayConnected, setEbayConnected] = useState(isEbayConnected);
+  const [ebayConnecting, setEbayConnecting] = useState(false);
+  const [ebayError, setEbayError] = useState<string | null>(null);
+
+  const connectEbay = async () => {
+    const appId  = keys.ebay?.appId  || "";
+    const certId = keys.ebay?.certId || "";
+    const ruName = keys.ebay?.ruName || "";
+    if (!appId || !certId || !ruName) {
+      setEbayError("Uzupełnij App ID, Cert ID i RuName przed połączeniem."); return;
+    }
+    setEbayConnecting(true); setEbayError(null);
+    try {
+      const r = await fetch(`/api/ebay/auth-url?clientId=${encodeURIComponent(appId)}&ruName=${encodeURIComponent(ruName)}`);
+      const { url, error } = await r.json();
+      if (error || !url) { setEbayError(error || "Nie można wygenerować URL"); setEbayConnecting(false); return; }
+
+      const popup = window.open(url, "ebay-oauth", "width=600,height=700,left=200,top=100");
+      const handler = async (e: MessageEvent) => {
+        if (e.data?.type === "EBAY_CODE") {
+          window.removeEventListener("message", handler);
+          const { code } = e.data;
+          const tr = await fetch("/api/ebay/exchange-token", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ code, clientId: appId, certId, ruName }),
+          });
+          const td = await tr.json();
+          if (td.error) { setEbayError(td.error); setEbayConnecting(false); return; }
+          saveEbayToken({ accessToken: td.accessToken, refreshToken: td.refreshToken, expiry: Date.now() + td.expiresIn * 1000 });
+          setEbayConnected(true); setEbayConnecting(false);
+        }
+        if (e.data?.type === "EBAY_ERROR") {
+          window.removeEventListener("message", handler);
+          setEbayError(e.data.error || "Błąd autoryzacji eBay"); setEbayConnecting(false);
+        }
+      };
+      window.addEventListener("message", handler);
+      // Fallback: if popup closed without message
+      const check = setInterval(() => { if (popup?.closed) { clearInterval(check); window.removeEventListener("message", handler); setEbayConnecting(false); } }, 500);
+    } catch (e: any) { setEbayError(e.message); setEbayConnecting(false); }
+  };
 
   const update = (platformId: string, field: string, value: string) => {
     setKeys(prev => {
@@ -308,6 +352,31 @@ export default function Settings() {
                       </div>
                     </div>
                   ))}
+
+                  {/* eBay OAuth Connect section */}
+                  {platform.id === "ebay" && (
+                    <div style={{ background: "rgba(245,200,66,0.05)", border: "1px solid rgba(245,200,66,0.15)", borderRadius: 10, padding: "12px 14px", marginTop: 4 }}>
+                      <div style={{ color: "#f5c842", fontSize: 10, fontWeight: 700, marginBottom: 8 }}>🔑 KROK 2 — AUTORYZUJ KONTO SPRZEDAJĄCEGO (OAuth)</div>
+                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10, lineHeight: 1.6 }}>
+                        W developer.ebay.com → Twoja aplikacja → <strong style={{ color: "rgba(255,255,255,0.6)" }}>User Tokens → Utwórz RuName</strong> → wpisz jako Accept URL:<br />
+                        <span style={{ fontFamily: "monospace", color: "#93c5fd", fontSize: 10, wordBreak: "break-all" }}>{window.location.origin}/api/ebay/callback</span>
+                      </div>
+                      {ebayError && (
+                        <div style={{ color: "#f87171", fontSize: 11, marginBottom: 8, background: "rgba(248,113,113,0.1)", borderRadius: 6, padding: "6px 10px" }}>{ebayError}</div>
+                      )}
+                      {ebayConnected ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <CheckCircle size={14} color="#4ade80" />
+                          <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 700, flex: 1 }}>Konto eBay połączone — możesz wystawiać ogłoszenia z Agent AI</span>
+                          <button onClick={() => { clearEbayToken(); setEbayConnected(false); }} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid rgba(248,113,113,0.3)", background: "transparent", color: "#f87171", cursor: "pointer", fontSize: 11 }}>Rozłącz</button>
+                        </div>
+                      ) : (
+                        <button onClick={connectEbay} disabled={ebayConnecting} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: ebayConnecting ? "not-allowed" : "pointer", background: ebayConnecting ? "rgba(245,200,66,0.1)" : "linear-gradient(135deg,#b45309,#d97706,#f5c842)", color: ebayConnecting ? "#f5c842" : "#000", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <Link2 size={14} /> {ebayConnecting ? "Otwieranie eBay..." : "Połącz konto eBay (OAuth)"}
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <button

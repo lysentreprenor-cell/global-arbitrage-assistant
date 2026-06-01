@@ -8,6 +8,7 @@ import {
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { addToPipeline } from "@/lib/pipeline";
+import { isEbayConnected, getValidAccessToken } from "@/lib/ebayAuth";
 
 type Report = {
   top3: { rank: number; product: string; buy: number; sell: number; netProfit: number; roi: number; category: string; market: string; reason: string }[];
@@ -44,6 +45,9 @@ export default function AgentPage() {
   const [savedCount, setSavedCount] = useState(0);
   const [draftCreated, setDraftCreated] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [listingStatus, setListingStatus] = useState<Record<number, "idle" | "posting" | "done" | "error">>({});
+  const [listingUrls, setListingUrls] = useState<Record<number, string>>({});
+  const [ebayOk] = useState(isEbayConnected);
   const logRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -163,6 +167,28 @@ export default function AgentPage() {
         : e.message);
     }
     setRunning(false);
+  };
+
+  const postToEbay = async (draft: NonNullable<Report["listingDrafts"]>[0], idx: number) => {
+    setListingStatus(s => ({ ...s, [idx]: "posting" }));
+    const ebayKeys = (() => { try { const k = JSON.parse(localStorage.getItem("resell_api_keys") || "{}"); return k.ebay || {}; } catch { return {}; } })();
+    const token = await getValidAccessToken(ebayKeys.appId || "", ebayKeys.certId || "");
+    if (!token) {
+      setListingStatus(s => ({ ...s, [idx]: "error" }));
+      alert("Brak tokenu eBay — połącz konto w ⚙ API → eBay → Połącz konto eBay");
+      return;
+    }
+    try {
+      const r = await fetch("/api/ebay/list", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accessToken: token, title: draft.title, description: draft.description, price: draft.price, category: draft.product }),
+      });
+      const d = await r.json();
+      if (d.error) { setListingStatus(s => ({ ...s, [idx]: "error" })); alert(`Błąd eBay: ${d.error}`); return; }
+      setListingStatus(s => ({ ...s, [idx]: "done" }));
+      setListingUrls(u => ({ ...u, [idx]: d.listingUrl }));
+    } catch (e: any) { setListingStatus(s => ({ ...s, [idx]: "error" })); alert(e.message); }
   };
 
   const G = "#22c55e";
@@ -544,7 +570,7 @@ export default function AgentPage() {
 
                         {/* Tags */}
                         {d.tags && d.tags.length > 0 && (
-                          <div>
+                          <div style={{ marginBottom: 10 }}>
                             <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700, marginBottom: 4 }}>TAGI</div>
                             <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
                               {d.tags.map((t: string) => (
@@ -555,6 +581,25 @@ export default function AgentPage() {
                               </button>
                             </div>
                           </div>
+                        )}
+
+                        {/* Post to eBay button */}
+                        {listingUrls[i] ? (
+                          <a href={listingUrls[i]} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 8, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)", color: "#4ade80", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+                            <CheckCircle size={14} /> Wystawione na eBay — otwórz ogłoszenie <ExternalLink size={12} />
+                          </a>
+                        ) : ebayOk ? (
+                          <button
+                            onClick={() => postToEbay(d, i)}
+                            disabled={listingStatus[i] === "posting"}
+                            style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: listingStatus[i] === "posting" ? "not-allowed" : "pointer", background: listingStatus[i] === "error" ? "rgba(248,113,113,0.15)" : "linear-gradient(135deg,#b45309,#d97706)", color: "#fff", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                          >
+                            {listingStatus[i] === "posting" ? <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Wystawiam na eBay...</> : listingStatus[i] === "error" ? "❌ Błąd — spróbuj ponownie" : "🛒 Wystaw na eBay automatycznie"}
+                          </button>
+                        ) : (
+                          <button onClick={() => setLocation("/resell/settings")} style={{ width: "100%", padding: "9px", borderRadius: 8, border: "1px solid rgba(245,200,66,0.3)", background: "transparent", color: "#f5c842", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                            ⚙ Połącz konto eBay w Ustawieniach żeby wystawić automatycznie
+                          </button>
                         )}
                       </div>
                     );
