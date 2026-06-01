@@ -1191,8 +1191,8 @@ export default function MarketingPage() {
 
             {/* helper styles */}
             {(() => {
-              const Ch = ({ id, icon, label, subtitle, color, status, count, children }: {
-                id: string; icon: string; label: string; subtitle?: string; color: string;
+              const Ch = ({ id, icon, label, subtitle, description, color, status, count, children }: {
+                id: string; icon: string; label: string; subtitle?: string; description?: string; color: string;
                 status: "done" | "missing" | "generator"; count?: string; children: React.ReactNode;
               }) => {
                 const open = openChannels[id];
@@ -1215,7 +1215,16 @@ export default function MarketingPage() {
                         <ChevronDown size={14} color="rgba(255,255,255,0.3)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "0.15s", flexShrink: 0 }} />
                       </div>
                     </button>
-                    {open && <div style={{ padding: "4px 18px 20px", borderTop: `1px solid ${color}20` }}>{children}</div>}
+                    {open && (
+                      <div style={{ padding: "4px 18px 20px", borderTop: `1px solid ${color}20` }}>
+                        {description && (
+                          <div style={{ background: `${color}09`, border: `1px solid ${color}22`, borderRadius: 10, padding: "10px 14px", margin: "12px 0 16px", color: "rgba(255,255,255,0.5)", fontSize: 12, lineHeight: 1.65 }}>
+                            {description}
+                          </div>
+                        )}
+                        {children}
+                      </div>
+                    )}
                   </div>
                 );
               };
@@ -1227,7 +1236,7 @@ export default function MarketingPage() {
                 <div>
 
                   {/* ── 1. STRATEGIA ── */}
-                  <Ch id="strategia" icon="📊" label="Strategia & Rynek" subtitle={`${result.meta.targetMarket} · ROAS ${summary.expectedROAS ?? "–"}`} color="#a78bfa" status="done" count={`${platforms?.length ?? 0} platform`}>
+                  <Ch id="strategia" icon="📊" label="Strategia & Rynek" subtitle={`${result.meta.targetMarket} · ROAS ${summary.expectedROAS ?? "–"}`} description="Analiza rynku i konkurencji dla Twojego produktu. Claude identyfikuje grupę docelową, najważniejsze platformy i unikalną przewagę (USP) — podstawa całej kampanii." color="#a78bfa" status="done" count={`${platforms?.length ?? 0} platform`}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
                       <div style={{ gridColumn: "1/-1", background: "rgba(168,85,247,0.07)", border: "1px solid rgba(168,85,247,0.18)", borderRadius: 12, padding: "14px 16px" }}>
                         <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, marginBottom: 6 }}>ANALIZA RYNKU</div>
@@ -1299,7 +1308,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 2. INSTAGRAM ── */}
-                  <Ch id="instagram" icon="📸" label="Instagram" subtitle="Caption · Hashtagi · Visual idea" color="#ec4899"
+                  <Ch id="instagram" icon="📸" label="Instagram" subtitle="Caption · Hashtagi · Visual idea" description="Post na Instagram z angażującym captionem, zestawem hashtagów i pomysłem na grafikę. Trafia do obserwujących i nowych odbiorców przez algorytm — idealny dla produktów wizualnych i lifestyle." color="#ec4899"
                     status={social?.instagram?.caption ? "done" : "missing"}
                     count={social?.instagram?.hashtags?.length ? `${social.instagram.hashtags.length} #` : undefined}>
                     {social?.instagram && (
@@ -1319,7 +1328,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 3. FACEBOOK ── */}
-                  <Ch id="facebook" icon="📘" label="Facebook" subtitle="Headline · Primary text · Audience note" color="#3b82f6"
+                  <Ch id="facebook" icon="📘" label="Facebook" subtitle="Headline · Primary text · Audience note" description="Post organiczny na Facebooku z nagłówkiem i treścią przekonującą do zakupu. Najlepszy zasięg wśród grupy 25–55 lat — szczególnie skuteczny dla produktów domowych, gadżetów i ofert B2C." color="#3b82f6"
                     status={social?.facebook?.headline ? "done" : "missing"}>
                     {social?.facebook && (
                       <div style={{ marginTop: 14 }}>
@@ -1334,7 +1343,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 4. TIKTOK ── */}
-                  <Ch id="tiktok" icon="🎵" label="TikTok" subtitle="Hook · Skrypt · Hashtagi · Muzyka" color="#f472b6"
+                  <Ch id="tiktok" icon="🎵" label="TikTok" subtitle="Hook · Skrypt · Hashtagi · Muzyka" description="Krótki skrypt wideo z silnym hookiem (pierwsze 3 sekundy), muzyką i hashtagami. Algorytm TikToka promuje nowych twórców — możliwy zasięg viralowy bez budżetu reklamowego." color="#f472b6"
                     status={social?.tiktok?.script ? "done" : "missing"}
                     count={social?.tiktok?.hashtags?.length ? `${social.tiktok.hashtags.length} #` : undefined}>
                     {social?.tiktok && (
@@ -1367,7 +1376,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 5. YOUTUBE ── */}
-                  <Ch id="youtube" icon="▶️" label="YouTube" subtitle="Tytuł · Opis · Tagi" color="#ef4444"
+                  <Ch id="youtube" icon="▶️" label="YouTube" subtitle="Tytuł · Opis · Tagi" description="Tytuł SEO, opis i tagi do filmiku na YouTube. Wideo rankuje w wyszukiwarce miesiącami — długoterminowy darmowy ruch. Idealne do recenzji, unboxingów i tutoriali produktu." color="#ef4444"
                     status={social?.youtube?.title ? "done" : "missing"}
                     count={social?.youtube?.tags?.length ? `${social.youtube.tags.length} tagów` : undefined}>
                     {social?.youtube && (
@@ -1387,7 +1396,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 6. GOOGLE ADS ── */}
-                  <Ch id="google" icon="🔍" label="Google Ads" subtitle="Nagłówki · Opisy · Słowa kluczowe" color="#4285f4"
+                  <Ch id="google" icon="🔍" label="Google Ads" subtitle="Nagłówki · Opisy · Słowa kluczowe" description="Nagłówki i opisy do kampanii Search + lista słów kluczowych. Trafia do osób aktywnie szukających produktu w Google — najwyższa intencja zakupowa, najlepsza konwersja." color="#4285f4"
                     status={ads?.google?.headlines?.length ? "done" : "missing"}
                     count={ads?.google?.exactKeywords?.length ? `${(ads.google.exactKeywords?.length ?? 0) + (ads.google.broadKeywords?.length ?? 0)} kw` : undefined}>
                     {ads?.google && (
@@ -1461,7 +1470,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 7. META ADS ── */}
-                  <Ch id="meta" icon="📣" label="Meta Ads" subtitle="Facebook Ads · Instagram Ads" color="#1877f2"
+                  <Ch id="meta" icon="📣" label="Meta Ads" subtitle="Facebook Ads · Instagram Ads" description="Gotowe copy do płatnych reklam w systemie Meta (Facebook + Instagram Ads). Primary text, nagłówek i CTA dostosowane do cold traffic — docierasz do nowych odbiorców według zainteresowań." color="#1877f2"
                     status={ads?.meta?.primaryText ? "done" : "missing"}>
                     {ads?.meta && (
                       <div style={{ marginTop: 14 }}>
@@ -1478,7 +1487,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 8. EMAIL MARKETING ── */}
-                  <Ch id="email" icon="📧" label="Email Marketing" subtitle="Temat · Preheader · Treść · CTA" color="#60a5fa"
+                  <Ch id="email" icon="📧" label="Email Marketing" subtitle="Temat · Preheader · Treść · CTA" description="Temat wiadomości, preheader i pełna treść emaila z CTA. Wysyłasz do własnej listy subskrybentów — konwersja 3–5%, zero kosztu emisji. Najlepszy stosunek kosztów do wyników." color="#60a5fa"
                     status={emailData?.subject ? "done" : "missing"}>
                     {emailData && (
                       <div style={{ marginTop: 14 }}>
@@ -1502,7 +1511,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 9. SEO ── */}
-                  <Ch id="seo" icon="🔎" label="SEO" subtitle="Page title · Meta · Słowa kluczowe · Content ideas" color="#4ade80"
+                  <Ch id="seo" icon="🔎" label="SEO" subtitle="Page title · Meta · Słowa kluczowe · Content ideas" description="Tytuł strony, meta opis i słowa kluczowe zoptymalizowane pod Google + pomysły na artykuły blogowe. Bezpłatny ruch organiczny — efekty widoczne po 2–3 miesiącach." color="#4ade80"
                     status={seo?.pageTitle ? "done" : "missing"}
                     count={seo ? `${(seo.primaryKeywords?.length ?? 0) + (seo.longTailKeywords?.length ?? 0)} kw` : undefined}>
                     {seo && (
@@ -1550,7 +1559,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 10. PLAN KAMPANII ── */}
-                  <Ch id="plan" icon="📅" label="Plan Kampanii" subtitle="Tygodniowy harmonogram działań" color="#f59e0b"
+                  <Ch id="plan" icon="📅" label="Plan Kampanii" subtitle="Tygodniowy harmonogram działań" description="Gotowy harmonogram: kiedy i co robić w każdym tygodniu kampanii. Budżet, priorytety platform i kamienie milowe — wiesz dokładnie co masz zrobić bez zgadywania." color="#f59e0b"
                     status={result.campaign.launchPlan?.length ? "done" : "missing"}
                     count={result.campaign.launchPlan?.length ? `${result.campaign.launchPlan.length} tygodnie` : undefined}>
                     <div style={{ marginTop: 14 }}>
@@ -1580,7 +1589,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 11. INFLUENCERZY ── */}
-                  <Ch id="influencer" icon="👥" label="Influencer Marketing" subtitle="Generator: profil · outreach · brief · wynagrodzenie" color="#8b5cf6"
+                  <Ch id="influencer" icon="👥" label="Influencer Marketing" subtitle="Generator: profil · outreach · brief · wynagrodzenie" description="Profil idealnego influencera (nisza, liczba followersów, platformy), wiadomość outreach do wysłania oraz brief ze wskazówkami dla twórcy. Claude dopasowuje do Twojego budżetu i produktu." color="#8b5cf6"
                     status={influencer ? "done" : "generator"}>
                     <div style={{ marginTop: 14 }}>
                     {!influencer ? (
@@ -1622,7 +1631,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 12. SEKWENCJA EMAIL ── */}
-                  <Ch id="sequence" icon="📨" label="Sekwencja Email (5 wiadomości)" subtitle="Generator: drip kampania follow-up" color="#6366f1"
+                  <Ch id="sequence" icon="📨" label="Sekwencja Email (5 wiadomości)" subtitle="Generator: drip kampania follow-up" description="5 emaili w kolejności: powitanie → edukacja → dowód społeczny → oferta główna → urgency/last chance. Automatyzuje sprzedaż po zapisaniu się do listy — wyślij raz, działa non-stop." color="#6366f1"
                     status={emailSeq.length > 0 ? "done" : "generator"}
                     count={emailSeq.length > 0 ? `${emailSeq.length} emaile` : undefined}>
                     <div style={{ marginTop: 14 }}>
@@ -1680,7 +1689,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 13. LANDING PAGE ── */}
-                  <Ch id="landing" icon="🌐" label="Landing Page" subtitle="Generator: hero · problem · solution · FAQ · CTA" color="#22c55e"
+                  <Ch id="landing" icon="🌐" label="Landing Page" subtitle="Generator: hero · problem · solution · FAQ · CTA" description="Kompletna struktura strony sprzedażowej: hero z USP, sekcja problemu, rozwiązanie, korzyści, dowód społeczny, FAQ i CTA. Wklejasz do Webflow, WordPress lub Shopify — gotowe do konwersji." color="#22c55e"
                     status={landingPage ? "done" : "generator"}>
                     <div style={{ marginTop: 14 }}>
                     {!landingPage ? (
@@ -1811,7 +1820,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 14. KALENDARZ 30 DNI ── */}
-                  <Ch id="calendar" icon="📆" label="Kalendarz 30 dni" subtitle="Generator: dzienny plan TikTok · IG · FB · YT" color="#ec4899"
+                  <Ch id="calendar" icon="📆" label="Kalendarz 30 dni" subtitle="Generator: dzienny plan TikTok · IG · FB · YT" description="Dzienny plan publikacji na 30 dni: która platforma, jaki typ treści, godzina publikacji i hook. Eliminuje pytanie 'co dziś wrzucić' — masz gotowy plan na cały miesiąc." color="#ec4899"
                     status={calendar.length > 0 ? "done" : "generator"}
                     count={calendar.length > 0 ? `${calendar.length} dni` : undefined}>
                     <div style={{ marginTop: 14 }}>
@@ -1928,7 +1937,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 15. KOMENTARZE YT/TT ── */}
-                  <Ch id="comments" icon="💬" label="Komentarze YT / TikTok" subtitle="Generator: szablony komentarzy marketingowych" color="#818cf8"
+                  <Ch id="comments" icon="💬" label="Komentarze YT / TikTok" subtitle="Generator: szablony komentarzy marketingowych" description="Gotowe szablony komentarzy do wklejania pod popularnymi filmami w Twojej niszy. Subtelnie promujesz produkt, budujesz ruch bez budżetu. Claude analizuje realne komentarze jeśli je wkleisz." color="#818cf8"
                     status={commentKit ? "done" : "generator"}>
                     <div style={{ marginTop: 14 }}>
                     {!commentKit && (
@@ -2107,7 +2116,7 @@ export default function MarketingPage() {
                   </Ch>
 
                   {/* ── 16. WIDEO AI ── */}
-                  <Ch id="video" icon="🎬" label="Wideo AI" subtitle="Imagen 3 — grafika · Veo 3 — filmik reklamowy" color="#ea4335"
+                  <Ch id="video" icon="🎬" label="Wideo AI" subtitle="Imagen 3 — grafika · Veo 3 — filmik reklamowy" description="Grafika reklamowa (Google Imagen 3) i 8-sekundowy filmik z lektorem i muzyką (Google Veo 3). Gotowe materiały wizualne bez fotografa i studia — bezpośrednio do Social Media i reklam." color="#ea4335"
                     status={genImgResult || vidResult ? "done" : "generator"}>
                     <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 18 }}>
 
