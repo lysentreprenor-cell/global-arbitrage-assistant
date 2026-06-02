@@ -32,6 +32,7 @@ type BotConfig = {
   volumeFilter: boolean; volumeMinMult: number; // #1 volume confirmation
   macdFilter: boolean; // #2 MACD momentum confirmation
   emaRibbonFilter: boolean; // #3 EMA8>13>21 alignment
+  drawdownProtection: boolean; // #4 halve size after 2 consecutive losses
   learningEnabled: boolean;
   trades: PaperTrade[];
 };
@@ -302,6 +303,20 @@ function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
   return best;
 }
 
+// #4 — Consecutive loss streak: returns current streak (negative = losses, positive = wins)
+function calcStreak(closed: PaperTrade[]): number {
+  if (!closed.length) return 0;
+  let streak = 0;
+  for (let i = closed.length - 1; i >= 0; i--) {
+    const win = (closed[i].pnlPct ?? 0) > 0;
+    if (i === closed.length - 1) { streak = win ? 1 : -1; continue; }
+    if (win && streak > 0) streak++;
+    else if (!win && streak < 0) streak--;
+    else break;
+  }
+  return streak;
+}
+
 // #3 — EMA ribbon: EMA8 > EMA13 > EMA21 for bullish alignment
 function calcEMARibbon(closes: number[]): { ema8: number; ema13: number; ema21: number; bullish: boolean; bearish: boolean } {
   const ema = (p: number) => {
@@ -370,7 +385,7 @@ function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfi
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, emaRibbonFilter:false, learningEnabled:true, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, emaRibbonFilter:false, drawdownProtection:true, learningEnabled:true, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -517,7 +532,11 @@ export default function TradingBot() {
       }
 
       const direction: Direction = isLong ? "long" : "short";
-      const size = config.capital * (config.riskPct/100);
+      // #4 drawdown protection: halve size after ≥2 consecutive losses
+      const streak = config.drawdownProtection ? calcStreak(config.trades.filter(t=>t.status==="closed")) : 0;
+      const sizeMultiplier = streak <= -2 ? 0.5 : 1.0;
+      const size = config.capital * (config.riskPct/100) * sizeMultiplier;
+      if (streak <= -2) addLog(`⚠️ Drawdown protection: ${Math.abs(streak)} straty z rzędu → rozmiar ×${sizeMultiplier}`, "warn");
       const slPct = config.dynamicExits && atr > 0 ? atr/ticker.price*100*config.atrSlMul : config.stopLoss;
       const tpPct = config.dynamicExits && atr > 0 ? atr/ticker.price*100*config.atrTpMul : config.takeProfit;
       update({ trades:[...config.trades, { id:Date.now(), symbol:config.symbol, direction, entryTime:new Date().toISOString(), entryPrice:ticker.price, size, status:"open", slPct, tpPct, trailRef:ticker.price }] });
@@ -635,6 +654,7 @@ export default function TradingBot() {
   const closed    = config.trades.filter(t=>t.status==="closed");
   const wins      = closed.filter(t=>(t.pnl??0)>0).length;
   const winRate   = closed.length ? Math.round(wins/closed.length*100) : null;
+  const streak    = calcStreak(closed); // #4
   const totalPnl  = closed.reduce((s,t)=>s+(t.pnl??0),0);
   const totalRet  = (totalPnl/config.capital)*100;
   const bestTrade = closed.length ? Math.max(...closed.map(t=>t.pnlPct??0)) : null;
@@ -869,7 +889,7 @@ export default function TradingBot() {
             { label:"TRANSAKCJE", value:String(closed.length),                 sub:openTrade?"+1 otwarta":"zakończone" },
             { label:"TOTAL PnL",  value:closed.length?fmtUsd(totalPnl):"—",    sub:closed.length?fmtPct(totalRet):"—",        color:totalPnl>=0?G:R },
             { label:"NAJLEPSZY",  value:bestTrade!==null?fmtPct(bestTrade):"—", sub:"pojedyncza",                              color:G },
-            { label:"KAPITAŁ",    value:`$${config.capital.toLocaleString()}`,  sub:"paper USD" },
+            { label:"SERIA",      value:streak===0?"—":`${streak>0?"🟢":"🔴"} ${Math.abs(streak)}`, sub:streak>0?"wygranych":"strat z rzędu", color:streak<=-2?R:streak>=3?G:T },
           ] as {label:string;value:string;sub?:string;color?:string}[]).map(({label,value,sub,color})=>(
             <div key={label} style={{ ...card, textAlign:"center" as const }}>
               <div style={{ fontSize:9, color:M, letterSpacing:0.8, marginBottom:5 }}>{label}</div>
@@ -1088,6 +1108,18 @@ export default function TradingBot() {
                   <button onClick={()=>{update({learningEnabled:!config.learningEnabled}); addLog(config.learningEnabled?"🧠 Uczenie wyłączone":"🧠 Uczenie włączone — bot będzie się adaptować","info");}}
                     style={{ background:config.learningEnabled?"rgba(99,102,241,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.learningEnabled?"rgba(99,102,241,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"8px 16px", color:config.learningEnabled?"#818cf8":M, cursor:"pointer", fontWeight:700, fontSize:13, flexShrink:0, marginLeft:16 }}>
                     {config.learningEnabled?"UCZENIE ON":"UCZENIE OFF"}
+                  </button>
+                </div>
+                {/* #4 drawdown protection toggle inside learning section */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.07)" }}>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:700, color:"#fb923c" }}>🛡️ Ochrona przed drawdown <span style={{ fontSize:10, color:M, fontWeight:400 }}>(#4 ulepszenie)</span></div>
+                    <div style={{ fontSize:11, color:M, marginTop:2 }}>Po 2+ stratach z rzędu: rozmiar pozycji ×0.5 aż do odbudowy serii wygranych</div>
+                    {streak < 0 && <div style={{ fontSize:11, color: streak<=-2 ? R : "#f59e0b", marginTop:3 }}>⚠️ Aktualnie: {Math.abs(streak)} strat — rozmiar {streak<=-2?"×0.5 (aktywne)":"×1.0 (jeszcze OK)"}</div>}
+                  </div>
+                  <button onClick={()=>update({drawdownProtection:!config.drawdownProtection})}
+                    style={{ background:config.drawdownProtection?"rgba(251,146,60,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.drawdownProtection?"rgba(251,146,60,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"7px 14px", color:config.drawdownProtection?"#fb923c":M, cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0, marginLeft:12 }}>
+                    {config.drawdownProtection?"DD PROT ON":"DD PROT OFF"}
                   </button>
                 </div>
               </div>
