@@ -33,6 +33,7 @@ type BotConfig = {
   macdFilter: boolean; // #2 MACD momentum confirmation
   emaRibbonFilter: boolean; // #3 EMA8>13>21 alignment
   drawdownProtection: boolean; // #4 halve size after 2 consecutive losses
+  breakEvenStop: boolean; breakEvenTriggerPct: number; // #5 move SL to entry after X% gain
   learningEnabled: boolean;
   trades: PaperTrade[];
 };
@@ -385,7 +386,7 @@ function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfi
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, emaRibbonFilter:false, drawdownProtection:true, learningEnabled:true, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, emaRibbonFilter:false, drawdownProtection:true, breakEvenStop:true, breakEvenTriggerPct:50, learningEnabled:true, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -570,9 +571,13 @@ export default function TradingBot() {
           ? updatedTrailRef * (1 - config.trailPct/100)
           : updatedTrailRef * (1 + config.trailPct/100))
       : initSLPrice;
+    // #5 break-even: once pct >= breakEvenTriggerPct% of TP, SL moves to entry
+    const beTrigger = tpPct * (config.breakEvenTriggerPct / 100);
+    const beActive  = config.breakEvenStop && pct >= beTrigger;
+    const beSLPrice = beActive ? openTrade.entryPrice : initSLPrice;
     const effectiveSLPrice = openTrade.direction === "long"
-      ? Math.max(initSLPrice, trailSLPrice)
-      : Math.min(initSLPrice, trailSLPrice);
+      ? Math.max(initSLPrice, trailSLPrice, beSLPrice)
+      : Math.min(initSLPrice, trailSLPrice, beSLPrice);
 
     // Time-based exit for 24h mode
     const tradeAgeH = (Date.now() - new Date(openTrade.entryTime).getTime()) / 3600000;
@@ -951,6 +956,17 @@ export default function TradingBot() {
                       </div>
                     </div>
                     <div style={{ fontSize:10, color:M }}>Trail włącza się gdy zysk ≥ aktywacja, potem SL goni szczyt z odległością traila</div>
+                    {/* #5 break-even */}
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.07)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#38bdf8" }}>🔒 Break-even stop <span style={{ fontSize:10, color:M, fontWeight:400 }}>(#5 ulepszenie)</span></div>
+                        <div style={{ fontSize:11, color:M, marginTop:2 }}>Gdy zysk ≥ {config.breakEvenTriggerPct}% TP ({(config.takeProfit*config.breakEvenTriggerPct/100).toFixed(2)}%) → SL przesuwa się na cenę wejścia (breakeven)</div>
+                      </div>
+                      <button onClick={()=>update({breakEvenStop:!config.breakEvenStop})}
+                        style={{ background:config.breakEvenStop?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.breakEvenStop?"rgba(56,189,248,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"6px 12px", color:config.breakEvenStop?"#38bdf8":M, cursor:"pointer", fontWeight:700, fontSize:11, flexShrink:0, marginLeft:10 }}>
+                        {config.breakEvenStop?"BE ON":"BE OFF"}
+                      </button>
+                    </div>
                     {config.allow24h && (
                       <div style={{ marginTop:10 }}>
                         <div style={{ fontSize:11, color:M, marginBottom:5 }}>Max hold w trybie 24H (godziny, def: 3)</div>
