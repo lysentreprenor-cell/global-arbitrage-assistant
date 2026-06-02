@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { LineChart } from "lucide-react";
+import { LineChart, ArrowRight } from "lucide-react";
+import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { loadPipeline, type PipelineItem } from "@/lib/pipeline";
 
@@ -114,6 +115,7 @@ function ProgressRow({
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function PLDashboard() {
+  const [, setLocation] = useLocation();
   const [period, setPeriod] = useState<Period>("30");
 
   const allItems = useMemo(() => loadPipeline(), []);
@@ -271,20 +273,58 @@ export default function PLDashboard() {
         </div>
 
         {/* ── Empty state ── */}
-        {soldItems.length === 0 && (
-          <div style={{
-            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 16, padding: "48px 24px", textAlign: "center",
-          }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-            <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
-              Brak sprzedanych produktów w tym okresie.
+        {soldItems.length === 0 && (() => {
+          const allItems = loadPipeline();
+          const hasPipeline = allItems.length > 0;
+          const hasAnySold = allItems.some(i => i.status === "sold");
+          return (
+            <div style={{
+              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 16, padding: "48px 24px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+              {!hasPipeline ? (
+                <>
+                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                    Pipeline jest pusty
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1.6, maxWidth: 380, margin: "0 auto 20px" }}>
+                    Dodaj produkty z Dashboardu do pipeline, a gdy je sprzedasz — statystyki P&L pojawią się tutaj automatycznie.
+                  </div>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                    <button onClick={() => setLocation("/resell")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                      🔍 Skanuj okazje <ArrowRight size={13} />
+                    </button>
+                    <button onClick={() => setLocation("/resell/pipeline")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "1px solid rgba(139,92,246,0.35)", background: "transparent", color: "#a78bfa", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                      📋 Mój Pipeline
+                    </button>
+                  </div>
+                </>
+              ) : !hasAnySold ? (
+                <>
+                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                    Brak sprzedanych produktów
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1.6, maxWidth: 380, margin: "0 auto 20px" }}>
+                    Masz {allItems.length} pozycj{allItems.length === 1 ? "ę" : allItems.length < 5 ? "e" : "i"} w pipeline. Gdy zmienisz status na Sprzedane — zyski pojawią się tutaj.
+                  </div>
+                  <button onClick={() => setLocation("/resell/pipeline")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    📋 Zarządzaj pipeline'm <ArrowRight size={13} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                    Brak sprzedanych w wybranym okresie
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+                    Zmień zakres czasu powyżej lub sprawdź pipeline.
+                  </div>
+                </>
+              )}
             </div>
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1.6, maxWidth: 400, margin: "0 auto" }}>
-              Zmień status w Pipeline → Sprzedane żeby zobaczyć statystyki.
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {soldItems.length > 0 && (
           <>

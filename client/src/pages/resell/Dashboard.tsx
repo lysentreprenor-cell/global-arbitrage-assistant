@@ -446,6 +446,49 @@ export default function Dashboard() {
           );
         })()}
 
+        {/* ── First-run setup prompt (no Anthropic key) ── */}
+        {!getAnthropicKey() && (
+          <div style={{
+            background: "linear-gradient(135deg, rgba(168,85,247,0.1), rgba(139,92,246,0.06))",
+            border: "1px solid rgba(168,85,247,0.35)", borderRadius: 16,
+            padding: "20px 22px", marginBottom: 18,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ fontSize: 24 }}>🔑</div>
+              <div>
+                <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Pierwsze uruchomienie — dodaj klucz API</div>
+                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>Jedyny wymagany klucz to Anthropic AI — reszta jest opcjonalna</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              {[
+                { step: "1", text: "Wejdź na console.anthropic.com i utwórz darmowe konto", color: "#a78bfa" },
+                { step: "2", text: "Skopiuj klucz API (zaczyna się od sk-ant-...)", color: "#a78bfa" },
+                { step: "3", text: "Wklej go poniżej lub w zakładce ⚙ API w górnym menu", color: "#4ade80" },
+              ].map(s => (
+                <div key={s.step} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: `${s.color}20`, border: `1px solid ${s.color}40`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <span style={{ color: s.color, fontSize: 11, fontWeight: 800 }}>{s.step}</span>
+                  </div>
+                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{s.text}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setLocation("/resell/settings")}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                padding: "10px 20px", borderRadius: 10, border: "none", cursor: "pointer",
+                background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                color: "#fff", fontWeight: 700, fontSize: 13,
+                boxShadow: "0 4px 14px rgba(139,92,246,0.4)",
+              }}
+            >
+              ⚙ Otwórz ustawienia API <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+
         {/* ── Error banner ── */}
         {scanError && (
           <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
@@ -512,6 +555,70 @@ export default function Dashboard() {
 
         {/* ── Marketing AI launcher ── */}
         <MarketingLauncher opportunities={opportunities} onNavigate={setLocation} />
+
+        {/* ── Pipeline quick status ── */}
+        {(() => {
+          const pipe = loadPipeline();
+          if (!pipe.length) return null;
+          const pCounts: Record<string, number> = {
+            planned: pipe.filter(i => i.status === "planned").length,
+            bought:  pipe.filter(i => i.status === "bought").length,
+            listed:  pipe.filter(i => i.status === "listed").length,
+            sold:    pipe.filter(i => i.status === "sold").length,
+          };
+          const invested = pipe.filter(i => i.status === "bought" || i.status === "listed")
+            .reduce((s, i) => s + (i.realBuyPrice ?? i.buy), 0);
+          const potential = pipe.filter(i => i.status !== "sold" && i.status !== "abandoned")
+            .reduce((s, i) => s + (i.netProfit ?? i.profit), 0);
+          const STATUS_CFG = [
+            { key: "planned", label: "Planowane",  color: "#60a5fa" },
+            { key: "bought",  label: "Kupione",     color: "#f5c842" },
+            { key: "listed",  label: "Wystawione",  color: "#a78bfa" },
+            { key: "sold",    label: "Sprzedane",   color: "#4ade80" },
+          ];
+          return (
+            <div
+              onClick={() => setLocation("/resell/pipeline")}
+              style={{
+                background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 14, padding: "12px 16px", marginBottom: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                transition: "border-color 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)")}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)")}
+            >
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>PIPELINE</span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
+                {STATUS_CFG.filter(s => pCounts[s.key] > 0).map(s => (
+                  <div key={s.key} style={{
+                    display: "flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99,
+                    background: `${s.color}12`, border: `1px solid ${s.color}30`,
+                  }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />
+                    <span style={{ color: s.color, fontSize: 11, fontWeight: 700 }}>{pCounts[s.key]}</span>
+                    <span style={{ color: `${s.color}99`, fontSize: 10 }}>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
+                {invested > 0 && (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9 }}>ZAINWESTOWANE</div>
+                    <div style={{ color: "#f87171", fontSize: 13, fontWeight: 800 }}>${invested.toFixed(0)}</div>
+                  </div>
+                )}
+                {potential > 0 && (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9 }}>POTENCJAŁ</div>
+                    <div style={{ color: "#4ade80", fontSize: 13, fontWeight: 800 }}>+${potential.toFixed(0)}</div>
+                  </div>
+                )}
+              </div>
+              <ChevronRight size={14} color="rgba(255,255,255,0.2)" />
+            </div>
+          );
+        })()}
 
         {/* ── Stats row ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 22 }}>

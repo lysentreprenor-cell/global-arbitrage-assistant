@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Flame, RefreshCw, AlertCircle } from "lucide-react";
+import { Flame, RefreshCw, AlertCircle, BookmarkPlus, Check } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getEbayKeys } from "@/lib/apiKeys";
+import { addToPipeline } from "@/lib/pipeline";
 
 // ── Category map ─────────────────────────────────────────────────────────────
 const CATEGORY_MAP: Record<string, string> = {
@@ -59,8 +60,34 @@ export default function TrendsPage() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<TrendItem[]>([]);
   const [fetched, setFetched] = useState(false);
+  const [addedIdx, setAddedIdx] = useState<Set<number>>(new Set());
 
   const ebayKeys = getEbayKeys();
+
+  const handleAddToPipeline = (item: TrendItem, idx: number) => {
+    const marketFlag = marketplace === "EBAY_US" ? "🇺🇸" : marketplace === "EBAY_DE" ? "🇩🇪" : "🇬🇧";
+    const marketName = marketplace === "EBAY_US" ? "USA" : marketplace === "EBAY_DE" ? "Germany" : "UK";
+    const estimatedSell = Math.round(item.price * 1.45);
+    const estimatedProfit = Math.round(item.price * 0.45);
+    const netProfit = Math.round(estimatedProfit * 0.65); // ~35% for fees/shipping
+    addToPipeline({
+      id: Date.now() + idx,
+      name: item.title.slice(0, 80),
+      buy: item.price,
+      sell: estimatedSell,
+      profit: estimatedProfit,
+      netProfit,
+      margin: Math.round((netProfit / estimatedSell) * 100),
+      market: marketName,
+      category: selectedCategory,
+      score: Math.min(96, 55 + Math.min(40, Math.round(item.watchCount / 5))),
+      flag: marketFlag,
+      imageUrl: item.imageUrl,
+      sourceUrl: item.url,
+      tip: `Trendy eBay · ${item.watchCount} obserwujących · ${item.condition || ""}`.trim(),
+    });
+    setAddedIdx(prev => new Set([...prev, idx]));
+  };
   const hasKeys = !!(ebayKeys.appId && ebayKeys.certId);
 
   const fetchTrends = async (category: string, market: Marketplace) => {
@@ -391,27 +418,40 @@ export default function TrendsPage() {
                       )}
                     </div>
 
-                    {/* CTA button */}
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                        marginTop: "auto", padding: "8px 0", borderRadius: 9, textDecoration: "none",
-                        background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.28)",
-                        color: "#22c55e", fontSize: 12, fontWeight: 700,
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLElement).style.background = "rgba(34,197,94,0.2)";
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLElement).style.background = "rgba(34,197,94,0.12)";
-                      }}
-                    >
-                      Zobacz na eBay →
-                    </a>
+                    {/* CTA buttons */}
+                    <div style={{ display: "flex", gap: 7, marginTop: "auto" }}>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                          padding: "8px 0", borderRadius: 9, textDecoration: "none",
+                          background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.28)",
+                          color: "#22c55e", fontSize: 12, fontWeight: 700,
+                          transition: "all 0.15s",
+                        }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(34,197,94,0.2)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(34,197,94,0.12)"; }}
+                      >
+                        eBay →
+                      </a>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleAddToPipeline(item, idx); }}
+                        disabled={addedIdx.has(idx)}
+                        title="Dodaj do pipeline"
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                          padding: "8px 12px", borderRadius: 9, border: "none", cursor: addedIdx.has(idx) ? "default" : "pointer",
+                          background: addedIdx.has(idx) ? "rgba(74,222,128,0.15)" : "rgba(139,92,246,0.15)",
+                          color: addedIdx.has(idx) ? "#4ade80" : "#a78bfa",
+                          fontSize: 12, fontWeight: 700, transition: "all 0.15s",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {addedIdx.has(idx) ? <Check size={14} /> : <BookmarkPlus size={14} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
