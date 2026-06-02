@@ -28,7 +28,8 @@ type BotConfig = {
   dynamicExits: boolean; atrSlMul: number; atrTpMul: number;
   trailStop: boolean; trailPct: number; trailActivation: number;
   rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
-  allow24h: boolean; maxHoldCandles: number; // 24h mode
+  allow24h: boolean; maxHoldCandles: number;
+  volumeFilter: boolean; volumeMinMult: number; // #1 volume confirmation
   learningEnabled: boolean;
   trades: PaperTrade[];
 };
@@ -36,7 +37,7 @@ type BotConfig = {
 type LogEntry  = { time: string; msg: string; type: "buy" | "sell" | "info" | "warn" };
 type Ticker    = { price: number; change24h: number; high24h: number; low24h: number };
 type SessionInfo = { inSession: boolean; label: string; countdown: string };
-type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean };
+type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean; volumeMult: number };
 
 type BtTrade  = { date: string; direction: Direction; entryPrice: number; exitPrice: number; pnlPct: number; reason: TradeReason };
 type BtResult = { symbol: string; days: number; periodLabel: string; trades: BtTrade[]; winRate: number; totalReturn: number; maxDrawdown: number; avgWin: number; avgLoss: number; sharpe: number; equity: number[]; longs: number; shorts: number };
@@ -117,13 +118,14 @@ const logTime= () => new Date().toLocaleTimeString("pl",{hour:"2-digit",minute:"
 
 // ─── Backtest ─────────────────────────────────────────────────────────────────
 
-type CandleData = { time: number; open: number; high: number; low: number; close: number; utcH: number };
+type CandleData = { time: number; open: number; high: number; low: number; close: number; volume: number; utcH: number };
 type BtCfg = {
   symbol: Symbol; stopLoss: number; takeProfit: number; allowShorts: boolean;
   useAdx: boolean; adxMin: number; dynamicExits: boolean; atrSlMul: number; atrTpMul: number;
   trailStop: boolean; trailPct: number; trailActivation: number;
   rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
   allow24h: boolean; maxHoldCandles: number;
+  volumeFilter: boolean; volumeMinMult: number;
 };
 
 function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
@@ -157,6 +159,8 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     const adx=cfg.useAdx?calcADX(hhs,lls,cls):999;
     const atr=cfg.dynamicExits?calcATR(hhs,lls,cls):0;
     if (cfg.useAdx && adx < cfg.adxMin) continue;
+    // #1 volume filter — skip low-volume candles
+    if (cfg.volumeFilter && calcVolumeMult(candles, i) < cfg.volumeMinMult) continue;
 
     const prevC=i>0?candles[i-1]:null;
     const prevBull=prevC?prevC.close>prevC.open:true, prevBear=prevC?prevC.close<prevC.open:true;
@@ -200,7 +204,7 @@ async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
   const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=2400`);
   if (!res.ok) throw new Error(`Binance ${res.status}`);
   const raw: any[][] = await res.json();
-  return raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], utcH:new Date(k[0]).getUTCHours() }));
+  return raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5], utcH:new Date(k[0]).getUTCHours() }));
 }
 
 // Fetch complete history from Binance (paginated) — BTC/USDT available from Aug 2017
@@ -222,7 +226,7 @@ async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => voi
     if (!res.ok) throw new Error(`Binance ${res.status}`);
     const raw: any[][] = await res.json();
     if (!raw.length) break;
-    all.push(...raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], utcH:new Date(k[0]).getUTCHours() })));
+    all.push(...raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5], utcH:new Date(k[0]).getUTCHours() })));
     startTime = (raw[raw.length-1][0] as number) + 3600000;
     onProgress(Math.min(99, ((startTime - originMap[symbol]) / totalMs) * 100));
     // yield to browser UI between chunks
@@ -291,6 +295,13 @@ function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
   return best;
 }
 
+// #1 — Volume confirmation: returns current candle volume / avg(last N candles)
+function calcVolumeMult(candles: CandleData[], idx: number, period = 20): number {
+  if (idx < period) return 1;
+  const avg = candles.slice(idx - period, idx).reduce((s, c) => s + c.volume, 0) / period;
+  return avg > 0 ? candles[idx].volume / avg : 1;
+}
+
 function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfig> | null {
   const recent = closed.slice(-10);
   if (recent.length < 5) return null;
@@ -319,7 +330,7 @@ function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfi
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, learningEnabled:true, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, learningEnabled:true, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -389,13 +400,16 @@ export default function TradingBot() {
       if (!tRes.ok || !kRes.ok) throw new Error(`Binance ${tRes.status}`);
       const td = await tRes.json();
       const klines: any[] = await kRes.json();
-      const closes = klines.map(k=>parseFloat(k[4]));
-      const opens  = klines.map(k=>parseFloat(k[1]));
-      const highs  = klines.map(k=>parseFloat(k[2]));
-      const lows   = klines.map(k=>parseFloat(k[3]));
+      const closes  = klines.map(k=>parseFloat(k[4]));
+      const opens   = klines.map(k=>parseFloat(k[1]));
+      const highs   = klines.map(k=>parseFloat(k[2]));
+      const lows    = klines.map(k=>parseFloat(k[3]));
+      const volumes = klines.map(k=>parseFloat(k[5]));
       const last = closes.length-1;
       setTicker({ price:parseFloat(td.lastPrice), change24h:parseFloat(td.priceChangePercent), high24h:parseFloat(td.highPrice), low24h:parseFloat(td.lowPrice) });
       const ema21val = calcEMA21(closes);
+      const avgVol = volumes.slice(-21, -1).reduce((a,b)=>a+b,0) / 20;
+      const volMult = avgVol > 0 ? volumes[last] / avgVol : 1;
       setMd({
         rsi: calcRSI(closes), ema21: ema21val,
         priceVsEma: (closes[last]-ema21val)/ema21val*100,
@@ -403,7 +417,8 @@ export default function TradingBot() {
         volatility: (highs[last]-lows[last])/opens[last]*100,
         atr: calcATR(highs, lows, closes),
         adx: calcADX(highs, lows, closes),
-        prevBull: last >= 1 && closes[last-1] > opens[last-1], // 20:00 UTC candle bullish?
+        prevBull: last >= 1 && closes[last-1] > opens[last-1],
+        volumeMult: parseFloat(volMult.toFixed(2)),
       });
       setLastRefresh(new Date()); setError(null);
     } catch(e:any) { setError("Błąd danych: "+e.message); }
@@ -433,10 +448,12 @@ export default function TradingBot() {
       }
 
       const emaDist = Math.abs((ticker.price - ema21) / ema21 * 100);
+      // #1 volume filter
+      const volOk = !config.volumeFilter || md.volumeMult >= config.volumeMinMult;
       const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || md.prevBull);
+        && (!config.requirePrevBull || md.prevBull) && volOk;
       const isShort = config.allowShorts && !aboveEMA && rsi < 40 && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || !md.prevBull);
+        && (!config.requirePrevBull || !md.prevBull) && volOk;
       if (!isLong && !isShort) {
         setActivityLog(prev => {
           const reason = rsi > config.rsiMax ? `RSI ${rsi} > ${config.rsiMax} (wykupienie)` : rsi < config.rsiMin ? `RSI ${rsi} < ${config.rsiMin}` : emaDist > config.emaMaxDist ? `EMA dist ${emaDist.toFixed(1)}% > ${config.emaMaxDist}%` : `${aboveEMA?"▲":"▼"} EMA`;
@@ -582,8 +599,9 @@ export default function TradingBot() {
 
   // Signal decision
   const emaDist_ = md && ticker ? Math.abs((ticker.price - md.ema21) / md.ema21 * 100) : 0;
-  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || md.prevBull) : false;
-  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || !md.prevBull) : false;
+  const volSigOk = md ? !config.volumeFilter || md.volumeMult >= config.volumeMinMult : true;
+  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || md.prevBull) && volSigOk : false;
+  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || !md.prevBull) && volSigOk : false;
   const adxBlock = md ? config.useAdx && md.adx < config.adxMin : false;
   const prevBullBlock = md ? config.requirePrevBull && !md.prevBull && ticker ? ticker.price > md.ema21 : false : false;
 
@@ -898,6 +916,29 @@ export default function TradingBot() {
                       onBlur={()=>{const n=parseFloat(tmpEmaDist); if(!isNaN(n)&&n>=0.5&&n<=5) update({emaMaxDist:n});}} style={inputStyle()}/>
                   </div>
                 </div>
+              </div>
+
+              {/* #1 Volume filter */}
+              <div style={{ background:"rgba(6,182,212,0.05)", border:"1px solid rgba(6,182,212,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#22d3ee" }}>Filtr wolumenu <span style={{ fontSize:10, color:M, fontWeight:400 }}>(#1 ulepszenie)</span></div>
+                    <div style={{ fontSize:11, color:M, marginTop:2 }}>Wejście tylko gdy wolumen świeczki &gt; N× średniej 20 świeczek — eliminuje fałszywe sygnały na słabym rynku</div>
+                    {md && <div style={{ fontSize:11, color: md.volumeMult >= config.volumeMinMult ? "#4ade80" : "#f87171", marginTop:4 }}>
+                      Aktualny wolumen: {md.volumeMult.toFixed(2)}× avg {config.volumeFilter ? (md.volumeMult >= config.volumeMinMult ? "✓ wystarczający" : `✗ za niski (min ${config.volumeMinMult}×)`) : ""}
+                    </div>}
+                  </div>
+                  <button onClick={()=>update({volumeFilter:!config.volumeFilter})}
+                    style={{ background:config.volumeFilter?"rgba(6,182,212,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.volumeFilter?"rgba(6,182,212,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"7px 14px", color:config.volumeFilter?"#22d3ee":M, cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0 }}>
+                    {config.volumeFilter?"VOL ON":"VOL OFF"}
+                  </button>
+                </div>
+                {config.volumeFilter && <div style={{ marginTop:8 }}>
+                  <div style={{ fontSize:11, color:M, marginBottom:5 }}>Min wolumen mult (def: 1.2×)</div>
+                  <input type="number" value={config.volumeMinMult} step={0.1} min={0.8} max={3.0}
+                    onChange={e=>{ const n=parseFloat(e.target.value); if(!isNaN(n)&&n>=0.8&&n<=3) update({volumeMinMult:n}); }}
+                    style={{...inputStyle(), maxWidth:120}} />
+                </div>}
               </div>
 
               {/* ADX filter */}
