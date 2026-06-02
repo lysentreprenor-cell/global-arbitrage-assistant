@@ -28,6 +28,7 @@ type BotConfig = {
   trailStop: boolean; trailPct: number; trailActivation: number;
   rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
   allow24h: boolean; maxHoldCandles: number; // 24h mode
+  learningEnabled: boolean;
   trades: PaperTrade[];
 };
 
@@ -229,10 +230,35 @@ async function runOptimize(cfg: BtCfg): Promise<OptResult> {
   return best;
 }
 
+function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfig> | null {
+  const recent = closed.slice(-10);
+  if (recent.length < 5) return null;
+  const slCount    = recent.filter(t=>t.reason==="stop_loss").length;
+  const trailCount = recent.filter(t=>t.reason==="trail_stop").length;
+  const wins   = recent.filter(t=>(t.pnlPct??0)>0);
+  const losses = recent.filter(t=>(t.pnlPct??0)<=0);
+  const avgWin  = wins.length   ? wins.reduce((s,t)=>s+(t.pnlPct??0),0)/wins.length   : 0;
+  const avgLoss = losses.length ? Math.abs(losses.reduce((s,t)=>s+(t.pnlPct??0),0)/losses.length) : 0.001;
+  const patch: Partial<BotConfig> = {};
+  // Trail fires too often → too tight → loosen
+  if (trailCount/recent.length > 0.6)
+    patch.trailPct = parseFloat(Math.min(cfg.trailPct + 0.05, 1.5).toFixed(2));
+  // Trail rarely fires and R:R is bad → tighten to cut losses faster
+  else if (trailCount/recent.length < 0.2 && avgLoss > avgWin * 1.5 && cfg.trailPct > 0.1)
+    patch.trailPct = parseFloat(Math.max(cfg.trailPct - 0.05, 0.1).toFixed(2));
+  // Many direct SL hits → poor entry quality → tighten RSI filter
+  if (slCount/recent.length > 0.5 && recent.length >= 8) {
+    const newMin = Math.min(cfg.rsiMin + 2, 58);
+    const newMax = Math.max(cfg.rsiMax - 2, newMin + 8);
+    if (newMin !== cfg.rsiMin || newMax !== cfg.rsiMax) { patch.rsiMin = newMin; patch.rsiMax = newMax; }
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, learningEnabled:true, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -264,6 +290,8 @@ export default function TradingBot() {
   const [activityLog, setActivityLog]   = useState<LogEntry[]>([]);
   const logRef         = useRef<HTMLDivElement>(null);
   const prevSessionRef = useRef<boolean | null>(null);
+  const adaptCountRef  = useRef(0);
+  const autoOptRef     = useRef(0);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -412,8 +440,38 @@ export default function TradingBot() {
 
     if (reason) {
       const pnl = pct/100*openTrade.size;
-      update({ trades:config.trades.map(t=>t.id===openTrade.id ? {...t, status:"closed", exitTime:new Date().toISOString(), exitPrice:ticker.price, pnl, pnlPct:pct, reason, trailRef:updatedTrailRef} : t) });
+      const justClosed: PaperTrade = { ...openTrade, status:"closed" as const, exitTime:new Date().toISOString(), exitPrice:ticker.price, pnl, pnlPct:pct, reason, trailRef:updatedTrailRef };
+      update({ trades:config.trades.map(t=>t.id===openTrade.id ? justClosed : t) });
       addLog(`■ CLOSE ${openTrade.direction.toUpperCase()} ${openTrade.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | ${fmtUsd(pnl)} (${fmtPct(pct)}) — ${REASON_LABEL[reason]}`, pnl>=0?"sell":"warn");
+
+      if (config.learningEnabled) {
+        const prevClosed = config.trades.filter(t=>t.status==="closed");
+        const newCount   = prevClosed.length + 1;
+        // Every 5 trades: micro-adaptation of trail and RSI
+        if (newCount >= 5 && newCount - adaptCountRef.current >= 5) {
+          adaptCountRef.current = newCount;
+          const patch = adaptFromTrades([...prevClosed, justClosed], config);
+          if (patch) {
+            const parts: string[] = [];
+            if (patch.trailPct !== undefined) parts.push(`Trail ${config.trailPct.toFixed(2)}%→${patch.trailPct.toFixed(2)}%`);
+            if (patch.rsiMin !== undefined || patch.rsiMax !== undefined) parts.push(`RSI[${config.rsiMin}-${config.rsiMax}]→[${patch.rsiMin??config.rsiMin}-${patch.rsiMax??config.rsiMax}]`);
+            addLog(`🧠 Uczenie (${newCount} tr): ${parts.join(" | ")}`, "info");
+            update(patch);
+            if (patch.rsiMin   !== undefined) setTmpRsiMin(String(patch.rsiMin));
+            if (patch.rsiMax   !== undefined) setTmpRsiMax(String(patch.rsiMax));
+            if (patch.trailPct !== undefined) setTmpTrailPct(String(patch.trailPct));
+          }
+        }
+        // Every 20 trades: full re-optimization
+        if (newCount - autoOptRef.current >= 20) {
+          autoOptRef.current = newCount;
+          runOptimize({...config}).then(r => {
+            update({rsiMin:r.rsiMin, rsiMax:r.rsiMax, trailPct:r.trailPct});
+            setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct));
+            addLog(`🧠 Auto-Reopt (${newCount} tr): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`, "info");
+          }).catch((e:any) => addLog(`🧠 Reopt błąd: ${e.message}`, "warn"));
+        }
+      }
     } else {
       setActivityLog(prev => {
         const trailInfo = config.trailStop ? ` | trail SL $${fmt(effectiveSLPrice)}` : "";
@@ -476,7 +534,7 @@ export default function TradingBot() {
             </div>
             <div>
               <div style={{ fontWeight:800, fontSize:20 }}>Trading Bot</div>
-              <div style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR":""}{config.trailStop?" + Trail":""} · Long{config.allowShorts?"+Short":""}</div>
+              <div style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR":""}{config.trailStop?" + Trail":""}{config.learningEnabled?" + 🧠":""} · Long{config.allowShorts?"+Short":""}</div>
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -818,6 +876,20 @@ export default function TradingBot() {
                 )}
               </div>
 
+              {/* Self-learning */}
+              <div style={{ background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#818cf8" }}>🧠 Algorytm Uczenia <span style={{ fontSize:10, color:M, fontWeight:400 }}>(samoadaptacja)</span></div>
+                    <div style={{ fontSize:11, color:M, marginTop:3, lineHeight:1.6 }}>Co 5 transakcji bot analizuje wyniki i koryguje Trail/RSI. Co 20 transakcji uruchamia pełną optymalizację na żywych danych Binance.</div>
+                  </div>
+                  <button onClick={()=>{update({learningEnabled:!config.learningEnabled}); addLog(config.learningEnabled?"🧠 Uczenie wyłączone":"🧠 Uczenie włączone — bot będzie się adaptować","info");}}
+                    style={{ background:config.learningEnabled?"rgba(99,102,241,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.learningEnabled?"rgba(99,102,241,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"8px 16px", color:config.learningEnabled?"#818cf8":M, cursor:"pointer", fontWeight:700, fontSize:13, flexShrink:0, marginLeft:16 }}>
+                    {config.learningEnabled?"UCZENIE ON":"UCZENIE OFF"}
+                  </button>
+                </div>
+              </div>
+
               <div style={{ background:"rgba(34,197,94,0.05)", border:"1px solid rgba(34,197,94,0.15)", borderRadius:8, padding:"10px 14px", fontSize:11, color:M, lineHeight:1.7, marginBottom:14 }}>
                 <strong style={{color:G}}>Aktywna konfiguracja:</strong> LONG gdy cena &gt; EMA±{config.emaMaxDist}% AND RSI [{config.rsiMin}-{config.rsiMax}]{config.useAdx ? ` AND ADX ≥ ${config.adxMin}` : ""}
                 {config.allowShorts ? ` · SHORT gdy cena < EMA AND RSI < 40${config.useAdx?` AND ADX ≥ ${config.adxMin}`:""}` : ""}
@@ -1018,6 +1090,7 @@ export default function TradingBot() {
               <Radio size={13} color={config.enabled&&sess.inSession?G:M}/>
               <span style={{ fontWeight:700, fontSize:14 }}>Activity Log</span>
               {config.autoMode && <span style={{ fontSize:10, background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:6, padding:"2px 7px", color:"#fbbf24" }}>AUTO</span>}
+              {config.learningEnabled && <span style={{ fontSize:10, background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:6, padding:"2px 7px", color:"#818cf8" }}>🧠 UCZENIE</span>}
               {config.enabled && sess.inSession && <span style={{ fontSize:10, background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:6, padding:"2px 7px", color:G, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:G, animation:"pulse 1.5s ease-in-out infinite", display:"inline-block" }}/> LIVE</span>}
             </div>
             {activityLog.length>0 && <button onClick={()=>setActivityLog([])} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:11 }}>Wyczyść</button>}
