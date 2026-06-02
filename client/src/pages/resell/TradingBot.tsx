@@ -398,10 +398,44 @@ function loadConfig(): BotConfig {
 function saveConfig(c: BotConfig) { localStorage.setItem(KEY, JSON.stringify(c)); }
 const REASON_LABEL: Record<TradeReason,string> = { session_end:"Koniec sesji", stop_loss:"Stop Loss", take_profit:"Take Profit", trail_stop:"Trailing Stop" };
 
+// ─── Learning memory — persists across restarts ───────────────────────────────
+
+type LearningAdaptation = { time: string; change: string; tradeCount: number };
+
+type LearningMemory = {
+  adaptCount: number;       // total trades processed for micro-adaptation
+  autoOptCount: number;     // total trades processed for full re-optimization
+  deepResult: OptResult | null;
+  optResult: OptResult | null;
+  activityLog: LogEntry[];  // last 150 entries
+  adaptations: LearningAdaptation[]; // full history of all adaptations
+};
+
+const LEARN_KEY = "resell_trading_bot_learning_v1";
+
+function loadLearning(): LearningMemory {
+  try {
+    const raw = localStorage.getItem(LEARN_KEY);
+    if (raw) return JSON.parse(raw) as LearningMemory;
+  } catch {}
+  return { adaptCount:0, autoOptCount:0, deepResult:null, optResult:null, activityLog:[], adaptations:[] };
+}
+
+function saveLearning(m: LearningMemory) {
+  try { localStorage.setItem(LEARN_KEY, JSON.stringify(m)); } catch {}
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TradingBot() {
   const [config, setConfig] = useState<BotConfig>(loadConfig);
+
+  // Learning memory — load from localStorage on mount
+  const learningRef = useRef<LearningMemory>(loadLearning());
+  const saveLearningDebounced = useCallback(() => {
+    saveLearning(learningRef.current);
+  }, []);
+
   const [ticker, setTicker]     = useState<Ticker | null>(null);
   const [md, setMd]             = useState<MarketData | null>(null);
   const [loading, setLoading]   = useState(true);
@@ -414,16 +448,17 @@ export default function TradingBot() {
   const [btError, setBtError]     = useState<string | null>(null);
   const [showBtTrades, setShowBtTrades] = useState(false);
   const [optLoading, setOptLoading] = useState(false);
-  const [optResult, setOptResult]   = useState<OptResult | null>(null);
+  const [optResult, setOptResult]   = useState<OptResult | null>(() => loadLearning().optResult);
   const [deepLoading, setDeepLoading]   = useState(false);
   const [deepProgress, setDeepProgress] = useState(0);
-  const [deepResult, setDeepResult]     = useState<OptResult | null>(null);
+  const [deepResult, setDeepResult]     = useState<OptResult | null>(() => loadLearning().deepResult);
   const fullHistoryRef = useRef<{ symbol: Symbol; candles: CandleData[] } | null>(null);
-  const [activityLog, setActivityLog]   = useState<LogEntry[]>([]);
+  const [activityLog, setActivityLog]   = useState<LogEntry[]>(() => loadLearning().activityLog);
   const logRef         = useRef<HTMLDivElement>(null);
   const prevSessionRef = useRef<boolean | null>(null);
-  const adaptCountRef  = useRef(0);
-  const autoOptRef     = useRef(0);
+  // Restore learning counters from memory so bot continues from where it left off
+  const adaptCountRef  = useRef(loadLearning().adaptCount);
+  const autoOptRef     = useRef(loadLearning().autoOptCount);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -444,8 +479,15 @@ export default function TradingBot() {
   }, []);
 
   const addLog = useCallback((msg: string, type: LogEntry["type"]) => {
-    setActivityLog(prev => [...prev.slice(-199), { time:logTime(), msg, type }]);
-  }, []);
+    setActivityLog(prev => {
+      const entry: LogEntry = { time:logTime(), msg, type };
+      const next = [...prev.slice(-149), entry];
+      // persist last 150 log entries
+      learningRef.current = { ...learningRef.current, activityLog: next };
+      saveLearning(learningRef.current);
+      return next;
+    });
+  }, [saveLearningDebounced]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -616,6 +658,13 @@ export default function TradingBot() {
             if (patch.rsiMin   !== undefined) setTmpRsiMin(String(patch.rsiMin));
             if (patch.rsiMax   !== undefined) setTmpRsiMax(String(patch.rsiMax));
             if (patch.trailPct !== undefined) setTmpTrailPct(String(patch.trailPct));
+            // persist adaptation to learning memory
+            const adapt: LearningAdaptation = { time: new Date().toISOString(), change: parts.join(" | "), tradeCount: newCount };
+            learningRef.current = { ...learningRef.current, adaptCount: newCount, adaptations: [...learningRef.current.adaptations.slice(-99), adapt] };
+            saveLearning(learningRef.current);
+          } else {
+            learningRef.current = { ...learningRef.current, adaptCount: newCount };
+            saveLearning(learningRef.current);
           }
         }
         // Every 20 trades: full re-optimization
@@ -624,7 +673,11 @@ export default function TradingBot() {
           runOptimize({...config}).then(r => {
             update({rsiMin:r.rsiMin, rsiMax:r.rsiMax, trailPct:r.trailPct});
             setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct));
+            setOptResult(r);
             addLog(`🧠 Auto-Reopt (${newCount} tr): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`, "info");
+            // persist re-opt result and counter
+            learningRef.current = { ...learningRef.current, autoOptCount: newCount, optResult: r };
+            saveLearning(learningRef.current);
           }).catch((e:any) => addLog(`🧠 Reopt błąd: ${e.message}`, "warn"));
         }
       }
@@ -1232,6 +1285,9 @@ export default function TradingBot() {
                     update({rsiMin:r.rsiMin, rsiMax:r.rsiMax, trailPct:r.trailPct});
                     setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct));
                     addLog(`🧠 Deep Train (${r.windows} okien historycznych): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → avg Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info");
+                    // persist Deep Train result — survives restart
+                    learningRef.current = { ...learningRef.current, deepResult: r };
+                    saveLearning(learningRef.current);
                   } catch(e:any) { addLog("Deep Train błąd: "+e.message,"warn"); }
                   finally { setDeepLoading(false); }
                 }}
@@ -1242,7 +1298,7 @@ export default function TradingBot() {
                   : <><BarChart2 size={12}/> Deep Train</>}
               </button>
               <button
-                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); setOptResult(r); update({rsiMin:r.rsiMin,rsiMax:r.rsiMax,trailPct:r.trailPct}); setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct)); addLog(`🧠 Auto-opt: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info"); } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
+                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); setOptResult(r); update({rsiMin:r.rsiMin,rsiMax:r.rsiMax,trailPct:r.trailPct}); setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct)); addLog(`🧠 Auto-opt: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info"); learningRef.current={...learningRef.current,optResult:r}; saveLearning(learningRef.current); } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
                 disabled={optLoading||btLoading||deepLoading}
                 style={{ background:optLoading?"rgba(251,191,36,0.05)":"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:8, padding:"8px 14px", color:optLoading?M:"#fbbf24", cursor:optLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
                 {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
@@ -1397,7 +1453,7 @@ export default function TradingBot() {
               {config.learningEnabled && <span style={{ fontSize:10, background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:6, padding:"2px 7px", color:"#818cf8" }}>🧠 UCZENIE</span>}
               {config.enabled && sess.inSession && <span style={{ fontSize:10, background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:6, padding:"2px 7px", color:G, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:G, animation:"pulse 1.5s ease-in-out infinite", display:"inline-block" }}/> LIVE</span>}
             </div>
-            {activityLog.length>0 && <button onClick={()=>setActivityLog([])} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:11 }}>Wyczyść</button>}
+            {activityLog.length>0 && <button onClick={()=>{ setActivityLog([]); learningRef.current={...learningRef.current,activityLog:[]}; saveLearning(learningRef.current); }} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:11 }}>Wyczyść</button>}
           </div>
           {activityLog.length===0 ? (
             <div style={{ fontSize:12, color:M, lineHeight:1.7 }}>Log decyzji bota — każdy skan, ADX check, sygnał, wejście i wyjście pojawi się tutaj w czasie rzeczywistym.</div>
@@ -1412,6 +1468,31 @@ export default function TradingBot() {
             </div>
           )}
         </div>
+
+        {/* Learning history — persisted across restarts */}
+        {learningRef.current.adaptations.length > 0 && (
+          <div style={{ ...card, marginTop:14 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:16 }}>🧠</span>
+                <span style={{ fontWeight:700, fontSize:14 }}>Historia uczenia</span>
+                <span style={{ fontSize:10, background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"2px 7px", color:"#818cf8" }}>
+                  {learningRef.current.adaptations.length} adaptacji · {learningRef.current.adaptCount} transakcji przetworzonych
+                </span>
+              </div>
+              <button onClick={()=>{ learningRef.current={...learningRef.current,adaptations:[],adaptCount:0,autoOptCount:0}; saveLearning(learningRef.current); adaptCountRef.current=0; autoOptRef.current=0; }} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:11 }}>Resetuj pamięć</button>
+            </div>
+            <div style={{ maxHeight:160, overflowY:"auto", fontFamily:"monospace", fontSize:11, lineHeight:1.8 }}>
+              {[...learningRef.current.adaptations].reverse().map((a,i)=>(
+                <div key={i} style={{ display:"flex", gap:10, borderBottom:"1px solid rgba(255,255,255,0.04)", padding:"3px 0" }}>
+                  <span style={{ color:"rgba(255,255,255,0.25)", flexShrink:0, minWidth:90 }}>{new Date(a.time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"})} {new Date(a.time).toLocaleTimeString("pl",{hour:"2-digit",minute:"2-digit"})}</span>
+                  <span style={{ color:"#818cf8" }}>tr#{a.tradeCount}</span>
+                  <span style={{ color:"rgba(255,255,255,0.7)" }}>{a.change}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}`}</style>
         <div style={{ marginTop:18, fontSize:11, color:"rgba(255,255,255,0.2)", textAlign:"center" }}>
