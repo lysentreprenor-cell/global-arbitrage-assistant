@@ -31,6 +31,7 @@ type BotConfig = {
   allow24h: boolean; maxHoldCandles: number;
   volumeFilter: boolean; volumeMinMult: number; // #1 volume confirmation
   macdFilter: boolean; // #2 MACD momentum confirmation
+  emaRibbonFilter: boolean; // #3 EMA8>13>21 alignment
   learningEnabled: boolean;
   trades: PaperTrade[];
 };
@@ -38,7 +39,7 @@ type BotConfig = {
 type LogEntry  = { time: string; msg: string; type: "buy" | "sell" | "info" | "warn" };
 type Ticker    = { price: number; change24h: number; high24h: number; low24h: number };
 type SessionInfo = { inSession: boolean; label: string; countdown: string };
-type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean; volumeMult: number; macd: number; macdSignal: number; macdHist: number };
+type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean; volumeMult: number; macd: number; macdSignal: number; macdHist: number; ema8: number; ema13: number; ribbonBull: boolean; ribbonBear: boolean };
 
 type BtTrade  = { date: string; direction: Direction; entryPrice: number; exitPrice: number; pnlPct: number; reason: TradeReason };
 type BtResult = { symbol: string; days: number; periodLabel: string; trades: BtTrade[]; winRate: number; totalReturn: number; maxDrawdown: number; avgWin: number; avgLoss: number; sharpe: number; equity: number[]; longs: number; shorts: number };
@@ -128,6 +129,7 @@ type BtCfg = {
   allow24h: boolean; maxHoldCandles: number;
   volumeFilter: boolean; volumeMinMult: number;
   macdFilter: boolean;
+  emaRibbonFilter: boolean;
 };
 
 function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
@@ -163,14 +165,15 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     if (cfg.useAdx && adx < cfg.adxMin) continue;
     // #1 volume filter — skip low-volume candles
     if (cfg.volumeFilter && calcVolumeMult(candles, i) < cfg.volumeMinMult) continue;
-    // #2 MACD filter
-    const macdV = cfg.macdFilter ? calcMACD(cls) : { macd:1, signal:0, hist:1 };
+    // #2 MACD, #3 EMA ribbon
+    const macdV   = cfg.macdFilter ? calcMACD(cls) : { macd:1, signal:0, hist:1 };
+    const ribbonV = cfg.emaRibbonFilter ? calcEMARibbon(cls) : { bullish:true, bearish:true };
 
     const prevC=i>0?candles[i-1]:null;
     const prevBull=prevC?prevC.close>prevC.open:true, prevBear=prevC?prevC.close<prevC.open:true;
     const emaDist=Math.abs((c.open-ema)/ema*100);
-    const isLong=c.open>ema&&rsi>=cfg.rsiMin&&rsi<=cfg.rsiMax&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBull)&&(!cfg.macdFilter||macdV.macd>macdV.signal);
-    const isShort=cfg.allowShorts&&c.open<ema&&rsi<40&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBear)&&(!cfg.macdFilter||macdV.macd<macdV.signal);
+    const isLong=c.open>ema&&rsi>=cfg.rsiMin&&rsi<=cfg.rsiMax&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBull)&&(!cfg.macdFilter||macdV.macd>macdV.signal)&&(!cfg.emaRibbonFilter||ribbonV.bullish);
+    const isShort=cfg.allowShorts&&c.open<ema&&rsi<40&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBear)&&(!cfg.macdFilter||macdV.macd<macdV.signal)&&(!cfg.emaRibbonFilter||ribbonV.bearish);
     if (!isLong && !isShort) continue;
 
     const dir: Direction = isLong?"long":"short";
@@ -299,6 +302,18 @@ function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
   return best;
 }
 
+// #3 — EMA ribbon: EMA8 > EMA13 > EMA21 for bullish alignment
+function calcEMARibbon(closes: number[]): { ema8: number; ema13: number; ema21: number; bullish: boolean; bearish: boolean } {
+  const ema = (p: number) => {
+    if (closes.length < p) return closes[closes.length-1] ?? 0;
+    const k = 2/(p+1); let e = closes.slice(0,p).reduce((a,b)=>a+b,0)/p;
+    for (let i=p; i<closes.length; i++) e = closes[i]*k + e*(1-k);
+    return e;
+  };
+  const ema8 = ema(8), ema13 = ema(13), ema21 = ema(21);
+  return { ema8, ema13, ema21, bullish: ema8>ema13 && ema13>ema21, bearish: ema8<ema13 && ema13<ema21 };
+}
+
 // #2 — MACD(12,26,9): returns { macd, signal, hist }
 function calcMACD(closes: number[]): { macd: number; signal: number; hist: number } {
   const ema = (arr: number[], p: number) => {
@@ -355,7 +370,7 @@ function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfi
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, learningEnabled:true, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, emaRibbonFilter:false, learningEnabled:true, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -436,6 +451,7 @@ export default function TradingBot() {
       const avgVol = volumes.slice(-21, -1).reduce((a,b)=>a+b,0) / 20;
       const volMult = avgVol > 0 ? volumes[last] / avgVol : 1;
       const macdVals = calcMACD(closes);
+      const ribbon = calcEMARibbon(closes);
       setMd({
         rsi: calcRSI(closes), ema21: ema21val,
         priceVsEma: (closes[last]-ema21val)/ema21val*100,
@@ -446,6 +462,7 @@ export default function TradingBot() {
         prevBull: last >= 1 && closes[last-1] > opens[last-1],
         volumeMult: parseFloat(volMult.toFixed(2)),
         macd: macdVals.macd, macdSignal: macdVals.signal, macdHist: macdVals.hist,
+        ema8: ribbon.ema8, ema13: ribbon.ema13, ribbonBull: ribbon.bullish, ribbonBear: ribbon.bearish,
       });
       setLastRefresh(new Date()); setError(null);
     } catch(e:any) { setError("Błąd danych: "+e.message); }
@@ -477,13 +494,16 @@ export default function TradingBot() {
       const emaDist = Math.abs((ticker.price - ema21) / ema21 * 100);
       // #1 volume filter
       const volOk  = !config.volumeFilter || md.volumeMult >= config.volumeMinMult;
-      // #2 MACD confirmation: long needs MACD above signal, short below
+      // #2 MACD confirmation
       const macdOk  = !config.macdFilter || md.macd > md.macdSignal;
       const macdOkS = !config.macdFilter || md.macd < md.macdSignal;
+      // #3 EMA ribbon: EMA8>13>21 for long, EMA8<13<21 for short
+      const ribbonOk  = !config.emaRibbonFilter || md.ribbonBull;
+      const ribbonOkS = !config.emaRibbonFilter || md.ribbonBear;
       const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || md.prevBull) && volOk && macdOk;
+        && (!config.requirePrevBull || md.prevBull) && volOk && macdOk && ribbonOk;
       const isShort = config.allowShorts && !aboveEMA && rsi < 40 && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || !md.prevBull) && volOk && macdOkS;
+        && (!config.requirePrevBull || !md.prevBull) && volOk && macdOkS && ribbonOkS;
       if (!isLong && !isShort) {
         setActivityLog(prev => {
           const reason = rsi > config.rsiMax ? `RSI ${rsi} > ${config.rsiMax} (wykupienie)` : rsi < config.rsiMin ? `RSI ${rsi} < ${config.rsiMin}` : emaDist > config.emaMaxDist ? `EMA dist ${emaDist.toFixed(1)}% > ${config.emaMaxDist}%` : `${aboveEMA?"▲":"▼"} EMA`;
@@ -629,11 +649,13 @@ export default function TradingBot() {
 
   // Signal decision
   const emaDist_ = md && ticker ? Math.abs((ticker.price - md.ema21) / md.ema21 * 100) : 0;
-  const volSigOk  = md ? !config.volumeFilter || md.volumeMult >= config.volumeMinMult : true;
-  const macdSigOk = md ? !config.macdFilter || md.macd > md.macdSignal : true;
+  const volSigOk   = md ? !config.volumeFilter || md.volumeMult >= config.volumeMinMult : true;
+  const macdSigOk  = md ? !config.macdFilter || md.macd > md.macdSignal : true;
   const macdSigOkS = md ? !config.macdFilter || md.macd < md.macdSignal : true;
-  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || md.prevBull) && volSigOk && macdSigOk : false;
-  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || !md.prevBull) && volSigOk && macdSigOkS : false;
+  const ribbonSigOk  = md ? !config.emaRibbonFilter || md.ribbonBull : true;
+  const ribbonSigOkS = md ? !config.emaRibbonFilter || md.ribbonBear : true;
+  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || md.prevBull) && volSigOk && macdSigOk && ribbonSigOk : false;
+  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || !md.prevBull) && volSigOk && macdSigOkS && ribbonSigOkS : false;
   const adxBlock = md ? config.useAdx && md.adx < config.adxMin : false;
   const prevBullBlock = md ? config.requirePrevBull && !md.prevBull && ticker ? ticker.price > md.ema21 : false : false;
 
@@ -986,6 +1008,23 @@ export default function TradingBot() {
                   <button onClick={()=>update({macdFilter:!config.macdFilter})}
                     style={{ background:config.macdFilter?"rgba(168,85,247,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.macdFilter?"rgba(168,85,247,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"7px 14px", color:config.macdFilter?"#c084fc":M, cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0 }}>
                     {config.macdFilter?"MACD ON":"MACD OFF"}
+                  </button>
+                </div>
+              </div>
+
+              {/* #3 EMA Ribbon filter */}
+              <div style={{ background:"rgba(52,211,153,0.05)", border:"1px solid rgba(52,211,153,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#34d399" }}>EMA Ribbon (8/13/21) <span style={{ fontSize:10, color:M, fontWeight:400 }}>(#3 ulepszenie)</span></div>
+                    <div style={{ fontSize:11, color:M, marginTop:2 }}>EMA8 &gt; EMA13 &gt; EMA21 = silny uptrend — eliminuje słabe sygnały w bocznym rynku</div>
+                    {md && <div style={{ fontSize:11, marginTop:4, color: md.ribbonBull ? "#4ade80" : md.ribbonBear ? "#f87171" : "#f59e0b" }}>
+                      EMA8 {fmt(md.ema8)} | EMA13 {fmt(md.ema13)} | EMA21 {fmt(md.ema21)} — {md.ribbonBull ? "🟢 pełny uptrend" : md.ribbonBear ? "🔴 pełny downtrend" : "🟡 mieszany"}
+                    </div>}
+                  </div>
+                  <button onClick={()=>update({emaRibbonFilter:!config.emaRibbonFilter})}
+                    style={{ background:config.emaRibbonFilter?"rgba(52,211,153,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.emaRibbonFilter?"rgba(52,211,153,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"7px 14px", color:config.emaRibbonFilter?"#34d399":M, cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0 }}>
+                    {config.emaRibbonFilter?"RIBBON ON":"RIBBON OFF"}
                   </button>
                 </div>
               </div>
