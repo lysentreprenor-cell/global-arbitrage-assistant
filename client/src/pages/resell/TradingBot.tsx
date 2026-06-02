@@ -38,7 +38,7 @@ type SessionInfo = { inSession: boolean; label: string; countdown: string };
 type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean };
 
 type BtTrade  = { date: string; direction: Direction; entryPrice: number; exitPrice: number; pnlPct: number; reason: TradeReason };
-type BtResult = { symbol: string; days: number; trades: BtTrade[]; winRate: number; totalReturn: number; maxDrawdown: number; avgWin: number; avgLoss: number; sharpe: number; equity: number[]; longs: number; shorts: number };
+type BtResult = { symbol: string; days: number; periodLabel: string; trades: BtTrade[]; winRate: number; totalReturn: number; maxDrawdown: number; avgWin: number; avgLoss: number; sharpe: number; equity: number[]; longs: number; shorts: number };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -122,13 +122,22 @@ async function runBacktest(cfg: {
   trailStop: boolean; trailPct: number; trailActivation: number;
   rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
 }): Promise<BtResult> {
-  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${cfg.symbol}&interval=1h&limit=1000`);
+  // Fetch ~100 days of data so each run can test a different random window
+  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${cfg.symbol}&interval=1h&limit=2400`);
   if (!res.ok) throw new Error(`Binance ${res.status}`);
   const raw: any[][] = await res.json();
-  const candles = raw.map(k => ({
+  const allCandles = raw.map(k => ({
     time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4],
     utcH: new Date(k[0]).getUTCHours(),
   }));
+
+  // Random window: 500-700 candles (~21-29 days), different every run
+  const windowSize = 500 + Math.floor(Math.random() * 200);
+  const minStart = 30; // need lookback for indicators
+  const maxStart = allCandles.length - windowSize - 2;
+  const startIdx = maxStart > minStart ? minStart + Math.floor(Math.random() * (maxStart - minStart)) : minStart;
+  const candles = allCandles.slice(startIdx, startIdx + windowSize);
+  const periodLabel = `${new Date(candles[0].time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"})} – ${new Date(candles[candles.length-1].time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"})}`;
 
   const trades: BtTrade[] = [];
 
@@ -211,7 +220,7 @@ async function runBacktest(cfg: {
     trades.push({ date:new Date(c.time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"}), direction:dir, entryPrice:entry, exitPrice:exit, pnlPct, reason });
   }
 
-  if (!trades.length) return { symbol:cfg.symbol, days:Math.round(candles.length/24), trades:[], winRate:0, totalReturn:0, maxDrawdown:0, avgWin:0, avgLoss:0, sharpe:0, equity:[], longs:0, shorts:0 };
+  if (!trades.length) return { symbol:cfg.symbol, days:Math.round(candles.length/24), periodLabel, trades:[], winRate:0, totalReturn:0, maxDrawdown:0, avgWin:0, avgLoss:0, sharpe:0, equity:[], longs:0, shorts:0 };
 
   const wins=trades.filter(t=>t.pnlPct>0), losses=trades.filter(t=>t.pnlPct<=0);
   const winRate = wins.length/trades.length*100;
@@ -227,7 +236,7 @@ async function runBacktest(cfg: {
   const rets=trades.map(t=>t.pnlPct), mean=rets.reduce((a,b)=>a+b,0)/rets.length;
   const variance=rets.reduce((s,r)=>s+(r-mean)**2,0)/rets.length;
   const sharpe=variance>0 ? parseFloat((mean/Math.sqrt(variance)*Math.sqrt(252/24)).toFixed(2)) : 0;
-  return { symbol:cfg.symbol, days:Math.round(candles.length/24), trades, winRate, totalReturn:eq-100, maxDrawdown:maxDD, avgWin, avgLoss, sharpe, equity, longs:trades.filter(t=>t.direction==="long").length, shorts:trades.filter(t=>t.direction==="short").length };
+  return { symbol:cfg.symbol, days:Math.round(candles.length/24), periodLabel, trades, winRate, totalReturn:eq-100, maxDrawdown:maxDD, avgWin, avgLoss, sharpe, equity, longs:trades.filter(t=>t.direction==="long").length, shorts:trades.filter(t=>t.direction==="short").length };
 }
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -857,7 +866,7 @@ export default function TradingBot() {
               <FlaskConical size={15} color={G}/>
               <span style={{ fontWeight:700, fontSize:14 }}>Backtest strategii</span>
               <span style={{ fontSize:11, color:M, background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.2)", borderRadius:6, padding:"2px 8px" }}>
-                ~41 dni · RSI[{config.rsiMin}-{config.rsiMax}]+EMA≤{config.emaMaxDist}%{config.useAdx?` · ADX≥${config.adxMin}`:""}{config.dynamicExits?" · ATR":""}{config.trailStop?` · Trail${config.trailPct}%`:""} · {config.allowShorts?"L+S":"Long"}
+                {btResult ? `${btResult.days}d · ${btResult.periodLabel}` : "losowy okres ~25 dni"} · RSI[{config.rsiMin}-{config.rsiMax}]+EMA{config.trailStop?` · Trail${config.trailPct}%`:""}{config.useAdx?` · ADX≥${config.adxMin}`:""} · {config.allowShorts?"L+S":"Long"}
               </span>
             </div>
             <button
@@ -929,15 +938,15 @@ export default function TradingBot() {
                     })}
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:M, marginTop:4 }}>
-                    <span>{r.trades[0]?.date}</span>
+                    <span>{r.periodLabel.split(" – ")[0]}</span>
                     <span style={{ color:r.totalReturn>=0?G:R, fontWeight:700 }}>{r.totalReturn>=0?"+":""}{r.totalReturn.toFixed(1)}% końcowy</span>
-                    <span>{r.trades[r.trades.length-1]?.date}</span>
+                    <span>{r.periodLabel.split(" – ")[1]}</span>
                   </div>
                 </div>
 
                 <div style={{ background:r.winRate>=55&&r.totalReturn>0?"rgba(34,197,94,0.08)":r.winRate>=45?"rgba(245,158,11,0.08)":"rgba(248,113,113,0.08)", border:`1px solid ${r.winRate>=55&&r.totalReturn>0?"rgba(34,197,94,0.25)":r.winRate>=45?"rgba(245,158,11,0.25)":"rgba(248,113,113,0.25)"}`, borderRadius:10, padding:"12px 14px", marginBottom:12, fontSize:13 }}>
                   <strong style={{ color:r.winRate>=55&&r.totalReturn>0?G:r.winRate>=45?"#f59e0b":R }}>{r.winRate>=55&&r.totalReturn>0?"✅ Strategia byłaby zyskowna":r.winRate>=45?"⚠️ Wyniki mieszane":"❌ Strategia nierentowna"}</strong>
-                  {" "}Win rate {r.winRate.toFixed(0)}% przy {r.trades.length} transakcjach ({r.longs}L/{r.shorts}S). Wyniki historyczne ≠ przyszłe.
+                  {" "}Win rate {r.winRate.toFixed(0)}% przy {r.trades.length} transakcjach ({r.longs}L/{r.shorts}S) w okresie {r.periodLabel}. Każdy run testuje inny losowy okres — uruchom kilka razy.
                 </div>
 
                 <button onClick={()=>setShowBtTrades(s=>!s)} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:12, display:"flex", alignItems:"center", gap:5, padding:0, marginBottom:showBtTrades?10:0 }}>
