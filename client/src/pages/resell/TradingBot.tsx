@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Bot, TrendingUp, TrendingDown, Clock, RefreshCw, Settings,
   ChevronDown, ChevronUp, Play, Pause, AlertCircle, Activity,
-  FlaskConical, CheckCircle2, XCircle, Minus,
+  FlaskConical, CheckCircle2, XCircle, Minus, Radio, Zap,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 
@@ -27,6 +27,7 @@ type PaperTrade = {
 
 type BotConfig = {
   enabled: boolean;
+  autoMode: boolean;       // auto-enables at session start, auto-disables at end
   symbol: Symbol;
   capital: number;
   riskPct: number;
@@ -34,6 +35,8 @@ type BotConfig = {
   takeProfit: number;
   trades: PaperTrade[];
 };
+
+type LogEntry = { time: string; msg: string; type: "buy" | "sell" | "info" | "warn" };
 
 type Ticker = {
   price: number;
@@ -226,7 +229,7 @@ function loadConfig(): BotConfig {
     const raw = localStorage.getItem(KEY);
     if (raw) return JSON.parse(raw) as BotConfig;
   } catch {}
-  return { enabled: false, symbol: "BTCUSDT", capital: 1000, riskPct: 10, stopLoss: 4, takeProfit: 15, trades: [] };
+  return { enabled: false, autoMode: false, symbol: "BTCUSDT", capital: 1000, riskPct: 10, stopLoss: 4, takeProfit: 15, trades: [] };
 }
 
 function saveConfig(c: BotConfig) {
@@ -256,6 +259,9 @@ export default function TradingBot() {
   const [btLoading, setBtLoading] = useState(false);
   const [btError, setBtError] = useState<string | null>(null);
   const [showBtTrades, setShowBtTrades] = useState(false);
+  const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
+  const logRef = useRef<HTMLDivElement>(null);
+  const prevSessionRef = useRef<boolean | null>(null);
   const [tmpCapital, setTmpCapital] = useState(String(config.capital));
   const [tmpRisk, setTmpRisk] = useState(String(config.riskPct));
   const [tmpSL, setTmpSL] = useState(String(config.stopLoss));
@@ -297,6 +303,10 @@ export default function TradingBot() {
     }
   }, [config.symbol]);
 
+  const addLog = useCallback((msg: string, type: LogEntry["type"]) => {
+    setActivityLog(prev => [...prev.slice(-199), { time: new Date().toLocaleTimeString("pl", { hour: "2-digit", minute: "2-digit", second: "2-digit" }), msg, type }]);
+  }, []);
+
   const runEngine = useCallback(() => {
     if (!ticker || !ema21 || !config.enabled) return;
     const sess = getSessionInfo(new Date());
@@ -311,6 +321,7 @@ export default function TradingBot() {
         entryPrice: ticker.price, size, status: "open",
       };
       update({ trades: [...config.trades, newTrade] });
+      addLog(`▶ BUY ${config.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | Pozycja: $${size.toFixed(0)} | SL −${config.stopLoss}% / TP +${config.takeProfit}%`, "buy");
       return;
     }
 
@@ -328,13 +339,50 @@ export default function TradingBot() {
             ? { ...t, status: "closed", exitTime: new Date().toISOString(), exitPrice: ticker.price, pnl, pnlPct: pct, reason }
             : t),
         });
+        addLog(`■ SELL ${openTrade.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | PnL: ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%) — ${REASON_LABEL[reason!]}`, pnl >= 0 ? "sell" : "warn");
+      } else {
+        // Monitoring — update last monitoring line instead of spamming
+        setActivityLog(prev => {
+          const monMsg = `◉ Monitoring ${openTrade.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | niezrealizowane ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+          const last = prev[prev.length - 1];
+          const entry: LogEntry = { time: new Date().toLocaleTimeString("pl", { hour: "2-digit", minute: "2-digit", second: "2-digit" }), msg: monMsg, type: "info" };
+          if (last?.type === "info" && last.msg.startsWith("◉ Monitoring")) return [...prev.slice(0, -1), entry];
+          return [...prev.slice(-199), entry];
+        });
       }
+    } else if (sess.inSession && !aboveEMA) {
+      setActivityLog(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.type === "info" && last.msg.includes("EMA")) return prev;
+        return [...prev.slice(-199), { time: new Date().toLocaleTimeString("pl", { hour: "2-digit", minute: "2-digit", second: "2-digit" }), msg: `⧖ Oczekuję — $${fmt(ticker.price)} poniżej EMA-21 ($${fmt(ema21)}) — brak sygnału`, type: "info" }];
+      });
     }
-  }, [ticker, ema21, config, update]);
+  }, [ticker, ema21, config, update, addLog]);
 
   useEffect(() => { fetchData(); const id = setInterval(fetchData, 30_000); return () => clearInterval(id); }, [fetchData]);
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { runEngine(); }, [ticker, ema21]); // eslint-disable-line
+
+  // Auto Mode: enable bot at 21:00 UTC, disable at 23:00 UTC
+  useEffect(() => {
+    if (!config.autoMode) return;
+    const s = getSessionInfo(now);
+    if (prevSessionRef.current === null) { prevSessionRef.current = s.inSession; return; }
+    if (!prevSessionRef.current && s.inSession) {
+      prevSessionRef.current = true;
+      update({ enabled: true });
+      addLog("AUTO: Sesja 21:00 UTC — bot uruchomiony automatycznie ✓", "info");
+    } else if (prevSessionRef.current && !s.inSession) {
+      prevSessionRef.current = false;
+      update({ enabled: false });
+      addLog("AUTO: Sesja zakończona 23:00 UTC — bot zatrzymany automatycznie", "warn");
+    }
+  }, [now]); // eslint-disable-line
+
+  // Auto-scroll activity log to bottom
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [activityLog]);
 
   // ─── Derived stats ─────────────────────────────────────────────────────────
 
@@ -385,8 +433,8 @@ export default function TradingBot() {
         </div>
 
         {/* Asset selector + Enable toggle */}
-        <div style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {(["BTCUSDT", "ETHUSDT", "SOLUSDT"] as const).map(sym => {
               const active = config.symbol === sym;
               return (
@@ -396,9 +444,34 @@ export default function TradingBot() {
               );
             })}
           </div>
-          <button onClick={() => update({ enabled: !config.enabled })} style={{ display: "flex", alignItems: "center", gap: 8, background: config.enabled ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.04)", border: `1px solid ${config.enabled ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, padding: "9px 20px", color: config.enabled ? G : M, cursor: "pointer", fontWeight: 700, fontSize: 14, transition: "all 0.15s" }}>
-            {config.enabled ? <><Play size={14} /> BOT AKTYWNY</> : <><Pause size={14} /> BOT ZATRZYMANY</>}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* AUTO MODE toggle */}
+            <button
+              onClick={() => {
+                const next = !config.autoMode;
+                update({ autoMode: next });
+                prevSessionRef.current = null;
+                if (next) addLog("AUTO MODE włączony — bot uruchomi się automatycznie o 21:00 UTC", "info");
+                else addLog("AUTO MODE wyłączony — bot wymaga ręcznego uruchomienia", "warn");
+              }}
+              title="Auto Mode: bot sam się włącza o 21:00 i wyłącza o 23:00 UTC"
+              style={{ display: "flex", alignItems: "center", gap: 7, background: config.autoMode ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${config.autoMode ? "rgba(245,158,11,0.45)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, padding: "9px 16px", color: config.autoMode ? "#fbbf24" : M, cursor: "pointer", fontWeight: 700, fontSize: 13, transition: "all 0.15s" }}
+            >
+              <Zap size={13} />
+              AUTO {config.autoMode ? "ON" : "OFF"}
+            </button>
+            {/* LIVE indicator */}
+            {config.enabled && sess.inSession && (
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: G, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 20, padding: "4px 10px", fontWeight: 700 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: G, animation: "pulse 1.5s ease-in-out infinite", display: "inline-block" }} />
+                LIVE
+              </span>
+            )}
+            {/* Manual enable/disable */}
+            <button onClick={() => update({ enabled: !config.enabled })} style={{ display: "flex", alignItems: "center", gap: 8, background: config.enabled ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.04)", border: `1px solid ${config.enabled ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, padding: "9px 20px", color: config.enabled ? G : M, cursor: "pointer", fontWeight: 700, fontSize: 14, transition: "all 0.15s" }}>
+              {config.enabled ? <><Play size={14} /> BOT AKTYWNY</> : <><Pause size={14} /> BOT ZATRZYMANY</>}
+            </button>
+          </div>
         </div>
 
         {/* Error banner */}
@@ -722,7 +795,52 @@ export default function TradingBot() {
           })()}
         </div>
 
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        {/* Activity Log */}
+        <div style={{ ...card, marginTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: activityLog.length > 0 ? 12 : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Radio size={13} color={config.enabled && sess.inSession ? G : M} />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Activity Log</span>
+              {config.autoMode && (
+                <span style={{ fontSize: 10, background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "2px 7px", color: "#fbbf24" }}>AUTO MODE</span>
+              )}
+              {config.enabled && sess.inSession && (
+                <span style={{ fontSize: 10, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 6, padding: "2px 7px", color: G, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: G, animation: "pulse 1.5s ease-in-out infinite", display: "inline-block" }} />
+                  LIVE
+                </span>
+              )}
+            </div>
+            {activityLog.length > 0 && (
+              <button onClick={() => setActivityLog([])} style={{ background: "none", border: "none", color: M, cursor: "pointer", fontSize: 11 }}>Wyczyść</button>
+            )}
+          </div>
+          {activityLog.length === 0 ? (
+            <div style={{ fontSize: 12, color: M, lineHeight: 1.7 }}>
+              Log aktywności pojawi się tutaj po włączeniu bota. Każda decyzja — kupno, sprzedaż, monitorowanie — będzie tu widoczna w czasie rzeczywistym.<br />
+              <span style={{ color: "#fbbf24", fontSize: 11 }}>Włącz AUTO MODE</span> <span style={{ fontSize: 11 }}>aby bot automatycznie startował o 21:00 UTC i zatrzymał się o 23:00 UTC.</span>
+            </div>
+          ) : (
+            <div ref={logRef} style={{ maxHeight: 260, overflowY: "auto", fontFamily: "monospace", fontSize: 12, lineHeight: 1.7 }}>
+              {activityLog.map((entry, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                  <span style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0, minWidth: 72, fontSize: 11 }}>{entry.time}</span>
+                  <span style={{
+                    color: entry.type === "buy" ? G
+                      : entry.type === "sell" ? "#86efac"
+                      : entry.type === "warn" ? "#f59e0b"
+                      : "rgba(255,255,255,0.55)",
+                  }}>{entry.msg}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.85); } }
+        `}</style>
 
         <div style={{ marginTop: 18, fontSize: 11, color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
           Paper trading — wyłącznie symulacja edukacyjna. Nie jest to porada inwestycyjna. Krypto = wysokie ryzyko.
