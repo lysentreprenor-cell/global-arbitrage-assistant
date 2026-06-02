@@ -31,6 +31,16 @@ export function getAllegroKeys(): { clientId: string; clientSecret: string } {
   return { clientId: k.clientId ?? "", clientSecret: k.clientSecret ?? "" };
 }
 
+export function getBybitKeys(): { apiKey: string; secret: string; testnet: boolean } {
+  const k = getApiKeys().bybit ?? {};
+  return { apiKey: k.apiKey ?? "", secret: k.secret ?? "", testnet: k.testnet === "true" };
+}
+
+export function hasBybitKeys(): boolean {
+  const { apiKey, secret } = getBybitKeys();
+  return apiKey.length > 10 && secret.length > 10;
+}
+
 export function hasAnyKey(): boolean {
   const k = getApiKeys();
   return !!(k.anthropic?.apiKey || k.ebay?.appId || k.etsy?.apiKey);

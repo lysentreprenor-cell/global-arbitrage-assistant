@@ -109,6 +109,20 @@ const PLATFORM_APIS: ApiEntry[] = [
     ],
   },
   {
+    id: "bybit",
+    name: "Bybit Futures",
+    logo: "🟡",
+    color: "#f7931a",
+    description: "Klucze do prawdziwego tradingu na Bybit USDT Perpetual Futures. Utwórz klucze API na bybit.com → Profil → API. Wymagane uprawnienia: Kontrakty (odczyt + zapis). NIGDY nie włączaj uprawnień do wypłat!",
+    docsUrl: "https://www.bybit.com/app/user/api-management",
+    keyLabel: "API Key",
+    fields: [
+      { key: "apiKey", label: "API Key", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      { key: "secret", label: "API Secret", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      { key: "testnet", label: "Testnet (wpisz 'true' dla testnet.bybit.com)", placeholder: "false" },
+    ],
+  },
+  {
     id: "rapidapi",
     name: "RapidAPI Hub",
     logo: "⚡",

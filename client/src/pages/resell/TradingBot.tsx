@@ -5,6 +5,7 @@ import {
   FlaskConical, Radio, Zap, ArrowUpCircle, ArrowDownCircle, BarChart2,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { hasBybitKeys, getBybitKeys } from "@/lib/apiKeys";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -601,8 +602,16 @@ export default function TradingBot() {
               <div style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR":""}{config.trailStop?" + Trail":""}{config.learningEnabled?" + 🧠":""} · Long{config.allowShorts?"+Short":""}</div>
             </div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             {lastRefresh && <span style={{ fontSize:11, color:M }}>Dane: {fmtTime(lastRefresh.toISOString())}</span>}
+            {hasBybitKeys()
+              ? <span style={{ fontSize:11, background:"rgba(247,147,26,0.15)", border:"1px solid rgba(247,147,26,0.4)", borderRadius:6, padding:"4px 10px", color:"#fb923c", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                  🟡 Bybit {getBybitKeys().testnet ? "Testnet" : "Live"} skonfigurowany
+                </span>
+              : <a href="/resell/settings" style={{ fontSize:11, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"4px 10px", color:M, textDecoration:"none", display:"flex", alignItems:"center", gap:5 }}>
+                  ⚙️ Dodaj klucze Bybit →
+                </a>
+            }
             <button onClick={fetchData} style={{ background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:8, padding:"6px 14px", color:G, cursor:"pointer", fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
               <RefreshCw size={12}/> Odśwież
             </button>
