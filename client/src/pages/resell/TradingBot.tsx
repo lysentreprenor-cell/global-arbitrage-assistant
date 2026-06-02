@@ -147,7 +147,8 @@ async function runBacktest(cfg: {
     // Improved entry: RSI in window + price near EMA
     const emaDist = Math.abs((c.open - ema) / ema * 100);
     const isLong  = c.open > ema && rsi >= cfg.rsiMin && rsi <= cfg.rsiMax && emaDist <= cfg.emaMaxDist;
-    const isShort = cfg.allowShorts && c.open < ema && rsi >= (100-cfg.rsiMax) && rsi <= (100-cfg.rsiMin) && emaDist <= cfg.emaMaxDist;
+    // SHORT: require RSI < 40 (strong bearish only — BTC 21-23 UTC has bullish bias)
+    const isShort = cfg.allowShorts && c.open < ema && rsi < 40 && emaDist <= cfg.emaMaxDist;
     if (!isLong && !isShort) continue;
 
     const dir: Direction = isLong ? "long" : "short";
@@ -219,7 +220,7 @@ async function runBacktest(cfg: {
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:25, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, rsiMin:45, rsiMax:65, emaMaxDist:2.0, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:25, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.35, rsiMin:50, rsiMax:65, emaMaxDist:2.0, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -323,7 +324,8 @@ export default function TradingBot() {
 
       const emaDist = Math.abs((ticker.price - ema21) / ema21 * 100);
       const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist;
-      const isShort = config.allowShorts && !aboveEMA && rsi >= (100-config.rsiMax) && rsi <= (100-config.rsiMin) && emaDist <= config.emaMaxDist;
+      // SHORT: require RSI < 40 (strong bearish only — BTC 21-23 UTC has bullish bias)
+      const isShort = config.allowShorts && !aboveEMA && rsi < 40 && emaDist <= config.emaMaxDist;
       if (!isLong && !isShort) {
         setActivityLog(prev => {
           const reason = rsi > config.rsiMax ? `RSI ${rsi} > ${config.rsiMax} (wykupienie)` : rsi < config.rsiMin ? `RSI ${rsi} < ${config.rsiMin}` : emaDist > config.emaMaxDist ? `EMA dist ${emaDist.toFixed(1)}% > ${config.emaMaxDist}%` : `${aboveEMA?"▲":"▼"} EMA`;
@@ -433,7 +435,7 @@ export default function TradingBot() {
   // Signal decision
   const emaDist_ = md && ticker ? Math.abs((ticker.price - md.ema21) / md.ema21 * 100) : 0;
   const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) : false;
-  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi >= (100-config.rsiMax) && md.rsi <= (100-config.rsiMin) && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) : false;
+  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) : false;
   const adxBlock = md ? config.useAdx && md.adx < config.adxMin : false;
 
   return (
@@ -750,7 +752,7 @@ export default function TradingBot() {
 
               <div style={{ background:"rgba(34,197,94,0.05)", border:"1px solid rgba(34,197,94,0.15)", borderRadius:8, padding:"10px 14px", fontSize:11, color:M, lineHeight:1.7, marginBottom:14 }}>
                 <strong style={{color:G}}>Aktywna konfiguracja:</strong> LONG gdy cena &gt; EMA±{config.emaMaxDist}% AND RSI [{config.rsiMin}-{config.rsiMax}]{config.useAdx ? ` AND ADX ≥ ${config.adxMin}` : ""}
-                {config.allowShorts ? ` · SHORT gdy cena < EMA AND RSI [{100-config.rsiMax}-{100-config.rsiMin}]${config.useAdx?` AND ADX ≥ ${config.adxMin}`:""}` : ""}
+                {config.allowShorts ? ` · SHORT gdy cena < EMA AND RSI < 40${config.useAdx?` AND ADX ≥ ${config.adxMin}`:""}` : ""}
                 {` · Wyjście: ${config.dynamicExits?`ATR×${config.atrSlMul}SL / ATR×${config.atrTpMul}TP`:`SL ${config.stopLoss}% / TP ${config.takeProfit}%`}${config.trailStop?` + Trail ${config.trailPct}%`:""} + koniec sesji`}
               </div>
 
