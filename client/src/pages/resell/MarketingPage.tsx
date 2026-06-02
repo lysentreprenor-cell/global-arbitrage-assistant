@@ -166,6 +166,10 @@ export default function MarketingPage() {
   const [influencer, setInfluencer] = useState<any>(null);
   const [influencerLoading, setInfluencerLoading] = useState(false);
   const [influencerError, setInfluencerError] = useState<string | null>(null);
+  // Media upload
+  const [uploadedImages, setUploadedImages] = useState<{ name: string; url: string }[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<{ name: string; url: string }[]>([]);
+  const [mediaDragOver, setMediaDragOver] = useState(false);
 
   const fetchYt = async () => {
     if (!ytUrl.trim()) return;
@@ -204,6 +208,22 @@ export default function MarketingPage() {
     setRealCommentsLoading(false);
   };
 
+  const handleMediaUpload = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const url = e.target?.result as string;
+        if (file.type.startsWith("image/")) {
+          setUploadedImages(prev => prev.length < 8 ? [...prev, { name: file.name, url }] : prev);
+        } else if (file.type.startsWith("video/")) {
+          setUploadedVideos(prev => prev.length < 4 ? [...prev, { name: file.name, url }] : prev);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const buildDefaultImgPrompt = () => result
     ? `Professional marketing photo for "${result.meta.product}", ${result.meta.campaignType} campaign targeting ${result.meta.targetMarket}. High quality commercial photography, clean background, product showcase style.`
     : "";
@@ -221,7 +241,10 @@ export default function MarketingPage() {
     try {
       const r = await fetch("/api/marketing/gen-image", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt, geminiKey: key }),
+        body: JSON.stringify({
+          prompt, geminiKey: key,
+          referenceImage: uploadedImages[0]?.url ?? null,
+        }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Błąd generowania grafiki");
@@ -673,6 +696,65 @@ export default function MarketingPage() {
                   <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Stan, kolor, cechy szczególne..." style={inp} />
                 </div>
               </div>
+            </div>
+
+            {/* Media upload */}
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>
+                ZDJĘCIA I FILMY PRODUKTU
+                <span style={{ color: "rgba(255,255,255,0.25)", fontWeight: 400, marginLeft: 8 }}>do 8 zdjęć · 4 filmy · używane jako referencja w AI</span>
+              </div>
+              {/* Drop zone */}
+              <label
+                onDragOver={e => { e.preventDefault(); setMediaDragOver(true); }}
+                onDragLeave={() => setMediaDragOver(false)}
+                onDrop={e => { e.preventDefault(); setMediaDragOver(false); handleMediaUpload(e.dataTransfer.files); }}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  gap: 8, padding: "18px 12px", borderRadius: 14, cursor: "pointer",
+                  border: `2px dashed ${mediaDragOver ? "rgba(74,222,128,0.7)" : "rgba(255,255,255,0.12)"}`,
+                  background: mediaDragOver ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.02)",
+                  transition: "all 0.2s",
+                }}
+              >
+                <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }}
+                  onChange={e => handleMediaUpload(e.target.files)} />
+                <div style={{ fontSize: 24 }}>📁</div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center" }}>
+                  Kliknij lub przeciągnij zdjęcia/filmy<br />
+                  <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>JPG, PNG, WEBP, MP4, MOV, WEBM</span>
+                </div>
+              </label>
+              {/* Image thumbnails */}
+              {uploadedImages.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                  {uploadedImages.map((img, i) => (
+                    <div key={i} style={{ position: "relative", width: 72, height: 72, borderRadius: 10, overflow: "hidden", border: i === 0 ? "2px solid #4ade80" : "1px solid rgba(255,255,255,0.1)", flexShrink: 0 }}>
+                      <img src={img.url} alt={img.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      {i === 0 && (
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(74,222,128,0.85)", color: "#000", fontSize: 8, fontWeight: 700, textAlign: "center", padding: "2px 0" }}>REFERENCJA</div>
+                      )}
+                      <button onClick={() => setUploadedImages(prev => prev.filter((_, j) => j !== i))} style={{
+                        position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: "50%",
+                        background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 10, cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Video list */}
+              {uploadedVideos.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+                  {uploadedVideos.map((vid, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 12px" }}>
+                      <span style={{ fontSize: 16 }}>🎬</span>
+                      <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{vid.name}</span>
+                      <button onClick={() => setUploadedVideos(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Campaign history */}
@@ -2125,6 +2207,37 @@ export default function MarketingPage() {
                   <Ch id="video" icon="🎬" label="Wideo AI" subtitle="Imagen 3 — grafika · Veo 3 — filmik reklamowy" description="Grafika reklamowa (Google Imagen 3) i 8-sekundowy filmik z lektorem i muzyką (Google Veo 3). Gotowe materiały wizualne bez fotografa i studia — bezpośrednio do Social Media i reklam." color="#ea4335"
                     status={genImgResult || vidResult ? "done" : "generator"}>
                     <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 18 }}>
+
+                {/* Uploaded media reference */}
+                {(uploadedImages.length > 0 || uploadedVideos.length > 0) && (
+                  <div style={{ background: "rgba(74,222,128,0.04)", border: "1px solid rgba(74,222,128,0.18)", borderRadius: 14, padding: "16px 18px" }}>
+                    <div style={{ color: "#4ade80", fontWeight: 700, fontSize: 12, marginBottom: 12 }}>📎 Twoje materiały (referencja dla AI)</div>
+                    {uploadedImages.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: uploadedVideos.length > 0 ? 10 : 0 }}>
+                        {uploadedImages.map((img, i) => (
+                          <div key={i} style={{ position: "relative", width: 80, height: 80, borderRadius: 10, overflow: "hidden", border: i === 0 ? "2px solid #4ade80" : "1px solid rgba(255,255,255,0.1)" }}>
+                            <img src={img.url} alt={img.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            {i === 0 && (
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(74,222,128,0.9)", color: "#000", fontSize: 8, fontWeight: 700, textAlign: "center", padding: "2px 0" }}>REFERENCJA</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {uploadedVideos.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {uploadedVideos.map((vid, i) => (
+                          <video key={i} controls src={vid.url} style={{ width: "100%", borderRadius: 10, maxHeight: 200, border: "1px solid rgba(255,255,255,0.08)" }} />
+                        ))}
+                      </div>
+                    )}
+                    {uploadedImages.length > 0 && (
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 8 }}>
+                        Pierwsze zdjęcie jest wysyłane jako referencja do Imagen 3
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Imagen 3 — grafika */}
                 <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "20px 22px" }}>

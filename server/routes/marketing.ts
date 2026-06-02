@@ -108,10 +108,43 @@ const CONTINENT_CONTEXT: Record<string, string> = {
 
 // ── Imagen 3 — marketing image generation ────────────────────────────────────
 router.post("/gen-image", async (req: Request, res: Response) => {
-  const { prompt, geminiKey } = req.body;
+  const { prompt, geminiKey, referenceImage } = req.body;
   const key: string = geminiKey || process.env.GEMINI_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Gemini API key required" });
   if (!prompt) return res.status(400).json({ error: "prompt required" });
+
+  let finalPrompt = prompt;
+
+  // If a reference image was uploaded, use Gemini Flash to analyze it and enhance the prompt
+  if (referenceImage && typeof referenceImage === "string" && referenceImage.startsWith("data:image/")) {
+    try {
+      const mimeMatch = referenceImage.match(/^data:(image\/[^;]+);base64,/);
+      const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const b64data = referenceImage.replace(/^data:image\/[^;]+;base64,/, "");
+
+      const visionResp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { inlineData: { mimeType, data: b64data } },
+                { text: `You are a marketing art director. The user uploaded a product photo and wants to generate a marketing image based on it. Describe this product in detail (colors, shape, materials, distinctive features) and write an enhanced Imagen 3 prompt that incorporates those details. Original prompt: "${prompt}". Return ONLY the improved prompt, no extra text, max 200 characters.` }
+              ]
+            }],
+            generationConfig: { maxOutputTokens: 300 },
+          }),
+        }
+      );
+      if (visionResp.ok) {
+        const vd = await visionResp.json() as any;
+        const enhanced = vd.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (enhanced) finalPrompt = enhanced;
+      }
+    } catch { /* fall back to original prompt */ }
+  }
 
   try {
     const r = await fetch(
@@ -120,7 +153,7 @@ router.post("/gen-image", async (req: Request, res: Response) => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          instances: [{ prompt }],
+          instances: [{ prompt: finalPrompt }],
           parameters: { sampleCount: 1, aspectRatio: "16:9" },
         }),
       }
@@ -132,7 +165,7 @@ router.post("/gen-image", async (req: Request, res: Response) => {
     const data = await r.json() as any;
     const b64 = data.predictions?.[0]?.bytesBase64Encoded;
     if (!b64) return res.status(502).json({ error: "No image in response" });
-    return res.json({ image: `data:image/png;base64,${b64}` });
+    return res.json({ image: `data:image/png;base64,${b64}`, usedPrompt: finalPrompt });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Image generation failed" });
   }
