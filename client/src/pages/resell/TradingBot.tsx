@@ -202,6 +202,34 @@ async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
   return raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], utcH:new Date(k[0]).getUTCHours() }));
 }
 
+// Fetch complete history from Binance (paginated) — BTC/USDT available from Aug 2017
+async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => void): Promise<CandleData[]> {
+  const all: CandleData[] = [];
+  // BTCUSDT pair listed on Binance ~Aug 2017; ETHUSDT/SOLUSDT similar era
+  const originMap: Record<Symbol, number> = {
+    BTCUSDT: new Date("2017-08-17").getTime(),
+    ETHUSDT: new Date("2017-08-17").getTime(),
+    SOLUSDT: new Date("2020-09-01").getTime(),
+  };
+  let startTime = originMap[symbol] ?? new Date("2017-08-17").getTime();
+  const endTime  = Date.now();
+  const totalMs  = endTime - startTime;
+
+  while (startTime < endTime - 3600000) {
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=1000&startTime=${startTime}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Binance ${res.status}`);
+    const raw: any[][] = await res.json();
+    if (!raw.length) break;
+    all.push(...raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], utcH:new Date(k[0]).getUTCHours() })));
+    startTime = (raw[raw.length-1][0] as number) + 3600000;
+    onProgress(Math.min(99, ((startTime - originMap[symbol]) / totalMs) * 100));
+    // yield to browser UI between chunks
+    await new Promise(r => setTimeout(r, 0));
+  }
+  return all;
+}
+
 async function runBacktest(cfg: BtCfg): Promise<BtResult> {
   const all = await fetchCandleData(cfg.symbol);
   const windowSize = cfg.allow24h ? 300 : 500 + Math.floor(Math.random() * 200);
@@ -210,7 +238,7 @@ async function runBacktest(cfg: BtCfg): Promise<BtResult> {
   return runBacktestSync(all.slice(start, start+windowSize), cfg);
 }
 
-type OptResult = { rsiMin: number; rsiMax: number; trailPct: number; sharpe: number; winRate: number; totalReturn: number };
+type OptResult = { rsiMin: number; rsiMax: number; trailPct: number; sharpe: number; winRate: number; totalReturn: number; windows?: number };
 
 async function runOptimize(cfg: BtCfg): Promise<OptResult> {
   const all = await fetchCandleData(cfg.symbol);
@@ -225,6 +253,38 @@ async function runOptimize(cfg: BtCfg): Promise<OptResult> {
     const r = runBacktestSync(testCandles, {...cfg, rsiMin, rsiMax, trailPct});
     if (r.trades.length >= 6 && r.sharpe > best.sharpe) {
       best = { rsiMin, rsiMax, trailPct, sharpe:r.sharpe, winRate:r.winRate, totalReturn:r.totalReturn };
+    }
+  }
+  return best;
+}
+
+// Deep optimizer: test all combos across many random windows of full history
+function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
+  const combos: [number, number, number][] = [
+    [40,60,0.10],[40,60,0.15],[40,60,0.25],[40,60,0.35],
+    [45,65,0.10],[45,65,0.15],[45,65,0.25],[45,65,0.35],
+    [50,70,0.10],[50,70,0.15],[50,70,0.25],[50,70,0.35],
+    [42,62,0.15],[42,62,0.25],[48,68,0.15],[48,68,0.25],
+  ];
+  const WINDOW = 800;
+  const N_WINDOWS = Math.min(30, Math.floor(allCandles.length / WINDOW));
+  // evenly-spaced windows across full history
+  const windows: CandleData[][] = [];
+  const step = Math.floor((allCandles.length - WINDOW) / N_WINDOWS);
+  for (let i=0; i<N_WINDOWS; i++) {
+    const start = i * step;
+    windows.push(allCandles.slice(start, start + WINDOW));
+  }
+
+  let best: OptResult = { rsiMin:45, rsiMax:65, trailPct:0.25, sharpe:-999, winRate:0, totalReturn:0, windows:0 };
+  for (const [rsiMin, rsiMax, trailPct] of combos) {
+    let sumSharpe=0, sumWR=0, sumRet=0, valid=0;
+    for (const w of windows) {
+      const r = runBacktestSync(w, {...cfg, rsiMin, rsiMax, trailPct});
+      if (r.trades.length >= 4) { sumSharpe+=r.sharpe; sumWR+=r.winRate; sumRet+=r.totalReturn; valid++; }
+    }
+    if (valid >= Math.floor(N_WINDOWS * 0.5) && sumSharpe/valid > best.sharpe) {
+      best = { rsiMin, rsiMax, trailPct, sharpe:parseFloat((sumSharpe/valid).toFixed(2)), winRate:sumWR/valid, totalReturn:sumRet/valid, windows:valid };
     }
   }
   return best;
@@ -287,6 +347,10 @@ export default function TradingBot() {
   const [showBtTrades, setShowBtTrades] = useState(false);
   const [optLoading, setOptLoading] = useState(false);
   const [optResult, setOptResult]   = useState<OptResult | null>(null);
+  const [deepLoading, setDeepLoading]   = useState(false);
+  const [deepProgress, setDeepProgress] = useState(0);
+  const [deepResult, setDeepResult]     = useState<OptResult | null>(null);
+  const fullHistoryRef = useRef<{ symbol: Symbol; candles: CandleData[] } | null>(null);
   const [activityLog, setActivityLog]   = useState<LogEntry[]>([]);
   const logRef         = useRef<HTMLDivElement>(null);
   const prevSessionRef = useRef<boolean | null>(null);
@@ -957,32 +1021,86 @@ export default function TradingBot() {
                 {btResult ? `${btResult.days}d · ${btResult.periodLabel}` : config.allow24h?"24H mode ~12 dni":"losowy okres ~25 dni"} · RSI[{config.rsiMin}-{config.rsiMax}]{config.allow24h?` · 24H hold${config.maxHoldCandles}h`:""}{config.trailStop?` · Trail${config.trailPct}%`:""} · {config.allowShorts?"L+S":"Long"}
               </span>
             </div>
-            <div style={{ display:"flex", gap:8 }}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <button
+                onClick={async()=>{
+                  setDeepLoading(true); setDeepProgress(0); setDeepResult(null);
+                  addLog(`🧠 Deep Train start — pobieranie historii ${config.symbol} od 2017…`,"info");
+                  try {
+                    // Use cached data if same symbol
+                    let candles: CandleData[];
+                    if (fullHistoryRef.current?.symbol === config.symbol) {
+                      candles = fullHistoryRef.current.candles;
+                      setDeepProgress(50);
+                    } else {
+                      candles = await fetchFullHistory(config.symbol, p => setDeepProgress(p * 0.6));
+                      fullHistoryRef.current = { symbol: config.symbol, candles };
+                    }
+                    addLog(`🧠 Pobrano ${candles.length} świec (${Math.round(candles.length/24/365*10)/10} lat). Optymalizacja…`,"info");
+                    setDeepProgress(65);
+                    // Run sync in a timeout so UI can update
+                    await new Promise(r => setTimeout(r, 20));
+                    const r = runDeepOptimizeSync(candles, {...config});
+                    setDeepProgress(100);
+                    setDeepResult(r);
+                    update({rsiMin:r.rsiMin, rsiMax:r.rsiMax, trailPct:r.trailPct});
+                    setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct));
+                    addLog(`🧠 Deep Train (${r.windows} okien historycznych): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → avg Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info");
+                  } catch(e:any) { addLog("Deep Train błąd: "+e.message,"warn"); }
+                  finally { setDeepLoading(false); }
+                }}
+                disabled={deepLoading||optLoading||btLoading}
+                style={{ background:deepLoading?"rgba(251,146,60,0.05)":"rgba(251,146,60,0.12)", border:"1px solid rgba(251,146,60,0.4)", borderRadius:8, padding:"8px 14px", color:deepLoading?M:"#fb923c", cursor:deepLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
+                {deepLoading
+                  ? <><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> {deepProgress < 62 ? `Pobieranie ${deepProgress.toFixed(0)}%` : "Optymalizacja…"}</>
+                  : <><BarChart2 size={12}/> Deep Train</>}
+              </button>
               <button
                 onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); setOptResult(r); update({rsiMin:r.rsiMin,rsiMax:r.rsiMax,trailPct:r.trailPct}); setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct)); addLog(`🧠 Auto-opt: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info"); } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
-                disabled={optLoading||btLoading}
+                disabled={optLoading||btLoading||deepLoading}
                 style={{ background:optLoading?"rgba(251,191,36,0.05)":"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:8, padding:"8px 14px", color:optLoading?M:"#fbbf24", cursor:optLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
                 {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
               </button>
               <button
                 onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest({...config})); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
-                disabled={btLoading}
+                disabled={btLoading||deepLoading}
                 style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
                 {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
               </button>
             </div>
           </div>
 
-          {optResult && (
+          {/* Deep Train progress bar */}
+          {deepLoading && (
+            <div style={{ marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"#fb923c", marginBottom:4 }}>
+                <span>🧠 Deep Train — {deepProgress < 62 ? `pobieranie historii ${config.symbol} od 2017` : "optymalizacja 30 okien historycznych"}</span>
+                <span>{deepProgress.toFixed(0)}%</span>
+              </div>
+              <div style={{ height:4, background:"rgba(255,255,255,0.07)", borderRadius:2 }}>
+                <div style={{ width:`${deepProgress}%`, height:"100%", background:"#fb923c", borderRadius:2, transition:"width 0.3s" }}/>
+              </div>
+            </div>
+          )}
+
+          {deepResult && !deepLoading && (
+            <div style={{ background:"rgba(251,146,60,0.07)", border:"1px solid rgba(251,146,60,0.3)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
+              <span style={{color:"#fb923c",fontWeight:700}}>🧠 Deep Train ({deepResult.windows} okien historycznych):</span>
+              {" "}RSI [{deepResult.rsiMin}-{deepResult.rsiMax}] · Trail {deepResult.trailPct}% → avg Sharpe <span style={{color:deepResult.sharpe>=1?G:"#f59e0b"}}>{deepResult.sharpe.toFixed(2)}</span> · avg WR <span style={{color:G}}>{deepResult.winRate.toFixed(0)}%</span>
+              <span style={{color:M}}> — najrobustniejsze parametry z całej historii Binance</span>
+            </div>
+          )}
+
+          {optResult && !deepResult && (
             <div style={{ background:"rgba(251,191,36,0.07)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
               <span style={{color:"#fbbf24",fontWeight:700}}>🧠 Auto-Opt znalazł:</span>
               {" "}RSI [{optResult.rsiMin}-{optResult.rsiMax}] · Trail {optResult.trailPct}% → Sharpe <span style={{color:optResult.sharpe>=1?G:"#f59e0b"}}>{optResult.sharpe.toFixed(2)}</span> · WR <span style={{color:G}}>{optResult.winRate.toFixed(0)}%</span> · Zwrot <span style={{color:optResult.totalReturn>=0?G:R}}>{optResult.totalReturn>=0?"+":""}{optResult.totalReturn.toFixed(1)}%</span>
               <span style={{color:M}}> — parametry zaktualizowane automatycznie</span>
             </div>
           )}
-          {!btResult && !btLoading && !btError && (
+          {!btResult && !btLoading && !btError && !deepLoading && (
             <div style={{ fontSize:13, color:M, lineHeight:1.7 }}>
-              {config.allow24h?"Tryb 24H: bot szuka sygnałów przez całą dobę, trzyma pozycję max "+config.maxHoldCandles+"h.":"Tryb sesja: bot handluje w oknie 21:00–23:00 UTC."} Kliknij <strong style={{color:"#fbbf24"}}>Auto-Opt</strong> żeby system sam dobrał najlepsze RSI i trail.
+              {config.allow24h?"Tryb 24H: bot szuka sygnałów przez całą dobę, trzyma pozycję max "+config.maxHoldCandles+"h.":"Tryb sesja: bot handluje w oknie 21:00–23:00 UTC."} Kliknij <strong style={{color:"#fb923c"}}>Deep Train</strong> żeby wytrenować na całej historii Binance (2017–dziś) lub <strong style={{color:"#fbbf24"}}>Auto-Opt</strong> na ostatnich 800 świecach.
             </div>
           )}
           {btError && <div style={{ color:R, fontSize:13, marginTop:8, display:"flex", alignItems:"center", gap:6 }}><AlertCircle size={14}/> {btError}</div>}
