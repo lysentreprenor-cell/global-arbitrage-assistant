@@ -233,7 +233,7 @@ async function runBacktest(cfg: {
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:true, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.35, trailActivation:0.3, rsiMin:50, rsiMax:65, emaMaxDist:2.0, requirePrevBull:true, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -799,12 +799,18 @@ export default function TradingBot() {
                 {` · Wyjście: ${config.dynamicExits?`ATR×${config.atrSlMul}SL / ATR×${config.atrTpMul}TP`:`SL ${config.stopLoss}% / TP ${config.takeProfit}%`}${config.trailStop?` + Trail ${config.trailPct}%`:""} + koniec sesji`}
               </div>
 
-              {closed.length > 0 && (
-                <button onClick={()=>{if(confirm("Wyczyścić historię?")) update({trades:[],enabled:false});}}
-                  style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"8px 18px", color:R, cursor:"pointer", fontSize:13 }}>
-                  Wyczyść historię
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                <button onClick={()=>{const best={...DEFAULTS, symbol:config.symbol, capital:config.capital, trades:config.trades}; setConfig(best); saveConfig(best); setTmpSL(String(best.stopLoss)); setTmpTP(String(best.takeProfit)); setTmpTrailPct(String(best.trailPct)); setTmpTrailAct(String(best.trailActivation)); setTmpRsiMin(String(best.rsiMin)); setTmpRsiMax(String(best.rsiMax)); setTmpEmaDist(String(best.emaMaxDist)); setTmpAdxMin(String(best.adxMin)); addLog("Reset do optymalnych ustawień (62% WR formula)","info");}}
+                  style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.3)", borderRadius:8, padding:"8px 18px", color:G, cursor:"pointer", fontSize:13 }}>
+                  Reset do najlepszych ustawień
                 </button>
-              )}
+                {closed.length > 0 && (
+                  <button onClick={()=>{if(confirm("Wyczyścić historię?")) update({trades:[],enabled:false});}}
+                    style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"8px 18px", color:R, cursor:"pointer", fontSize:13 }}>
+                    Wyczyść historię
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
