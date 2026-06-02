@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp,
   Camera, ListTodo, Search, Rocket, Bell, Copy, Flame, LineChart,
-  Truck, Crosshair, Megaphone, Bot,
+  Truck, Crosshair, Megaphone, Bot, Activity,
 } from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/resell/photo",        label: "Ze Zdjęcia",  icon: Camera },
   { href: "/resell/quick-list",   label: "Kopiuj",      icon: Copy },
   { href: "/resell/autopilot",    label: "Autopilot",   icon: Rocket },
+  { href: "/resell/trading-bot",  label: "Trading Bot", icon: Activity },
   { href: "/resell/settings",     label: "API",         icon: Settings },
 ];
 

@@ -27,6 +27,7 @@ import AgentPage from "@/pages/resell/AgentPage";
 import PLDashboard from "@/pages/resell/PLDashboard";
 import SuppliersPage from "@/pages/resell/SuppliersPage";
 import CompetitorTracker from "@/pages/resell/CompetitorTracker";
+import TradingBot from "@/pages/resell/TradingBot";
 
 function RedirectToResell() {
   const [, setLocation] = useLocation();
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/resell/competitors" component={CompetitorTracker} />
         <Route path="/resell/marketing" component={MarketingPage} />
         <Route path="/resell/agent" component={AgentPage} />
+        <Route path="/resell/trading-bot" component={TradingBot} />
       </Switch>
       <Toaster />
     </QueryClientProvider>
