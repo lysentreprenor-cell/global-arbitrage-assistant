@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Bot, TrendingUp, TrendingDown, Clock, RefreshCw, Settings,
   ChevronDown, ChevronUp, Play, Pause, AlertCircle, Activity,
+  FlaskConical, CheckCircle2, XCircle, Minus,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 
@@ -112,6 +113,110 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("pl", { hour: "2-digit", minute: "2-digit" });
 }
 
+// ─── Backtest types ───────────────────────────────────────────────────────────
+
+type BtTrade = {
+  date: string;
+  entryPrice: number;
+  exitPrice: number;
+  pnlPct: number;
+  reason: TradeReason;
+};
+
+type BtResult = {
+  symbol: string;
+  days: number;
+  trades: BtTrade[];
+  winRate: number;
+  totalReturn: number;
+  maxDrawdown: number;
+  avgWin: number;
+  avgLoss: number;
+  sharpe: number;
+  equity: number[]; // cumulative return at each trade
+};
+
+// ─── Backtest engine (runs in browser on Binance klines) ─────────────────────
+
+async function runBacktest(symbol: Symbol, sl: number, tp: number): Promise<BtResult> {
+  const BINANCE = "https://api.binance.com/api/v3";
+  const res = await fetch(`${BINANCE}/klines?symbol=${symbol}&interval=1h&limit=1000`);
+  if (!res.ok) throw new Error(`Binance ${res.status}`);
+  const raw: any[][] = await res.json();
+
+  const candles = raw.map(k => ({
+    time: k[0] as number,
+    open: parseFloat(k[1]),
+    high: parseFloat(k[2]),
+    low: parseFloat(k[3]),
+    close: parseFloat(k[4]),
+    utcH: new Date(k[0]).getUTCHours(),
+  }));
+
+  const trades: BtTrade[] = [];
+
+  for (let i = 22; i < candles.length - 2; i++) {
+    const c = candles[i];
+    if (c.utcH !== 21) continue;
+
+    // EMA-21 from prior 21 closes
+    const ema = calcEMA21(candles.slice(i - 21, i).map(x => x.close));
+    if (c.open <= ema) continue; // no signal
+
+    const entry = c.open;
+    let exit = c.close;
+    let reason: TradeReason = "session_end";
+
+    // Simulate through 21:xx and 22:xx candles
+    for (let j = i; j <= i + 1 && j < candles.length; j++) {
+      const candle = candles[j];
+      const lowPct  = (candle.low  - entry) / entry * 100;
+      const highPct = (candle.high - entry) / entry * 100;
+      if (lowPct <= -sl)  { exit = entry * (1 - sl  / 100); reason = "stop_loss";   break; }
+      if (highPct >= tp)  { exit = entry * (1 + tp  / 100); reason = "take_profit"; break; }
+      exit = candle.close;
+    }
+
+    trades.push({
+      date: new Date(c.time).toLocaleDateString("pl", { day: "2-digit", month: "2-digit" }),
+      entryPrice: entry,
+      exitPrice: exit,
+      pnlPct: (exit - entry) / entry * 100,
+      reason,
+    });
+  }
+
+  if (!trades.length) return { symbol, days: Math.round(candles.length / 24), trades: [], winRate: 0, totalReturn: 0, maxDrawdown: 0, avgWin: 0, avgLoss: 0, sharpe: 0, equity: [] };
+
+  const wins = trades.filter(t => t.pnlPct > 0);
+  const losses = trades.filter(t => t.pnlPct <= 0);
+  const winRate = wins.length / trades.length * 100;
+  const avgWin  = wins.length  ? wins.reduce((s, t) => s + t.pnlPct, 0)   / wins.length   : 0;
+  const avgLoss = losses.length ? losses.reduce((s, t) => s + t.pnlPct, 0) / losses.length : 0;
+
+  // Equity curve (compounded %)
+  let eq = 100;
+  const equity: number[] = [];
+  let peak = 100;
+  let maxDD = 0;
+  for (const t of trades) {
+    eq *= (1 + t.pnlPct / 100);
+    equity.push(parseFloat((eq - 100).toFixed(2)));
+    if (eq > peak) peak = eq;
+    const dd = (peak - eq) / peak * 100;
+    if (dd > maxDD) maxDD = dd;
+  }
+  const totalReturn = eq - 100;
+
+  // Sharpe (rough: mean/stdev of daily returns)
+  const returns = trades.map(t => t.pnlPct);
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+  const sharpe = variance > 0 ? parseFloat((mean / Math.sqrt(variance) * Math.sqrt(252 / 24)).toFixed(2)) : 0;
+
+  return { symbol, days: Math.round(candles.length / 24), trades, winRate, totalReturn, maxDrawdown: maxDD, avgWin, avgLoss, sharpe, equity };
+}
+
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
@@ -147,6 +252,10 @@ export default function TradingBot() {
   const [now, setNow] = useState(new Date());
   const [showSettings, setShowSettings] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [btResult, setBtResult] = useState<BtResult | null>(null);
+  const [btLoading, setBtLoading] = useState(false);
+  const [btError, setBtError] = useState<string | null>(null);
+  const [showBtTrades, setShowBtTrades] = useState(false);
   const [tmpCapital, setTmpCapital] = useState(String(config.capital));
   const [tmpRisk, setTmpRisk] = useState(String(config.riskPct));
   const [tmpSL, setTmpSL] = useState(String(config.stopLoss));
@@ -489,6 +598,131 @@ export default function TradingBot() {
             </div>
           )}
         </div>
+
+        {/* ── Backtest section ── */}
+        <div style={{ ...card, marginTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: btResult ? 16 : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <FlaskConical size={15} color={G} />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Backtest strategii</span>
+              <span style={{ fontSize: 11, color: M, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 6, padding: "2px 8px" }}>
+                ~41 dni realnych danych
+              </span>
+            </div>
+            <button
+              onClick={async () => {
+                setBtLoading(true); setBtError(null); setBtResult(null);
+                try { setBtResult(await runBacktest(config.symbol, config.stopLoss, config.takeProfit)); }
+                catch (e: any) { setBtError(e.message); }
+                finally { setBtLoading(false); }
+              }}
+              disabled={btLoading}
+              style={{ background: btLoading ? "rgba(34,197,94,0.05)" : "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: 8, padding: "8px 18px", color: btLoading ? M : G, cursor: btLoading ? "default" : "pointer", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+            >
+              {btLoading ? <><RefreshCw size={13} style={{ animation: "spin 1s linear infinite" }} /> Pobieranie...</> : <><FlaskConical size={13} /> Uruchom</>}
+            </button>
+          </div>
+
+          {!btResult && !btLoading && !btError && (
+            <div style={{ fontSize: 13, color: M, lineHeight: 1.7 }}>
+              Pobiera ostatnie ~1000 godzinowych świec z Binance i symuluje strategię sesyjną na realnych danych historycznych. Zobaczysz ile % transakcji było zyskownych i jaki byłby całkowity zwrot.
+            </div>
+          )}
+
+          {btError && <div style={{ color: R, fontSize: 13, marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}><AlertCircle size={14} /> {btError}</div>}
+
+          {btResult && (() => {
+            const r = btResult;
+            const eqMin = Math.min(0, ...r.equity);
+            const eqMax = Math.max(0.01, ...r.equity);
+            const range = eqMax - eqMin;
+
+            return (
+              <div>
+                {/* Summary stats */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 14 }}>
+                  {([
+                    { label: "Win Rate", value: `${r.winRate.toFixed(0)}%`, color: r.winRate >= 55 ? G : r.winRate >= 45 ? "#f59e0b" : R, sub: `${r.trades.filter(t=>t.pnlPct>0).length}W / ${r.trades.filter(t=>t.pnlPct<=0).length}L` },
+                    { label: "Łączny zwrot", value: (r.totalReturn >= 0 ? "+" : "") + r.totalReturn.toFixed(1) + "%", color: r.totalReturn >= 0 ? G : R, sub: `${r.trades.length} transakcji / ${r.days} dni` },
+                    { label: "Max Drawdown", value: `-${r.maxDrawdown.toFixed(1)}%`, color: r.maxDrawdown > 15 ? R : r.maxDrawdown > 8 ? "#f59e0b" : G, sub: "max obsunięcie kapitału" },
+                    { label: "Śr. zysk", value: `+${r.avgWin.toFixed(2)}%`, color: G, sub: "na wygranej transakcji" },
+                    { label: "Śr. strata", value: `${r.avgLoss.toFixed(2)}%`, color: R, sub: "na przegranej transakcji" },
+                    { label: "Sharpe ratio", value: r.sharpe.toFixed(2), color: r.sharpe >= 1.5 ? G : r.sharpe >= 0.8 ? "#f59e0b" : R, sub: r.sharpe >= 1.5 ? "dobry" : r.sharpe >= 0.8 ? "akceptowalny" : "słaby" },
+                  ] as {label:string;value:string;color:string;sub:string}[]).map(({ label, value, color, sub }) => (
+                    <div key={label} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", textAlign: "center" as const }}>
+                      <div style={{ fontSize: 10, color: M, letterSpacing: 0.8, marginBottom: 4 }}>{label.toUpperCase()}</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
+                      <div style={{ fontSize: 10, color: M, marginTop: 3 }}>{sub}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Equity curve */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, color: M, letterSpacing: 0.8, marginBottom: 8 }}>KRZYWA KAPITAŁU</div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 60, background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "8px 10px" }}>
+                    {r.equity.map((eq, i) => {
+                      const h = range > 0 ? Math.max(2, Math.abs(eq - eqMin) / range * 44) : 2;
+                      const isPos = eq >= 0;
+                      return (
+                        <div key={i} title={`${eq >= 0 ? "+" : ""}${eq.toFixed(1)}%`} style={{ flex: 1, height: h, background: isPos ? G : R, borderRadius: 2, opacity: 0.8, minWidth: 2 }} />
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: M, marginTop: 4 }}>
+                    <span>{r.trades[0]?.date}</span>
+                    <span style={{ color: r.totalReturn >= 0 ? G : R, fontWeight: 700 }}>{r.totalReturn >= 0 ? "+" : ""}{r.totalReturn.toFixed(1)}% końcowy</span>
+                    <span>{r.trades[r.trades.length-1]?.date}</span>
+                  </div>
+                </div>
+
+                {/* Verdict */}
+                <div style={{ background: r.winRate >= 55 && r.totalReturn > 0 ? "rgba(34,197,94,0.08)" : r.winRate >= 45 ? "rgba(245,158,11,0.08)" : "rgba(248,113,113,0.08)", border: `1px solid ${r.winRate >= 55 && r.totalReturn > 0 ? "rgba(34,197,94,0.25)" : r.winRate >= 45 ? "rgba(245,158,11,0.25)" : "rgba(248,113,113,0.25)"}`, borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13 }}>
+                  <strong style={{ color: r.winRate >= 55 && r.totalReturn > 0 ? G : r.winRate >= 45 ? "#f59e0b" : R }}>
+                    {r.winRate >= 55 && r.totalReturn > 0 ? "✅ Strategia byłaby zyskowna" : r.winRate >= 45 ? "⚠️ Wyniki mieszane" : "❌ Strategia byłaby nierentowna"}
+                  </strong>
+                  {" "}w tym okresie. Win rate {r.winRate.toFixed(0)}% {r.winRate >= 57 ? "(powyżej progu opłacalności ~57%)" : r.winRate >= 50 ? "(blisko progu opłacalności)" : "(poniżej progu opłacalności)"}. Pamiętaj: wyniki historyczne nie gwarantują przyszłych.
+                </div>
+
+                {/* Toggle trade list */}
+                <button onClick={() => setShowBtTrades(s => !s)} style={{ background: "none", border: "none", color: M, cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 5, padding: 0, marginBottom: showBtTrades ? 10 : 0 }}>
+                  {showBtTrades ? <ChevronUp size={13}/> : <ChevronDown size={13}/>} {showBtTrades ? "Ukryj" : "Pokaż"} listę {r.trades.length} transakcji
+                </button>
+
+                {showBtTrades && (
+                  <div style={{ overflowX: "auto", maxHeight: 300, overflowY: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead style={{ position: "sticky", top: 0, background: "#001a0a" }}>
+                        <tr>
+                          {["DATA", "WEJŚCIE", "WYJŚCIE", "WYNIK", "POWÓD"].map(h => (
+                            <th key={h} style={{ padding: "5px 8px", color: M, fontSize: 10, textAlign: h === "DATA" || h === "POWÓD" ? "left" as const : "right" as const, whiteSpace: "nowrap" as const }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {r.trades.map((t, i) => (
+                          <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                            <td style={{ padding: "6px 8px", color: M }}>{t.date}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right" as const }}>${fmt(t.entryPrice)}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right" as const }}>${fmt(t.exitPrice)}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right" as const, color: t.pnlPct > 0 ? G : R, fontWeight: 700 }}>
+                              {t.pnlPct >= 0 ? "+" : ""}{t.pnlPct.toFixed(2)}%
+                            </td>
+                            <td style={{ padding: "6px 8px", color: M, fontSize: 11 }}>
+                              {t.reason === "take_profit" ? <span style={{color:G}}>TP ✓</span> : t.reason === "stop_loss" ? <span style={{color:R}}>SL ✗</span> : "sesja"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
         <div style={{ marginTop: 18, fontSize: 11, color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
           Paper trading — wyłącznie symulacja edukacyjna. Nie jest to porada inwestycyjna. Krypto = wysokie ryzyko.
