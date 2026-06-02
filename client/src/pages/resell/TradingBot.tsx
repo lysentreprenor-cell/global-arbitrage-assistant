@@ -25,10 +25,9 @@ type BotConfig = {
   capital: number; riskPct: number; stopLoss: number; takeProfit: number;
   useAdx: boolean; adxMin: number;
   dynamicExits: boolean; atrSlMul: number; atrTpMul: number;
-  trailStop: boolean; trailPct: number; trailActivation: number; // trail activates after this % profit
-  rsiMin: number; rsiMax: number;
-  emaMaxDist: number;
-  requirePrevBull: boolean; // 20:00 candle must be bullish before LONG entry
+  trailStop: boolean; trailPct: number; trailActivation: number;
+  rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
+  allow24h: boolean; maxHoldCandles: number; // 24h mode
   trades: PaperTrade[];
 };
 
@@ -116,133 +115,124 @@ const logTime= () => new Date().toLocaleTimeString("pl",{hour:"2-digit",minute:"
 
 // ─── Backtest ─────────────────────────────────────────────────────────────────
 
-async function runBacktest(cfg: {
+type CandleData = { time: number; open: number; high: number; low: number; close: number; utcH: number };
+type BtCfg = {
   symbol: Symbol; stopLoss: number; takeProfit: number; allowShorts: boolean;
   useAdx: boolean; adxMin: number; dynamicExits: boolean; atrSlMul: number; atrTpMul: number;
   trailStop: boolean; trailPct: number; trailActivation: number;
   rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
-}): Promise<BtResult> {
-  // Fetch ~100 days of data so each run can test a different random window
-  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${cfg.symbol}&interval=1h&limit=2400`);
-  if (!res.ok) throw new Error(`Binance ${res.status}`);
-  const raw: any[][] = await res.json();
-  const allCandles = raw.map(k => ({
-    time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4],
-    utcH: new Date(k[0]).getUTCHours(),
-  }));
+  allow24h: boolean; maxHoldCandles: number;
+};
 
-  // Random window: 500-700 candles (~21-29 days), different every run
-  const windowSize = 500 + Math.floor(Math.random() * 200);
-  const minStart = 30; // need lookback for indicators
-  const maxStart = allCandles.length - windowSize - 2;
-  const startIdx = maxStart > minStart ? minStart + Math.floor(Math.random() * (maxStart - minStart)) : minStart;
-  const candles = allCandles.slice(startIdx, startIdx + windowSize);
-  const periodLabel = `${new Date(candles[0].time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"})} – ${new Date(candles[candles.length-1].time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"})}`;
-
-  const trades: BtTrade[] = [];
-
-  for (let i = 30; i < candles.length - 2; i++) {
-    const c = candles[i];
-    if (c.utcH !== 21) continue;
-
-    const slice = candles.slice(Math.max(0, i-29), i+1);
-    const cls = slice.map(x=>x.close), hhs = slice.map(x=>x.high), lls = slice.map(x=>x.low);
-
-    const ema  = calcEMA21(cls);
-    const rsi  = calcRSI(cls);
-    const adx  = cfg.useAdx ? calcADX(hhs, lls, cls) : 999;
-    const atr  = cfg.dynamicExits ? calcATR(hhs, lls, cls) : 0;
-
-    if (cfg.useAdx && adx < cfg.adxMin) continue; // filter: no trend
-
-    // Pre-session candle: 20:00 UTC must be bullish for LONG (bearish for SHORT)
-    const prevC = i > 0 ? candles[i-1] : null;
-    const prevBull = prevC ? prevC.close > prevC.open : true;
-    const prevBear = prevC ? prevC.close < prevC.open : true;
-
-    // Entry: RSI in window + price near EMA + pre-session confirmation
-    const emaDist = Math.abs((c.open - ema) / ema * 100);
-    const isLong  = c.open > ema && rsi >= cfg.rsiMin && rsi <= cfg.rsiMax && emaDist <= cfg.emaMaxDist
-      && (!cfg.requirePrevBull || prevBull);
-    // SHORT: require RSI < 40 + bearish pre-session candle
-    const isShort = cfg.allowShorts && c.open < ema && rsi < 40 && emaDist <= cfg.emaMaxDist
-      && (!cfg.requirePrevBull || prevBear);
-    if (!isLong && !isShort) continue;
-
-    const dir: Direction = isLong ? "long" : "short";
-    const entry = c.open;
-
-    // Determine SL/TP %
-    const slPct = cfg.dynamicExits && atr > 0 ? (atr/entry*100*cfg.atrSlMul) : cfg.stopLoss;
-    const tpPct = cfg.dynamicExits && atr > 0 ? (atr/entry*100*cfg.atrTpMul) : cfg.takeProfit;
-
-    let exit = c.close, reason: TradeReason = "session_end";
-    let trailRefPrice = entry;
-    let trailActivated = false;
-    let effectiveSL = dir === "long" ? entry*(1-slPct/100) : entry*(1+slPct/100);
-
-    for (let j = i; j <= i+1 && j < candles.length; j++) {
-      const cn = candles[j];
-      if (dir === "long") {
-        // Activate trail only after trailActivation% profit
-        const profitPct = (cn.high - entry) / entry * 100;
-        if (cfg.trailStop && profitPct >= cfg.trailActivation) trailActivated = true;
-        if (cfg.trailStop && trailActivated && cn.high > trailRefPrice) {
-          trailRefPrice = cn.high;
-          const trailSL = trailRefPrice * (1 - cfg.trailPct/100);
-          if (trailSL > effectiveSL) effectiveSL = trailSL;
-        }
-        if (cn.low <= effectiveSL) {
-          exit = effectiveSL;
-          reason = effectiveSL < entry ? "stop_loss" : "trail_stop";
-          break;
-        }
-        if ((cn.high-entry)/entry*100 >= tpPct) { exit=entry*(1+tpPct/100); reason="take_profit"; break; }
-      } else {
-        const profitPct = (entry - cn.low) / entry * 100;
-        if (cfg.trailStop && profitPct >= cfg.trailActivation) trailActivated = true;
-        if (cfg.trailStop && trailActivated && cn.low < trailRefPrice) {
-          trailRefPrice = cn.low;
-          const trailSL = trailRefPrice * (1 + cfg.trailPct/100);
-          if (trailSL < effectiveSL) effectiveSL = trailSL;
-        }
-        if (cn.high >= effectiveSL) {
-          exit = effectiveSL;
-          reason = effectiveSL > entry ? "stop_loss" : "trail_stop";
-          break;
-        }
-        if ((entry-cn.low)/entry*100 >= tpPct) { exit=entry*(1-tpPct/100); reason="take_profit"; break; }
-      }
-      exit = cn.close;
-    }
-
-    const pnlPct = dir==="long" ? (exit-entry)/entry*100 : (entry-exit)/entry*100;
-    trades.push({ date:new Date(c.time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"}), direction:dir, entryPrice:entry, exitPrice:exit, pnlPct, reason });
-  }
-
-  if (!trades.length) return { symbol:cfg.symbol, days:Math.round(candles.length/24), periodLabel, trades:[], winRate:0, totalReturn:0, maxDrawdown:0, avgWin:0, avgLoss:0, sharpe:0, equity:[], longs:0, shorts:0 };
-
+function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
+  if (!trades.length) return { symbol, days:Math.round(candles.length/24), periodLabel, trades:[], winRate:0, totalReturn:0, maxDrawdown:0, avgWin:0, avgLoss:0, sharpe:0, equity:[], longs:0, shorts:0 };
   const wins=trades.filter(t=>t.pnlPct>0), losses=trades.filter(t=>t.pnlPct<=0);
-  const winRate = wins.length/trades.length*100;
-  const avgWin  = wins.length   ? wins.reduce((s,t)=>s+t.pnlPct,0)/wins.length   : 0;
-  const avgLoss = losses.length ? losses.reduce((s,t)=>s+t.pnlPct,0)/losses.length : 0;
-  let eq=100, peak=100, maxDD=0;
-  const equity: number[] = [];
-  for (const t of trades) {
-    eq *= (1+t.pnlPct/100); equity.push(parseFloat((eq-100).toFixed(2)));
-    if (eq>peak) peak=eq;
-    const dd=(peak-eq)/peak*100; if(dd>maxDD) maxDD=dd;
-  }
+  const winRate=wins.length/trades.length*100;
+  const avgWin=wins.length?wins.reduce((s,t)=>s+t.pnlPct,0)/wins.length:0;
+  const avgLoss=losses.length?losses.reduce((s,t)=>s+t.pnlPct,0)/losses.length:0;
+  let eq=100, peak=100, maxDD=0; const equity: number[]=[];
+  for (const t of trades) { eq*=(1+t.pnlPct/100); equity.push(parseFloat((eq-100).toFixed(2))); if(eq>peak)peak=eq; const dd=(peak-eq)/peak*100; if(dd>maxDD)maxDD=dd; }
   const rets=trades.map(t=>t.pnlPct), mean=rets.reduce((a,b)=>a+b,0)/rets.length;
   const variance=rets.reduce((s,r)=>s+(r-mean)**2,0)/rets.length;
-  const sharpe=variance>0 ? parseFloat((mean/Math.sqrt(variance)*Math.sqrt(252/24)).toFixed(2)) : 0;
-  return { symbol:cfg.symbol, days:Math.round(candles.length/24), periodLabel, trades, winRate, totalReturn:eq-100, maxDrawdown:maxDD, avgWin, avgLoss, sharpe, equity, longs:trades.filter(t=>t.direction==="long").length, shorts:trades.filter(t=>t.direction==="short").length };
+  const sharpe=variance>0?parseFloat((mean/Math.sqrt(variance)*Math.sqrt(252/24)).toFixed(2)):0;
+  return { symbol, days:Math.round(candles.length/24), periodLabel, trades, winRate, totalReturn:eq-100, maxDrawdown:maxDD, avgWin, avgLoss, sharpe, equity, longs:trades.filter(t=>t.direction==="long").length, shorts:trades.filter(t=>t.direction==="short").length };
+}
+
+function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
+  const periodLabel = candles.length>0 ? `${new Date(candles[0].time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"})} – ${new Date(candles[candles.length-1].time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"})}` : "";
+  const trades: BtTrade[] = [];
+  const holdLen = cfg.allow24h ? cfg.maxHoldCandles : 1;
+  let skipUntil = -1;
+
+  for (let i = 30; i < candles.length - holdLen - 1; i++) {
+    if (i <= skipUntil) continue;
+    const c = candles[i];
+    if (!cfg.allow24h && c.utcH !== 21) continue;
+
+    const slice = candles.slice(Math.max(0,i-29), i+1);
+    const cls=slice.map(x=>x.close), hhs=slice.map(x=>x.high), lls=slice.map(x=>x.low);
+    const ema=calcEMA21(cls), rsi=calcRSI(cls);
+    const adx=cfg.useAdx?calcADX(hhs,lls,cls):999;
+    const atr=cfg.dynamicExits?calcATR(hhs,lls,cls):0;
+    if (cfg.useAdx && adx < cfg.adxMin) continue;
+
+    const prevC=i>0?candles[i-1]:null;
+    const prevBull=prevC?prevC.close>prevC.open:true, prevBear=prevC?prevC.close<prevC.open:true;
+    const emaDist=Math.abs((c.open-ema)/ema*100);
+    const isLong=c.open>ema&&rsi>=cfg.rsiMin&&rsi<=cfg.rsiMax&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBull);
+    const isShort=cfg.allowShorts&&c.open<ema&&rsi<40&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBear);
+    if (!isLong && !isShort) continue;
+
+    const dir: Direction = isLong?"long":"short";
+    const entry=c.open;
+    const slPct=cfg.dynamicExits&&atr>0?(atr/entry*100*cfg.atrSlMul):cfg.stopLoss;
+    const tpPct=cfg.dynamicExits&&atr>0?(atr/entry*100*cfg.atrTpMul):cfg.takeProfit;
+
+    let exit=c.close, reason: TradeReason="session_end", exitIdx=i+holdLen;
+    let trailRef=entry, trailOn=false;
+    let effSL=dir==="long"?entry*(1-slPct/100):entry*(1+slPct/100);
+
+    for (let j=i; j<=i+holdLen&&j<candles.length; j++) {
+      const cn=candles[j];
+      if (dir==="long") {
+        if (cfg.trailStop&&(cn.high-entry)/entry*100>=cfg.trailActivation) trailOn=true;
+        if (cfg.trailStop&&trailOn&&cn.high>trailRef) { trailRef=cn.high; const ts=trailRef*(1-cfg.trailPct/100); if(ts>effSL)effSL=ts; }
+        if (cn.low<=effSL) { exit=effSL; reason=effSL<entry?"stop_loss":"trail_stop"; exitIdx=j; break; }
+        if ((cn.high-entry)/entry*100>=tpPct) { exit=entry*(1+tpPct/100); reason="take_profit"; exitIdx=j; break; }
+      } else {
+        if (cfg.trailStop&&(entry-cn.low)/entry*100>=cfg.trailActivation) trailOn=true;
+        if (cfg.trailStop&&trailOn&&cn.low<trailRef) { trailRef=cn.low; const ts=trailRef*(1+cfg.trailPct/100); if(ts<effSL)effSL=ts; }
+        if (cn.high>=effSL) { exit=effSL; reason=effSL>entry?"stop_loss":"trail_stop"; exitIdx=j; break; }
+        if ((entry-cn.low)/entry*100>=tpPct) { exit=entry*(1-tpPct/100); reason="take_profit"; exitIdx=j; break; }
+      }
+      exit=cn.close; exitIdx=j;
+    }
+    skipUntil=exitIdx;
+    const pnlPct=dir==="long"?(exit-entry)/entry*100:(entry-exit)/entry*100;
+    trades.push({ date:new Date(c.time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"}), direction:dir, entryPrice:entry, exitPrice:exit, pnlPct, reason });
+  }
+  return calcBtStats(trades, cfg.symbol, candles, periodLabel);
+}
+
+async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
+  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=2400`);
+  if (!res.ok) throw new Error(`Binance ${res.status}`);
+  const raw: any[][] = await res.json();
+  return raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], utcH:new Date(k[0]).getUTCHours() }));
+}
+
+async function runBacktest(cfg: BtCfg): Promise<BtResult> {
+  const all = await fetchCandleData(cfg.symbol);
+  const windowSize = cfg.allow24h ? 300 : 500 + Math.floor(Math.random() * 200);
+  const minS=30, maxS=all.length-windowSize-2;
+  const start = maxS>minS ? minS+Math.floor(Math.random()*(maxS-minS)) : minS;
+  return runBacktestSync(all.slice(start, start+windowSize), cfg);
+}
+
+type OptResult = { rsiMin: number; rsiMax: number; trailPct: number; sharpe: number; winRate: number; totalReturn: number };
+
+async function runOptimize(cfg: BtCfg): Promise<OptResult> {
+  const all = await fetchCandleData(cfg.symbol);
+  const testCandles = all.slice(-800); // fixed recent window for fair comparison
+  const combos: [number, number, number][] = [
+    [40,60,0.15],[40,60,0.25],[40,60,0.35],
+    [45,65,0.15],[45,65,0.25],[45,65,0.35],
+    [50,70,0.15],[50,70,0.25],[50,70,0.35],
+  ];
+  let best: OptResult = { rsiMin:45, rsiMax:65, trailPct:0.25, sharpe:-999, winRate:0, totalReturn:0 };
+  for (const [rsiMin, rsiMax, trailPct] of combos) {
+    const r = runBacktestSync(testCandles, {...cfg, rsiMin, rsiMax, trailPct});
+    if (r.trades.length >= 6 && r.sharpe > best.sharpe) {
+      best = { rsiMin, rsiMax, trailPct, sharpe:r.sharpe, winRate:r.winRate, totalReturn:r.totalReturn };
+    }
+  }
+  return best;
 }
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -269,6 +259,8 @@ export default function TradingBot() {
   const [btLoading, setBtLoading] = useState(false);
   const [btError, setBtError]     = useState<string | null>(null);
   const [showBtTrades, setShowBtTrades] = useState(false);
+  const [optLoading, setOptLoading] = useState(false);
+  const [optResult, setOptResult]   = useState<OptResult | null>(null);
   const [activityLog, setActivityLog]   = useState<LogEntry[]>([]);
   const logRef         = useRef<HTMLDivElement>(null);
   const prevSessionRef = useRef<boolean | null>(null);
@@ -333,7 +325,7 @@ export default function TradingBot() {
     const openTrade = config.trades.find(t=>t.status==="open");
 
     if (!openTrade) {
-      if (!sess.inSession) return;
+      if (!config.allow24h && !sess.inSession) return;
 
       // ADX filter
       if (config.useAdx && adx < config.adxMin) {
@@ -403,8 +395,10 @@ export default function TradingBot() {
       ? Math.max(initSLPrice, trailSLPrice)
       : Math.min(initSLPrice, trailSLPrice);
 
+    // Time-based exit for 24h mode
+    const tradeAgeH = (Date.now() - new Date(openTrade.entryTime).getTime()) / 3600000;
     let reason: TradeReason | null = null;
-    if (!sess.inSession) reason = "session_end";
+    if (config.allow24h ? tradeAgeH >= config.maxHoldCandles : !sess.inSession) reason = "session_end";
     else if (openTrade.direction === "long"  && ticker.price <= effectiveSLPrice)
       reason = effectiveSLPrice > openTrade.entryPrice ? "trail_stop" : "stop_loss";
     else if (openTrade.direction === "short" && ticker.price >= effectiveSLPrice)
@@ -504,6 +498,10 @@ export default function TradingBot() {
               style={{ background:config.allowShorts?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${config.allowShorts?"rgba(248,113,113,0.4)":"rgba(255,255,255,0.1)"}`, borderRadius:8, padding:"8px 16px", color:config.allowShorts?"#fca5a5":M, cursor:"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
               {config.allowShorts ? <><ArrowDownCircle size={13}/> L+S</> : <><ArrowUpCircle size={13}/> LONG</>}
             </button>
+            <button onClick={()=>{update({allow24h:!config.allow24h}); addLog(!config.allow24h?"24H MODE — bot aktywny całą dobę":"24H OFF — powrót do sesji 21-23 UTC","info");}}
+              style={{ background:config.allow24h?"rgba(167,139,250,0.15)":"rgba(255,255,255,0.04)", border:`1px solid ${config.allow24h?"rgba(167,139,250,0.45)":"rgba(255,255,255,0.1)"}`, borderRadius:8, padding:"8px 16px", color:config.allow24h?"#a78bfa":M, cursor:"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
+              <Clock size={13}/> {config.allow24h?"24H":"SESJA"}
+            </button>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <button onClick={()=>{const n=!config.autoMode; update({autoMode:n}); prevSessionRef.current=null; addLog(n?"AUTO MODE włączony":"AUTO MODE wyłączony",n?"info":"warn");}}
@@ -573,13 +571,25 @@ export default function TradingBot() {
           </div>
 
           {/* Session / Signal */}
-          <div style={{ ...card, background:sess.inSession?"rgba(34,197,94,0.07)":"rgba(0,28,14,0.7)", border:`1px solid ${sess.inSession?"rgba(34,197,94,0.35)":"rgba(34,197,94,0.13)"}` }}>
-            <div style={{ fontSize:10, color:M, letterSpacing:1, marginBottom:8 }}>SESJA + SYGNAŁ</div>
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:sess.inSession?G:"#4b5563", flexShrink:0 }}/>
-              <span style={{ fontSize:11, color:sess.inSession?G:M, fontWeight:700 }}>{sess.label}</span>
-            </div>
-            <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>{sess.countdown}</div>
+          <div style={{ ...card, background:config.allow24h?"rgba(167,139,250,0.07)":sess.inSession?"rgba(34,197,94,0.07)":"rgba(0,28,14,0.7)", border:`1px solid ${config.allow24h?"rgba(167,139,250,0.35)":sess.inSession?"rgba(34,197,94,0.35)":"rgba(34,197,94,0.13)"}` }}>
+            <div style={{ fontSize:10, color:M, letterSpacing:1, marginBottom:8 }}>{config.allow24h?"TRYB 24H":"SESJA + SYGNAŁ"}</div>
+            {config.allow24h ? (
+              <>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:"#a78bfa", flexShrink:0 }}/>
+                  <span style={{ fontSize:11, color:"#a78bfa", fontWeight:700 }}>AKTYWNY 24/7</span>
+                </div>
+                <div style={{ fontSize:12, color:M, marginBottom:6 }}>Max hold: {config.maxHoldCandles}h / trade</div>
+              </>
+            ) : (
+              <>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:sess.inSession?G:"#4b5563", flexShrink:0 }}/>
+                  <span style={{ fontSize:11, color:sess.inSession?G:M, fontWeight:700 }}>{sess.label}</span>
+                </div>
+                <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>{sess.countdown}</div>
+              </>
+            )}
             {md && ticker && (
               <>
                 <div style={{ fontSize:13, fontWeight:900, color:longSig?G:shortSig?R:adxBlock?"#f59e0b":M }}>
@@ -718,6 +728,12 @@ export default function TradingBot() {
                       </div>
                     </div>
                     <div style={{ fontSize:10, color:M }}>Trail włącza się gdy zysk ≥ aktywacja, potem SL goni szczyt z odległością traila</div>
+                    {config.allow24h && (
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ fontSize:11, color:M, marginBottom:5 }}>Max hold w trybie 24H (godziny, def: 3)</div>
+                        <input type="number" value={config.maxHoldCandles} min={1} max={12} onChange={e=>{const n=parseInt(e.target.value); if(!isNaN(n)&&n>=1&&n<=12) update({maxHoldCandles:n});}} style={{...inputStyle(),width:"50%"}}/>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -865,21 +881,36 @@ export default function TradingBot() {
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
               <FlaskConical size={15} color={G}/>
               <span style={{ fontWeight:700, fontSize:14 }}>Backtest strategii</span>
-              <span style={{ fontSize:11, color:M, background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.2)", borderRadius:6, padding:"2px 8px" }}>
-                {btResult ? `${btResult.days}d · ${btResult.periodLabel}` : "losowy okres ~25 dni"} · RSI[{config.rsiMin}-{config.rsiMax}]+EMA{config.trailStop?` · Trail${config.trailPct}%`:""}{config.useAdx?` · ADX≥${config.adxMin}`:""} · {config.allowShorts?"L+S":"Long"}
+              <span style={{ fontSize:11, color:M, background:config.allow24h?"rgba(167,139,250,0.1)":"rgba(34,197,94,0.1)", border:`1px solid ${config.allow24h?"rgba(167,139,250,0.2)":"rgba(34,197,94,0.2)"}`, borderRadius:6, padding:"2px 8px" }}>
+                {btResult ? `${btResult.days}d · ${btResult.periodLabel}` : config.allow24h?"24H mode ~12 dni":"losowy okres ~25 dni"} · RSI[{config.rsiMin}-{config.rsiMax}]{config.allow24h?` · 24H hold${config.maxHoldCandles}h`:""}{config.trailStop?` · Trail${config.trailPct}%`:""} · {config.allowShorts?"L+S":"Long"}
               </span>
             </div>
-            <button
-              onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest({ ...config, trailActivation:config.trailActivation??0.3, requirePrevBull:config.requirePrevBull??true })); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
-              disabled={btLoading}
-              style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
-              {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
-            </button>
+            <div style={{ display:"flex", gap:8 }}>
+              <button
+                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); setOptResult(r); update({rsiMin:r.rsiMin,rsiMax:r.rsiMax,trailPct:r.trailPct}); setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct)); addLog(`🧠 Auto-opt: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info"); } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
+                disabled={optLoading||btLoading}
+                style={{ background:optLoading?"rgba(251,191,36,0.05)":"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:8, padding:"8px 14px", color:optLoading?M:"#fbbf24", cursor:optLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
+                {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
+              </button>
+              <button
+                onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest({...config})); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
+                disabled={btLoading}
+                style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
+                {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
+              </button>
+            </div>
           </div>
 
+          {optResult && (
+            <div style={{ background:"rgba(251,191,36,0.07)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
+              <span style={{color:"#fbbf24",fontWeight:700}}>🧠 Auto-Opt znalazł:</span>
+              {" "}RSI [{optResult.rsiMin}-{optResult.rsiMax}] · Trail {optResult.trailPct}% → Sharpe <span style={{color:optResult.sharpe>=1?G:"#f59e0b"}}>{optResult.sharpe.toFixed(2)}</span> · WR <span style={{color:G}}>{optResult.winRate.toFixed(0)}%</span> · Zwrot <span style={{color:optResult.totalReturn>=0?G:R}}>{optResult.totalReturn>=0?"+":""}{optResult.totalReturn.toFixed(1)}%</span>
+              <span style={{color:M}}> — parametry zaktualizowane automatycznie</span>
+            </div>
+          )}
           {!btResult && !btLoading && !btError && (
             <div style={{ fontSize:13, color:M, lineHeight:1.7 }}>
-              Symuluje strategię na ~1000 świecach 1h z Binance. Włącz ADX i ATR exits żeby zobaczyć różnicę w wynikach.
+              {config.allow24h?"Tryb 24H: bot szuka sygnałów przez całą dobę, trzyma pozycję max "+config.maxHoldCandles+"h.":"Tryb sesja: bot handluje w oknie 21:00–23:00 UTC."} Kliknij <strong style={{color:"#fbbf24"}}>Auto-Opt</strong> żeby system sam dobrał najlepsze RSI i trail.
             </div>
           )}
           {btError && <div style={{ color:R, fontSize:13, marginTop:8, display:"flex", alignItems:"center", gap:6 }}><AlertCircle size={14}/> {btError}</div>}
