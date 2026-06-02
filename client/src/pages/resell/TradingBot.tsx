@@ -30,6 +30,7 @@ type BotConfig = {
   rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
   allow24h: boolean; maxHoldCandles: number;
   volumeFilter: boolean; volumeMinMult: number; // #1 volume confirmation
+  macdFilter: boolean; // #2 MACD momentum confirmation
   learningEnabled: boolean;
   trades: PaperTrade[];
 };
@@ -37,7 +38,7 @@ type BotConfig = {
 type LogEntry  = { time: string; msg: string; type: "buy" | "sell" | "info" | "warn" };
 type Ticker    = { price: number; change24h: number; high24h: number; low24h: number };
 type SessionInfo = { inSession: boolean; label: string; countdown: string };
-type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean; volumeMult: number };
+type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean; volumeMult: number; macd: number; macdSignal: number; macdHist: number };
 
 type BtTrade  = { date: string; direction: Direction; entryPrice: number; exitPrice: number; pnlPct: number; reason: TradeReason };
 type BtResult = { symbol: string; days: number; periodLabel: string; trades: BtTrade[]; winRate: number; totalReturn: number; maxDrawdown: number; avgWin: number; avgLoss: number; sharpe: number; equity: number[]; longs: number; shorts: number };
@@ -126,6 +127,7 @@ type BtCfg = {
   rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
   allow24h: boolean; maxHoldCandles: number;
   volumeFilter: boolean; volumeMinMult: number;
+  macdFilter: boolean;
 };
 
 function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
@@ -161,12 +163,14 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     if (cfg.useAdx && adx < cfg.adxMin) continue;
     // #1 volume filter — skip low-volume candles
     if (cfg.volumeFilter && calcVolumeMult(candles, i) < cfg.volumeMinMult) continue;
+    // #2 MACD filter
+    const macdV = cfg.macdFilter ? calcMACD(cls) : { macd:1, signal:0, hist:1 };
 
     const prevC=i>0?candles[i-1]:null;
     const prevBull=prevC?prevC.close>prevC.open:true, prevBear=prevC?prevC.close<prevC.open:true;
     const emaDist=Math.abs((c.open-ema)/ema*100);
-    const isLong=c.open>ema&&rsi>=cfg.rsiMin&&rsi<=cfg.rsiMax&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBull);
-    const isShort=cfg.allowShorts&&c.open<ema&&rsi<40&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBear);
+    const isLong=c.open>ema&&rsi>=cfg.rsiMin&&rsi<=cfg.rsiMax&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBull)&&(!cfg.macdFilter||macdV.macd>macdV.signal);
+    const isShort=cfg.allowShorts&&c.open<ema&&rsi<40&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBear)&&(!cfg.macdFilter||macdV.macd<macdV.signal);
     if (!isLong && !isShort) continue;
 
     const dir: Direction = isLong?"long":"short";
@@ -295,6 +299,27 @@ function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
   return best;
 }
 
+// #2 — MACD(12,26,9): returns { macd, signal, hist }
+function calcMACD(closes: number[]): { macd: number; signal: number; hist: number } {
+  const ema = (arr: number[], p: number) => {
+    if (arr.length < p) return arr[arr.length-1] ?? 0;
+    const k = 2/(p+1); let e = arr.slice(0,p).reduce((a,b)=>a+b,0)/p;
+    for (let i=p; i<arr.length; i++) e = arr[i]*k + e*(1-k);
+    return e;
+  };
+  if (closes.length < 35) return { macd:0, signal:0, hist:0 };
+  // build MACD line values for last 9 bars (needed for signal EMA)
+  const macdLine: number[] = [];
+  for (let i = closes.length - 9; i <= closes.length; i++) {
+    const sl = closes.slice(0, i);
+    if (sl.length < 26) { macdLine.push(0); continue; }
+    macdLine.push(ema(sl, 12) - ema(sl, 26));
+  }
+  const macd   = macdLine[macdLine.length-1];
+  const signal = macdLine.length >= 9 ? ema(macdLine, 9) : macd;
+  return { macd: parseFloat(macd.toFixed(6)), signal: parseFloat(signal.toFixed(6)), hist: parseFloat((macd-signal).toFixed(6)) };
+}
+
 // #1 — Volume confirmation: returns current candle volume / avg(last N candles)
 function calcVolumeMult(candles: CandleData[], idx: number, period = 20): number {
   if (idx < period) return 1;
@@ -330,7 +355,7 @@ function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfi
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, learningEnabled:true, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, learningEnabled:true, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -410,6 +435,7 @@ export default function TradingBot() {
       const ema21val = calcEMA21(closes);
       const avgVol = volumes.slice(-21, -1).reduce((a,b)=>a+b,0) / 20;
       const volMult = avgVol > 0 ? volumes[last] / avgVol : 1;
+      const macdVals = calcMACD(closes);
       setMd({
         rsi: calcRSI(closes), ema21: ema21val,
         priceVsEma: (closes[last]-ema21val)/ema21val*100,
@@ -419,6 +445,7 @@ export default function TradingBot() {
         adx: calcADX(highs, lows, closes),
         prevBull: last >= 1 && closes[last-1] > opens[last-1],
         volumeMult: parseFloat(volMult.toFixed(2)),
+        macd: macdVals.macd, macdSignal: macdVals.signal, macdHist: macdVals.hist,
       });
       setLastRefresh(new Date()); setError(null);
     } catch(e:any) { setError("Błąd danych: "+e.message); }
@@ -449,11 +476,14 @@ export default function TradingBot() {
 
       const emaDist = Math.abs((ticker.price - ema21) / ema21 * 100);
       // #1 volume filter
-      const volOk = !config.volumeFilter || md.volumeMult >= config.volumeMinMult;
+      const volOk  = !config.volumeFilter || md.volumeMult >= config.volumeMinMult;
+      // #2 MACD confirmation: long needs MACD above signal, short below
+      const macdOk  = !config.macdFilter || md.macd > md.macdSignal;
+      const macdOkS = !config.macdFilter || md.macd < md.macdSignal;
       const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || md.prevBull) && volOk;
+        && (!config.requirePrevBull || md.prevBull) && volOk && macdOk;
       const isShort = config.allowShorts && !aboveEMA && rsi < 40 && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || !md.prevBull) && volOk;
+        && (!config.requirePrevBull || !md.prevBull) && volOk && macdOkS;
       if (!isLong && !isShort) {
         setActivityLog(prev => {
           const reason = rsi > config.rsiMax ? `RSI ${rsi} > ${config.rsiMax} (wykupienie)` : rsi < config.rsiMin ? `RSI ${rsi} < ${config.rsiMin}` : emaDist > config.emaMaxDist ? `EMA dist ${emaDist.toFixed(1)}% > ${config.emaMaxDist}%` : `${aboveEMA?"▲":"▼"} EMA`;
@@ -599,9 +629,11 @@ export default function TradingBot() {
 
   // Signal decision
   const emaDist_ = md && ticker ? Math.abs((ticker.price - md.ema21) / md.ema21 * 100) : 0;
-  const volSigOk = md ? !config.volumeFilter || md.volumeMult >= config.volumeMinMult : true;
-  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || md.prevBull) && volSigOk : false;
-  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || !md.prevBull) && volSigOk : false;
+  const volSigOk  = md ? !config.volumeFilter || md.volumeMult >= config.volumeMinMult : true;
+  const macdSigOk = md ? !config.macdFilter || md.macd > md.macdSignal : true;
+  const macdSigOkS = md ? !config.macdFilter || md.macd < md.macdSignal : true;
+  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || md.prevBull) && volSigOk && macdSigOk : false;
+  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || !md.prevBull) && volSigOk && macdSigOkS : false;
   const adxBlock = md ? config.useAdx && md.adx < config.adxMin : false;
   const prevBullBlock = md ? config.requirePrevBull && !md.prevBull && ticker ? ticker.price > md.ema21 : false : false;
 
@@ -939,6 +971,23 @@ export default function TradingBot() {
                     onChange={e=>{ const n=parseFloat(e.target.value); if(!isNaN(n)&&n>=0.8&&n<=3) update({volumeMinMult:n}); }}
                     style={{...inputStyle(), maxWidth:120}} />
                 </div>}
+              </div>
+
+              {/* #2 MACD filter */}
+              <div style={{ background:"rgba(168,85,247,0.05)", border:"1px solid rgba(168,85,247,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#c084fc" }}>MACD (12,26,9) <span style={{ fontSize:10, color:M, fontWeight:400 }}>(#2 ulepszenie)</span></div>
+                    <div style={{ fontSize:11, color:M, marginTop:2 }}>LONG tylko gdy MACD &gt; Signal line — potwierdza że momentum rośnie</div>
+                    {md && <div style={{ fontSize:11, marginTop:4, color: md.macd > md.macdSignal ? "#4ade80" : "#f87171" }}>
+                      MACD {md.macd > 0 ? "+" : ""}{md.macd.toFixed(1)} | Signal {md.macdSignal > 0 ? "+" : ""}{md.macdSignal.toFixed(1)} | Hist {md.macdHist > 0 ? "+" : ""}{md.macdHist.toFixed(1)} {md.macd > md.macdSignal ? "↑ bullish" : "↓ bearish"}
+                    </div>}
+                  </div>
+                  <button onClick={()=>update({macdFilter:!config.macdFilter})}
+                    style={{ background:config.macdFilter?"rgba(168,85,247,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.macdFilter?"rgba(168,85,247,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"7px 14px", color:config.macdFilter?"#c084fc":M, cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0 }}>
+                    {config.macdFilter?"MACD ON":"MACD OFF"}
+                  </button>
+                </div>
               </div>
 
               {/* ADX filter */}
