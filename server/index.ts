@@ -373,4 +373,8 @@ process.on("uncaughtException", (err) => {
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT",  () => shutdown("SIGINT"));
-})();
+})().catch((err) => {
+  console.error("[server] Fatal startup error:", err);
+  // Don't exit — keep the process alive so Replit doesn't show crashed
+  // The server may still be partially functional
+});
