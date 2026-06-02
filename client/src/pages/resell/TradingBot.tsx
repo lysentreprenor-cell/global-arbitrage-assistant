@@ -9,7 +9,7 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Symbol    = "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
-type TradeReason = "session_end" | "stop_loss" | "take_profit";
+type TradeReason = "session_end" | "stop_loss" | "take_profit" | "trail_stop";
 type Direction = "long" | "short";
 
 type PaperTrade = {
@@ -17,6 +17,7 @@ type PaperTrade = {
   entryTime: string; entryPrice: number; size: number; status: "open" | "closed";
   exitTime?: string; exitPrice?: number; pnl?: number; pnlPct?: number; reason?: TradeReason;
   slPct?: number; tpPct?: number; // actual SL/TP used (may be ATR-based)
+  trailRef?: number;              // current trailing high/low for live trade
 };
 
 type BotConfig = {
@@ -24,6 +25,9 @@ type BotConfig = {
   capital: number; riskPct: number; stopLoss: number; takeProfit: number;
   useAdx: boolean; adxMin: number;           // ADX trend filter (research: #1 for BTC)
   dynamicExits: boolean; atrSlMul: number; atrTpMul: number; // ATR-based dynamic exits
+  trailStop: boolean; trailPct: number;      // trailing stop — locks in profits
+  rsiMin: number; rsiMax: number;            // RSI entry window (avoid overbought)
+  emaMaxDist: number;                        // max % from EMA21 at entry
   trades: PaperTrade[];
 };
 
@@ -114,6 +118,7 @@ const logTime= () => new Date().toLocaleTimeString("pl",{hour:"2-digit",minute:"
 async function runBacktest(cfg: {
   symbol: Symbol; stopLoss: number; takeProfit: number; allowShorts: boolean;
   useAdx: boolean; adxMin: number; dynamicExits: boolean; atrSlMul: number; atrTpMul: number;
+  trailStop: boolean; trailPct: number; rsiMin: number; rsiMax: number; emaMaxDist: number;
 }): Promise<BtResult> {
   const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${cfg.symbol}&interval=1h&limit=1000`);
   if (!res.ok) throw new Error(`Binance ${res.status}`);
@@ -139,8 +144,10 @@ async function runBacktest(cfg: {
 
     if (cfg.useAdx && adx < cfg.adxMin) continue; // filter: no trend
 
-    const isLong  = c.open > ema && rsi >= 50;
-    const isShort = cfg.allowShorts && c.open < ema && rsi < 50;
+    // Improved entry: RSI in window + price near EMA
+    const emaDist = Math.abs((c.open - ema) / ema * 100);
+    const isLong  = c.open > ema && rsi >= cfg.rsiMin && rsi <= cfg.rsiMax && emaDist <= cfg.emaMaxDist;
+    const isShort = cfg.allowShorts && c.open < ema && rsi >= (100-cfg.rsiMax) && rsi <= (100-cfg.rsiMin) && emaDist <= cfg.emaMaxDist;
     if (!isLong && !isShort) continue;
 
     const dir: Direction = isLong ? "long" : "short";
@@ -151,15 +158,37 @@ async function runBacktest(cfg: {
     const tpPct = cfg.dynamicExits && atr > 0 ? (atr/entry*100*cfg.atrTpMul) : cfg.takeProfit;
 
     let exit = c.close, reason: TradeReason = "session_end";
+    // For trailing stop: track effective SL price
+    let trailRefPrice = entry; // peak (long) or trough (short)
+    let effectiveSL = dir === "long" ? entry*(1-slPct/100) : entry*(1+slPct/100);
 
     for (let j = i; j <= i+1 && j < candles.length; j++) {
       const cn = candles[j];
       if (dir === "long") {
-        if ((cn.low-entry)/entry*100 <= -slPct) { exit=entry*(1-slPct/100); reason="stop_loss"; break; }
-        if ((cn.high-entry)/entry*100 >= tpPct)  { exit=entry*(1+tpPct/100); reason="take_profit"; break; }
+        // Update trailing reference and effective SL
+        if (cfg.trailStop && cn.high > trailRefPrice) {
+          trailRefPrice = cn.high;
+          const trailSL = trailRefPrice * (1 - cfg.trailPct/100);
+          if (trailSL > effectiveSL) effectiveSL = trailSL;
+        }
+        if (cn.low <= effectiveSL) {
+          exit = effectiveSL;
+          reason = effectiveSL < entry ? "stop_loss" : "trail_stop";
+          break;
+        }
+        if ((cn.high-entry)/entry*100 >= tpPct) { exit=entry*(1+tpPct/100); reason="take_profit"; break; }
       } else {
-        if ((cn.high-entry)/entry*100 >= slPct)  { exit=entry*(1+slPct/100); reason="stop_loss"; break; }
-        if ((cn.low-entry)/entry*100 <= -tpPct)  { exit=entry*(1-tpPct/100); reason="take_profit"; break; }
+        if (cfg.trailStop && cn.low < trailRefPrice) {
+          trailRefPrice = cn.low;
+          const trailSL = trailRefPrice * (1 + cfg.trailPct/100);
+          if (trailSL < effectiveSL) effectiveSL = trailSL;
+        }
+        if (cn.high >= effectiveSL) {
+          exit = effectiveSL;
+          reason = effectiveSL > entry ? "stop_loss" : "trail_stop";
+          break;
+        }
+        if ((entry-cn.low)/entry*100 >= tpPct) { exit=entry*(1-tpPct/100); reason="take_profit"; break; }
       }
       exit = cn.close;
     }
@@ -190,7 +219,7 @@ async function runBacktest(cfg: {
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:4, takeProfit:15, useAdx:false, adxMin:25, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:25, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, rsiMin:45, rsiMax:65, emaMaxDist:2.0, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -200,7 +229,7 @@ function loadConfig(): BotConfig {
   return { ...DEFAULTS };
 }
 function saveConfig(c: BotConfig) { localStorage.setItem(KEY, JSON.stringify(c)); }
-const REASON_LABEL: Record<TradeReason,string> = { session_end:"Koniec sesji", stop_loss:"Stop Loss", take_profit:"Take Profit" };
+const REASON_LABEL: Record<TradeReason,string> = { session_end:"Koniec sesji", stop_loss:"Stop Loss", take_profit:"Take Profit", trail_stop:"Trailing Stop" };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -222,13 +251,17 @@ export default function TradingBot() {
   const prevSessionRef = useRef<boolean | null>(null);
 
   // Settings temp values
-  const [tmpCapital, setTmpCapital] = useState(String(config.capital));
-  const [tmpRisk,    setTmpRisk]    = useState(String(config.riskPct));
-  const [tmpSL,      setTmpSL]      = useState(String(config.stopLoss));
-  const [tmpTP,      setTmpTP]      = useState(String(config.takeProfit));
-  const [tmpAdxMin,  setTmpAdxMin]  = useState(String(config.adxMin));
-  const [tmpAtrSl,   setTmpAtrSl]   = useState(String(config.atrSlMul));
-  const [tmpAtrTp,   setTmpAtrTp]   = useState(String(config.atrTpMul));
+  const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
+  const [tmpRisk,     setTmpRisk]     = useState(String(config.riskPct));
+  const [tmpSL,       setTmpSL]       = useState(String(config.stopLoss));
+  const [tmpTP,       setTmpTP]       = useState(String(config.takeProfit));
+  const [tmpAdxMin,   setTmpAdxMin]   = useState(String(config.adxMin));
+  const [tmpAtrSl,    setTmpAtrSl]    = useState(String(config.atrSlMul));
+  const [tmpAtrTp,    setTmpAtrTp]    = useState(String(config.atrTpMul));
+  const [tmpTrailPct, setTmpTrailPct] = useState(String(config.trailPct));
+  const [tmpRsiMin,   setTmpRsiMin]   = useState(String(config.rsiMin));
+  const [tmpRsiMax,   setTmpRsiMax]   = useState(String(config.rsiMax));
+  const [tmpEmaDist,  setTmpEmaDist]  = useState(String(config.emaMaxDist));
 
   const update = useCallback((patch: Partial<BotConfig>) => {
     setConfig(prev => { const next={...prev,...patch}; saveConfig(next); return next; });
@@ -288,11 +321,13 @@ export default function TradingBot() {
         return;
       }
 
-      const isLong  = aboveEMA && rsi >= 50;
-      const isShort = config.allowShorts && !aboveEMA && rsi < 50;
+      const emaDist = Math.abs((ticker.price - ema21) / ema21 * 100);
+      const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist;
+      const isShort = config.allowShorts && !aboveEMA && rsi >= (100-config.rsiMax) && rsi <= (100-config.rsiMin) && emaDist <= config.emaMaxDist;
       if (!isLong && !isShort) {
         setActivityLog(prev => {
-          const msg = `⧖ Skan — $${fmt(ticker.price)} | RSI ${rsi} | ADX ${adx} | ${aboveEMA?"▲":"▼"} EMA — brak sygnału`;
+          const reason = rsi > config.rsiMax ? `RSI ${rsi} > ${config.rsiMax} (wykupienie)` : rsi < config.rsiMin ? `RSI ${rsi} < ${config.rsiMin}` : emaDist > config.emaMaxDist ? `EMA dist ${emaDist.toFixed(1)}% > ${config.emaMaxDist}%` : `${aboveEMA?"▲":"▼"} EMA`;
+          const msg = `⧖ Skan — $${fmt(ticker.price)} | RSI ${rsi} | ADX ${adx} | ${reason} — brak sygnału`;
           const e: LogEntry = { time:logTime(), msg, type:"info" };
           const last = prev[prev.length-1];
           if (last?.type==="info" && last.msg.startsWith("⧖ Skan")) return [...prev.slice(0,-1), e];
@@ -303,11 +338,10 @@ export default function TradingBot() {
 
       const direction: Direction = isLong ? "long" : "short";
       const size = config.capital * (config.riskPct/100);
-      // Compute actual SL/TP for this trade
       const slPct = config.dynamicExits && atr > 0 ? atr/ticker.price*100*config.atrSlMul : config.stopLoss;
       const tpPct = config.dynamicExits && atr > 0 ? atr/ticker.price*100*config.atrTpMul : config.takeProfit;
-      update({ trades:[...config.trades, { id:Date.now(), symbol:config.symbol, direction, entryTime:new Date().toISOString(), entryPrice:ticker.price, size, status:"open", slPct, tpPct }] });
-      addLog(`▶ ${direction.toUpperCase()} ${config.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | RSI ${rsi} | ADX ${adx}${config.dynamicExits?" | ATR exits":""} | SL ${slPct.toFixed(1)}% / TP ${tpPct.toFixed(1)}%`, "buy");
+      update({ trades:[...config.trades, { id:Date.now(), symbol:config.symbol, direction, entryTime:new Date().toISOString(), entryPrice:ticker.price, size, status:"open", slPct, tpPct, trailRef:ticker.price }] });
+      addLog(`▶ ${direction.toUpperCase()} ${config.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | RSI ${rsi} | ADX ${adx}${config.dynamicExits?" | ATR exits":""}${config.trailStop?" | Trail":""}  | SL ${slPct.toFixed(1)}% / TP ${tpPct.toFixed(1)}%`, "buy");
       return;
     }
 
@@ -315,18 +349,48 @@ export default function TradingBot() {
     const tpPct = openTrade.tpPct ?? config.takeProfit;
     const rawPct = (ticker.price-openTrade.entryPrice)/openTrade.entryPrice*100;
     const pct = openTrade.direction==="short" ? -rawPct : rawPct;
+
+    // Update trailing reference
+    let updatedTrailRef = openTrade.trailRef ?? openTrade.entryPrice;
+    if (config.trailStop) {
+      if (openTrade.direction === "long")  updatedTrailRef = Math.max(updatedTrailRef, ticker.price);
+      if (openTrade.direction === "short") updatedTrailRef = Math.min(updatedTrailRef, ticker.price);
+    }
+
+    // Compute effective SL price (initial or trail, whichever is more favorable)
+    const initSLPrice = openTrade.direction === "long"
+      ? openTrade.entryPrice * (1 - slPct/100)
+      : openTrade.entryPrice * (1 + slPct/100);
+    const trailSLPrice = config.trailStop
+      ? (openTrade.direction === "long"
+          ? updatedTrailRef * (1 - config.trailPct/100)
+          : updatedTrailRef * (1 + config.trailPct/100))
+      : initSLPrice;
+    const effectiveSLPrice = openTrade.direction === "long"
+      ? Math.max(initSLPrice, trailSLPrice)
+      : Math.min(initSLPrice, trailSLPrice);
+
     let reason: TradeReason | null = null;
-    if (!sess.inSession)       reason = "session_end";
-    else if (pct <= -slPct)    reason = "stop_loss";
-    else if (pct >= tpPct)     reason = "take_profit";
+    if (!sess.inSession) reason = "session_end";
+    else if (openTrade.direction === "long"  && ticker.price <= effectiveSLPrice)
+      reason = effectiveSLPrice > openTrade.entryPrice ? "trail_stop" : "stop_loss";
+    else if (openTrade.direction === "short" && ticker.price >= effectiveSLPrice)
+      reason = effectiveSLPrice < openTrade.entryPrice ? "trail_stop" : "stop_loss";
+    else if (pct >= tpPct) reason = "take_profit";
+
+    if (updatedTrailRef !== openTrade.trailRef && !reason) {
+      // persist updated trail ref
+      update({ trades:config.trades.map(t=>t.id===openTrade.id ? {...t, trailRef:updatedTrailRef} : t) });
+    }
 
     if (reason) {
       const pnl = pct/100*openTrade.size;
-      update({ trades:config.trades.map(t=>t.id===openTrade.id ? {...t, status:"closed", exitTime:new Date().toISOString(), exitPrice:ticker.price, pnl, pnlPct:pct, reason} : t) });
+      update({ trades:config.trades.map(t=>t.id===openTrade.id ? {...t, status:"closed", exitTime:new Date().toISOString(), exitPrice:ticker.price, pnl, pnlPct:pct, reason, trailRef:updatedTrailRef} : t) });
       addLog(`■ CLOSE ${openTrade.direction.toUpperCase()} ${openTrade.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | ${fmtUsd(pnl)} (${fmtPct(pct)}) — ${REASON_LABEL[reason]}`, pnl>=0?"sell":"warn");
     } else {
       setActivityLog(prev => {
-        const msg = `◉ Monitoring ${openTrade.direction.toUpperCase()} ${openTrade.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | ${fmtPct(pct)}`;
+        const trailInfo = config.trailStop ? ` | trail SL $${fmt(effectiveSLPrice)}` : "";
+        const msg = `◉ Monitoring ${openTrade.direction.toUpperCase()} ${openTrade.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | ${fmtPct(pct)}${trailInfo}`;
         const e: LogEntry = { time:logTime(), msg, type:"info" };
         const last = prev[prev.length-1];
         if (last?.type==="info" && last.msg.startsWith("◉ Monitoring")) return [...prev.slice(0,-1), e];
@@ -367,8 +431,9 @@ export default function TradingBot() {
   const adxLabel  = (a: number) => a>=40?"Silny trend":a>=25?"Trend OK":a>=15?"Słaby trend":"Brak trendu";
 
   // Signal decision
-  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= 50 && (!config.useAdx || md.adx >= config.adxMin) : false;
-  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 50 && (!config.useAdx || md.adx >= config.adxMin) : false;
+  const emaDist_ = md && ticker ? Math.abs((ticker.price - md.ema21) / md.ema21 * 100) : 0;
+  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) : false;
+  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi >= (100-config.rsiMax) && md.rsi <= (100-config.rsiMin) && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) : false;
   const adxBlock = md ? config.useAdx && md.adx < config.adxMin : false;
 
   return (
@@ -383,7 +448,7 @@ export default function TradingBot() {
             </div>
             <div>
               <div style={{ fontWeight:800, fontSize:20 }}>Trading Bot</div>
-              <div style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR Exits":""} · Long{config.allowShorts?"+Short":""}</div>
+              <div style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR":""}{config.trailStop?" + Trail":""} · Long{config.allowShorts?"+Short":""}</div>
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -589,6 +654,51 @@ export default function TradingBot() {
                 ))}
               </div>
 
+              {/* Trailing Stop */}
+              <div style={{ background:"rgba(34,197,94,0.05)", border:"1px solid rgba(34,197,94,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:G }}>Trailing Stop <span style={{ fontSize:10, color:M, fontWeight:400 }}>(blokuje zyski — fix R:R)</span></div>
+                    <div style={{ fontSize:11, color:M, marginTop:2 }}>SL podąża za ceną — nie traci wypracowanego zysku gdy rynek zawróci</div>
+                  </div>
+                  <button onClick={()=>{update({trailStop:!config.trailStop}); addLog(config.trailStop?"Trailing stop wyłączony":"Trailing stop włączony — blokowanie zysków aktywne","info");}}
+                    style={{ background:config.trailStop?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.trailStop?"rgba(34,197,94,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"8px 16px", color:config.trailStop?G:M, cursor:"pointer", fontWeight:700, fontSize:13, flexShrink:0 }}>
+                    {config.trailStop?"TRAIL ON":"TRAIL OFF"}
+                  </button>
+                </div>
+                {config.trailStop && (
+                  <div>
+                    <div style={{ fontSize:11, color:M, marginBottom:5 }}>Odległość traila od piku (rekomend.: 0.2-0.3%)</div>
+                    <input type="number" value={tmpTrailPct} step={0.05} min={0.1} max={2} onChange={e=>setTmpTrailPct(e.target.value)}
+                      onBlur={()=>{const n=parseFloat(tmpTrailPct); if(!isNaN(n)&&n>=0.1&&n<=2) update({trailPct:n});}} style={{...inputStyle(),width:"50%"}}/>
+                    <div style={{ fontSize:10, color:M, marginTop:5 }}>Mniejsza wartość = ciaśniejszy trail = wyższy win rate ale mniejsze zyski</div>
+                  </div>
+                )}
+              </div>
+
+              {/* RSI + EMA filter */}
+              <div style={{ background:"rgba(96,165,250,0.05)", border:"1px solid rgba(96,165,250,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#60a5fa", marginBottom:6 }}>Filtr wejścia RSI + EMA <span style={{ fontSize:10, color:M, fontWeight:400 }}>(unikaj wykupień + spóźnionych wejść)</span></div>
+                <div style={{ fontSize:11, color:M, marginBottom:10 }}>RSI 70+ oznacza wykupienie → reversal. EMA dist &gt;2% = spóźnione wejście po silnym ruchu.</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:11, color:M, marginBottom:5 }}>RSI min (def: 45)</div>
+                    <input type="number" value={tmpRsiMin} min={30} max={55} onChange={e=>setTmpRsiMin(e.target.value)}
+                      onBlur={()=>{const n=parseFloat(tmpRsiMin); if(!isNaN(n)&&n>=30&&n<=55) update({rsiMin:n});}} style={inputStyle()}/>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11, color:M, marginBottom:5 }}>RSI max (def: 65)</div>
+                    <input type="number" value={tmpRsiMax} min={55} max={80} onChange={e=>setTmpRsiMax(e.target.value)}
+                      onBlur={()=>{const n=parseFloat(tmpRsiMax); if(!isNaN(n)&&n>=55&&n<=80) update({rsiMax:n});}} style={inputStyle()}/>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11, color:M, marginBottom:5 }}>Max dist EMA % (def: 2.0)</div>
+                    <input type="number" value={tmpEmaDist} step={0.5} min={0.5} max={5} onChange={e=>setTmpEmaDist(e.target.value)}
+                      onBlur={()=>{const n=parseFloat(tmpEmaDist); if(!isNaN(n)&&n>=0.5&&n<=5) update({emaMaxDist:n});}} style={inputStyle()}/>
+                  </div>
+                </div>
+              </div>
+
               {/* ADX filter */}
               <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -639,9 +749,9 @@ export default function TradingBot() {
               </div>
 
               <div style={{ background:"rgba(34,197,94,0.05)", border:"1px solid rgba(34,197,94,0.15)", borderRadius:8, padding:"10px 14px", fontSize:11, color:M, lineHeight:1.7, marginBottom:14 }}>
-                <strong style={{color:G}}>Aktywna konfiguracja:</strong> LONG gdy cena &gt; EMA-21 AND RSI ≥ 50{config.useAdx ? ` AND ADX ≥ ${config.adxMin}` : ""}
-                {config.allowShorts ? ` · SHORT gdy cena < EMA AND RSI < 50${config.useAdx?` AND ADX ≥ ${config.adxMin}`:""}` : ""}
-                {` · Wyjście: ${config.dynamicExits?`ATR×${config.atrSlMul}SL / ATR×${config.atrTpMul}TP`:`SL ${config.stopLoss}% / TP ${config.takeProfit}%`} + koniec sesji`}
+                <strong style={{color:G}}>Aktywna konfiguracja:</strong> LONG gdy cena &gt; EMA±{config.emaMaxDist}% AND RSI [{config.rsiMin}-{config.rsiMax}]{config.useAdx ? ` AND ADX ≥ ${config.adxMin}` : ""}
+                {config.allowShorts ? ` · SHORT gdy cena < EMA AND RSI [{100-config.rsiMax}-{100-config.rsiMin}]${config.useAdx?` AND ADX ≥ ${config.adxMin}`:""}` : ""}
+                {` · Wyjście: ${config.dynamicExits?`ATR×${config.atrSlMul}SL / ATR×${config.atrTpMul}TP`:`SL ${config.stopLoss}% / TP ${config.takeProfit}%`}${config.trailStop?` + Trail ${config.trailPct}%`:""} + koniec sesji`}
               </div>
 
               {closed.length > 0 && (
@@ -696,11 +806,11 @@ export default function TradingBot() {
               <FlaskConical size={15} color={G}/>
               <span style={{ fontWeight:700, fontSize:14 }}>Backtest strategii</span>
               <span style={{ fontSize:11, color:M, background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.2)", borderRadius:6, padding:"2px 8px" }}>
-                ~41 dni · RSI+EMA{config.useAdx?` · ADX≥${config.adxMin}`:""}{config.dynamicExits?" · ATR exits":""} · {config.allowShorts?"L+S":"Long"}
+                ~41 dni · RSI[{config.rsiMin}-{config.rsiMax}]+EMA≤{config.emaMaxDist}%{config.useAdx?` · ADX≥${config.adxMin}`:""}{config.dynamicExits?" · ATR":""}{config.trailStop?` · Trail${config.trailPct}%`:""} · {config.allowShorts?"L+S":"Long"}
               </span>
             </div>
             <button
-              onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest(config)); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
+              onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest({ ...config, rsiMin:config.rsiMin??45, rsiMax:config.rsiMax??65, emaMaxDist:config.emaMaxDist??2.0, trailStop:config.trailStop??true, trailPct:config.trailPct??0.25 })); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
               disabled={btLoading}
               style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
               {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
