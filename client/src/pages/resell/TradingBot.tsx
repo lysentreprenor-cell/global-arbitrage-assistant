@@ -23,18 +23,19 @@ type PaperTrade = {
 type BotConfig = {
   enabled: boolean; autoMode: boolean; allowShorts: boolean; symbol: Symbol;
   capital: number; riskPct: number; stopLoss: number; takeProfit: number;
-  useAdx: boolean; adxMin: number;           // ADX trend filter (research: #1 for BTC)
-  dynamicExits: boolean; atrSlMul: number; atrTpMul: number; // ATR-based dynamic exits
-  trailStop: boolean; trailPct: number;      // trailing stop — locks in profits
-  rsiMin: number; rsiMax: number;            // RSI entry window (avoid overbought)
-  emaMaxDist: number;                        // max % from EMA21 at entry
+  useAdx: boolean; adxMin: number;
+  dynamicExits: boolean; atrSlMul: number; atrTpMul: number;
+  trailStop: boolean; trailPct: number; trailActivation: number; // trail activates after this % profit
+  rsiMin: number; rsiMax: number;
+  emaMaxDist: number;
+  requirePrevBull: boolean; // 20:00 candle must be bullish before LONG entry
   trades: PaperTrade[];
 };
 
 type LogEntry  = { time: string; msg: string; type: "buy" | "sell" | "info" | "warn" };
 type Ticker    = { price: number; change24h: number; high24h: number; low24h: number };
 type SessionInfo = { inSession: boolean; label: string; countdown: string };
-type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number };
+type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean };
 
 type BtTrade  = { date: string; direction: Direction; entryPrice: number; exitPrice: number; pnlPct: number; reason: TradeReason };
 type BtResult = { symbol: string; days: number; trades: BtTrade[]; winRate: number; totalReturn: number; maxDrawdown: number; avgWin: number; avgLoss: number; sharpe: number; equity: number[]; longs: number; shorts: number };
@@ -118,7 +119,8 @@ const logTime= () => new Date().toLocaleTimeString("pl",{hour:"2-digit",minute:"
 async function runBacktest(cfg: {
   symbol: Symbol; stopLoss: number; takeProfit: number; allowShorts: boolean;
   useAdx: boolean; adxMin: number; dynamicExits: boolean; atrSlMul: number; atrTpMul: number;
-  trailStop: boolean; trailPct: number; rsiMin: number; rsiMax: number; emaMaxDist: number;
+  trailStop: boolean; trailPct: number; trailActivation: number;
+  rsiMin: number; rsiMax: number; emaMaxDist: number; requirePrevBull: boolean;
 }): Promise<BtResult> {
   const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${cfg.symbol}&interval=1h&limit=1000`);
   if (!res.ok) throw new Error(`Binance ${res.status}`);
@@ -144,11 +146,18 @@ async function runBacktest(cfg: {
 
     if (cfg.useAdx && adx < cfg.adxMin) continue; // filter: no trend
 
-    // Improved entry: RSI in window + price near EMA
+    // Pre-session candle: 20:00 UTC must be bullish for LONG (bearish for SHORT)
+    const prevC = i > 0 ? candles[i-1] : null;
+    const prevBull = prevC ? prevC.close > prevC.open : true;
+    const prevBear = prevC ? prevC.close < prevC.open : true;
+
+    // Entry: RSI in window + price near EMA + pre-session confirmation
     const emaDist = Math.abs((c.open - ema) / ema * 100);
-    const isLong  = c.open > ema && rsi >= cfg.rsiMin && rsi <= cfg.rsiMax && emaDist <= cfg.emaMaxDist;
-    // SHORT: require RSI < 40 (strong bearish only — BTC 21-23 UTC has bullish bias)
-    const isShort = cfg.allowShorts && c.open < ema && rsi < 40 && emaDist <= cfg.emaMaxDist;
+    const isLong  = c.open > ema && rsi >= cfg.rsiMin && rsi <= cfg.rsiMax && emaDist <= cfg.emaMaxDist
+      && (!cfg.requirePrevBull || prevBull);
+    // SHORT: require RSI < 40 + bearish pre-session candle
+    const isShort = cfg.allowShorts && c.open < ema && rsi < 40 && emaDist <= cfg.emaMaxDist
+      && (!cfg.requirePrevBull || prevBear);
     if (!isLong && !isShort) continue;
 
     const dir: Direction = isLong ? "long" : "short";
@@ -159,15 +168,17 @@ async function runBacktest(cfg: {
     const tpPct = cfg.dynamicExits && atr > 0 ? (atr/entry*100*cfg.atrTpMul) : cfg.takeProfit;
 
     let exit = c.close, reason: TradeReason = "session_end";
-    // For trailing stop: track effective SL price
-    let trailRefPrice = entry; // peak (long) or trough (short)
+    let trailRefPrice = entry;
+    let trailActivated = false;
     let effectiveSL = dir === "long" ? entry*(1-slPct/100) : entry*(1+slPct/100);
 
     for (let j = i; j <= i+1 && j < candles.length; j++) {
       const cn = candles[j];
       if (dir === "long") {
-        // Update trailing reference and effective SL
-        if (cfg.trailStop && cn.high > trailRefPrice) {
+        // Activate trail only after trailActivation% profit
+        const profitPct = (cn.high - entry) / entry * 100;
+        if (cfg.trailStop && profitPct >= cfg.trailActivation) trailActivated = true;
+        if (cfg.trailStop && trailActivated && cn.high > trailRefPrice) {
           trailRefPrice = cn.high;
           const trailSL = trailRefPrice * (1 - cfg.trailPct/100);
           if (trailSL > effectiveSL) effectiveSL = trailSL;
@@ -179,7 +190,9 @@ async function runBacktest(cfg: {
         }
         if ((cn.high-entry)/entry*100 >= tpPct) { exit=entry*(1+tpPct/100); reason="take_profit"; break; }
       } else {
-        if (cfg.trailStop && cn.low < trailRefPrice) {
+        const profitPct = (entry - cn.low) / entry * 100;
+        if (cfg.trailStop && profitPct >= cfg.trailActivation) trailActivated = true;
+        if (cfg.trailStop && trailActivated && cn.low < trailRefPrice) {
           trailRefPrice = cn.low;
           const trailSL = trailRefPrice * (1 + cfg.trailPct/100);
           if (trailSL < effectiveSL) effectiveSL = trailSL;
@@ -220,7 +233,7 @@ async function runBacktest(cfg: {
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:25, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.35, rsiMin:50, rsiMax:65, emaMaxDist:2.0, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:true, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.35, trailActivation:0.3, rsiMin:50, rsiMax:65, emaMaxDist:2.0, requirePrevBull:true, trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -259,10 +272,11 @@ export default function TradingBot() {
   const [tmpAdxMin,   setTmpAdxMin]   = useState(String(config.adxMin));
   const [tmpAtrSl,    setTmpAtrSl]    = useState(String(config.atrSlMul));
   const [tmpAtrTp,    setTmpAtrTp]    = useState(String(config.atrTpMul));
-  const [tmpTrailPct, setTmpTrailPct] = useState(String(config.trailPct));
-  const [tmpRsiMin,   setTmpRsiMin]   = useState(String(config.rsiMin));
-  const [tmpRsiMax,   setTmpRsiMax]   = useState(String(config.rsiMax));
-  const [tmpEmaDist,  setTmpEmaDist]  = useState(String(config.emaMaxDist));
+  const [tmpTrailPct,  setTmpTrailPct]  = useState(String(config.trailPct));
+  const [tmpTrailAct,  setTmpTrailAct]  = useState(String(config.trailActivation ?? 0.3));
+  const [tmpRsiMin,    setTmpRsiMin]    = useState(String(config.rsiMin));
+  const [tmpRsiMax,    setTmpRsiMax]    = useState(String(config.rsiMax));
+  const [tmpEmaDist,   setTmpEmaDist]   = useState(String(config.emaMaxDist));
 
   const update = useCallback((patch: Partial<BotConfig>) => {
     setConfig(prev => { const next={...prev,...patch}; saveConfig(next); return next; });
@@ -287,13 +301,15 @@ export default function TradingBot() {
       const lows   = klines.map(k=>parseFloat(k[3]));
       const last = closes.length-1;
       setTicker({ price:parseFloat(td.lastPrice), change24h:parseFloat(td.priceChangePercent), high24h:parseFloat(td.highPrice), low24h:parseFloat(td.lowPrice) });
+      const ema21val = calcEMA21(closes);
       setMd({
-        rsi: calcRSI(closes), ema21: calcEMA21(closes),
-        priceVsEma: (closes[last]-calcEMA21(closes))/calcEMA21(closes)*100,
+        rsi: calcRSI(closes), ema21: ema21val,
+        priceVsEma: (closes[last]-ema21val)/ema21val*100,
         momentum: (closes[last]-opens[last])/opens[last]*100,
         volatility: (highs[last]-lows[last])/opens[last]*100,
         atr: calcATR(highs, lows, closes),
         adx: calcADX(highs, lows, closes),
+        prevBull: last >= 1 && closes[last-1] > opens[last-1], // 20:00 UTC candle bullish?
       });
       setLastRefresh(new Date()); setError(null);
     } catch(e:any) { setError("Błąd danych: "+e.message); }
@@ -323,9 +339,10 @@ export default function TradingBot() {
       }
 
       const emaDist = Math.abs((ticker.price - ema21) / ema21 * 100);
-      const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist;
-      // SHORT: require RSI < 40 (strong bearish only — BTC 21-23 UTC has bullish bias)
-      const isShort = config.allowShorts && !aboveEMA && rsi < 40 && emaDist <= config.emaMaxDist;
+      const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist
+        && (!config.requirePrevBull || md.prevBull);
+      const isShort = config.allowShorts && !aboveEMA && rsi < 40 && emaDist <= config.emaMaxDist
+        && (!config.requirePrevBull || !md.prevBull);
       if (!isLong && !isShort) {
         setActivityLog(prev => {
           const reason = rsi > config.rsiMax ? `RSI ${rsi} > ${config.rsiMax} (wykupienie)` : rsi < config.rsiMin ? `RSI ${rsi} < ${config.rsiMin}` : emaDist > config.emaMaxDist ? `EMA dist ${emaDist.toFixed(1)}% > ${config.emaMaxDist}%` : `${aboveEMA?"▲":"▼"} EMA`;
@@ -359,11 +376,16 @@ export default function TradingBot() {
       if (openTrade.direction === "short") updatedTrailRef = Math.min(updatedTrailRef, ticker.price);
     }
 
-    // Compute effective SL price (initial or trail, whichever is more favorable)
+    // Trail only activates after trailActivation% profit
+    const rawGainPct = openTrade.direction === "long"
+      ? (updatedTrailRef - openTrade.entryPrice) / openTrade.entryPrice * 100
+      : (openTrade.entryPrice - updatedTrailRef) / openTrade.entryPrice * 100;
+    const trailActive = config.trailStop && rawGainPct >= (config.trailActivation ?? 0.3);
+
     const initSLPrice = openTrade.direction === "long"
       ? openTrade.entryPrice * (1 - slPct/100)
       : openTrade.entryPrice * (1 + slPct/100);
-    const trailSLPrice = config.trailStop
+    const trailSLPrice = trailActive
       ? (openTrade.direction === "long"
           ? updatedTrailRef * (1 - config.trailPct/100)
           : updatedTrailRef * (1 + config.trailPct/100))
@@ -434,9 +456,10 @@ export default function TradingBot() {
 
   // Signal decision
   const emaDist_ = md && ticker ? Math.abs((ticker.price - md.ema21) / md.ema21 * 100) : 0;
-  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) : false;
-  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) : false;
+  const longSig  = md && ticker ? ticker.price > md.ema21 && md.rsi >= config.rsiMin && md.rsi <= config.rsiMax && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || md.prevBull) : false;
+  const shortSig = md && ticker ? ticker.price < md.ema21 && md.rsi < 40 && emaDist_ <= config.emaMaxDist && (!config.useAdx || md.adx >= config.adxMin) && (!config.requirePrevBull || !md.prevBull) : false;
   const adxBlock = md ? config.useAdx && md.adx < config.adxMin : false;
+  const prevBullBlock = md ? config.requirePrevBull && !md.prevBull && ticker ? ticker.price > md.ema21 : false : false;
 
   return (
     <ResellLayout>
@@ -549,9 +572,12 @@ export default function TradingBot() {
             </div>
             <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>{sess.countdown}</div>
             {md && ticker && (
-              <div style={{ fontSize:13, fontWeight:900, color:longSig?G:shortSig?R:adxBlock?"#f59e0b":M }}>
-                {longSig?"LONG ▲":shortSig?"SHORT ▼":adxBlock?"ADX BLOK":"NEUTRAL"}
-              </div>
+              <>
+                <div style={{ fontSize:13, fontWeight:900, color:longSig?G:shortSig?R:adxBlock?"#f59e0b":M }}>
+                  {longSig?"LONG ▲":shortSig?"SHORT ▼":adxBlock?"ADX BLOK":"NEUTRAL"}
+                </div>
+                {config.requirePrevBull && <div style={{ fontSize:10, color:md.prevBull?"#86efac":"#fca5a5", marginTop:3 }}>{md.prevBull?"✓ 20:00 świeca bycza":"✗ 20:00 świeca niedźwiedzia"}</div>}
+              </>
             )}
           </div>
         </div>
@@ -670,21 +696,38 @@ export default function TradingBot() {
                 </div>
                 {config.trailStop && (
                   <div>
-                    <div style={{ fontSize:11, color:M, marginBottom:5 }}>Odległość traila od piku (rekomend.: 0.2-0.3%)</div>
-                    <input type="number" value={tmpTrailPct} step={0.05} min={0.1} max={2} onChange={e=>setTmpTrailPct(e.target.value)}
-                      onBlur={()=>{const n=parseFloat(tmpTrailPct); if(!isNaN(n)&&n>=0.1&&n<=2) update({trailPct:n});}} style={{...inputStyle(),width:"50%"}}/>
-                    <div style={{ fontSize:10, color:M, marginTop:5 }}>Mniejsza wartość = ciaśniejszy trail = wyższy win rate ale mniejsze zyski</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:6 }}>
+                      <div>
+                        <div style={{ fontSize:11, color:M, marginBottom:5 }}>Aktywacja traila po +% zysku (def: 0.3)</div>
+                        <input type="number" value={tmpTrailAct} step={0.1} min={0} max={2} onChange={e=>setTmpTrailAct(e.target.value)}
+                          onBlur={()=>{const n=parseFloat(tmpTrailAct); if(!isNaN(n)&&n>=0&&n<=2) update({trailActivation:n});}} style={inputStyle()}/>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, color:M, marginBottom:5 }}>Odległość traila od piku (def: 0.35)</div>
+                        <input type="number" value={tmpTrailPct} step={0.05} min={0.1} max={2} onChange={e=>setTmpTrailPct(e.target.value)}
+                          onBlur={()=>{const n=parseFloat(tmpTrailPct); if(!isNaN(n)&&n>=0.1&&n<=2) update({trailPct:n});}} style={inputStyle()}/>
+                      </div>
+                    </div>
+                    <div style={{ fontSize:10, color:M }}>Trail włącza się gdy zysk ≥ aktywacja, potem SL goni szczyt z odległością traila</div>
                   </div>
                 )}
               </div>
 
               {/* RSI + EMA filter */}
               <div style={{ background:"rgba(96,165,250,0.05)", border:"1px solid rgba(96,165,250,0.2)", borderRadius:10, padding:"14px 16px", marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#60a5fa", marginBottom:6 }}>Filtr wejścia RSI + EMA <span style={{ fontSize:10, color:M, fontWeight:400 }}>(unikaj wykupień + spóźnionych wejść)</span></div>
-                <div style={{ fontSize:11, color:M, marginBottom:10 }}>RSI 70+ oznacza wykupienie → reversal. EMA dist &gt;2% = spóźnione wejście po silnym ruchu.</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
                   <div>
-                    <div style={{ fontSize:11, color:M, marginBottom:5 }}>RSI min (def: 45)</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#60a5fa" }}>Filtr wejścia RSI + EMA + świeca 20:00 <span style={{ fontSize:10, color:M, fontWeight:400 }}>(jakość sygnału)</span></div>
+                    <div style={{ fontSize:11, color:M, marginTop:2 }}>Świeca przed sesją musi być zielona dla LONG — potwierdza momentum</div>
+                  </div>
+                  <button onClick={()=>{update({requirePrevBull:!config.requirePrevBull}); addLog(config.requirePrevBull?"Filtr świecy 20:00 wyłączony":"Filtr świecy 20:00 włączony — potwierdzenie przed sesją","info");}}
+                    style={{ background:config.requirePrevBull?"rgba(96,165,250,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.requirePrevBull?"rgba(96,165,250,0.5)":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"7px 14px", color:config.requirePrevBull?"#60a5fa":M, cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0 }}>
+                    {config.requirePrevBull?"CANDLE ON":"CANDLE OFF"}
+                  </button>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginTop:10 }}>
+                  <div>
+                    <div style={{ fontSize:11, color:M, marginBottom:5 }}>RSI min (def: 50)</div>
                     <input type="number" value={tmpRsiMin} min={30} max={55} onChange={e=>setTmpRsiMin(e.target.value)}
                       onBlur={()=>{const n=parseFloat(tmpRsiMin); if(!isNaN(n)&&n>=30&&n<=55) update({rsiMin:n});}} style={inputStyle()}/>
                   </div>
@@ -812,7 +855,7 @@ export default function TradingBot() {
               </span>
             </div>
             <button
-              onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest({ ...config, rsiMin:config.rsiMin??45, rsiMax:config.rsiMax??65, emaMaxDist:config.emaMaxDist??2.0, trailStop:config.trailStop??true, trailPct:config.trailPct??0.25 })); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
+              onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest({ ...config, trailActivation:config.trailActivation??0.3, requirePrevBull:config.requirePrevBull??true })); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
               disabled={btLoading}
               style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
               {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
