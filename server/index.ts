@@ -227,6 +227,14 @@ async function runStartupMigrations() {
   }
 }
 
+// Prevent any unhandled DB/async error from killing the process
+process.on("unhandledRejection", (reason) => {
+  console.error("[server] Unhandled rejection (recovered):", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[server] Uncaught exception (recovered):", err);
+});
+
 (async () => {
   if (process.env.DATABASE_URL) {
     await runStartupMigrations().catch((e: unknown) => console.warn("[startup] migrations skipped:", e));
