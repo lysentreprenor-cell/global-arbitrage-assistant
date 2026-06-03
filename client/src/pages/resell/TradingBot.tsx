@@ -251,7 +251,7 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
   for (let i = 30; i < candles.length - holdLen - 1; i++) {
     if (i <= skipUntil) continue;
     const c = candles[i];
-    if (!cfg.allow24h && c.utcH !== 21) continue;
+    if (!cfg.allow24h && (c.utcH < 21 || c.utcH > 22)) continue; // session 21:00-22:59 UTC
 
     // wider slice so newer indicators (StochRSI, BB squeeze percentile, Ichimoku) have history
     const wide  = candles.slice(Math.max(0,i-79), i+1);
@@ -2307,6 +2307,11 @@ export default function TradingBot() {
                   </div>
                 )}
                 {hist.length === 1 && <span style={{color:M}}> — uruchom jeszcze raz żeby bot zbudował konsensus</span>}
+                {deepResult.sharpe <= -900 && (
+                  <div style={{ marginTop:6 }}>
+                    <button onClick={()=>{ const m={...learningRef.current,deepHistory:[],optHistory:[],ensembleResult:null,deepResult:null,optResult:null}; learningRef.current=m; saveLearning(m); setDeepResult(null); setOptResult(null); addLog("Historia Deep Train wyczyszczona — uruchom ponownie","info"); }} style={{ background:"rgba(248,113,113,0.15)", border:"1px solid rgba(248,113,113,0.4)", borderRadius:6, padding:"4px 10px", color:"#f87171", cursor:"pointer", fontSize:11, fontWeight:700 }}>🗑 Wyczyść złą historię i zacznij od nowa</button>
+                  </div>
+                )}
               </div>
             );
           })()}
