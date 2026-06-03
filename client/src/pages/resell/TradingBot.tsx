@@ -1249,6 +1249,16 @@ export default function TradingBot() {
 
   // ─── Derived ───────────────────────────────────────────────────────────────
   const openTrade = config.trades.find(t=>t.status==="open");
+  // #100 active improvement counter
+  const activeImprovements = [
+    config.volumeFilter, config.macdFilter, config.emaRibbonFilter, config.drawdownProtection, config.breakEvenStop,
+    config.stochRsiFilter, config.bbFilter, config.bodyFilter, config.emaSlopeFilter, config.candleConfirm,
+    config.rsiExitFilter, config.feeSimulation, config.autoPauseOnLosses, config.compoundMode, config.recoveryMode,
+    config.kellyEnabled, config.volScaling, config.dailyCircuitBreaker, config.revengeCooldown, config.signalConfirmation,
+    config.adxSlope, config.volumeTrend, config.wickFilter, config.rocFilter, config.ichimokuFilter,
+    config.haFilter, config.bbSqueezeFilter, config.profitLock, config.sessionScoreGate, config.learningEnabled,
+    config.trailStop, config.dynamicExits, config.useAdx, config.allowShorts, config.requirePrevBull,
+  ].filter(Boolean).length;
   const closed    = config.trades.filter(t=>t.status==="closed");
   const wins      = closed.filter(t=>(t.pnl??0)>0).length;
   const winRate   = closed.length ? Math.round(wins/closed.length*100) : null;
@@ -1289,7 +1299,11 @@ export default function TradingBot() {
             </div>
             <div>
               <div style={{ fontWeight:800, fontSize:20 }}>Trading Bot</div>
-              <div style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR":""}{config.trailStop?" + Trail":""}{config.learningEnabled?" + 🧠":""} · Long{config.allowShorts?"+Short":""}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR":""}{config.trailStop?" + Trail":""}{config.learningEnabled?" + 🧠":""} · Long{config.allowShorts?"+Short":""}</span>
+                {/* #100 improvement counter */}
+                <span style={{ fontSize:10, background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:6, padding:"2px 8px", color:"#818cf8", fontWeight:700 }}>{activeImprovements}/100 ulepszeń aktywnych</span>
+              </div>
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
@@ -1496,6 +1510,95 @@ export default function TradingBot() {
             </div>
           ))}
         </div>
+
+        {/* #16-#22 #29-#30 #46-#47 — Advanced Analytics Panel */}
+        {closed.length >= 3 && (() => {
+          const an = tradeAnalytics(closed);
+          const grade = performanceGrade(an.sharpe, an.wr, an.pf);
+          const gradeColor = grade==="A"?G:grade==="B"?"#86efac":grade==="C"?"#f59e0b":grade==="D"?"#fb923c":R;
+          const gradeDesc = grade==="A"?"Doskonały":grade==="B"?"Dobry":grade==="C"?"Średni":grade==="D"?"Słaby":"Nierentowny";
+          const confPassing = [
+            !config.volumeFilter || (md && md.volumeMult >= config.volumeMinMult),
+            !config.macdFilter   || (md && md.macd > md.macdSignal),
+            !config.emaRibbonFilter || (md && md.ribbonBull),
+            !config.stochRsiFilter  || (md && md.stochRsi < 80),
+            !config.bbFilter     || (md && md.bbPct <= config.bbMaxPct),
+            !config.emaSlopeFilter  || (md && md.emaSlope > 0),
+            !config.adxSlope     || (md && md.adxRising),
+            !config.ichimokuFilter  || (md && md.tenkan > md.kijun),
+            !config.haFilter     || (md && md.haGreen),
+            !config.sessionScoreGate || (md && sessionScore(md) >= config.minSessionScore),
+          ].filter(x => x !== false).length;
+          const confTotal = [config.volumeFilter, config.macdFilter, config.emaRibbonFilter, config.stochRsiFilter,
+            config.bbFilter, config.emaSlopeFilter, config.adxSlope, config.ichimokuFilter, config.haFilter, config.sessionScoreGate].filter(Boolean).length;
+          const confPct = confTotal > 0 ? confPassing / confTotal * 100 : 100;
+          const spark = sparkline(closed.slice(-20).map(t => t.pnlPct ?? 0));
+          return (
+            <div style={{ ...card, marginBottom:14 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                <div style={{ fontSize:10, color:M, letterSpacing:1 }}>ZAAWANSOWANA ANALITYKA</div>
+                <div style={{ fontSize:12, fontFamily:"monospace", color:M, letterSpacing:1 }}>{spark}</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:12 }}>
+                {/* #16 EV */}
+                <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:10, padding:"10px 12px", textAlign:"center" as const }}>
+                  <div style={{ fontSize:9, color:M, letterSpacing:0.8, marginBottom:3 }}>WARTOŚĆ OCZEKIWANA</div>
+                  <div style={{ fontSize:18, fontWeight:800, color:an.ev>=0?G:R }}>{an.ev>=0?"+":""}{an.ev.toFixed(2)}%</div>
+                  <div style={{ fontSize:10, color:M, marginTop:2 }}>EV / transakcję</div>
+                </div>
+                {/* #17 PF */}
+                <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:10, padding:"10px 12px", textAlign:"center" as const }}>
+                  <div style={{ fontSize:9, color:M, letterSpacing:0.8, marginBottom:3 }}>PROFIT FACTOR</div>
+                  <div style={{ fontSize:18, fontWeight:800, color:an.pf>=1.5?G:an.pf>=1?"#f59e0b":R }}>{an.pf.toFixed(2)}</div>
+                  <div style={{ fontSize:10, color:M, marginTop:2 }}>{an.pf>=1.5?"dobry":an.pf>=1?"akceptowalny":"ujemny"}</div>
+                </div>
+                {/* #29 Calmar */}
+                <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:10, padding:"10px 12px", textAlign:"center" as const }}>
+                  <div style={{ fontSize:9, color:M, letterSpacing:0.8, marginBottom:3 }}>CALMAR RATIO</div>
+                  <div style={{ fontSize:18, fontWeight:800, color:an.calmar>=1?G:an.calmar>=0.5?"#f59e0b":R }}>{an.calmar.toFixed(2)}</div>
+                  <div style={{ fontSize:10, color:M, marginTop:2 }}>zwrot / max DD</div>
+                </div>
+                {/* #19 Rolling WR */}
+                <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:10, padding:"10px 12px", textAlign:"center" as const }}>
+                  <div style={{ fontSize:9, color:M, letterSpacing:0.8, marginBottom:3 }}>WR ROLLING-20</div>
+                  <div style={{ fontSize:18, fontWeight:800, color:an.rollWr>=55?G:an.rollWr>=45?"#f59e0b":R }}>{an.rollWr.toFixed(0)}%</div>
+                  <div style={{ fontSize:10, color:M, marginTop:2 }}>ostatnie 20 tr.</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:10, alignItems:"stretch" }}>
+                {/* #22 Grade */}
+                <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:10, padding:"10px 16px", display:"flex", flexDirection:"column" as const, alignItems:"center", justifyContent:"center", minWidth:80 }}>
+                  <div style={{ fontSize:9, color:M, letterSpacing:0.8, marginBottom:4 }}>OCENA</div>
+                  <div style={{ fontSize:36, fontWeight:900, color:gradeColor }}>{grade}</div>
+                  <div style={{ fontSize:10, color:gradeColor, marginTop:2 }}>{gradeDesc}</div>
+                </div>
+                {/* #82 Confidence meter */}
+                <div style={{ flex:1, background:"rgba(0,0,0,0.2)", borderRadius:10, padding:"10px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                    <div style={{ fontSize:9, color:M, letterSpacing:0.8 }}>PEWNOŚĆ SYGNAŁU (aktywne filtry)</div>
+                    <div style={{ fontSize:11, fontWeight:700, color:confPct>=80?G:confPct>=60?"#f59e0b":R }}>{confPassing}/{confTotal}</div>
+                  </div>
+                  <div style={{ height:8, background:"rgba(255,255,255,0.07)", borderRadius:4, marginBottom:6 }}>
+                    <div style={{ width:`${confPct}%`, height:"100%", background:confPct>=80?G:confPct>=60?"#f59e0b":R, borderRadius:4, transition:"width 0.5s" }}/>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginTop:6 }}>
+                    {[
+                      { label:"#30 Avg Hold", value:`${an.avgHold.toFixed(1)}h` },
+                      { label:"#18 W:L ratio", value:an.wlRatio.toFixed(2) },
+                      { label:"L WR", value:`${an.longWr.toFixed(0)}%`, color:an.longWr>=55?G:an.longWr>=45?"#f59e0b":R },
+                      { label:"S WR", value:an.shorts>0?`${an.shortWr.toFixed(0)}%`:"—", color:an.shortWr>=55?G:an.shortWr>=45?"#f59e0b":R },
+                    ].map(({label,value,color})=>(
+                      <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"5px 8px", textAlign:"center" as const }}>
+                        <div style={{ fontSize:9, color:M, marginBottom:2 }}>{label}</div>
+                        <div style={{ fontSize:13, fontWeight:700, color:color??T }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Settings */}
         <div style={{ ...card, marginBottom:14 }}>
@@ -1733,6 +1836,193 @@ export default function TradingBot() {
                 </div>
               </div>
 
+              {/* ══ IMPROVEMENTS #6-#100 SETTINGS ══════════════════════════════ */}
+
+              {/* #6-#10: Advanced signal filters */}
+              <div style={{ fontSize:11, color:M, marginBottom:8, fontWeight:700, marginTop:4 }}>FILTRY SYGNAŁÓW #6–#10</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+                {/* #6 StochRSI */}
+                <div style={{ background:"rgba(99,102,241,0.05)", border:`1px solid rgba(99,102,241,${config.stochRsiFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#818cf8" }}>#6 StochRSI</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Nie wchodź gdy StochRSI &gt;80 (wykupienie)</div>{md&&<div style={{ fontSize:10, color:md.stochRsi>80?R:md.stochRsi<20?G:"#f59e0b", marginTop:2 }}>K: {md.stochRsi.toFixed(0)}</div>}</div>
+                    <button onClick={()=>update({stochRsiFilter:!config.stochRsiFilter})} style={{ background:config.stochRsiFilter?"rgba(99,102,241,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.stochRsiFilter?"#818cf8":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.stochRsiFilter?"#818cf8":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.stochRsiFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #7 Bollinger Bands */}
+                <div style={{ background:"rgba(6,182,212,0.05)", border:`1px solid rgba(6,182,212,${config.bbFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#22d3ee" }}>#7 Bollinger BB%B</div><div style={{ fontSize:10, color:M, marginTop:2 }}>LONG gdy BB%B &lt; {config.bbMaxPct}% (nie na szczycie)</div>{md&&<div style={{ fontSize:10, color:md.bbPct>80?R:G, marginTop:2 }}>BB%B: {md.bbPct.toFixed(0)}%</div>}</div>
+                    <button onClick={()=>update({bbFilter:!config.bbFilter})} style={{ background:config.bbFilter?"rgba(6,182,212,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.bbFilter?"#22d3ee":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.bbFilter?"#22d3ee":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.bbFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #8 Candle body */}
+                <div style={{ background:"rgba(251,191,36,0.05)", border:`1px solid rgba(251,191,36,${config.bodyFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#fbbf24" }}>#8 Body Quality</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Pomijaj doji — body &gt; {(config.bodyMinRatio*100).toFixed(0)}% zakresu świecy</div>{md&&<div style={{ fontSize:10, color:md.bodyRatio>=config.bodyMinRatio?G:R, marginTop:2 }}>Body: {(md.bodyRatio*100).toFixed(0)}%</div>}</div>
+                    <button onClick={()=>update({bodyFilter:!config.bodyFilter})} style={{ background:config.bodyFilter?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.bodyFilter?"#fbbf24":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.bodyFilter?"#fbbf24":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.bodyFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #9 EMA slope */}
+                <div style={{ background:"rgba(52,211,153,0.05)", border:`1px solid rgba(52,211,153,${config.emaSlopeFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#34d399" }}>#9 EMA Slope ▲</div><div style={{ fontSize:10, color:M, marginTop:2 }}>LONG tylko gdy EMA21 rośnie (trend potwierdza)</div>{md&&<div style={{ fontSize:10, color:md.emaSlope>0?G:R, marginTop:2 }}>{md.emaSlope>0?"▲":"▼"} {md.emaSlope.toFixed(3)}%</div>}</div>
+                    <button onClick={()=>update({emaSlopeFilter:!config.emaSlopeFilter})} style={{ background:config.emaSlopeFilter?"rgba(52,211,153,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.emaSlopeFilter?"#34d399":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.emaSlopeFilter?"#34d399":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.emaSlopeFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #10 Candle confirm */}
+                <div style={{ background:"rgba(248,113,113,0.05)", border:`1px solid rgba(248,113,113,${config.candleConfirm?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#f87171" }}>#10 Candle Confirm ×{config.candleConfirmN}</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Ostatnie {config.candleConfirmN} świece nad EMA21 (seria byków)</div></div>
+                    <button onClick={()=>update({candleConfirm:!config.candleConfirm})} style={{ background:config.candleConfirm?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.candleConfirm?"#f87171":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.candleConfirm?"#f87171":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.candleConfirm?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #31 ADX slope */}
+                <div style={{ background:"rgba(245,158,11,0.05)", border:`1px solid rgba(245,158,11,${config.adxSlope?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#f59e0b" }}>#31 ADX Rising ▲</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Wchódź tylko gdy ADX rośnie (trend się wzmacnia)</div>{md&&<div style={{ fontSize:10, color:md.adxRising?G:"#f59e0b", marginTop:2 }}>{md.adxRising?"▲ rośnie":"▼ spada"}</div>}</div>
+                    <button onClick={()=>update({adxSlope:!config.adxSlope})} style={{ background:config.adxSlope?"rgba(245,158,11,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.adxSlope?"#f59e0b":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.adxSlope?"#f59e0b":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.adxSlope?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #32 Volume trend */}
+                <div style={{ background:"rgba(20,184,166,0.05)", border:`1px solid rgba(20,184,166,${config.volumeTrend?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#2dd4bf" }}>#32 Vol Trend ▲</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Rosnący wolumen przez 3 świece (silne momentum)</div>{md&&<div style={{ fontSize:10, color:md.volumeRising?G:"#f59e0b", marginTop:2 }}>{md.volumeRising?"▲ rośnie":"— płaski/spada"}</div>}</div>
+                    <button onClick={()=>update({volumeTrend:!config.volumeTrend})} style={{ background:config.volumeTrend?"rgba(20,184,166,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.volumeTrend?"#2dd4bf":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.volumeTrend?"#2dd4bf":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.volumeTrend?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #34 Wick filter */}
+                <div style={{ background:"rgba(239,68,68,0.05)", border:`1px solid rgba(239,68,68,${config.wickFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#f87171" }}>#34 Wick Rejection</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Pomijaj świece z dużym górnym knotem (odrzucenie)</div>{md&&<div style={{ fontSize:10, color:md.upperWickRatio>2?R:G, marginTop:2 }}>Górny knot: {md.upperWickRatio.toFixed(1)}× body</div>}</div>
+                    <button onClick={()=>update({wickFilter:!config.wickFilter})} style={{ background:config.wickFilter?"rgba(239,68,68,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.wickFilter?"#f87171":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.wickFilter?"#f87171":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.wickFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #48 ROC */}
+                <div style={{ background:"rgba(168,85,247,0.05)", border:`1px solid rgba(168,85,247,${config.rocFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#c084fc" }}>#48 ROC-14 &gt; 0</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Rate of Change — cena wyżej niż 14 świec temu</div>{md&&<div style={{ fontSize:10, color:md.roc>0?G:R, marginTop:2 }}>ROC: {md.roc.toFixed(2)}%</div>}</div>
+                    <button onClick={()=>update({rocFilter:!config.rocFilter})} style={{ background:config.rocFilter?"rgba(168,85,247,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.rocFilter?"#c084fc":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.rocFilter?"#c084fc":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.rocFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #66 Ichimoku */}
+                <div style={{ background:"rgba(251,146,60,0.05)", border:`1px solid rgba(251,146,60,${config.ichimokuFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#fb923c" }}>#66 Ichimoku TK</div><div style={{ fontSize:10, color:M, marginTop:2 }}>LONG gdy Tenkan &gt; Kijun (TK cross bullish)</div>{md&&<div style={{ fontSize:10, color:md.tenkan>md.kijun?G:R, marginTop:2 }}>T:{fmt(md.tenkan)} K:{fmt(md.kijun)}</div>}</div>
+                    <button onClick={()=>update({ichimokuFilter:!config.ichimokuFilter})} style={{ background:config.ichimokuFilter?"rgba(251,146,60,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.ichimokuFilter?"#fb923c":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.ichimokuFilter?"#fb923c":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.ichimokuFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #69 Heikin-Ashi */}
+                <div style={{ background:"rgba(16,185,129,0.05)", border:`1px solid rgba(16,185,129,${config.haFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#10b981" }}>#69 Heikin-Ashi</div><div style={{ fontSize:10, color:M, marginTop:2 }}>LONG gdy świeca HA jest zielona (trend wygładzony)</div>{md&&<div style={{ fontSize:10, color:md.haGreen?G:R, marginTop:2 }}>{md.haGreen?"🟢 HA zielona":"🔴 HA czerwona"}</div>}</div>
+                    <button onClick={()=>update({haFilter:!config.haFilter})} style={{ background:config.haFilter?"rgba(16,185,129,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.haFilter?"#10b981":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.haFilter?"#10b981":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.haFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #68 BB Squeeze */}
+                <div style={{ background:"rgba(56,189,248,0.05)", border:`1px solid rgba(56,189,248,${config.bbSqueezeFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#38bdf8" }}>#68 BB Squeeze</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Wejście tylko po ściskaniu wstęgi (breakout)</div>{md&&<div style={{ fontSize:10, color:md.bbSqueeze?G:"#f59e0b", marginTop:2 }}>{md.bbSqueeze?"🎯 Squeeze aktywne":"— brak squeeze"}</div>}</div>
+                    <button onClick={()=>update({bbSqueezeFilter:!config.bbSqueezeFilter})} style={{ background:config.bbSqueezeFilter?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.bbSqueezeFilter?"#38bdf8":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.bbSqueezeFilter?"#38bdf8":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.bbSqueezeFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* #11-#15: Exit & risk improvements */}
+              <div style={{ fontSize:11, color:M, marginBottom:8, fontWeight:700 }}>ZARZĄDZANIE RYZYKIEM #11–#15</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+                {/* #11 RSI extreme exit */}
+                <div style={{ background:"rgba(239,68,68,0.05)", border:`1px solid rgba(239,68,68,${config.rsiExitFilter?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#f87171" }}>#11 RSI Exit (&gt;{config.rsiExitHigh})</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Zamknij LONG gdy RSI &gt;{config.rsiExitHigh} — wykupienie</div></div>
+                    <button onClick={()=>update({rsiExitFilter:!config.rsiExitFilter})} style={{ background:config.rsiExitFilter?"rgba(239,68,68,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.rsiExitFilter?"#f87171":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.rsiExitFilter?"#f87171":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.rsiExitFilter?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #12 Fee simulation */}
+                <div style={{ background:"rgba(244,63,94,0.05)", border:`1px solid rgba(244,63,94,${config.feeSimulation?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#fb7185" }}>#12 Symulacja opłat</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Odejmij {config.feePct}% RT od każdej transakcji (Bybit)</div></div>
+                    <button onClick={()=>update({feeSimulation:!config.feeSimulation})} style={{ background:config.feeSimulation?"rgba(244,63,94,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.feeSimulation?"#fb7185":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.feeSimulation?"#fb7185":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.feeSimulation?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #13 Auto-pause */}
+                <div style={{ background:"rgba(239,68,68,0.05)", border:`1px solid rgba(239,68,68,${config.autoPauseOnLosses?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#f87171" }}>#13 Auto-pauza ({config.maxConsecLosses} strat)</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Zatrzymaj bota po {config.maxConsecLosses} stratach z rzędu</div></div>
+                    <button onClick={()=>update({autoPauseOnLosses:!config.autoPauseOnLosses})} style={{ background:config.autoPauseOnLosses?"rgba(239,68,68,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.autoPauseOnLosses?"#f87171":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.autoPauseOnLosses?"#f87171":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.autoPauseOnLosses?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #14 Compound mode */}
+                <div style={{ background:"rgba(34,197,94,0.05)", border:`1px solid rgba(34,197,94,${config.compoundMode?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:G }}>#14 Składanie kapitału</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Kapitał rośnie/maleje razem z P&L zamkniętych pozycji</div>{config.compoundMode&&<div style={{ fontSize:10, color:G, marginTop:2 }}>Start: ${config.startingCapital} → teraz: ${config.capital.toFixed(0)}</div>}</div>
+                    <button onClick={()=>update({compoundMode:!config.compoundMode, startingCapital:config.compoundMode?config.capital:config.capital})} style={{ background:config.compoundMode?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.compoundMode?G:"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.compoundMode?G:M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.compoundMode?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #15 Recovery mode */}
+                <div style={{ background:"rgba(251,146,60,0.05)", border:`1px solid rgba(251,146,60,${config.recoveryMode?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#fb923c" }}>#15 Recovery Mode (-{config.recoveryDrawdownPct}%)</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Po DD &gt;{config.recoveryDrawdownPct}%: ryzyko ×0.5 aż do powrotu</div></div>
+                    <button onClick={()=>update({recoveryMode:!config.recoveryMode})} style={{ background:config.recoveryMode?"rgba(251,146,60,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.recoveryMode?"#fb923c":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.recoveryMode?"#fb923c":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.recoveryMode?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #25 Daily circuit breaker */}
+                <div style={{ background:"rgba(239,68,68,0.05)", border:`1px solid rgba(239,68,68,${config.dailyCircuitBreaker?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#f87171" }}>#25 Daily Stop -{config.dailyLossLimit}%</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Zatrzymaj po stracie {config.dailyLossLimit}% kapitału dziennie</div></div>
+                    <button onClick={()=>update({dailyCircuitBreaker:!config.dailyCircuitBreaker})} style={{ background:config.dailyCircuitBreaker?"rgba(239,68,68,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.dailyCircuitBreaker?"#f87171":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.dailyCircuitBreaker?"#f87171":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.dailyCircuitBreaker?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #33 Revenge cooldown */}
+                <div style={{ background:"rgba(156,163,175,0.05)", border:`1px solid rgba(156,163,175,${config.revengeCooldown?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#9ca3af" }}>#33 Cooldown po SL</div><div style={{ fontSize:10, color:M, marginTop:2 }}>1h przerwy po stop loss (brak handlu z zemsty)</div></div>
+                    <button onClick={()=>update({revengeCooldown:!config.revengeCooldown})} style={{ background:config.revengeCooldown?"rgba(156,163,175,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.revengeCooldown?"#9ca3af":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.revengeCooldown?"#9ca3af":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.revengeCooldown?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #27 Signal confirmation */}
+                <div style={{ background:"rgba(99,102,241,0.05)", border:`1px solid rgba(99,102,241,${config.signalConfirmation?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#818cf8" }}>#27 Potwierdzenie ×2</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Sygnał musi pojawić się 2× z rzędu zanim wejście</div></div>
+                    <button onClick={()=>update({signalConfirmation:!config.signalConfirmation})} style={{ background:config.signalConfirmation?"rgba(99,102,241,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.signalConfirmation?"#818cf8":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.signalConfirmation?"#818cf8":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.signalConfirmation?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #23 Kelly sizing */}
+                <div style={{ background:"rgba(16,185,129,0.05)", border:`1px solid rgba(16,185,129,${config.kellyEnabled?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#10b981" }}>#23 Kelly Sizing ×{config.kellyFraction}</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Optymalne ryzyko wg Kelly (po 10+ transakcjach)</div>{closed.length>=10&&<div style={{ fontSize:10, color:"#10b981", marginTop:2 }}>Kelly sugeruje: {(kellyFraction(tradeAnalytics(closed).wr, tradeAnalytics(closed).avgWin, tradeAnalytics(closed).avgLoss)*config.kellyFraction/100).toFixed(1)}%</div>}</div>
+                    <button onClick={()=>update({kellyEnabled:!config.kellyEnabled})} style={{ background:config.kellyEnabled?"rgba(16,185,129,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.kellyEnabled?"#10b981":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.kellyEnabled?"#10b981":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.kellyEnabled?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #24 Vol scaling */}
+                <div style={{ background:"rgba(245,158,11,0.05)", border:`1px solid rgba(245,158,11,${config.volScaling?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#f59e0b" }}>#24 Vol Scaling</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Mniejsza pozycja w wysokiej zmienności (ATR &gt;70%ile)</div>{md&&<div style={{ fontSize:10, color:md.atrPercentile>70?R:md.atrPercentile<30?G:"#f59e0b", marginTop:2 }}>ATR percentyl: {md.atrPercentile.toFixed(0)}%</div>}</div>
+                    <button onClick={()=>update({volScaling:!config.volScaling})} style={{ background:config.volScaling?"rgba(245,158,11,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.volScaling?"#f59e0b":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.volScaling?"#f59e0b":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.volScaling?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #91 Profit lock */}
+                <div style={{ background:"rgba(56,189,248,0.05)", border:`1px solid rgba(56,189,248,${config.profitLock?0.4:0.15})`, borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div><div style={{ fontSize:12, fontWeight:700, color:"#38bdf8" }}>#91 Profit Lock {config.profitLockPct}%</div><div style={{ fontSize:10, color:M, marginTop:2 }}>Nie oddaj więcej niż {100-config.profitLockPct}% szczytowego zysku</div></div>
+                    <button onClick={()=>update({profitLock:!config.profitLock})} style={{ background:config.profitLock?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.profitLock?"#38bdf8":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.profitLock?"#38bdf8":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.profitLock?"ON":"OFF"}</button>
+                  </div>
+                </div>
+                {/* #41 Strategy presets */}
+                <div style={{ background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:10, padding:"12px 14px", gridColumn:"span 2" }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#818cf8", marginBottom:8 }}>#41 Presety strategii</div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    {[
+                      { name:"🐢 Konserwatywny", cfg:{ riskPct:5, trailPct:0.35, rsiMin:50, rsiMax:65, macdFilter:true, volumeFilter:true, drawdownProtection:true, recoveryMode:true, breakEvenStop:true } },
+                      { name:"⚖️ Zbalansowany",  cfg:{ riskPct:10, trailPct:0.25, rsiMin:45, rsiMax:65, macdFilter:true, volumeFilter:true, drawdownProtection:true } },
+                      { name:"🚀 Agresywny",     cfg:{ riskPct:15, trailPct:0.15, rsiMin:48, rsiMax:68, macdFilter:true, volumeFilter:true, drawdownProtection:false } },
+                    ].map(p=>(
+                      <button key={p.name} onClick={()=>{ update(p.cfg as Partial<BotConfig>); addLog(`Preset: ${p.name}`,"info"); }}
+                        style={{ flex:1, background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:7, padding:"7px 6px", color:"#818cf8", cursor:"pointer", fontSize:11, fontWeight:700 }}>{p.name}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div style={{ background:"rgba(34,197,94,0.05)", border:"1px solid rgba(34,197,94,0.15)", borderRadius:8, padding:"10px 14px", fontSize:11, color:M, lineHeight:1.7, marginBottom:14 }}>
                 <strong style={{color:G}}>Aktywna konfiguracja:</strong> LONG gdy cena &gt; EMA±{config.emaMaxDist}% AND RSI [{config.rsiMin}-{config.rsiMax}]{config.useAdx ? ` AND ADX ≥ ${config.adxMin}` : ""}
                 {config.allowShorts ? ` · SHORT gdy cena < EMA AND RSI < 40${config.useAdx?` AND ADX ≥ ${config.adxMin}`:""}` : ""}
@@ -1757,7 +2047,57 @@ export default function TradingBot() {
 
         {/* Trade history */}
         <div style={card}>
-          <div style={{ fontSize:10, color:M, letterSpacing:1, marginBottom:14 }}>HISTORIA TRANSAKCJI ({closed.length})</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+            <div style={{ fontSize:10, color:M, letterSpacing:1 }}>HISTORIA TRANSAKCJI ({closed.length})</div>
+            {/* #88 CSV export */}
+            {closed.length > 0 && (
+              <button onClick={()=>{
+                const rows = ["Data,Symbol,Kierunek,Wejście,Wyjście,PnL ($),PnL (%),Powód",
+                  ...closed.map(t=>[
+                    fmtDate(t.entryTime)+" "+fmtTime(t.entryTime),
+                    t.symbol,
+                    (t.direction??"long").toUpperCase(),
+                    (t.entryPrice??0).toFixed(2),
+                    (t.exitPrice??0).toFixed(2),
+                    (t.pnl??0).toFixed(2),
+                    (t.pnlPct??0).toFixed(2),
+                    t.reason??"session_end"
+                  ].join(","))
+                ].join("\n");
+                const a = document.createElement("a");
+                a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(rows);
+                a.download = `trades_${config.symbol}_${fmtDate(new Date().toISOString())}.csv`;
+                a.click();
+              }} style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:7, padding:"4px 12px", color:G, cursor:"pointer", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                ⬇ CSV
+              </button>
+            )}
+          </div>
+          {/* #99 Performance summary one-liner */}
+          {closed.length >= 5 && (() => {
+            const an = tradeAnalytics(closed);
+            const grade = performanceGrade(an.sharpe, an.wr, an.pf);
+            const gradeColor = grade==="A"?G:grade==="B"?"#86efac":grade==="C"?"#f59e0b":grade==="D"?"#fb923c":R;
+            const status = an.wr>=55&&an.ev>0&&an.pf>=1.2 ? "✅ Strategia zyskowna" : an.wr>=45&&an.pf>=1 ? "⚠️ Wyniki mieszane" : "❌ Wymaga optymalizacji";
+            const statusColor = an.wr>=55&&an.ev>0&&an.pf>=1.2?G:an.wr>=45&&an.pf>=1?"#f59e0b":R;
+            return (
+              <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:8, padding:"8px 14px", marginBottom:14, fontSize:12, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" as const }}>
+                <span style={{ fontWeight:700, color:statusColor }}>{status}</span>
+                <span style={{ color:M }}>·</span>
+                <span style={{ color:an.wr>=55?G:"#f59e0b" }}>WR {an.wr.toFixed(0)}%</span>
+                <span style={{ color:M }}>·</span>
+                <span style={{ color:an.ev>=0?G:R }}>EV {an.ev>=0?"+":""}{an.ev.toFixed(2)}%</span>
+                <span style={{ color:M }}>·</span>
+                <span style={{ color:an.pf>=1.2?G:"#f59e0b" }}>PF {an.pf.toFixed(2)}</span>
+                <span style={{ color:M }}>·</span>
+                <span style={{ color:an.sharpe>=1?G:"#f59e0b" }}>Sharpe {an.sharpe.toFixed(2)}</span>
+                <span style={{ color:M }}>·</span>
+                <span style={{ color:gradeColor }}>Ocena {grade}</span>
+                <span style={{ color:M }}>·</span>
+                <span style={{ color:M }}>{closed.length} tr. · DD {an.maxDD.toFixed(1)}%</span>
+              </div>
+            );
+          })()}
           {closed.length===0 ? (
             <div style={{ color:M, fontSize:14, lineHeight:1.8 }}>Brak transakcji. Bot wchodzi gdy RSI+EMA{config.useAdx?`+ADX≥${config.adxMin}`:""} potwierdzą kierunek podczas sesji 21–23 UTC.</div>
           ) : (
