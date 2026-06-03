@@ -1,4 +1,4 @@
-run = "NODE_ENV=production npx tsx server/index.ts"
+run = "node dist/index.cjs"
 entrypoint = "server/index.ts"
 modules = ["nodejs-22"]
 
@@ -39,5 +39,5 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_ENV=production npx tsx server/index.ts"
+args = "node dist/index.cjs"
 waitForPort = 3000
