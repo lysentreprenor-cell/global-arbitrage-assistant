@@ -906,20 +906,24 @@ function calcEnsemble(results: OptResult[]): OptResult | null {
 }
 
 function loadLearning(): LearningMemory {
+  const empty: LearningMemory = { adaptCount:0, autoOptCount:0, deepResult:null, optResult:null,
+    deepHistory:[], optHistory:[], ensembleResult:null, activityLog:[], adaptations:[] };
   try {
     const raw = localStorage.getItem(LEARN_KEY);
     if (raw) {
       const m = JSON.parse(raw) as LearningMemory;
-      // back-compat: older saves may not have deepHistory
       if (!m.deepHistory) m.deepHistory = m.deepResult ? [m.deepResult] : [];
       if (!m.optHistory)  m.optHistory  = m.optResult  ? [m.optResult]  : [];
+      // auto-heal: if ALL Deep Train results are sharpe=-999 (broken run), wipe history
+      if (m.deepHistory.length > 0 && m.deepHistory.every(r => r.sharpe <= -900)) {
+        m.deepHistory = []; m.deepResult = null; m.ensembleResult = null;
+        localStorage.setItem(LEARN_KEY, JSON.stringify(m));
+      }
       if (!m.ensembleResult) m.ensembleResult = calcEnsemble(m.deepHistory);
       return m;
     }
   } catch {}
-  return { adaptCount:0, autoOptCount:0, deepResult:null, optResult:null,
-           deepHistory:[], optHistory:[], ensembleResult:null,
-           activityLog:[], adaptations:[] };
+  return empty;
 }
 
 function saveLearning(m: LearningMemory) {
