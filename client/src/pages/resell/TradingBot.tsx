@@ -1507,36 +1507,35 @@ export default function TradingBot() {
               {config.enabled ? <><Play size={14}/> AKTYWNY</> : <><Pause size={14}/> ZATRZYMANY</>}
             </button>
           </div>
-          {/* Leverage row — full width, always visible */}
-          {(() => {
-            const autoLev = calcAutoLeverage(learningRef.current.deepHistory);
-            const effectiveLev = config.leverageAuto ? autoLev : config.leverage;
-            const needsTraining = config.leverageAuto && learningRef.current.deepHistory.filter(r=>r.sharpe>0&&r.winRate>0&&r.windows&&r.windows>=5).length < 2;
-            return (
-              <div style={{ width:"100%", display:"flex", alignItems:"center", gap:8, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.07)", flexWrap:"wrap" }}>
-                <span style={{ fontSize:11, color:M, fontWeight:700, minWidth:70 }}>⚡ DŹWIGNIA:</span>
-                {/* AUTO toggle */}
-                <button onClick={()=>{ const n=!config.leverageAuto; update({leverageAuto:n}); addLog(n?`AUTO dźwignia włączona (teraz: ${autoLev}x) — system sam dobiera przy mocnym sygnale`:"AUTO dźwignia wyłączona","info"); }}
-                  style={{ background:config.leverageAuto?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.leverageAuto?"#a78bfa":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"6px 14px", color:config.leverageAuto?"#a78bfa":M, cursor:"pointer", fontWeight:700, fontSize:13 }}>
-                  🤖 AUTO{config.leverageAuto ? (needsTraining?" (ucz się…)":`·${autoLev}x`) : ""}
-                </button>
-                {/* Manual level buttons */}
-                {([1,2,3,5,10] as const).map(lv => {
-                  const active = !config.leverageAuto && effectiveLev===lv;
-                  const color = lv===1?"#94a3b8":lv<=3?"#fbbf24":"#f87171";
-                  return (
-                    <button key={lv} onClick={()=>{ update({leverage:lv,leverageAuto:false}); addLog(`Dźwignia: ${lv}x${lv>1?` · likwidacja przy -${(100/lv).toFixed(0)}%`:""}`, lv>3?"warn":"info"); }}
-                      style={{ background:active?`rgba(${lv===1?"148,163,184":lv<=3?"251,191,36":"248,113,113"},0.18)`:"rgba(255,255,255,0.04)", border:`1px solid ${active?color:"rgba(255,255,255,0.12)"}`, borderRadius:8, padding:"6px 14px", color:active?color:M, cursor:"pointer", fontWeight:active?800:500, fontSize:13, opacity:config.leverageAuto?0.4:1 }}>
-                      {lv}x
-                    </button>
-                  );
-                })}
-                {config.leverageAuto && !needsTraining && <span style={{ fontSize:11, color:"#a78bfa" }}>· każda transakcja dostaje dźwignię wg siły sygnału</span>}
-                {needsTraining && <span style={{ fontSize:11, color:M }}>· uruchom Deep Train ≥2× żeby aktywować auto dźwignię</span>}
-              </div>
-            );
-          })()}
         </div>
+
+        {/* Leverage card — separate row, always visible */}
+        {(() => {
+          const autoLev = calcAutoLeverage(learningRef.current.deepHistory);
+          const effectiveLev = config.leverageAuto ? autoLev : config.leverage;
+          const needsTraining = config.leverageAuto && learningRef.current.deepHistory.filter(r=>r.sharpe>0&&r.winRate>0&&r.windows&&r.windows>=5).length < 2;
+          return (
+            <div style={{ ...card, display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+              <span style={{ fontSize:12, color:M, fontWeight:700 }}>⚡ DŹWIGNIA:</span>
+              <button onClick={()=>{ const n=!config.leverageAuto; update({leverageAuto:n}); addLog(n?`AUTO dźwignia włączona (max: ${autoLev}x) — system sam dobiera przy mocnym sygnale`:"AUTO dźwignia wyłączona","info"); }}
+                style={{ background:config.leverageAuto?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.leverageAuto?"#a78bfa":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"7px 16px", color:config.leverageAuto?"#a78bfa":M, cursor:"pointer", fontWeight:700, fontSize:13 }}>
+                🤖 AUTO{config.leverageAuto?(needsTraining?" (ucz się…)":`·${autoLev}x`):""}
+              </button>
+              {([1,2,3,5,10] as const).map(lv => {
+                const active = !config.leverageAuto && effectiveLev===lv;
+                const color = lv===1?"#94a3b8":lv<=3?"#fbbf24":"#f87171";
+                return (
+                  <button key={lv} onClick={()=>{ update({leverage:lv,leverageAuto:false}); addLog(`Dźwignia: ${lv}x${lv>1?` · likwidacja przy -${(100/lv).toFixed(0)}%`:""}`, lv>3?"warn":"info"); }}
+                    style={{ background:active?`rgba(${lv===1?"148,163,184":lv<=3?"251,191,36":"248,113,113"},0.18)`:"rgba(255,255,255,0.04)", border:`1px solid ${active?color:"rgba(255,255,255,0.12)"}`, borderRadius:8, padding:"7px 14px", color:active?color:M, cursor:"pointer", fontWeight:active?800:500, fontSize:13, opacity:config.leverageAuto?0.35:1 }}>
+                    {lv}x
+                  </button>
+                );
+              })}
+              {config.leverageAuto && !needsTraining && <span style={{ fontSize:11, color:"#a78bfa", marginLeft:4 }}>· dźwignia wg siły sygnału per transakcja</span>}
+              {needsTraining && <span style={{ fontSize:11, color:M, marginLeft:4 }}>· uruchom Deep Train ≥2× żeby aktywować</span>}
+            </div>
+          );
+        })()}
 
         {error && <div style={{ ...card, border:"1px solid rgba(248,113,113,0.3)", background:"rgba(248,113,113,0.06)", color:R, marginBottom:14, display:"flex", alignItems:"center", gap:8, fontSize:14 }}><AlertCircle size={15}/> {error}</div>}
 
