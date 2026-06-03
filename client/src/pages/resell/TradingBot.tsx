@@ -94,6 +94,8 @@ type BotConfig = {
   leverageAuto: boolean; // system sam dobiera dźwignię na podstawie Deep Train
   // auto filters
   filterAutoMode: boolean; // system sam włącza/wyłącza filtry na podstawie Deep Train + rynku
+  // auto strategy
+  strategyAutoMode: boolean; // system sam dobiera RSI/Trail/SL/TP z Deep Train
   trades: PaperTrade[];
 };
 
@@ -866,6 +868,7 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, 
   leverage:1,
   leverageAuto:false,
   filterAutoMode:false,
+  strategyAutoMode:false,
   trades:[] };
 
 function loadConfig(): BotConfig {
@@ -1785,10 +1788,40 @@ export default function TradingBot() {
 
         {/* Settings */}
         <div style={{ ...card, marginBottom:14 }}>
-          <button onClick={()=>setShowSettings(s=>!s)} style={{ width:"100%", background:"none", border:"none", color:T, display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", padding:0, fontSize:14, fontWeight:700 }}>
-            <span style={{ display:"flex", alignItems:"center", gap:8 }}><Settings size={14}/> Konfiguracja strategii</span>
-            {showSettings ? <ChevronUp size={15} color={M}/> : <ChevronDown size={15} color={M}/>}
-          </button>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
+            <button onClick={()=>setShowSettings(s=>!s)} style={{ flex:1, background:"none", border:"none", color:T, display:"flex", alignItems:"center", gap:8, cursor:"pointer", padding:0, fontSize:14, fontWeight:700 }}>
+              <Settings size={14}/> Konfiguracja strategii
+              {showSettings ? <ChevronUp size={15} color={M}/> : <ChevronDown size={15} color={M}/>}
+            </button>
+            {/* AUTO Strategia */}
+            {(() => {
+              const ens = learningRef.current.ensembleResult;
+              const hasData = !!ens && ens.sharpe > 0;
+              return (
+                <button onClick={()=>{
+                  const n = !config.strategyAutoMode;
+                  update({strategyAutoMode:n});
+                  if (n && hasData && ens) {
+                    update({rsiMin:ens.rsiMin, rsiMax:ens.rsiMax, trailPct:ens.trailPct});
+                    setTmpRsiMin(String(ens.rsiMin)); setTmpRsiMax(String(ens.rsiMax)); setTmpTrailPct(String(ens.trailPct));
+                    addLog(`🤖 AUTO strategia: RSI[${ens.rsiMin}-${ens.rsiMax}] Trail${ens.trailPct}% (z ${learningRef.current.deepHistory.length} sesji Deep Train)`,"info");
+                  } else if (n && !hasData) {
+                    addLog("AUTO strategia: brak danych Deep Train — uruchom Deep Train najpierw","warn");
+                  } else {
+                    addLog("AUTO strategia wyłączona — ręczna konfiguracja","info");
+                  }
+                }}
+                  style={{ background:config.strategyAutoMode?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.strategyAutoMode?"#a78bfa":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"6px 14px", color:config.strategyAutoMode?"#a78bfa":M, cursor:"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+                  🤖 AUTO{config.strategyAutoMode?(hasData?` · RSI[${ens!.rsiMin}-${ens!.rsiMax}] Trail${ens!.trailPct}%`:" (brak danych)"):""}
+                </button>
+              );
+            })()}
+          </div>
+          {config.strategyAutoMode && (
+            <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(167,139,250,0.06)", borderRadius:8, border:"1px solid rgba(167,139,250,0.2)", fontSize:11, color:"#a78bfa" }}>
+              🤖 Parametry zarządzane przez Deep Train — po każdym treningu system aktualizuje RSI, Trail i SL/TP automatycznie
+            </div>
+          )}
           {showSettings && (
             <div style={{ marginTop:18 }}>
               {/* Base params */}
@@ -2397,6 +2430,11 @@ export default function TradingBot() {
                     addLog(`🧠 Deep Train #${newHistory.length} (${r.windows} okien): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${ensembleNote}`,"info");
                     learningRef.current = { ...learningRef.current, deepResult: r, deepHistory: newHistory, ensembleResult: ensemble };
                     saveLearning(learningRef.current);
+                    // AUTO strategia: apply updated filters + leverage after each Deep Train
+                    if (config.filterAutoMode) {
+                      const af = calcAutoFilters(newHistory, md);
+                      update({volumeFilter:af.volumeFilter,macdFilter:af.macdFilter,emaRibbonFilter:af.emaRibbonFilter,stochRsiFilter:af.stochRsiFilter,bbFilter:af.bbFilter,emaSlopeFilter:af.emaSlopeFilter,adxSlope:af.adxSlope,volumeTrend:af.volumeTrend,wickFilter:af.wickFilter,ichimokuFilter:af.ichimokuFilter,haFilter:af.haFilter,rocFilter:af.rocFilter,rsiRising:af.rsiRising,sessionScoreGate:af.sessionScoreGate});
+                    }
                   } catch(e:any) { addLog("Deep Train błąd: "+e.message,"warn"); }
                   finally { setDeepLoading(false); }
                 }}
