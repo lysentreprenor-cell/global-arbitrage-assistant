@@ -89,6 +89,8 @@ type BotConfig = {
   sessionStart: number; sessionEnd: number;
   // #95 auto-disable
   autoDisableAfterSession: boolean;
+  // leverage
+  leverage: number; // 1=brak, 2=2x, 3=3x, 5=5x, 10=10x
   trades: PaperTrade[];
 };
 
@@ -226,6 +228,7 @@ type BtCfg = {
   sessionScoreGate: boolean; minSessionScore: number;
   optimizeFor: "sharpe" | "calmar" | "winRate";
   deepTrainWindows: number;
+  leverage: number;
 };
 
 function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
@@ -378,6 +381,11 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     let pnlPct=dir==="long"?(exit-entry)/entry*100:(entry-exit)/entry*100;
     // #12/#36 fee-adjusted returns
     if (cfg.feeSimulation) pnlPct -= cfg.feePct;
+    // leverage: multiply P&L, cap at -100% (liquidation)
+    if (cfg.leverage > 1) {
+      const liquidation = -(100 / cfg.leverage);
+      pnlPct = pnlPct <= liquidation ? -100 : pnlPct * cfg.leverage;
+    }
     trades.push({ date:new Date(c.time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"}), direction:dir, entryPrice:entry, exitPrice:exit, pnlPct, reason });
   }
   return calcBtStats(trades, cfg.symbol, candles, periodLabel);
@@ -836,6 +844,7 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, 
   profitLock:false, profitLockPct:50,
   sessionStart:21, sessionEnd:23,
   autoDisableAfterSession:true,
+  leverage:1,
   trades:[] };
 
 function loadConfig(): BotConfig {
@@ -1413,6 +1422,20 @@ export default function TradingBot() {
               style={{ background:config.allow24h?"rgba(167,139,250,0.15)":"rgba(255,255,255,0.04)", border:`1px solid ${config.allow24h?"rgba(167,139,250,0.45)":"rgba(255,255,255,0.1)"}`, borderRadius:8, padding:"8px 16px", color:config.allow24h?"#a78bfa":M, cursor:"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
               <Clock size={13}/> {config.allow24h?"24H":"SESJA"}
             </button>
+            {/* Leverage selector */}
+            <div style={{ display:"flex", alignItems:"center", gap:4, background:"rgba(0,0,0,0.25)", borderRadius:8, padding:"3px 6px", border:"1px solid rgba(255,255,255,0.1)" }}>
+              <span style={{ fontSize:10, color:M, marginRight:2, fontWeight:700 }}>DŹW:</span>
+              {([1,2,3,5,10] as const).map(lv => {
+                const active = config.leverage === lv;
+                const color = lv===1?"#94a3b8":lv<=3?"#fbbf24":"#f87171";
+                return (
+                  <button key={lv} onClick={()=>{ update({leverage:lv}); addLog(`Dźwignia ustawiona: ${lv}x${lv>1?` (likwidacja przy -${(100/lv).toFixed(0)}% ruchu)`:""}`, lv>3?"warn":"info"); }}
+                    style={{ background:active?`rgba(${lv===1?"148,163,184":lv<=3?"251,191,36":"248,113,113"},0.2)`:"transparent", border:`1px solid ${active?color:"transparent"}`, borderRadius:6, padding:"4px 8px", color:active?color:M, cursor:"pointer", fontWeight:active?800:600, fontSize:12, minWidth:32 }}>
+                    {lv}x
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <button onClick={()=>{const n=!config.autoMode; update({autoMode:n}); prevSessionRef.current=null; addLog(n?"AUTO MODE włączony":"AUTO MODE wyłączony",n?"info":"warn");}}
@@ -2340,6 +2363,7 @@ export default function TradingBot() {
 
           {btResult && (() => {
             const r=btResult;
+            const lev=config.leverage;
             const eqMin=Math.min(0,...r.equity), eqMax=Math.max(0.01,...r.equity), range=eqMax-eqMin;
             return (
               <div>
@@ -2398,9 +2422,15 @@ export default function TradingBot() {
                   </div>
                 </div>
 
+                {lev > 1 && (
+                  <div style={{ background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:10, padding:"10px 14px", marginBottom:10, fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:16 }}>⚡</span>
+                    <span><strong style={{ color:"#fbbf24" }}>{lev}x dźwignia aktywna</strong> — wyniki powyżej uwzględniają mnożnik ×{lev}. Likwidacja następuje przy -{(100/lev).toFixed(0)}% ruchu przeciwko pozycji. {lev>=5?"Wysokie ryzyko — używaj ostrożnie!":""}</span>
+                  </div>
+                )}
                 <div style={{ background:r.winRate>=55&&r.totalReturn>0?"rgba(34,197,94,0.08)":r.winRate>=45?"rgba(245,158,11,0.08)":"rgba(248,113,113,0.08)", border:`1px solid ${r.winRate>=55&&r.totalReturn>0?"rgba(34,197,94,0.25)":r.winRate>=45?"rgba(245,158,11,0.25)":"rgba(248,113,113,0.25)"}`, borderRadius:10, padding:"12px 14px", marginBottom:12, fontSize:13 }}>
                   <strong style={{ color:r.winRate>=55&&r.totalReturn>0?G:r.winRate>=45?"#f59e0b":R }}>{r.winRate>=55&&r.totalReturn>0?"✅ Strategia byłaby zyskowna":r.winRate>=45?"⚠️ Wyniki mieszane":"❌ Strategia nierentowna"}</strong>
-                  {" "}Win rate {r.winRate.toFixed(0)}% przy {r.trades.length} transakcjach ({r.longs}L/{r.shorts}S) w okresie {r.periodLabel}. Każdy run testuje inny losowy okres — uruchom kilka razy.
+                  {" "}Win rate {r.winRate.toFixed(0)}% przy {r.trades.length} transakcjach ({r.longs}L/{r.shorts}S) w okresie {r.periodLabel}{lev>1?` · ${lev}x dźwignia`:""}.
                 </div>
 
                 <button onClick={()=>setShowBtTrades(s=>!s)} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:12, display:"flex", alignItems:"center", gap:5, padding:0, marginBottom:showBtTrades?10:0 }}>
