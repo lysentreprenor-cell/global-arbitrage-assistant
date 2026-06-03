@@ -92,6 +92,8 @@ type BotConfig = {
   // leverage
   leverage: number; // 1=brak, 2=2x, 3=3x, 5=5x, 10=10x
   leverageAuto: boolean; // system sam dobiera dźwignię na podstawie Deep Train
+  // auto filters
+  filterAutoMode: boolean; // system sam włącza/wyłącza filtry na podstawie Deep Train + rynku
   trades: PaperTrade[];
 };
 
@@ -863,6 +865,7 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, 
   autoDisableAfterSession:true,
   leverage:1,
   leverageAuto:false,
+  filterAutoMode:false,
   trades:[] };
 
 function loadConfig(): BotConfig {
@@ -955,6 +958,43 @@ function loadLearning(): LearningMemory {
 
 function saveLearning(m: LearningMemory) {
   try { localStorage.setItem(LEARN_KEY, JSON.stringify(m)); } catch {}
+}
+
+// Auto-filters: decide which filters to enable based on Deep Train quality + market
+type AutoFilterSet = {
+  volumeFilter: boolean; macdFilter: boolean; emaRibbonFilter: boolean;
+  stochRsiFilter: boolean; bbFilter: boolean; emaSlopeFilter: boolean;
+  adxSlope: boolean; volumeTrend: boolean; wickFilter: boolean;
+  ichimokuFilter: boolean; haFilter: boolean; rocFilter: boolean;
+  rsiRising: boolean; sessionScoreGate: boolean;
+};
+function calcAutoFilters(deepHistory: OptResult[], md: MarketData | null): AutoFilterSet {
+  const valid = deepHistory.filter(r => r.sharpe > 0 && r.winRate > 0 && r.windows && r.windows >= 5);
+  const avgSharpe = valid.length ? valid.reduce((s,r)=>s+r.sharpe,0)/valid.length : 0;
+  const avgWR     = valid.length ? valid.reduce((s,r)=>s+r.winRate,0)/valid.length : 0;
+  // tier based on Deep Train quality
+  const tier = avgSharpe >= 3.5 && avgWR >= 78 ? 3 : avgSharpe >= 2.5 && avgWR >= 68 ? 2 : avgSharpe >= 1.5 ? 1 : 0;
+  // market conditions
+  const strongVol  = md ? md.volumeMult >= 1.5 : false;
+  const goodADX    = md ? md.adx >= 25 : false;
+  const macdBull   = md ? md.macd > md.macdSignal : false;
+  const ribbonOk   = md ? md.ribbonBull || md.ribbonBear : false;
+  return {
+    volumeFilter:    tier >= 1,                        // zawsze przy choć trochę danych
+    macdFilter:      tier >= 1,                        // zawsze
+    emaRibbonFilter: tier >= 2 && ribbonOk,            // przy dobrych wynikach
+    stochRsiFilter:  tier >= 2,                        // filtruje wykupienie
+    bbFilter:        tier >= 3,                        // tylko przy świetnych wynikach
+    emaSlopeFilter:  tier >= 2 && goodADX,             // trend musi rosnąć
+    adxSlope:        tier >= 2 && goodADX,             // ADX rośnie = trend się wzmacnia
+    volumeTrend:     tier >= 2 && strongVol,           // rosnący wolumen
+    wickFilter:      tier >= 1,                        // podstawowy filtr jakości świecy
+    ichimokuFilter:  tier >= 3,                        // zaawansowany — tylko top wyniki
+    haFilter:        tier >= 2 && (macdBull || ribbonOk),
+    rocFilter:       tier >= 2,
+    rsiRising:       tier >= 3,
+    sessionScoreGate:tier >= 2,
+  };
 }
 
 // Auto-leverage: analyze Deep Train history and pick safe leverage
@@ -1981,6 +2021,40 @@ export default function TradingBot() {
               </div>
 
               {/* ══ IMPROVEMENTS #6-#100 SETTINGS ══════════════════════════════ */}
+
+              {/* AUTO FILTRY banner */}
+              {(() => {
+                const af = calcAutoFilters(learningRef.current.deepHistory, md);
+                const autoCount = Object.values(af).filter(Boolean).length;
+                const valid = learningRef.current.deepHistory.filter(r=>r.sharpe>0&&r.winRate>0&&r.windows&&r.windows>=5);
+                const tier = valid.length ? (valid.reduce((s,r)=>s+r.sharpe,0)/valid.length >= 3.5 ? 3 : valid.reduce((s,r)=>s+r.sharpe,0)/valid.length >= 2.5 ? 2 : 1) : 0;
+                return (
+                  <div style={{ background:config.filterAutoMode?"rgba(167,139,250,0.08)":"rgba(255,255,255,0.03)", border:`1px solid ${config.filterAutoMode?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.1)"}`, borderRadius:10, padding:"12px 16px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:config.filterAutoMode?"#a78bfa":M }}>🤖 AUTO FILTRY</div>
+                      <div style={{ fontSize:11, color:M, marginTop:3 }}>
+                        {tier===0?"Uruchom Deep Train żeby system nauczył się które filtry pomagają":
+                         config.filterAutoMode?`Tier ${tier} — system włącza ${autoCount} filtrów na podstawie Deep Train + rynku`:
+                         "System sam dobiera filtry na podstawie jakości Deep Train i warunków rynkowych"}
+                      </div>
+                      {config.filterAutoMode && tier>0 && (
+                        <div style={{ fontSize:10, color:"#a78bfa", marginTop:4 }}>
+                          Aktywne: {[
+                            af.volumeFilter&&"VOL", af.macdFilter&&"MACD", af.emaRibbonFilter&&"Ribbon",
+                            af.stochRsiFilter&&"StochRSI", af.emaSlopeFilter&&"Slope", af.adxSlope&&"ADXSlope",
+                            af.volumeTrend&&"VolTrend", af.wickFilter&&"Wick", af.ichimokuFilter&&"Ichimoku",
+                            af.haFilter&&"HA", af.rocFilter&&"ROC", af.sessionScoreGate&&"Score"
+                          ].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={()=>{ const n=!config.filterAutoMode; update({filterAutoMode:n}); if(n&&tier>0){ const af2=calcAutoFilters(learningRef.current.deepHistory,md); update({volumeFilter:af2.volumeFilter,macdFilter:af2.macdFilter,emaRibbonFilter:af2.emaRibbonFilter,stochRsiFilter:af2.stochRsiFilter,bbFilter:af2.bbFilter,emaSlopeFilter:af2.emaSlopeFilter,adxSlope:af2.adxSlope,volumeTrend:af2.volumeTrend,wickFilter:af2.wickFilter,ichimokuFilter:af2.ichimokuFilter,haFilter:af2.haFilter,rocFilter:af2.rocFilter,rsiRising:af2.rsiRising,sessionScoreGate:af2.sessionScoreGate}); addLog(`AUTO FILTRY włączone (Tier ${tier}) — ${autoCount} filtrów aktywnych`,"info"); } else if(!n){ addLog("AUTO FILTRY wyłączone — ręczne sterowanie","info"); } }}
+                      style={{ background:config.filterAutoMode?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.filterAutoMode?"#a78bfa":"rgba(255,255,255,0.2)"}`, borderRadius:8, padding:"8px 16px", color:config.filterAutoMode?"#a78bfa":M, cursor:"pointer", fontWeight:700, fontSize:13, flexShrink:0 }}>
+                      {config.filterAutoMode?"AUTO ON":"AUTO OFF"}
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* #6-#10: Advanced signal filters */}
               <div style={{ fontSize:11, color:M, marginBottom:8, fontWeight:700, marginTop:4 }}>FILTRY SYGNAŁÓW #6–#10</div>
