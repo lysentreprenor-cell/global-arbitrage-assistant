@@ -264,8 +264,8 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     if (cfg.useAdx && adx < cfg.adxMin) continue;
     // #1 volume filter — skip low-volume candles
     if (cfg.volumeFilter && calcVolumeMult(candles, i) < cfg.volumeMinMult) continue;
-    // #2 MACD, #3 EMA ribbon
-    const macdV   = cfg.macdFilter ? calcMACD(cls) : { macd:1, signal:0, hist:1 };
+    // #2 MACD (needs ≥35 candles — use wider 80-candle slice), #3 EMA ribbon
+    const macdV   = cfg.macdFilter ? calcMACD(wcls) : { macd:1, signal:0, hist:1 };
     const ribbonV = cfg.emaRibbonFilter ? calcEMARibbon(cls) : { bullish:true, bearish:true };
 
     const prevC=i>0?candles[i-1]:null;
@@ -305,7 +305,7 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     if (adx>=25) score+=2;
     if (calcVolumeMult(candles,i)>=1.2) score+=2;
     if (ribbonForScore.bullish) score+=2;
-    if (calcMACD(cls).macd>calcMACD(cls).signal) score+=2;
+    if (calcMACD(wcls).macd>calcMACD(wcls).signal) score+=2;
     if (rsi>=50 && rsi<=65) score+=2;
     const scoreOk = !cfg.sessionScoreGate || score>=cfg.minSessionScore;
 
@@ -829,7 +829,7 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, 
   bbSqueezeFilter:false,
   haFilter:false,
   higherLowFilter:false,
-  deepTrainWindows:50,
+  deepTrainWindows:30,
   optimizeFor:"sharpe",
   sessionScoreGate:false, minSessionScore:4,
   reoptInterval:20,
