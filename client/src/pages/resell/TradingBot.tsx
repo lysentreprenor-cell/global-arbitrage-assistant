@@ -947,9 +947,12 @@ function loadLearning(): LearningMemory {
       const m = JSON.parse(raw) as LearningMemory;
       if (!m.deepHistory) m.deepHistory = m.deepResult ? [m.deepResult] : [];
       if (!m.optHistory)  m.optHistory  = m.optResult  ? [m.optResult]  : [];
-      // auto-heal: if ALL Deep Train results are sharpe=-999 (broken run), wipe history
-      if (m.deepHistory.length > 0 && m.deepHistory.every(r => r.sharpe <= -900)) {
-        m.deepHistory = []; m.deepResult = null; m.ensembleResult = null;
+      // auto-heal: filter out individual -999 results (0-window broken runs)
+      const cleaned = m.deepHistory.filter(r => r.sharpe > -900);
+      if (cleaned.length !== m.deepHistory.length) {
+        m.deepHistory = cleaned;
+        m.deepResult = cleaned.length > 0 ? cleaned[cleaned.length - 1] : null;
+        m.ensembleResult = null;
         localStorage.setItem(LEARN_KEY, JSON.stringify(m));
       }
       if (!m.ensembleResult) m.ensembleResult = calcEnsemble(m.deepHistory);
