@@ -230,6 +230,7 @@ type BtCfg = {
   optimizeFor: "sharpe" | "calmar" | "winRate";
   deepTrainWindows: number;
   leverage: number;
+  leverageAuto: boolean;
 };
 
 function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
@@ -382,10 +383,25 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     let pnlPct=dir==="long"?(exit-entry)/entry*100:(entry-exit)/entry*100;
     // #12/#36 fee-adjusted returns
     if (cfg.feeSimulation) pnlPct -= cfg.feePct;
-    // leverage: multiply P&L, cap at -100% (liquidation)
-    if (cfg.leverage > 1) {
-      const liquidation = -(100 / cfg.leverage);
-      pnlPct = pnlPct <= liquidation ? -100 : pnlPct * cfg.leverage;
+    // leverage: fixed or smart-auto (per-trade signal quality gate)
+    let tradeLev = cfg.leverage;
+    if (cfg.leverageAuto && cfg.leverage > 1) {
+      // signal quality score 0-10: adx, volume, macd, ribbon, rsi center
+      let sigScore = 0;
+      if (adx >= 30) sigScore += 3; else if (adx >= 20) sigScore += 1;
+      if (calcVolumeMult(candles, i) >= 1.5) sigScore += 2; else if (calcVolumeMult(candles, i) >= 1.2) sigScore += 1;
+      if (macdV.macd !== 0 && (dir==="long" ? macdV.macd > macdV.signal : macdV.macd < macdV.signal)) sigScore += 2;
+      if (dir==="long" ? ribbonV.bullish : ribbonV.bearish) sigScore += 1;
+      const rsiCenter = cfg.rsiMin + (cfg.rsiMax - cfg.rsiMin) / 2;
+      if (Math.abs(rsi - rsiCenter) <= 5) sigScore += 2;
+      // map score to leverage: need ≥7 for full, ≥4 for half-step, else 1x
+      if (sigScore >= 7) tradeLev = cfg.leverage;
+      else if (sigScore >= 4) tradeLev = Math.max(1, Math.floor((cfg.leverage + 1) / 2));
+      else tradeLev = 1;
+    }
+    if (tradeLev > 1) {
+      const liquidation = -(100 / tradeLev);
+      pnlPct = pnlPct <= liquidation ? -100 : pnlPct * tradeLev;
     }
     trades.push({ date:new Date(c.time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"}), direction:dir, entryPrice:entry, exitPrice:exit, pnlPct, reason });
   }
@@ -2321,7 +2337,7 @@ export default function TradingBot() {
                 {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
               </button>
               <button
-                onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { const effLev=config.leverageAuto?calcAutoLeverage(learningRef.current.deepHistory):config.leverage; setBtResult(await runBacktest({...config,leverage:effLev})); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
+                onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { const effLev=config.leverageAuto?calcAutoLeverage(learningRef.current.deepHistory):config.leverage; setBtResult(await runBacktest({...config,leverage:effLev,leverageAuto:config.leverageAuto})); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
                 disabled={btLoading||deepLoading}
                 style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
                 {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
@@ -2453,7 +2469,7 @@ export default function TradingBot() {
                     <span style={{ fontSize:16 }}>{config.leverageAuto?"🤖":"⚡"}</span>
                     <span>
                       {config.leverageAuto
-                        ? <><strong style={{ color:"#a78bfa" }}>AUTO dźwignia: {lev}x</strong> — system dobrał na podstawie Deep Train (avg Sharpe/WR). Likwidacja przy -{(100/lev).toFixed(0)}% ruchu.</>
+                        ? <><strong style={{ color:"#a78bfa" }}>AUTO dźwignia: max {lev}x</strong> — każda transakcja dostaje dźwignię wg jakości sygnału (ADX+vol+MACD+RSI): score≥7→{lev}x, score≥4→{Math.max(1,Math.floor((lev+1)/2))}x, score&lt;4→1x. Likwidacja przy -{(100/lev).toFixed(0)}% ruchu.</>
                         : <><strong style={{ color:"#fbbf24" }}>{lev}x dźwignia ręczna</strong> — wyniki uwzględniają mnożnik ×{lev}. Likwidacja przy -{(100/lev).toFixed(0)}% ruchu. {lev>=5?"Wysokie ryzyko — używaj ostrożnie!":""}</>
                       }
                     </span>
