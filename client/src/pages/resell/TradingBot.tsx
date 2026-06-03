@@ -91,6 +91,7 @@ type BotConfig = {
   autoDisableAfterSession: boolean;
   // leverage
   leverage: number; // 1=brak, 2=2x, 3=3x, 5=5x, 10=10x
+  leverageAuto: boolean; // system sam dobiera dźwignię na podstawie Deep Train
   trades: PaperTrade[];
 };
 
@@ -845,6 +846,7 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, 
   sessionStart:21, sessionEnd:23,
   autoDisableAfterSession:true,
   leverage:1,
+  leverageAuto:false,
   trades:[] };
 
 function loadConfig(): BotConfig {
@@ -937,6 +939,18 @@ function loadLearning(): LearningMemory {
 
 function saveLearning(m: LearningMemory) {
   try { localStorage.setItem(LEARN_KEY, JSON.stringify(m)); } catch {}
+}
+
+// Auto-leverage: analyze Deep Train history and pick safe leverage
+function calcAutoLeverage(deepHistory: OptResult[]): number {
+  const valid = deepHistory.filter(r => r.sharpe > 0 && r.winRate > 0 && r.windows && r.windows >= 5);
+  if (valid.length < 2) return 1; // need at least 2 solid runs
+  const avgSharpe = valid.reduce((s, r) => s + r.sharpe, 0) / valid.length;
+  const avgWR     = valid.reduce((s, r) => s + r.winRate, 0) / valid.length;
+  const minSharpe = Math.min(...valid.map(r => r.sharpe)); // worst run safety check
+  if (avgSharpe >= 4.0 && avgWR >= 82 && minSharpe >= 2.0) return 3;
+  if (avgSharpe >= 2.8 && avgWR >= 72 && minSharpe >= 1.5) return 2;
+  return 1;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -1423,19 +1437,31 @@ export default function TradingBot() {
               <Clock size={13}/> {config.allow24h?"24H":"SESJA"}
             </button>
             {/* Leverage selector */}
-            <div style={{ display:"flex", alignItems:"center", gap:4, background:"rgba(0,0,0,0.25)", borderRadius:8, padding:"3px 6px", border:"1px solid rgba(255,255,255,0.1)" }}>
-              <span style={{ fontSize:10, color:M, marginRight:2, fontWeight:700 }}>DŹW:</span>
-              {([1,2,3,5,10] as const).map(lv => {
-                const active = config.leverage === lv;
-                const color = lv===1?"#94a3b8":lv<=3?"#fbbf24":"#f87171";
-                return (
-                  <button key={lv} onClick={()=>{ update({leverage:lv}); addLog(`Dźwignia ustawiona: ${lv}x${lv>1?` (likwidacja przy -${(100/lv).toFixed(0)}% ruchu)`:""}`, lv>3?"warn":"info"); }}
-                    style={{ background:active?`rgba(${lv===1?"148,163,184":lv<=3?"251,191,36":"248,113,113"},0.2)`:"transparent", border:`1px solid ${active?color:"transparent"}`, borderRadius:6, padding:"4px 8px", color:active?color:M, cursor:"pointer", fontWeight:active?800:600, fontSize:12, minWidth:32 }}>
-                    {lv}x
+            {(() => {
+              const autoLev = calcAutoLeverage(learningRef.current.deepHistory);
+              const effectiveLev = config.leverageAuto ? autoLev : config.leverage;
+              return (
+                <div style={{ display:"flex", alignItems:"center", gap:4, background:"rgba(0,0,0,0.25)", borderRadius:8, padding:"3px 6px", border:`1px solid ${config.leverageAuto?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}` }}>
+                  <span style={{ fontSize:10, color:M, marginRight:2, fontWeight:700 }}>DŹW:</span>
+                  {/* AUTO button */}
+                  <button onClick={()=>{ const n=!config.leverageAuto; update({leverageAuto:n}); addLog(n?`AUTO dźwignia — system dobiera na podstawie Deep Train (teraz: ${autoLev}x)`:"AUTO dźwignia wyłączona — ręczny wybór","info"); }}
+                    style={{ background:config.leverageAuto?"rgba(167,139,250,0.25)":"transparent", border:`1px solid ${config.leverageAuto?"#a78bfa":"transparent"}`, borderRadius:6, padding:"4px 8px", color:config.leverageAuto?"#a78bfa":M, cursor:"pointer", fontWeight:config.leverageAuto?800:600, fontSize:11, display:"flex", alignItems:"center", gap:3 }}>
+                    {config.leverageAuto ? `AUTO·${autoLev}x` : "AUTO"}
                   </button>
-                );
-              })}
-            </div>
+                  {/* Manual buttons — dimmed when AUTO is on */}
+                  {!config.leverageAuto && ([1,2,3,5,10] as const).map(lv => {
+                    const active = effectiveLev === lv;
+                    const color = lv===1?"#94a3b8":lv<=3?"#fbbf24":"#f87171";
+                    return (
+                      <button key={lv} onClick={()=>{ update({leverage:lv,leverageAuto:false}); addLog(`Dźwignia ustawiona: ${lv}x${lv>1?` (likwidacja przy -${(100/lv).toFixed(0)}% ruchu)`:""}`, lv>3?"warn":"info"); }}
+                        style={{ background:active?`rgba(${lv===1?"148,163,184":lv<=3?"251,191,36":"248,113,113"},0.2)`:"transparent", border:`1px solid ${active?color:"transparent"}`, borderRadius:6, padding:"4px 8px", color:active?color:M, cursor:"pointer", fontWeight:active?800:600, fontSize:12, minWidth:32 }}>
+                        {lv}x
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <button onClick={()=>{const n=!config.autoMode; update({autoMode:n}); prevSessionRef.current=null; addLog(n?"AUTO MODE włączony":"AUTO MODE wyłączony",n?"info":"warn");}}
@@ -2295,7 +2321,7 @@ export default function TradingBot() {
                 {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
               </button>
               <button
-                onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { setBtResult(await runBacktest({...config})); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
+                onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { const effLev=config.leverageAuto?calcAutoLeverage(learningRef.current.deepHistory):config.leverage; setBtResult(await runBacktest({...config,leverage:effLev})); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
                 disabled={btLoading||deepLoading}
                 style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
                 {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
@@ -2363,7 +2389,7 @@ export default function TradingBot() {
 
           {btResult && (() => {
             const r=btResult;
-            const lev=config.leverage;
+            const lev=config.leverageAuto?calcAutoLeverage(learningRef.current.deepHistory):config.leverage;
             const eqMin=Math.min(0,...r.equity), eqMax=Math.max(0.01,...r.equity), range=eqMax-eqMin;
             return (
               <div>
@@ -2423,9 +2449,20 @@ export default function TradingBot() {
                 </div>
 
                 {lev > 1 && (
-                  <div style={{ background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:10, padding:"10px 14px", marginBottom:10, fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontSize:16 }}>⚡</span>
-                    <span><strong style={{ color:"#fbbf24" }}>{lev}x dźwignia aktywna</strong> — wyniki powyżej uwzględniają mnożnik ×{lev}. Likwidacja następuje przy -{(100/lev).toFixed(0)}% ruchu przeciwko pozycji. {lev>=5?"Wysokie ryzyko — używaj ostrożnie!":""}</span>
+                  <div style={{ background:config.leverageAuto?"rgba(167,139,250,0.08)":"rgba(251,191,36,0.08)", border:`1px solid ${config.leverageAuto?"rgba(167,139,250,0.3)":"rgba(251,191,36,0.3)"}`, borderRadius:10, padding:"10px 14px", marginBottom:10, fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:16 }}>{config.leverageAuto?"🤖":"⚡"}</span>
+                    <span>
+                      {config.leverageAuto
+                        ? <><strong style={{ color:"#a78bfa" }}>AUTO dźwignia: {lev}x</strong> — system dobrał na podstawie Deep Train (avg Sharpe/WR). Likwidacja przy -{(100/lev).toFixed(0)}% ruchu.</>
+                        : <><strong style={{ color:"#fbbf24" }}>{lev}x dźwignia ręczna</strong> — wyniki uwzględniają mnożnik ×{lev}. Likwidacja przy -{(100/lev).toFixed(0)}% ruchu. {lev>=5?"Wysokie ryzyko — używaj ostrożnie!":""}</>
+                      }
+                    </span>
+                  </div>
+                )}
+                {config.leverageAuto && lev === 1 && (
+                  <div style={{ background:"rgba(167,139,250,0.06)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:10, padding:"10px 14px", marginBottom:10, fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:16 }}>🤖</span>
+                    <span style={{ color:"#a78bfa" }}>AUTO dźwignia: 1x (brak dźwigni) — potrzeba min. 2 sesji Deep Train z Sharpe &gt;2.8 i WR &gt;72% żeby system włączył dźwignię.</span>
                   </div>
                 )}
                 <div style={{ background:r.winRate>=55&&r.totalReturn>0?"rgba(34,197,94,0.08)":r.winRate>=45?"rgba(245,158,11,0.08)":"rgba(248,113,113,0.08)", border:`1px solid ${r.winRate>=55&&r.totalReturn>0?"rgba(34,197,94,0.25)":r.winRate>=45?"rgba(245,158,11,0.25)":"rgba(248,113,113,0.25)"}`, borderRadius:10, padding:"12px 14px", marginBottom:12, fontSize:13 }}>
