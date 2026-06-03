@@ -448,10 +448,12 @@ async function runOptimize(cfg: BtCfg): Promise<OptResult> {
 
 // Deep optimizer: test all combos across many random windows of full history
 // async version with real per-combo progress reporting — avoids UI freeze on mobile
+// onBestSoFar: called whenever a better result is found mid-run, so partial results survive page refresh
 async function runDeepOptimizeAsync(
   allCandles: CandleData[],
   cfg: BtCfg,
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void,
+  onBestSoFar?: (r: OptResult) => void
 ): Promise<OptResult> {
   const combos: [number, number, number][] = [
     [40,60,0.10],[40,60,0.15],[40,60,0.25],[40,60,0.35],
@@ -477,10 +479,12 @@ async function runDeepOptimizeAsync(
     }
     if (valid >= Math.floor(N_WINDOWS * 0.5) && sumSharpe/valid > best.sharpe) {
       best = { rsiMin, rsiMax, trailPct, sharpe:parseFloat((sumSharpe/valid).toFixed(2)), winRate:sumWR/valid, totalReturn:sumRet/valid, windows:valid };
+      // save best-so-far immediately — if browser closes mid-run, partial result survives
+      onBestSoFar?.(best);
     }
-    // yield to browser between combos so UI stays responsive + progress updates
+    // yield to browser between combos: UI stays responsive + progress bar updates
     onProgress(65 + Math.round((ci + 1) / combos.length * 35));
-    await new Promise(r => setTimeout(r, 0));
+    await new Promise(r => setTimeout(r, 4)); // 4ms > 0ms — more reliable on mobile browsers
   }
   return best;
 }
@@ -2183,8 +2187,17 @@ export default function TradingBot() {
                     }
                     addLog(`🧠 Pobrano ${candles.length} świec (${Math.round(candles.length/24/365*10)/10} lat). Optymalizacja 16 kombinacji×${Math.min(config.deepTrainWindows,30)} okien…`,"info");
                     setDeepProgress(65);
-                    // async — yields between each combo so UI stays responsive + real progress
-                    const r = await runDeepOptimizeAsync(candles, {...config}, p => setDeepProgress(p));
+                    // async — yields 4ms between each combo, UI stays responsive + real progress
+                    // onBestSoFar saves partial result immediately so closing browser mid-run preserves learning
+                    const r = await runDeepOptimizeAsync(candles, {...config}, p => setDeepProgress(p), (partial) => {
+                      // save partial best immediately to localStorage — survives page close
+                      const mem = { ...learningRef.current, deepResult: partial };
+                      learningRef.current = mem;
+                      saveLearning(mem);
+                      setDeepResult(partial);
+                      update({rsiMin:partial.rsiMin, rsiMax:partial.rsiMax, trailPct:partial.trailPct});
+                      setTmpRsiMin(String(partial.rsiMin)); setTmpRsiMax(String(partial.rsiMax)); setTmpTrailPct(String(partial.trailPct));
+                    });
                     setDeepProgress(100);
                     setDeepResult(r);
                     update({rsiMin:r.rsiMin, rsiMax:r.rsiMax, trailPct:r.trailPct});
