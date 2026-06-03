@@ -1374,7 +1374,7 @@ export default function TradingBot() {
               <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                 <span style={{ fontSize:12, color:M }}>📄 Paper mode · RSI+EMA{config.useAdx?" + ADX":""}{config.dynamicExits?" + ATR":""}{config.trailStop?" + Trail":""}{config.learningEnabled?" + 🧠":""} · Long{config.allowShorts?"+Short":""}</span>
                 {/* #100 improvement counter */}
-                <span style={{ fontSize:10, background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:6, padding:"2px 8px", color:"#818cf8", fontWeight:700 }}>{activeImprovements}/100 ulepszeń aktywnych</span>
+                <span style={{ fontSize:10, background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:6, padding:"2px 8px", color:"#818cf8", fontWeight:700 }}>{activeImprovements}/35 filtrów ON · 100 ulepszeń</span>
               </div>
             </div>
           </div>
