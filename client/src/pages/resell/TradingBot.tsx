@@ -757,8 +757,13 @@ function sparkline(vals: number[]): string {
 }
 
 function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfig> | null {
-  const recent = closed.slice(-10);
-  if (recent.length < 5) return null;
+  // Need at least 15 trades for meaningful signal; use last 15 for context
+  const recent = closed.slice(-15);
+  if (recent.length < 10) return null;
+  const wr = recent.filter(t=>(t.pnlPct??0)>0).length / recent.length;
+  // Only adapt when there's a clear problem: WR < 40% over 10+ trades
+  if (wr >= 0.42) return null;
+
   const slCount    = recent.filter(t=>t.reason==="stop_loss").length;
   const trailCount = recent.filter(t=>t.reason==="trail_stop").length;
   const wins   = recent.filter(t=>(t.pnlPct??0)>0);
@@ -766,18 +771,22 @@ function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfi
   const avgWin  = wins.length   ? wins.reduce((s,t)=>s+(t.pnlPct??0),0)/wins.length   : 0;
   const avgLoss = losses.length ? Math.abs(losses.reduce((s,t)=>s+(t.pnlPct??0),0)/losses.length) : 0.001;
   const patch: Partial<BotConfig> = {};
-  // Trail fires too often → too tight → loosen
-  if (trailCount/recent.length > 0.6)
-    patch.trailPct = parseFloat(Math.min(cfg.trailPct + 0.05, 1.5).toFixed(2));
-  // Trail rarely fires and R:R is bad → tighten to cut losses faster
-  else if (trailCount/recent.length < 0.2 && avgLoss > avgWin * 1.5 && cfg.trailPct > 0.1)
-    patch.trailPct = parseFloat(Math.max(cfg.trailPct - 0.05, 0.1).toFixed(2));
-  // Many direct SL hits → poor entry quality → tighten RSI filter
-  if (slCount/recent.length > 0.5 && recent.length >= 8) {
-    const newMin = Math.min(cfg.rsiMin + 2, 58);
-    const newMax = Math.max(cfg.rsiMax - 2, newMin + 8);
+
+  // Trail fires too often → loosen by tiny step, min 0.15%
+  if (trailCount/recent.length > 0.65)
+    patch.trailPct = parseFloat(Math.min(cfg.trailPct + 0.03, 0.8).toFixed(2));
+  // R:R clearly bad AND trail rarely fires → tighten slightly, floor 0.15%
+  else if (trailCount/recent.length < 0.15 && avgLoss > avgWin * 2 && cfg.trailPct > 0.15)
+    patch.trailPct = parseFloat(Math.max(cfg.trailPct - 0.03, 0.15).toFixed(2));
+
+  // Many direct SL hits (>60%) → entry quality poor → tighten RSI by 1pt
+  // Hard floor: RSI window never narrower than [44, 66] (22pt minimum range)
+  if (slCount/recent.length > 0.6) {
+    const newMin = Math.min(cfg.rsiMin + 1, 52);
+    const newMax = Math.max(cfg.rsiMax - 1, newMin + 14); // keep ≥14pt window
     if (newMin !== cfg.rsiMin || newMax !== cfg.rsiMax) { patch.rsiMin = newMin; patch.rsiMax = newMax; }
   }
+
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -828,7 +837,17 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, 
 function loadConfig(): BotConfig {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) as BotConfig };
+    if (raw) {
+      const saved = JSON.parse(raw) as BotConfig;
+      // Guard: if micro-adaptation over-narrowed RSI window, restore to sensible range
+      if (saved.rsiMax - saved.rsiMin < 14) {
+        saved.rsiMin = DEFAULTS.rsiMin;
+        saved.rsiMax = DEFAULTS.rsiMax;
+      }
+      // Guard: trail too tight from over-adaptation
+      if (saved.trailPct < 0.15) saved.trailPct = 0.15;
+      return { ...DEFAULTS, ...saved };
+    }
   } catch {}
   return { ...DEFAULTS };
 }
