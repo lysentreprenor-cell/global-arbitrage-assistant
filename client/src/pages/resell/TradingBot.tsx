@@ -10,8 +10,11 @@ import { hasBybitKeys, getBybitKeys } from "@/lib/apiKeys";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Symbol    = "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
-type TradeReason = "session_end" | "stop_loss" | "take_profit" | "trail_stop";
+type TradeReason = "session_end" | "stop_loss" | "take_profit" | "trail_stop" | "rsi_extreme";
 type Direction = "long" | "short";
+
+// #57 — snapshot of market conditions at entry
+type TradeMeta = { rsi: number; adx: number; volumeMult: number; atrPercentile: number; ribbonBull: boolean };
 
 type PaperTrade = {
   id: number; symbol: Symbol; direction: Direction;
@@ -19,6 +22,8 @@ type PaperTrade = {
   exitTime?: string; exitPrice?: number; pnl?: number; pnlPct?: number; reason?: TradeReason;
   slPct?: number; tpPct?: number; // actual SL/TP used (may be ATR-based)
   trailRef?: number;              // current trailing high/low for live trade
+  peakGainPct?: number;           // #81/#91 highest unrealized gain reached
+  meta?: TradeMeta;               // #57 conditions at entry
 };
 
 type BotConfig = {
@@ -35,13 +40,76 @@ type BotConfig = {
   drawdownProtection: boolean; // #4 halve size after 2 consecutive losses
   breakEvenStop: boolean; breakEvenTriggerPct: number; // #5 move SL to entry after X% gain
   learningEnabled: boolean;
+  // #6-#10 signal filters
+  stochRsiFilter: boolean;
+  bbFilter: boolean; bbMaxPct: number;
+  bodyFilter: boolean; bodyMinRatio: number;
+  emaSlopeFilter: boolean;
+  candleConfirm: boolean; candleConfirmN: number;
+  // #11-#15 exit & risk
+  rsiExitFilter: boolean; rsiExitHigh: number; rsiExitLow: number;
+  feeSimulation: boolean; feePct: number;
+  maxConsecLosses: number; autoPauseOnLosses: boolean;
+  compoundMode: boolean; startingCapital: number;
+  recoveryMode: boolean; recoveryDrawdownPct: number;
+  // #23-#27 sizing
+  kellyEnabled: boolean; kellyFraction: number;
+  volScaling: boolean;
+  dailyLossLimit: number; dailyCircuitBreaker: boolean; dailyStartCapital: number; dailyStartDate: string;
+  equityCurveFilter: boolean;
+  signalConfirmation: boolean;
+  // #31-#35 advanced signal
+  adxSlope: boolean;
+  volumeTrend: boolean;
+  revengeCooldown: boolean;
+  wickFilter: boolean;
+  multiSymbol: boolean;
+  // #48,#51-#55 refinements
+  rocFilter: boolean;
+  rsiRising: boolean;
+  dynamicEmaDist: boolean;
+  srFilter: boolean;
+  closePosFilter: boolean;
+  prevBullCandles: number;
+  // #66-#70 final signal
+  ichimokuFilter: boolean;
+  pvsEmaFilter: boolean; pvsEmaMin: number;
+  bbSqueezeFilter: boolean;
+  haFilter: boolean;
+  higherLowFilter: boolean;
+  // #71-#75 optimizer
+  deepTrainWindows: number;
+  optimizeFor: "sharpe" | "calmar" | "winRate";
+  // #82-#83 gates
+  sessionScoreGate: boolean; minSessionScore: number;
+  reoptInterval: number;
+  // #91 profit lock
+  profitLock: boolean; profitLockPct: number;
+  // #92 custom session
+  sessionStart: number; sessionEnd: number;
+  // #95 auto-disable
+  autoDisableAfterSession: boolean;
   trades: PaperTrade[];
 };
 
 type LogEntry  = { time: string; msg: string; type: "buy" | "sell" | "info" | "warn" };
 type Ticker    = { price: number; change24h: number; high24h: number; low24h: number };
 type SessionInfo = { inSession: boolean; label: string; countdown: string };
-type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean; volumeMult: number; macd: number; macdSignal: number; macdHist: number; ema8: number; ema13: number; ribbonBull: boolean; ribbonBear: boolean };
+type MarketData  = { rsi: number; ema21: number; priceVsEma: number; momentum: number; volatility: number; atr: number; adx: number; prevBull: boolean; volumeMult: number; macd: number; macdSignal: number; macdHist: number; ema8: number; ema13: number; ribbonBull: boolean; ribbonBear: boolean;
+  stochRsi: number;        // #6
+  bbPct: number; bbUpper: number; bbLower: number; bbWidth: number; bbSqueeze: boolean; // #7,#68
+  bodyRatio: number;       // #8
+  emaSlope: number;        // #9
+  atrPercentile: number;   // #21
+  roc: number;             // #48
+  tenkan: number; kijun: number; // #66
+  haGreen: boolean;        // #69
+  adxRising: boolean;      // #31
+  rsiRising: boolean;      // #51
+  volumeRising: boolean;   // #32
+  upperWickRatio: number;  // #34
+  rsi4h: number;           // #86
+};
 
 type BtTrade  = { date: string; direction: Direction; entryPrice: number; exitPrice: number; pnlPct: number; reason: TradeReason };
 type BtResult = { symbol: string; days: number; periodLabel: string; trades: BtTrade[]; winRate: number; totalReturn: number; maxDrawdown: number; avgWin: number; avgLoss: number; sharpe: number; equity: number[]; longs: number; shorts: number };
@@ -132,6 +200,31 @@ type BtCfg = {
   volumeFilter: boolean; volumeMinMult: number;
   macdFilter: boolean;
   emaRibbonFilter: boolean;
+  // batch filters applicable to backtest
+  stochRsiFilter: boolean;
+  bbFilter: boolean; bbMaxPct: number;
+  bodyFilter: boolean; bodyMinRatio: number;
+  emaSlopeFilter: boolean;
+  candleConfirm: boolean; candleConfirmN: number;
+  rsiExitFilter: boolean; rsiExitHigh: number; rsiExitLow: number;
+  feeSimulation: boolean; feePct: number;
+  atrSlMulOpt?: number;
+  adxSlope: boolean;
+  volumeTrend: boolean;
+  wickFilter: boolean;
+  rocFilter: boolean;
+  rsiRising: boolean;
+  dynamicEmaDist: boolean;
+  srFilter: boolean;
+  closePosFilter: boolean;
+  prevBullCandles: number;
+  ichimokuFilter: boolean;
+  pvsEmaFilter: boolean; pvsEmaMin: number;
+  bbSqueezeFilter: boolean;
+  haFilter: boolean;
+  higherLowFilter: boolean;
+  sessionScoreGate: boolean; minSessionScore: number;
+  optimizeFor: "sharpe" | "calmar" | "winRate";
 };
 
 function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
@@ -159,11 +252,14 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     const c = candles[i];
     if (!cfg.allow24h && c.utcH !== 21) continue;
 
+    // wider slice so newer indicators (StochRSI, BB squeeze percentile, Ichimoku) have history
+    const wide  = candles.slice(Math.max(0,i-79), i+1);
     const slice = candles.slice(Math.max(0,i-29), i+1);
     const cls=slice.map(x=>x.close), hhs=slice.map(x=>x.high), lls=slice.map(x=>x.low);
+    const wcls=wide.map(x=>x.close), whhs=wide.map(x=>x.high), wlls=wide.map(x=>x.low);
     const ema=calcEMA21(cls), rsi=calcRSI(cls);
-    const adx=cfg.useAdx?calcADX(hhs,lls,cls):999;
-    const atr=cfg.dynamicExits?calcATR(hhs,lls,cls):0;
+    const adx=(cfg.useAdx||cfg.adxSlope)?calcADX(hhs,lls,cls):999;
+    const atr=cfg.dynamicExits?calcATR(hhs,lls,cls):calcATR(hhs,lls,cls);
     if (cfg.useAdx && adx < cfg.adxMin) continue;
     // #1 volume filter — skip low-volume candles
     if (cfg.volumeFilter && calcVolumeMult(candles, i) < cfg.volumeMinMult) continue;
@@ -173,14 +269,83 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
 
     const prevC=i>0?candles[i-1]:null;
     const prevBull=prevC?prevC.close>prevC.open:true, prevBear=prevC?prevC.close<prevC.open:true;
+    // #52 dynamic EMA distance based on ATR
+    const effEmaMaxDist = cfg.dynamicEmaDist && atr>0 ? Math.max(0.5, atr/c.open*100*2) : cfg.emaMaxDist;
     const emaDist=Math.abs((c.open-ema)/ema*100);
-    const isLong=c.open>ema&&rsi>=cfg.rsiMin&&rsi<=cfg.rsiMax&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBull)&&(!cfg.macdFilter||macdV.macd>macdV.signal)&&(!cfg.emaRibbonFilter||ribbonV.bullish);
-    const isShort=cfg.allowShorts&&c.open<ema&&rsi<40&&emaDist<=cfg.emaMaxDist&&(!cfg.requirePrevBull||prevBear)&&(!cfg.macdFilter||macdV.macd<macdV.signal)&&(!cfg.emaRibbonFilter||ribbonV.bearish);
+
+    // ── new filter computations ──
+    const stoch = cfg.stochRsiFilter ? calcStochRSI(wcls) : 50;            // #6
+    const bb    = (cfg.bbFilter||cfg.bbSqueezeFilter) ? calcBollingerBands(cls) : null; // #7,#68
+    const bodyR = cfg.bodyFilter ? calcBodyRatio(c) : 1;                   // #8
+    const slope = cfg.emaSlopeFilter ? calcEMASlope(cls) : 1;             // #9
+    const roc   = cfg.rocFilter ? calcROC(cls) : 1;                       // #48
+    const ich   = cfg.ichimokuFilter ? calcIchimoku(whhs,wlls) : null;   // #66
+    const ha    = cfg.haFilter ? calcHA(candles,i) : null;               // #69
+    const adxRising = !cfg.adxSlope || (i>=33 && adx > calcADX(candles.slice(Math.max(0,i-32),i-2).map(x=>x.high),candles.slice(Math.max(0,i-32),i-2).map(x=>x.low),candles.slice(Math.max(0,i-32),i-2).map(x=>x.close))); // #31
+    const rsiRise = !cfg.rsiRising || (cls.length>=3 && rsi > calcRSI(cls.slice(0,-2))); // #51
+    // #32 volume increasing 3 candles
+    const volTrendOk = !cfg.volumeTrend || (i>=2 && candles[i].volume>candles[i-1].volume && candles[i-1].volume>candles[i-2].volume);
+    // #34 wick rejection
+    const upperWick = c.high - Math.max(c.open,c.close), bodyAbs = Math.abs(c.close-c.open)||1e-9;
+    const wickOk = !cfg.wickFilter || upperWick/bodyAbs <= 2;
+    // #53 swing support
+    const sr = cfg.srFilter ? calcSwingLevels(candles,i) : null;
+    // #54 close in upper half
+    const closePosOk = !cfg.closePosFilter || (c.high>c.low ? (c.close-c.low)/(c.high-c.low) > 0.5 : true);
+    // #55 N previous candles bullish
+    let prevBullN = true;
+    if (cfg.prevBullCandles>1) { for(let k=1;k<=cfg.prevBullCandles;k++){ const pc=candles[i-k]; if(!pc||pc.close<=pc.open){prevBullN=false;break;} } }
+    else prevBullN = prevBull;
+    // #70 higher-low structure
+    const higherLowOk = !cfg.higherLowFilter || (i>=4 && candles[i-1].low > candles[i-3].low);
+    // #82 session score
+    const ribbonForScore = calcEMARibbon(cls);
+    let score=0;
+    if (adx>=25) score+=2;
+    if (calcVolumeMult(candles,i)>=1.2) score+=2;
+    if (ribbonForScore.bullish) score+=2;
+    if (calcMACD(cls).macd>calcMACD(cls).signal) score+=2;
+    if (rsi>=50 && rsi<=65) score+=2;
+    const scoreOk = !cfg.sessionScoreGate || score>=cfg.minSessionScore;
+
+    const stochOkL = !cfg.stochRsiFilter || stoch < 80;
+    const stochOkS = !cfg.stochRsiFilter || stoch > 20;
+    const bbOkL = !cfg.bbFilter || !bb || bb.pct <= cfg.bbMaxPct;
+    const bbOkS = !cfg.bbFilter || !bb || bb.pct >= (100 - cfg.bbMaxPct);
+    const bodyOk = !cfg.bodyFilter || bodyR >= cfg.bodyMinRatio;
+    const slopeOkL = !cfg.emaSlopeFilter || slope > 0;
+    const slopeOkS = !cfg.emaSlopeFilter || slope < 0;
+    const candleConfirmOkL = !cfg.candleConfirm || (() => { for(let k=0;k<cfg.candleConfirmN;k++){ const pc=candles[i-k]; if(!pc)return false; const e=calcEMA21(candles.slice(Math.max(0,i-k-29),i-k+1).map(x=>x.close)); if(pc.close<=e)return false;} return true; })();
+    const rocOkL = !cfg.rocFilter || roc > 0;
+    const ichOkL = !cfg.ichimokuFilter || !ich || ich.tenkan > ich.kijun;
+    const ichOkS = !cfg.ichimokuFilter || !ich || ich.tenkan < ich.kijun;
+    const pvsEma = (c.open-ema)/ema*100;
+    const pvsOkL = !cfg.pvsEmaFilter || pvsEma >= cfg.pvsEmaMin;
+    const pvsOkS = !cfg.pvsEmaFilter || pvsEma <= -cfg.pvsEmaMin;
+    const haOkL = !cfg.haFilter || !ha || ha.green;
+    const haOkS = !cfg.haFilter || !ha || !ha.green;
+    const srOkL = !cfg.srFilter || !sr || c.open >= sr.support;
+    // #68 BB squeeze breakout
+    let squeezeOk = true;
+    if (cfg.bbSqueezeFilter && bb) {
+      const widths:number[]=[];
+      for(let k=i-50;k<i;k++){ if(k<20)continue; widths.push(calcBollingerBands(candles.slice(Math.max(0,k-19),k+1).map(x=>x.close)).width); }
+      if(widths.length>=10){ const sorted=[...widths].sort((a,b)=>a-b); const p20=sorted[Math.floor(sorted.length*0.2)]; squeezeOk = bb.width <= p20 || c.close > bb.upper; }
+    }
+
+    const commonL = emaDist<=effEmaMaxDist && (!cfg.requirePrevBull||prevBullN) && (!cfg.macdFilter||macdV.macd>macdV.signal) && (!cfg.emaRibbonFilter||ribbonV.bullish)
+      && stochOkL && bbOkL && bodyOk && slopeOkL && candleConfirmOkL && rocOkL && ichOkL && pvsOkL && haOkL && srOkL && adxRising && rsiRise && volTrendOk && wickOk && closePosOk && higherLowOk && scoreOk && squeezeOk;
+    const commonS = emaDist<=effEmaMaxDist && (!cfg.requirePrevBull||prevBear) && (!cfg.macdFilter||macdV.macd<macdV.signal) && (!cfg.emaRibbonFilter||ribbonV.bearish)
+      && stochOkS && bbOkS && bodyOk && slopeOkS && rocOkL && ichOkS && pvsOkS && haOkS && adxRising && volTrendOk && scoreOk;
+
+    const isLong=c.open>ema&&rsi>=cfg.rsiMin&&rsi<=cfg.rsiMax&&commonL;
+    const isShort=cfg.allowShorts&&c.open<ema&&rsi<40&&commonS;
     if (!isLong && !isShort) continue;
 
     const dir: Direction = isLong?"long":"short";
     const entry=c.open;
-    const slPct=cfg.dynamicExits&&atr>0?(atr/entry*100*cfg.atrSlMul):cfg.stopLoss;
+    const slMul=cfg.atrSlMulOpt ?? cfg.atrSlMul; // #72 SL mult optimization
+    const slPct=cfg.dynamicExits&&atr>0?(atr/entry*100*slMul):cfg.stopLoss;
     const tpPct=cfg.dynamicExits&&atr>0?(atr/entry*100*cfg.atrTpMul):cfg.takeProfit;
 
     let exit=c.close, reason: TradeReason="session_end", exitIdx=i+holdLen;
@@ -189,6 +354,12 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
 
     for (let j=i; j<=i+holdLen&&j<candles.length; j++) {
       const cn=candles[j];
+      // #11 RSI extreme exit (computed at candle close)
+      if (cfg.rsiExitFilter) {
+        const rsiJ=calcRSI(candles.slice(Math.max(0,j-29),j+1).map(x=>x.close));
+        if (dir==="long" && rsiJ>=cfg.rsiExitHigh) { exit=cn.close; reason="rsi_extreme"; exitIdx=j; break; }
+        if (dir==="short" && rsiJ<=cfg.rsiExitLow) { exit=cn.close; reason="rsi_extreme"; exitIdx=j; break; }
+      }
       if (dir==="long") {
         if (cfg.trailStop&&(cn.high-entry)/entry*100>=cfg.trailActivation) trailOn=true;
         if (cfg.trailStop&&trailOn&&cn.high>trailRef) { trailRef=cn.high; const ts=trailRef*(1-cfg.trailPct/100); if(ts>effSL)effSL=ts; }
@@ -203,7 +374,9 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
       exit=cn.close; exitIdx=j;
     }
     skipUntil=exitIdx;
-    const pnlPct=dir==="long"?(exit-entry)/entry*100:(entry-exit)/entry*100;
+    let pnlPct=dir==="long"?(exit-entry)/entry*100:(entry-exit)/entry*100;
+    // #12/#36 fee-adjusted returns
+    if (cfg.feeSimulation) pnlPct -= cfg.feePct;
     trades.push({ date:new Date(c.time).toLocaleDateString("pl",{day:"2-digit",month:"2-digit"}), direction:dir, entryPrice:entry, exitPrice:exit, pnlPct, reason });
   }
   return calcBtStats(trades, cfg.symbol, candles, periodLabel);
@@ -358,6 +531,223 @@ function calcVolumeMult(candles: CandleData[], idx: number, period = 20): number
   return avg > 0 ? candles[idx].volume / avg : 1;
 }
 
+// generic EMA on an array
+function emaArr(arr: number[], p: number): number {
+  if (arr.length < p) return arr[arr.length - 1] ?? 0;
+  const k = 2 / (p + 1); let e = arr.slice(0, p).reduce((a, b) => a + b, 0) / p;
+  for (let i = p; i < arr.length; i++) e = arr[i] * k + e * (1 - k);
+  return e;
+}
+
+// #6 — Stochastic RSI K (RSI normalized vs its own range, smoothed by SMA-k)
+function calcStochRSI(closes: number[], period = 14, k = 3): number {
+  if (closes.length < period * 2 + k) {
+    // best-effort with available data
+    if (closes.length < period + 2) return 50;
+  }
+  const series: number[] = [];
+  for (let i = period + 1; i <= closes.length; i++) series.push(calcRSI(closes.slice(0, i), period));
+  if (series.length < period) return 50;
+  const kVals: number[] = [];
+  for (let j = Math.max(period - 1, series.length - k); j < series.length; j++) {
+    const window = series.slice(Math.max(0, j - period + 1), j + 1);
+    const cur = series[j];
+    const mn = Math.min(...window), mx = Math.max(...window);
+    kVals.push(mx > mn ? (cur - mn) / (mx - mn) * 100 : 50);
+  }
+  const smoothed = kVals.length ? kVals.reduce((a, b) => a + b, 0) / kVals.length : 50;
+  return parseFloat(smoothed.toFixed(1));
+}
+
+// #7 — Bollinger Bands. pct = position within band (0-100); width = (upper-lower)/middle %
+function calcBollingerBands(closes: number[], period = 20, mult = 2): { upper: number; middle: number; lower: number; pct: number; width: number } {
+  if (closes.length < period) { const p = closes[closes.length - 1] ?? 0; return { upper: p, middle: p, lower: p, pct: 50, width: 0 }; }
+  const window = closes.slice(-period);
+  const middle = window.reduce((a, b) => a + b, 0) / period;
+  const variance = window.reduce((s, v) => s + (v - middle) ** 2, 0) / period;
+  const sd = Math.sqrt(variance);
+  const upper = middle + mult * sd, lower = middle - mult * sd;
+  const price = closes[closes.length - 1];
+  const pct = upper > lower ? (price - lower) / (upper - lower) * 100 : 50;
+  const width = middle > 0 ? (upper - lower) / middle * 100 : 0;
+  return { upper, middle, lower, pct: parseFloat(pct.toFixed(1)), width: parseFloat(width.toFixed(3)) };
+}
+
+// #8 — Candle body ratio: |close-open| / (high-low). doji ~0
+function calcBodyRatio(c: { open: number; high: number; low: number; close: number }): number {
+  const range = c.high - c.low;
+  return range > 0 ? parseFloat((Math.abs(c.close - c.open) / range).toFixed(3)) : 0;
+}
+
+// #9 — EMA21 slope over last 3 bars (% change)
+function calcEMASlope(closes: number[]): number {
+  if (closes.length < 25) return 0;
+  const now = calcEMA21(closes);
+  const past = calcEMA21(closes.slice(0, -3));
+  return past > 0 ? parseFloat(((now - past) / past * 100).toFixed(3)) : 0;
+}
+
+// #21 — ATR percentile vs last `period` candles
+function calcATRPercentile(candles: CandleData[], currentATR: number, period = 50): number {
+  if (candles.length < period + 15) return 50;
+  const atrs: number[] = [];
+  for (let i = candles.length - period; i < candles.length; i++) {
+    const sl = candles.slice(Math.max(0, i - 14), i + 1);
+    atrs.push(calcATR(sl.map(x => x.high), sl.map(x => x.low), sl.map(x => x.close)));
+  }
+  const below = atrs.filter(a => a < currentATR).length;
+  return parseFloat((below / atrs.length * 100).toFixed(0));
+}
+
+// #48 — Rate of Change
+function calcROC(closes: number[], period = 14): number {
+  if (closes.length < period + 1) return 0;
+  const prev = closes[closes.length - 1 - period];
+  return prev > 0 ? parseFloat(((closes[closes.length - 1] - prev) / prev * 100).toFixed(2)) : 0;
+}
+
+// #66 — Ichimoku Tenkan(9)/Kijun(26)
+function calcIchimoku(highs: number[], lows: number[]): { tenkan: number; kijun: number } {
+  const mid = (n: number) => {
+    if (highs.length < n) return (highs[highs.length - 1] + lows[lows.length - 1]) / 2;
+    const hh = Math.max(...highs.slice(-n)), ll = Math.min(...lows.slice(-n));
+    return (hh + ll) / 2;
+  };
+  return { tenkan: mid(9), kijun: mid(26) };
+}
+
+// #69 — Heikin-Ashi: is current HA candle green?
+function calcHA(candles: CandleData[], i: number): { open: number; close: number; green: boolean } {
+  if (i < 1) { const c = candles[i]; return { open: c.open, close: c.close, green: c.close >= c.open }; }
+  // build HA recursively over a short window for stability
+  const start = Math.max(0, i - 20);
+  let haOpen = (candles[start].open + candles[start].close) / 2;
+  let haClose = (candles[start].open + candles[start].high + candles[start].low + candles[start].close) / 4;
+  for (let j = start + 1; j <= i; j++) {
+    const c = candles[j];
+    haOpen = (haOpen + haClose) / 2;
+    haClose = (c.open + c.high + c.low + c.close) / 4;
+  }
+  return { open: haOpen, close: haClose, green: haClose >= haOpen };
+}
+
+// #53 — nearest swing low (support) from recent local minima
+function calcSwingLevels(candles: CandleData[], i: number): { support: number; resistance: number } {
+  const lookback = Math.min(20, i);
+  let support = candles[i].low, resistance = candles[i].high;
+  for (let j = i - 2; j >= i - lookback && j >= 2; j--) {
+    const c = candles[j];
+    const isLow = c.low < candles[j - 1].low && c.low < candles[j - 2].low && c.low < candles[j + 1].low && c.low < candles[j + 2].low;
+    const isHigh = c.high > candles[j - 1].high && c.high > candles[j - 2].high && c.high > candles[j + 1].high && c.high > candles[j + 2].high;
+    if (isLow && c.low < candles[i].low) support = Math.max(support === candles[i].low ? 0 : support, c.low);
+    if (isHigh && c.high > candles[i].high) resistance = resistance === candles[i].high ? c.high : Math.min(resistance, c.high);
+  }
+  return { support, resistance };
+}
+
+// ── Live filter evaluation for entry signal + confidence meter (#20) ──
+type FilterResult = { label: string; pass: boolean };
+function evalFilters(md: MarketData, price: number, cfg: BotConfig, dir: Direction): { filters: FilterResult[]; allPass: boolean } {
+  const aboveEMA = price > md.ema21;
+  const emaDist = Math.abs((price - md.ema21) / md.ema21 * 100);
+  const effEmaMaxDist = cfg.dynamicEmaDist && md.atr>0 ? Math.max(0.5, md.atr/price*100*2) : cfg.emaMaxDist;
+  const long = dir === "long";
+  const f: FilterResult[] = [];
+  f.push({ label:"EMA", pass: long ? aboveEMA : !aboveEMA });
+  f.push({ label:"RSI", pass: long ? (md.rsi>=cfg.rsiMin && md.rsi<=cfg.rsiMax) : md.rsi<40 });
+  f.push({ label:"EMAdist", pass: emaDist<=effEmaMaxDist });
+  if (cfg.useAdx) f.push({ label:"ADX", pass: md.adx>=cfg.adxMin });
+  if (cfg.volumeFilter) f.push({ label:"VOL", pass: md.volumeMult>=cfg.volumeMinMult });
+  if (cfg.macdFilter) f.push({ label:"MACD", pass: long ? md.macd>md.macdSignal : md.macd<md.macdSignal });
+  if (cfg.emaRibbonFilter) f.push({ label:"Ribbon", pass: long ? md.ribbonBull : md.ribbonBear });
+  if (cfg.stochRsiFilter) f.push({ label:"StochRSI", pass: long ? md.stochRsi<80 : md.stochRsi>20 });
+  if (cfg.bbFilter) f.push({ label:"BB", pass: long ? md.bbPct<=cfg.bbMaxPct : md.bbPct>=(100-cfg.bbMaxPct) });
+  if (cfg.bodyFilter) f.push({ label:"Body", pass: md.bodyRatio>=cfg.bodyMinRatio });
+  if (cfg.emaSlopeFilter) f.push({ label:"Slope", pass: long ? md.emaSlope>0 : md.emaSlope<0 });
+  if (cfg.rocFilter) f.push({ label:"ROC", pass: long ? md.roc>0 : md.roc<0 });
+  if (cfg.ichimokuFilter) f.push({ label:"Ichi", pass: long ? md.tenkan>md.kijun : md.tenkan<md.kijun });
+  if (cfg.pvsEmaFilter) f.push({ label:"PVS", pass: long ? md.priceVsEma>=cfg.pvsEmaMin : md.priceVsEma<=-cfg.pvsEmaMin });
+  if (cfg.haFilter) f.push({ label:"HA", pass: long ? md.haGreen : !md.haGreen });
+  if (cfg.adxSlope) f.push({ label:"ADX↑", pass: md.adxRising });
+  if (cfg.rsiRising) f.push({ label:"RSI↑", pass: md.rsiRising });
+  if (cfg.volumeTrend) f.push({ label:"VOL↑", pass: md.volumeRising });
+  if (cfg.wickFilter && long) f.push({ label:"Wick", pass: md.upperWickRatio<=2 });
+  if (cfg.requirePrevBull) f.push({ label:"PrevBull", pass: long ? md.prevBull : !md.prevBull });
+  if (cfg.bbSqueezeFilter) f.push({ label:"Squeeze", pass: md.bbSqueeze || (long?price>md.bbUpper:price<md.bbLower) });
+  return { filters: f, allPass: f.every(x => x.pass) };
+}
+
+// #82 — composite session quality score (0-10)
+function sessionScore(md: MarketData): number {
+  let s = 0;
+  if (md.adx >= 25) s += 2;
+  if (md.volumeMult >= 1.2) s += 2;
+  if (md.ribbonBull) s += 2;
+  if (md.macd > md.macdSignal) s += 2;
+  if (md.rsi >= 50 && md.rsi <= 65) s += 2;
+  return s;
+}
+
+// ── analytics over closed trades (#16-#19,#22,#28-#30,#46,#47) ──
+function tradeAnalytics(closed: PaperTrade[]) {
+  const pcts = closed.map(t => t.pnlPct ?? 0);
+  const wins = closed.filter(t => (t.pnlPct ?? 0) > 0);
+  const losses = closed.filter(t => (t.pnlPct ?? 0) <= 0);
+  const wr = closed.length ? wins.length / closed.length * 100 : 0;
+  const avgWin = wins.length ? wins.reduce((s,t)=>s+(t.pnlPct??0),0)/wins.length : 0;
+  const avgLoss = losses.length ? losses.reduce((s,t)=>s+(t.pnlPct??0),0)/losses.length : 0;
+  const ev = wr/100*avgWin - (1-wr/100)*Math.abs(avgLoss); // #16
+  const sumWins = wins.reduce((s,t)=>s+(t.pnlPct??0),0);
+  const sumLoss = Math.abs(losses.reduce((s,t)=>s+(t.pnlPct??0),0));
+  const pf = sumLoss>0 ? sumWins/sumLoss : (sumWins>0?99:0); // #17
+  const wlRatio = Math.abs(avgLoss)>0 ? avgWin/Math.abs(avgLoss) : 0; // #18
+  const rolling = closed.slice(-20); // #19
+  const rollWr = rolling.length ? rolling.filter(t=>(t.pnlPct??0)>0).length/rolling.length*100 : 0;
+  // equity curve / max DD / sharpe (#46,#47)
+  let eq=100, peak=100, maxDD=0;
+  for (const t of closed) { eq*=(1+(t.pnlPct??0)/100); if(eq>peak)peak=eq; const dd=(peak-eq)/peak*100; if(dd>maxDD)maxDD=dd; }
+  const totalReturn = eq-100;
+  const mean = pcts.length ? pcts.reduce((a,b)=>a+b,0)/pcts.length : 0;
+  const variance = pcts.length ? pcts.reduce((s,r)=>s+(r-mean)**2,0)/pcts.length : 0;
+  const sharpe = variance>0 ? mean/Math.sqrt(variance)*Math.sqrt(252) : 0;
+  const calmar = maxDD>0 ? totalReturn/maxDD : (totalReturn>0?99:0); // #29
+  // direction split (#28)
+  const longs = closed.filter(t=>t.direction==="long");
+  const shorts = closed.filter(t=>t.direction==="short");
+  const longWr = longs.length ? longs.filter(t=>(t.pnlPct??0)>0).length/longs.length*100 : 0;
+  const shortWr = shorts.length ? shorts.filter(t=>(t.pnlPct??0)>0).length/shorts.length*100 : 0;
+  // avg hold (#30)
+  const durs = closed.filter(t=>t.exitTime).map(t=>(new Date(t.exitTime!).getTime()-new Date(t.entryTime).getTime())/3600000);
+  const avgHold = durs.length ? durs.reduce((a,b)=>a+b,0)/durs.length : 0;
+  return { wr, avgWin, avgLoss, ev, pf, wlRatio, rollWr, maxDD, sharpe, totalReturn, calmar, longWr, shortWr, longs:longs.length, shorts:shorts.length, avgHold,
+    longW:longs.filter(t=>(t.pnlPct??0)>0).length, longL:longs.filter(t=>(t.pnlPct??0)<=0).length,
+    shortW:shorts.filter(t=>(t.pnlPct??0)>0).length, shortL:shorts.filter(t=>(t.pnlPct??0)<=0).length };
+}
+
+// #22 performance grade A-F
+function performanceGrade(sharpe: number, wr: number, pf: number): string {
+  if (sharpe>1.5 && wr>60 && pf>1.5) return "A";
+  if (sharpe>1 && wr>55 && pf>1.2) return "B";
+  if (sharpe>0.5 && wr>45 && pf>1) return "C";
+  if (sharpe>0 && wr>40) return "D";
+  return "F";
+}
+
+// #23/#96 Kelly criterion
+function kellyFraction(wr: number, avgWin: number, avgLoss: number): number {
+  const p = wr/100, q = 1-p, b = Math.abs(avgLoss)>0 ? avgWin/Math.abs(avgLoss) : 0;
+  if (b<=0) return 0;
+  return (p*b - q)/b * 100;
+}
+
+// #93 ASCII sparkline
+function sparkline(vals: number[]): string {
+  if (!vals.length) return "";
+  const blocks = "▁▂▃▄▅▆▇█";
+  const mn = Math.min(...vals), mx = Math.max(...vals), range = mx-mn || 1;
+  return vals.map(v => blocks[Math.min(7, Math.floor((v-mn)/range*7))]).join("");
+}
+
 function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfig> | null {
   const recent = closed.slice(-10);
   if (recent.length < 5) return null;
@@ -386,7 +776,46 @@ function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfi
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const KEY = "resell_trading_bot_v1";
-const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, emaRibbonFilter:false, drawdownProtection:true, breakEvenStop:true, breakEvenTriggerPct:50, learningEnabled:true, trades:[] };
+const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:false, symbol:"BTCUSDT", capital:1000, riskPct:10, stopLoss:2, takeProfit:3, useAdx:false, adxMin:20, dynamicExits:false, atrSlMul:1.5, atrTpMul:2.0, trailStop:true, trailPct:0.25, trailActivation:0, rsiMin:45, rsiMax:65, emaMaxDist:2.0, requirePrevBull:false, allow24h:false, maxHoldCandles:3, volumeFilter:true, volumeMinMult:1.2, macdFilter:true, emaRibbonFilter:false, drawdownProtection:true, breakEvenStop:true, breakEvenTriggerPct:50, learningEnabled:true,
+  stochRsiFilter:false,
+  bbFilter:false, bbMaxPct:80,
+  bodyFilter:false, bodyMinRatio:0.3,
+  emaSlopeFilter:false,
+  candleConfirm:false, candleConfirmN:2,
+  rsiExitFilter:false, rsiExitHigh:78, rsiExitLow:22,
+  feeSimulation:false, feePct:0.05,
+  maxConsecLosses:3, autoPauseOnLosses:true,
+  compoundMode:false, startingCapital:1000,
+  recoveryMode:true, recoveryDrawdownPct:5.0,
+  kellyEnabled:false, kellyFraction:0.25,
+  volScaling:true,
+  dailyLossLimit:3.0, dailyCircuitBreaker:true, dailyStartCapital:1000, dailyStartDate:"",
+  equityCurveFilter:false,
+  signalConfirmation:false,
+  adxSlope:false,
+  volumeTrend:false,
+  revengeCooldown:true,
+  wickFilter:false,
+  multiSymbol:false,
+  rocFilter:false,
+  rsiRising:false,
+  dynamicEmaDist:false,
+  srFilter:false,
+  closePosFilter:false,
+  prevBullCandles:1,
+  ichimokuFilter:false,
+  pvsEmaFilter:false, pvsEmaMin:0.1,
+  bbSqueezeFilter:false,
+  haFilter:false,
+  higherLowFilter:false,
+  deepTrainWindows:50,
+  optimizeFor:"sharpe",
+  sessionScoreGate:false, minSessionScore:4,
+  reoptInterval:20,
+  profitLock:false, profitLockPct:50,
+  sessionStart:21, sessionEnd:23,
+  autoDisableAfterSession:true,
+  trades:[] };
 
 function loadConfig(): BotConfig {
   try {
@@ -396,7 +825,7 @@ function loadConfig(): BotConfig {
   return { ...DEFAULTS };
 }
 function saveConfig(c: BotConfig) { localStorage.setItem(KEY, JSON.stringify(c)); }
-const REASON_LABEL: Record<TradeReason,string> = { session_end:"Koniec sesji", stop_loss:"Stop Loss", take_profit:"Take Profit", trail_stop:"Trailing Stop" };
+const REASON_LABEL: Record<TradeReason,string> = { session_end:"Koniec sesji", stop_loss:"Stop Loss", take_profit:"Take Profit", trail_stop:"Trailing Stop", rsi_extreme:"RSI Exit" };
 
 // ─── Learning memory — persists across restarts ───────────────────────────────
 
@@ -459,6 +888,14 @@ export default function TradingBot() {
   // Restore learning counters from memory so bot continues from where it left off
   const adaptCountRef  = useRef(loadLearning().adaptCount);
   const autoOptRef     = useRef(loadLearning().autoOptCount);
+  const rsiSparkRef    = useRef<number[]>([]);      // #93 last 20 RSI readings
+  const signalConfirmRef = useRef<{dir:Direction|null;count:number}>({dir:null,count:0}); // #27
+  const lastSLTimeRef  = useRef<number>(0);          // #33 anti-revenge cooldown
+  const [multiScan, setMultiScan] = useState<Record<string,number>|null>(null); // #35 confidence per symbol
+  const [wfResult, setWfResult] = useState<{train:OptResult;test:BtResult}|null>(null); // #37
+  const [multiBtResult, setMultiBtResult] = useState<BtResult[]|null>(null); // #40
+  const [resetConfirm, setResetConfirm] = useState(false); // #43
+  const [usingDeepParams, setUsingDeepParams] = useState(false); // #97
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -491,9 +928,10 @@ export default function TradingBot() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [tRes, kRes] = await Promise.all([
+      const [tRes, kRes, k4Res] = await Promise.all([
         fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${config.symbol}`),
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${config.symbol}&interval=1h&limit=60`),
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${config.symbol}&interval=1h&limit=200`),
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${config.symbol}&interval=4h&limit=60`), // #86
       ]);
       if (!tRes.ok || !kRes.ok) throw new Error(`Binance ${tRes.status}`);
       const td = await tRes.json();
@@ -503,6 +941,7 @@ export default function TradingBot() {
       const highs   = klines.map(k=>parseFloat(k[2]));
       const lows    = klines.map(k=>parseFloat(k[3]));
       const volumes = klines.map(k=>parseFloat(k[5]));
+      const candleArr: CandleData[] = klines.map(k=>({ time:k[0], open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5], utcH:new Date(k[0]).getUTCHours() }));
       const last = closes.length-1;
       setTicker({ price:parseFloat(td.lastPrice), change24h:parseFloat(td.priceChangePercent), high24h:parseFloat(td.highPrice), low24h:parseFloat(td.lowPrice) });
       const ema21val = calcEMA21(closes);
@@ -510,17 +949,49 @@ export default function TradingBot() {
       const volMult = avgVol > 0 ? volumes[last] / avgVol : 1;
       const macdVals = calcMACD(closes);
       const ribbon = calcEMARibbon(closes);
+      const rsiNow = calcRSI(closes);
+      const atrNow = calcATR(highs, lows, closes);
+      const adxNow = calcADX(highs, lows, closes);
+      const bb = calcBollingerBands(closes);
+      const ich = calcIchimoku(highs, lows);
+      const ha = calcHA(candleArr, candleArr.length-1);
+      // #31 ADX rising vs 3 bars ago
+      const adxPast = closes.length>=33 ? calcADX(highs.slice(0,-3), lows.slice(0,-3), closes.slice(0,-3)) : adxNow;
+      // #51 RSI rising vs 2 bars ago
+      const rsiPast = closes.length>=3 ? calcRSI(closes.slice(0,-2)) : rsiNow;
+      // #68 BB squeeze
+      const bbWidths:number[]=[];
+      for(let k=closes.length-50;k<closes.length;k++){ if(k<20)continue; bbWidths.push(calcBollingerBands(closes.slice(0,k+1)).width); }
+      const sortedW=[...bbWidths].sort((a,b)=>a-b); const p20W=sortedW.length?sortedW[Math.floor(sortedW.length*0.2)]:0;
+      const upperWick=highs[last]-Math.max(opens[last],closes[last]); const bodyAbs=Math.abs(closes[last]-opens[last])||1e-9;
+      // #86 4H RSI
+      let rsi4h=50; try { const k4:any[]=await k4Res.json(); if(Array.isArray(k4)) rsi4h=calcRSI(k4.map(k=>parseFloat(k[4]))); } catch {}
+      // #93 sparkline
+      rsiSparkRef.current = [...rsiSparkRef.current.slice(-19), rsiNow];
       setMd({
-        rsi: calcRSI(closes), ema21: ema21val,
+        rsi: rsiNow, ema21: ema21val,
         priceVsEma: (closes[last]-ema21val)/ema21val*100,
         momentum: (closes[last]-opens[last])/opens[last]*100,
         volatility: (highs[last]-lows[last])/opens[last]*100,
-        atr: calcATR(highs, lows, closes),
-        adx: calcADX(highs, lows, closes),
+        atr: atrNow,
+        adx: adxNow,
         prevBull: last >= 1 && closes[last-1] > opens[last-1],
         volumeMult: parseFloat(volMult.toFixed(2)),
         macd: macdVals.macd, macdSignal: macdVals.signal, macdHist: macdVals.hist,
         ema8: ribbon.ema8, ema13: ribbon.ema13, ribbonBull: ribbon.bullish, ribbonBear: ribbon.bearish,
+        stochRsi: calcStochRSI(closes),
+        bbPct: bb.pct, bbUpper: bb.upper, bbLower: bb.lower, bbWidth: bb.width, bbSqueeze: bbWidths.length>=10 ? (bb.width<=p20W) : false,
+        bodyRatio: calcBodyRatio({open:opens[last],high:highs[last],low:lows[last],close:closes[last]}),
+        emaSlope: calcEMASlope(closes),
+        atrPercentile: calcATRPercentile(candleArr, atrNow),
+        roc: calcROC(closes),
+        tenkan: ich.tenkan, kijun: ich.kijun,
+        haGreen: ha.green,
+        adxRising: adxNow > adxPast,
+        rsiRising: rsiNow > rsiPast,
+        volumeRising: volumes.length>=3 && volumes[last]>volumes[last-1] && volumes[last-1]>volumes[last-2],
+        upperWickRatio: parseFloat((upperWick/bodyAbs).toFixed(2)),
+        rsi4h,
       });
       setLastRefresh(new Date()); setError(null);
     } catch(e:any) { setError("Błąd danych: "+e.message); }
@@ -550,18 +1021,45 @@ export default function TradingBot() {
       }
 
       const emaDist = Math.abs((ticker.price - ema21) / ema21 * 100);
-      // #1 volume filter
-      const volOk  = !config.volumeFilter || md.volumeMult >= config.volumeMinMult;
-      // #2 MACD confirmation
-      const macdOk  = !config.macdFilter || md.macd > md.macdSignal;
-      const macdOkS = !config.macdFilter || md.macd < md.macdSignal;
-      // #3 EMA ribbon: EMA8>13>21 for long, EMA8<13<21 for short
-      const ribbonOk  = !config.emaRibbonFilter || md.ribbonBull;
-      const ribbonOkS = !config.emaRibbonFilter || md.ribbonBear;
-      const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || md.prevBull) && volOk && macdOk && ribbonOk;
-      const isShort = config.allowShorts && !aboveEMA && rsi < 40 && emaDist <= config.emaMaxDist
-        && (!config.requirePrevBull || !md.prevBull) && volOk && macdOkS && ribbonOkS;
+      const closedNow = config.trades.filter(t=>t.status==="closed");
+      // #13 auto-pause after maxConsecLosses
+      if (config.autoPauseOnLosses) {
+        const st = calcStreak(closedNow);
+        if (st <= -config.maxConsecLosses) { update({enabled:false}); addLog(`⛔ Auto-pauza: ${Math.abs(st)} strat z rzędu (limit ${config.maxConsecLosses}) — bot zatrzymany, włącz ręcznie`, "warn"); return; }
+      }
+      // #25 daily circuit breaker
+      if (config.dailyCircuitBreaker) {
+        const today = new Date().toISOString().slice(0,10);
+        if (config.dailyStartDate !== today) { update({dailyStartDate:today, dailyStartCapital:config.capital}); }
+        else {
+          const todayTrades = closedNow.filter(t=>t.exitTime && t.exitTime.slice(0,10)===today);
+          const todayPnl = todayTrades.reduce((s,t)=>s+(t.pnl??0),0);
+          const dailyPct = config.dailyStartCapital>0 ? todayPnl/config.dailyStartCapital*100 : 0;
+          if (dailyPct <= -config.dailyLossLimit) { update({enabled:false}); addLog(`⛔ Dzienny circuit breaker: ${dailyPct.toFixed(1)}% < -${config.dailyLossLimit}% — bot zatrzymany`, "warn"); return; }
+        }
+      }
+      // #33 anti-revenge cooldown — 1h after a stop_loss
+      if (config.revengeCooldown && lastSLTimeRef.current>0 && Date.now()-lastSLTimeRef.current < 3600_000) return;
+
+      const evalL = evalFilters(md, ticker.price, config, "long");
+      const evalS = evalFilters(md, ticker.price, config, "short");
+      // #82 session score gate
+      const scoreOk = !config.sessionScoreGate || sessionScore(md) >= config.minSessionScore;
+      const isLong  = aboveEMA && rsi >= config.rsiMin && rsi <= config.rsiMax && evalL.allPass && scoreOk;
+      const isShort = config.allowShorts && !aboveEMA && rsi < 40 && evalS.allPass && scoreOk;
+
+      // #27 signal confirmation — require 2 consecutive ticks
+      if (config.signalConfirmation) {
+        const dir: Direction|null = isLong ? "long" : isShort ? "short" : null;
+        if (!dir) { signalConfirmRef.current = {dir:null,count:0}; }
+        else if (signalConfirmRef.current.dir === dir) { signalConfirmRef.current.count++; }
+        else { signalConfirmRef.current = {dir,count:1}; }
+        if (dir && signalConfirmRef.current.count < 2) {
+          addLog(`⧖ Sygnał ${dir.toUpperCase()} — potwierdzenie ${signalConfirmRef.current.count}/2`, "info");
+          return;
+        }
+      }
+
       if (!isLong && !isShort) {
         setActivityLog(prev => {
           const reason = rsi > config.rsiMax ? `RSI ${rsi} > ${config.rsiMax} (wykupienie)` : rsi < config.rsiMin ? `RSI ${rsi} < ${config.rsiMin}` : emaDist > config.emaMaxDist ? `EMA dist ${emaDist.toFixed(1)}% > ${config.emaMaxDist}%` : `${aboveEMA?"▲":"▼"} EMA`;
@@ -576,13 +1074,43 @@ export default function TradingBot() {
 
       const direction: Direction = isLong ? "long" : "short";
       // #4 drawdown protection: halve size after ≥2 consecutive losses
-      const streak = config.drawdownProtection ? calcStreak(config.trades.filter(t=>t.status==="closed")) : 0;
-      const sizeMultiplier = streak <= -2 ? 0.5 : 1.0;
-      const size = config.capital * (config.riskPct/100) * sizeMultiplier;
-      if (streak <= -2) addLog(`⚠️ Drawdown protection: ${Math.abs(streak)} straty z rzędu → rozmiar ×${sizeMultiplier}`, "warn");
+      const streak = config.drawdownProtection ? calcStreak(closedNow) : 0;
+      let sizeMultiplier = streak <= -2 ? 0.5 : 1.0;
+      // #15 recovery mode — half risk while in drawdown from peak equity
+      let recoveryActive = false;
+      if (config.recoveryMode) {
+        let eq=config.startingCapital||config.capital, peak=eq;
+        for (const t of closedNow) { eq+=(t.pnl??0); if(eq>peak)peak=eq; }
+        const dd = peak>0 ? (peak-eq)/peak*100 : 0;
+        if (dd > config.recoveryDrawdownPct) { sizeMultiplier *= 0.5; recoveryActive = true; }
+      }
+      // #24 volatility-scaled sizing
+      if (config.volScaling) {
+        if (md.atrPercentile > 70) sizeMultiplier *= 0.6;
+        else if (md.atrPercentile < 30) sizeMultiplier *= 1.2;
+      }
+      // #26 equity-curve filter — reduce risk when below EMA10 of equity returns
+      if (config.equityCurveFilter && closedNow.length >= 10) {
+        const rets:number[]=[]; let cum=0;
+        for (const t of closedNow) { cum+=(t.pnlPct??0); rets.push(cum); }
+        const ema10 = emaArr(rets, 10);
+        if (rets[rets.length-1] < ema10) sizeMultiplier *= 0.7;
+      }
+      // #23 Kelly sizing override
+      let effRisk = config.riskPct;
+      if (config.kellyEnabled && closedNow.length >= 10) {
+        const a = tradeAnalytics(closedNow);
+        const kelly = kellyFraction(a.wr, a.avgWin, a.avgLoss) * config.kellyFraction;
+        effRisk = Math.max(1, Math.min(20, kelly));
+      }
+      const size = config.capital * (effRisk/100) * sizeMultiplier;
+      if (streak <= -2) addLog(`⚠️ Drawdown protection: ${Math.abs(streak)} straty z rzędu → rozmiar ×0.5`, "warn");
+      if (recoveryActive) addLog(`🔧 RECOVERY MODE — obsunięcie > ${config.recoveryDrawdownPct}%, rozmiar zmniejszony`, "warn");
       const slPct = config.dynamicExits && atr > 0 ? atr/ticker.price*100*config.atrSlMul : config.stopLoss;
       const tpPct = config.dynamicExits && atr > 0 ? atr/ticker.price*100*config.atrTpMul : config.takeProfit;
-      update({ trades:[...config.trades, { id:Date.now(), symbol:config.symbol, direction, entryTime:new Date().toISOString(), entryPrice:ticker.price, size, status:"open", slPct, tpPct, trailRef:ticker.price }] });
+      // #57 trade meta snapshot
+      const meta: TradeMeta = { rsi: md.rsi, adx: md.adx, volumeMult: md.volumeMult, atrPercentile: md.atrPercentile, ribbonBull: md.ribbonBull };
+      update({ trades:[...config.trades, { id:Date.now(), symbol:config.symbol, direction, entryTime:new Date().toISOString(), entryPrice:ticker.price, size, status:"open", slPct, tpPct, trailRef:ticker.price, peakGainPct:0, meta }] });
       addLog(`▶ ${direction.toUpperCase()} ${config.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | RSI ${rsi} | ADX ${adx}${config.dynamicExits?" | ATR exits":""}${config.trailStop?" | Trail":""}  | SL ${slPct.toFixed(1)}% / TP ${tpPct.toFixed(1)}%`, "buy");
       return;
     }
@@ -617,23 +1145,35 @@ export default function TradingBot() {
     const beTrigger = tpPct * (config.breakEvenTriggerPct / 100);
     const beActive  = config.breakEvenStop && pct >= beTrigger;
     const beSLPrice = beActive ? openTrade.entryPrice : initSLPrice;
+    // #81/#91 peak gain tracking + profit lock
+    const peakGainPct = Math.max(openTrade.peakGainPct ?? 0, pct);
+    let lockSLPrice = openTrade.direction === "long" ? initSLPrice : initSLPrice;
+    if (config.profitLock && peakGainPct > 0) {
+      const floorGain = peakGainPct * (1 - config.profitLockPct/100);
+      lockSLPrice = openTrade.direction === "long"
+        ? openTrade.entryPrice * (1 + floorGain/100)
+        : openTrade.entryPrice * (1 - floorGain/100);
+    }
     const effectiveSLPrice = openTrade.direction === "long"
-      ? Math.max(initSLPrice, trailSLPrice, beSLPrice)
-      : Math.min(initSLPrice, trailSLPrice, beSLPrice);
+      ? Math.max(initSLPrice, trailSLPrice, beSLPrice, lockSLPrice)
+      : Math.min(initSLPrice, trailSLPrice, beSLPrice, lockSLPrice);
 
     // Time-based exit for 24h mode
     const tradeAgeH = (Date.now() - new Date(openTrade.entryTime).getTime()) / 3600000;
     let reason: TradeReason | null = null;
     if (config.allow24h ? tradeAgeH >= config.maxHoldCandles : !sess.inSession) reason = "session_end";
+    // #11 RSI extreme exit (before SL/TP)
+    else if (config.rsiExitFilter && openTrade.direction === "long" && rsi >= config.rsiExitHigh) reason = "rsi_extreme";
+    else if (config.rsiExitFilter && openTrade.direction === "short" && rsi <= config.rsiExitLow) reason = "rsi_extreme";
     else if (openTrade.direction === "long"  && ticker.price <= effectiveSLPrice)
       reason = effectiveSLPrice > openTrade.entryPrice ? "trail_stop" : "stop_loss";
     else if (openTrade.direction === "short" && ticker.price >= effectiveSLPrice)
       reason = effectiveSLPrice < openTrade.entryPrice ? "trail_stop" : "stop_loss";
     else if (pct >= tpPct) reason = "take_profit";
 
-    if (updatedTrailRef !== openTrade.trailRef && !reason) {
-      // persist updated trail ref
-      update({ trades:config.trades.map(t=>t.id===openTrade.id ? {...t, trailRef:updatedTrailRef} : t) });
+    if (!reason && (updatedTrailRef !== openTrade.trailRef || peakGainPct !== (openTrade.peakGainPct ?? 0))) {
+      // persist updated trail ref & peak gain
+      update({ trades:config.trades.map(t=>t.id===openTrade.id ? {...t, trailRef:updatedTrailRef, peakGainPct} : t) });
     }
 
     if (reason) {
