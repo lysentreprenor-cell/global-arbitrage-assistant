@@ -225,6 +225,7 @@ type BtCfg = {
   higherLowFilter: boolean;
   sessionScoreGate: boolean; minSessionScore: number;
   optimizeFor: "sharpe" | "calmar" | "winRate";
+  deepTrainWindows: number;
 };
 
 function calcBtStats(trades: BtTrade[], symbol: Symbol, candles: CandleData[], periodLabel: string): BtResult {
@@ -446,7 +447,12 @@ async function runOptimize(cfg: BtCfg): Promise<OptResult> {
 }
 
 // Deep optimizer: test all combos across many random windows of full history
-function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
+// async version with real per-combo progress reporting — avoids UI freeze on mobile
+async function runDeepOptimizeAsync(
+  allCandles: CandleData[],
+  cfg: BtCfg,
+  onProgress: (pct: number) => void
+): Promise<OptResult> {
   const combos: [number, number, number][] = [
     [40,60,0.10],[40,60,0.15],[40,60,0.25],[40,60,0.35],
     [45,65,0.10],[45,65,0.15],[45,65,0.25],[45,65,0.35],
@@ -454,17 +460,16 @@ function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
     [42,62,0.15],[42,62,0.25],[48,68,0.15],[48,68,0.25],
   ];
   const WINDOW = 800;
-  const N_WINDOWS = Math.min(30, Math.floor(allCandles.length / WINDOW));
-  // evenly-spaced windows across full history
+  const N_WINDOWS = Math.min(cfg.deepTrainWindows ?? 30, Math.floor(allCandles.length / WINDOW));
   const windows: CandleData[][] = [];
-  const step = Math.floor((allCandles.length - WINDOW) / N_WINDOWS);
-  for (let i=0; i<N_WINDOWS; i++) {
-    const start = i * step;
-    windows.push(allCandles.slice(start, start + WINDOW));
+  const step = Math.floor((allCandles.length - WINDOW) / Math.max(1, N_WINDOWS));
+  for (let i = 0; i < N_WINDOWS; i++) {
+    windows.push(allCandles.slice(i * step, i * step + WINDOW));
   }
 
   let best: OptResult = { rsiMin:45, rsiMax:65, trailPct:0.25, sharpe:-999, winRate:0, totalReturn:0, windows:0 };
-  for (const [rsiMin, rsiMax, trailPct] of combos) {
+  for (let ci = 0; ci < combos.length; ci++) {
+    const [rsiMin, rsiMax, trailPct] = combos[ci];
     let sumSharpe=0, sumWR=0, sumRet=0, valid=0;
     for (const w of windows) {
       const r = runBacktestSync(w, {...cfg, rsiMin, rsiMax, trailPct});
@@ -473,6 +478,9 @@ function runDeepOptimizeSync(allCandles: CandleData[], cfg: BtCfg): OptResult {
     if (valid >= Math.floor(N_WINDOWS * 0.5) && sumSharpe/valid > best.sharpe) {
       best = { rsiMin, rsiMax, trailPct, sharpe:parseFloat((sumSharpe/valid).toFixed(2)), winRate:sumWR/valid, totalReturn:sumRet/valid, windows:valid };
     }
+    // yield to browser between combos so UI stays responsive + progress updates
+    onProgress(65 + Math.round((ci + 1) / combos.length * 35));
+    await new Promise(r => setTimeout(r, 0));
   }
   return best;
 }
@@ -2146,7 +2154,6 @@ export default function TradingBot() {
                   setDeepLoading(true); setDeepProgress(0); setDeepResult(null);
                   addLog(`🧠 Deep Train start — pobieranie historii ${config.symbol} od 2017…`,"info");
                   try {
-                    // Use cached data if same symbol
                     let candles: CandleData[];
                     if (fullHistoryRef.current?.symbol === config.symbol) {
                       candles = fullHistoryRef.current.candles;
@@ -2155,17 +2162,15 @@ export default function TradingBot() {
                       candles = await fetchFullHistory(config.symbol, p => setDeepProgress(p * 0.6));
                       fullHistoryRef.current = { symbol: config.symbol, candles };
                     }
-                    addLog(`🧠 Pobrano ${candles.length} świec (${Math.round(candles.length/24/365*10)/10} lat). Optymalizacja…`,"info");
+                    addLog(`🧠 Pobrano ${candles.length} świec (${Math.round(candles.length/24/365*10)/10} lat). Optymalizacja 16 kombinacji×${Math.min(config.deepTrainWindows,30)} okien…`,"info");
                     setDeepProgress(65);
-                    // Run sync in a timeout so UI can update
-                    await new Promise(r => setTimeout(r, 20));
-                    const r = runDeepOptimizeSync(candles, {...config});
+                    // async — yields between each combo so UI stays responsive + real progress
+                    const r = await runDeepOptimizeAsync(candles, {...config}, p => setDeepProgress(p));
                     setDeepProgress(100);
                     setDeepResult(r);
                     update({rsiMin:r.rsiMin, rsiMax:r.rsiMax, trailPct:r.trailPct});
                     setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct));
-                    addLog(`🧠 Deep Train (${r.windows} okien historycznych): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → avg Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info");
-                    // persist Deep Train result — survives restart
+                    addLog(`🧠 Deep Train (${r.windows} okien): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → avg Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info");
                     learningRef.current = { ...learningRef.current, deepResult: r };
                     saveLearning(learningRef.current);
                   } catch(e:any) { addLog("Deep Train błąd: "+e.message,"warn"); }
@@ -2174,7 +2179,7 @@ export default function TradingBot() {
                 disabled={deepLoading||optLoading||btLoading}
                 style={{ background:deepLoading?"rgba(251,146,60,0.05)":"rgba(251,146,60,0.12)", border:"1px solid rgba(251,146,60,0.4)", borderRadius:8, padding:"8px 14px", color:deepLoading?M:"#fb923c", cursor:deepLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
                 {deepLoading
-                  ? <><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> {deepProgress < 62 ? `Pobieranie ${deepProgress.toFixed(0)}%` : "Optymalizacja…"}</>
+                  ? <><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> {deepProgress < 62 ? `Pobieranie ${deepProgress.toFixed(0)}%` : `Optymalizacja ${deepProgress.toFixed(0)}%`}</>
                   : <><BarChart2 size={12}/> Deep Train</>}
               </button>
               <button
@@ -2196,7 +2201,7 @@ export default function TradingBot() {
           {deepLoading && (
             <div style={{ marginBottom:10 }}>
               <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"#fb923c", marginBottom:4 }}>
-                <span>🧠 Deep Train — {deepProgress < 62 ? `pobieranie historii ${config.symbol} od 2017` : "optymalizacja 30 okien historycznych"}</span>
+                <span>🧠 Deep Train — {deepProgress < 62 ? `pobieranie historii ${config.symbol} od 2017` : `optymalizacja ${Math.round((deepProgress-65)/35*16)}/16 kombinacji`}</span>
                 <span>{deepProgress.toFixed(0)}%</span>
               </div>
               <div style={{ height:4, background:"rgba(255,255,255,0.07)", borderRadius:2 }}>
