@@ -863,22 +863,63 @@ const REASON_LABEL: Record<TradeReason,string> = { session_end:"Koniec sesji", s
 type LearningAdaptation = { time: string; change: string; tradeCount: number };
 
 type LearningMemory = {
-  adaptCount: number;       // total trades processed for micro-adaptation
-  autoOptCount: number;     // total trades processed for full re-optimization
+  adaptCount: number;
+  autoOptCount: number;
   deepResult: OptResult | null;
   optResult: OptResult | null;
-  activityLog: LogEntry[];  // last 150 entries
-  adaptations: LearningAdaptation[]; // full history of all adaptations
+  // ensemble: history of last 5 Deep Train runs + consensus
+  deepHistory: OptResult[];      // up to 5 past Deep Train results
+  optHistory: OptResult[];       // up to 5 past Auto-Opt results
+  ensembleResult: OptResult | null; // Sharpe-weighted consensus across all runs
+  activityLog: LogEntry[];
+  adaptations: LearningAdaptation[];
 };
 
 const LEARN_KEY = "resell_trading_bot_learning_v1";
 
+// Sharpe-weighted consensus across multiple optimization runs.
+// More runs = more stable params; if runs disagree, lower-Sharpe ones are down-weighted.
+function calcEnsemble(results: OptResult[]): OptResult | null {
+  if (!results.length) return null;
+  const pos = results.filter(r => r.sharpe > 0);
+  const pool = pos.length >= 1 ? pos : results; // fall back to all if all sharpe<=0
+  const totalW = pool.reduce((s, r) => s + Math.max(r.sharpe, 0.01), 0);
+  let rsiMin=0, rsiMax=0, trailPct=0, sharpe=0, winRate=0, totalReturn=0;
+  for (const r of pool) {
+    const w = Math.max(r.sharpe, 0.01) / totalW;
+    rsiMin     += r.rsiMin     * w;
+    rsiMax     += r.rsiMax     * w;
+    trailPct   += r.trailPct   * w;
+    sharpe     += r.sharpe     * w;
+    winRate    += r.winRate    * w;
+    totalReturn+= r.totalReturn* w;
+  }
+  return {
+    rsiMin:    Math.round(rsiMin),
+    rsiMax:    Math.round(rsiMax),
+    trailPct:  parseFloat(trailPct.toFixed(2)),
+    sharpe:    parseFloat(sharpe.toFixed(2)),
+    winRate,
+    totalReturn,
+    windows:   pool.reduce((s,r)=>s+(r.windows??0),0),
+  };
+}
+
 function loadLearning(): LearningMemory {
   try {
     const raw = localStorage.getItem(LEARN_KEY);
-    if (raw) return JSON.parse(raw) as LearningMemory;
+    if (raw) {
+      const m = JSON.parse(raw) as LearningMemory;
+      // back-compat: older saves may not have deepHistory
+      if (!m.deepHistory) m.deepHistory = m.deepResult ? [m.deepResult] : [];
+      if (!m.optHistory)  m.optHistory  = m.optResult  ? [m.optResult]  : [];
+      if (!m.ensembleResult) m.ensembleResult = calcEnsemble(m.deepHistory);
+      return m;
+    }
   } catch {}
-  return { adaptCount:0, autoOptCount:0, deepResult:null, optResult:null, activityLog:[], adaptations:[] };
+  return { adaptCount:0, autoOptCount:0, deepResult:null, optResult:null,
+           deepHistory:[], optHistory:[], ensembleResult:null,
+           activityLog:[], adaptations:[] };
 }
 
 function saveLearning(m: LearningMemory) {
@@ -2199,11 +2240,17 @@ export default function TradingBot() {
                       setTmpRsiMin(String(partial.rsiMin)); setTmpRsiMax(String(partial.rsiMax)); setTmpTrailPct(String(partial.trailPct));
                     });
                     setDeepProgress(100);
+                    // add to history (keep last 5), recompute ensemble
+                    const newHistory = [...learningRef.current.deepHistory.slice(-4), r];
+                    const ensemble = calcEnsemble(newHistory);
+                    // apply ensemble params (not just this run) if we have ≥2 runs
+                    const apply = newHistory.length >= 2 && ensemble ? ensemble : r;
                     setDeepResult(r);
-                    update({rsiMin:r.rsiMin, rsiMax:r.rsiMax, trailPct:r.trailPct});
-                    setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct));
-                    addLog(`🧠 Deep Train (${r.windows} okien): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → avg Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info");
-                    learningRef.current = { ...learningRef.current, deepResult: r };
+                    update({rsiMin:apply.rsiMin, rsiMax:apply.rsiMax, trailPct:apply.trailPct});
+                    setTmpRsiMin(String(apply.rsiMin)); setTmpRsiMax(String(apply.rsiMax)); setTmpTrailPct(String(apply.trailPct));
+                    const ensembleNote = newHistory.length >= 2 ? ` · 🎯 konsensus ${newHistory.length} treningów: RSI[${apply.rsiMin}-${apply.rsiMax}] Trail${apply.trailPct}%` : "";
+                    addLog(`🧠 Deep Train #${newHistory.length} (${r.windows} okien): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${ensembleNote}`,"info");
+                    learningRef.current = { ...learningRef.current, deepResult: r, deepHistory: newHistory, ensembleResult: ensemble };
                     saveLearning(learningRef.current);
                   } catch(e:any) { addLog("Deep Train błąd: "+e.message,"warn"); }
                   finally { setDeepLoading(false); }
@@ -2215,7 +2262,7 @@ export default function TradingBot() {
                   : <><BarChart2 size={12}/> Deep Train</>}
               </button>
               <button
-                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); setOptResult(r); update({rsiMin:r.rsiMin,rsiMax:r.rsiMax,trailPct:r.trailPct}); setTmpRsiMin(String(r.rsiMin)); setTmpRsiMax(String(r.rsiMax)); setTmpTrailPct(String(r.trailPct)); addLog(`🧠 Auto-opt: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% → Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%`,"info"); learningRef.current={...learningRef.current,optResult:r}; saveLearning(learningRef.current); } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
+                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); const newOptHist=[...learningRef.current.optHistory.slice(-4), r]; const optEns=calcEnsemble(newOptHist); const applyOpt=newOptHist.length>=2&&optEns?optEns:r; setOptResult(r); update({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct}); setTmpRsiMin(String(applyOpt.rsiMin)); setTmpRsiMax(String(applyOpt.rsiMax)); setTmpTrailPct(String(applyOpt.trailPct)); const optNote=newOptHist.length>=2?` · konsensus ${newOptHist.length}×: RSI[${applyOpt.rsiMin}-${applyOpt.rsiMax}]`:""; addLog(`🧠 Auto-opt #${newOptHist.length}: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${optNote}`,"info"); learningRef.current={...learningRef.current,optResult:r,optHistory:newOptHist}; saveLearning(learningRef.current); } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
                 disabled={optLoading||btLoading||deepLoading}
                 style={{ background:optLoading?"rgba(251,191,36,0.05)":"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:8, padding:"8px 14px", color:optLoading?M:"#fbbf24", cursor:optLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
                 {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
@@ -2242,21 +2289,39 @@ export default function TradingBot() {
             </div>
           )}
 
-          {deepResult && !deepLoading && (
-            <div style={{ background:"rgba(251,146,60,0.07)", border:"1px solid rgba(251,146,60,0.3)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
-              <span style={{color:"#fb923c",fontWeight:700}}>🧠 Deep Train ({deepResult.windows} okien historycznych):</span>
-              {" "}RSI [{deepResult.rsiMin}-{deepResult.rsiMax}] · Trail {deepResult.trailPct}% → avg Sharpe <span style={{color:deepResult.sharpe>=1?G:"#f59e0b"}}>{deepResult.sharpe.toFixed(2)}</span> · avg WR <span style={{color:G}}>{deepResult.winRate.toFixed(0)}%</span>
-              <span style={{color:M}}> — najrobustniejsze parametry z całej historii Binance</span>
-            </div>
-          )}
+          {deepResult && !deepLoading && (() => {
+            const hist = learningRef.current.deepHistory;
+            const ens  = learningRef.current.ensembleResult;
+            return (
+              <div style={{ background:"rgba(251,146,60,0.07)", border:"1px solid rgba(251,146,60,0.3)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:hist.length>1?6:0 }}>
+                  <span><span style={{color:"#fb923c",fontWeight:700}}>🧠 Deep Train #{hist.length} ({deepResult.windows} okien):</span>
+                  {" "}RSI [{deepResult.rsiMin}-{deepResult.rsiMax}] · Trail {deepResult.trailPct}% · Sharpe <span style={{color:deepResult.sharpe>=1?G:"#f59e0b"}}>{deepResult.sharpe.toFixed(2)}</span> · WR <span style={{color:G}}>{deepResult.winRate.toFixed(0)}%</span></span>
+                </div>
+                {hist.length >= 2 && ens && (
+                  <div style={{ background:"rgba(251,146,60,0.08)", borderRadius:6, padding:"5px 10px", fontSize:11 }}>
+                    <span style={{color:"#fb923c",fontWeight:700}}>🎯 Konsensus {hist.length} treningów:</span>
+                    {" "}RSI [{ens.rsiMin}-{ens.rsiMax}] · Trail {ens.trailPct}%
+                    {" "}· avg Sharpe <span style={{color:ens.sharpe>=1?G:"#f59e0b"}}>{ens.sharpe.toFixed(2)}</span>
+                    <span style={{color:M}}> — Sharpe-weighted z {hist.length} niezależnych treningów · aktywne parametry</span>
+                  </div>
+                )}
+                {hist.length === 1 && <span style={{color:M}}> — uruchom jeszcze raz żeby bot zbudował konsensus</span>}
+              </div>
+            );
+          })()}
 
-          {optResult && !deepResult && (
-            <div style={{ background:"rgba(251,191,36,0.07)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
-              <span style={{color:"#fbbf24",fontWeight:700}}>🧠 Auto-Opt znalazł:</span>
-              {" "}RSI [{optResult.rsiMin}-{optResult.rsiMax}] · Trail {optResult.trailPct}% → Sharpe <span style={{color:optResult.sharpe>=1?G:"#f59e0b"}}>{optResult.sharpe.toFixed(2)}</span> · WR <span style={{color:G}}>{optResult.winRate.toFixed(0)}%</span> · Zwrot <span style={{color:optResult.totalReturn>=0?G:R}}>{optResult.totalReturn>=0?"+":""}{optResult.totalReturn.toFixed(1)}%</span>
-              <span style={{color:M}}> — parametry zaktualizowane automatycznie</span>
-            </div>
-          )}
+          {optResult && !deepResult && (() => {
+            const hist = learningRef.current.optHistory;
+            const ens  = calcEnsemble(hist);
+            return (
+              <div style={{ background:"rgba(251,191,36,0.07)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
+                <span style={{color:"#fbbf24",fontWeight:700}}>🧠 Auto-Opt #{hist.length}:</span>
+                {" "}RSI [{optResult.rsiMin}-{optResult.rsiMax}] · Trail {optResult.trailPct}% · Sharpe <span style={{color:optResult.sharpe>=1?G:"#f59e0b"}}>{optResult.sharpe.toFixed(2)}</span> · WR <span style={{color:G}}>{optResult.winRate.toFixed(0)}%</span>
+                {hist.length >= 2 && ens && <span style={{color:"#fbbf24"}}> · 🎯 konsensus {hist.length}×: RSI [{ens.rsiMin}-{ens.rsiMax}] Trail {ens.trailPct}%</span>}
+              </div>
+            );
+          })()}
           {!btResult && !btLoading && !btError && !deepLoading && (
             <div style={{ fontSize:13, color:M, lineHeight:1.7 }}>
               {config.allow24h?"Tryb 24H: bot szuka sygnałów przez całą dobę, trzyma pozycję max "+config.maxHoldCandles+"h.":"Tryb sesja: bot handluje w oknie 21:00–23:00 UTC."} Kliknij <strong style={{color:"#fb923c"}}>Deep Train</strong> żeby wytrenować na całej historii Binance (2017–dziś) lub <strong style={{color:"#fbbf24"}}>Auto-Opt</strong> na ostatnich 800 świecach.
@@ -2387,17 +2452,28 @@ export default function TradingBot() {
         </div>
 
         {/* Learning history — persisted across restarts */}
-        {learningRef.current.adaptations.length > 0 && (
+        {(learningRef.current.adaptations.length > 0 || learningRef.current.deepHistory.length > 0) && (
           <div style={{ ...card, marginTop:14 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" as const }}>
                 <span style={{ fontSize:16 }}>🧠</span>
                 <span style={{ fontWeight:700, fontSize:14 }}>Historia uczenia</span>
                 <span style={{ fontSize:10, background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"2px 7px", color:"#818cf8" }}>
-                  {learningRef.current.adaptations.length} adaptacji · {learningRef.current.adaptCount} transakcji przetworzonych
+                  {learningRef.current.adaptations.length} adaptacji · {learningRef.current.adaptCount} tr.
                 </span>
+                {learningRef.current.deepHistory.length > 0 && (
+                  <span style={{ fontSize:10, background:"rgba(251,146,60,0.08)", border:"1px solid rgba(251,146,60,0.2)", borderRadius:6, padding:"2px 7px", color:"#fb923c" }}>
+                    {learningRef.current.deepHistory.length}× Deep Train
+                    {learningRef.current.ensembleResult && ` · konsensus RSI[${learningRef.current.ensembleResult.rsiMin}-${learningRef.current.ensembleResult.rsiMax}]`}
+                  </span>
+                )}
+                {learningRef.current.optHistory.length > 0 && (
+                  <span style={{ fontSize:10, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:6, padding:"2px 7px", color:"#fbbf24" }}>
+                    {learningRef.current.optHistory.length}× Auto-Opt
+                  </span>
+                )}
               </div>
-              <button onClick={()=>{ learningRef.current={...learningRef.current,adaptations:[],adaptCount:0,autoOptCount:0}; saveLearning(learningRef.current); adaptCountRef.current=0; autoOptRef.current=0; }} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:11 }}>Resetuj pamięć</button>
+              <button onClick={()=>{ learningRef.current={...learningRef.current,adaptations:[],adaptCount:0,autoOptCount:0,deepHistory:[],optHistory:[],ensembleResult:null,deepResult:null,optResult:null}; saveLearning(learningRef.current); adaptCountRef.current=0; autoOptRef.current=0; setDeepResult(null); setOptResult(null); }} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:11 }}>Resetuj pamięć</button>
             </div>
             <div style={{ maxHeight:160, overflowY:"auto", fontFamily:"monospace", fontSize:11, lineHeight:1.8 }}>
               {[...learningRef.current.adaptations].reverse().map((a,i)=>(
