@@ -157,6 +157,73 @@ function saveKeys(keys: Record<string, Record<string, string>>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
 }
 
+function SyncBox({ keys, setKeys, synced, setSynced }: {
+  keys: Record<string, Record<string, string>>;
+  setKeys: React.Dispatch<React.SetStateAction<Record<string, Record<string, string>>>>;
+  synced: boolean;
+  setSynced: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
+
+  const pull = async () => {
+    setStatus("loading");
+    try {
+      const r = await fetch("/api/keys/sync");
+      const data = await r.json();
+      if (data.ok && data.keys && Object.keys(data.keys).length > 0) {
+        const local = loadKeys();
+        const merged = { ...data.keys, ...local };
+        saveKeys(merged);
+        setKeys(merged);
+        setSynced(true);
+        setStatus("ok");
+      } else {
+        setStatus("empty");
+      }
+    } catch { setStatus("error"); }
+    setTimeout(() => setStatus("idle"), 4000);
+  };
+
+  const push = async () => {
+    setStatus("loading");
+    try {
+      const r = await fetch("/api/keys/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(keys),
+      });
+      const data = await r.json();
+      setStatus(data.ok ? "ok" : "error");
+    } catch { setStatus("error"); }
+    setTimeout(() => setStatus("idle"), 4000);
+  };
+
+  const statusMsg: Record<string, string> = {
+    loading: "⏳ Łączenie z serwerem...",
+    ok: "✅ Sukces!",
+    empty: "⚠️ Serwer nie ma jeszcze kluczy — najpierw zapisz na telefonie",
+    error: "❌ Błąd połączenia — sprawdź czy Replit działa",
+  };
+
+  return (
+    <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, padding: "14px 16px", marginTop: 20 }}>
+      <div style={{ color: "#fbbf24", fontWeight: 700, fontSize: 13, marginBottom: 10 }}>🔄 Synchronizacja między urządzeniami</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+        <button onClick={pull} disabled={status === "loading"}
+          style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(251,191,36,0.4)", background: "rgba(251,191,36,0.1)", color: "#fbbf24", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          ⬇ Pobierz klucze z serwera
+        </button>
+        <button onClick={push} disabled={status === "loading"}
+          style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(99,102,241,0.4)", background: "rgba(99,102,241,0.1)", color: "#818cf8", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          ⬆ Wyślij klucze na serwer
+        </button>
+      </div>
+      {synced && status === "idle" && <div style={{ color: "#4ade80", fontSize: 12, marginTop: 8 }}>✅ Klucze zsynchronizowane z serwera</div>}
+      {status !== "idle" && <div style={{ color: status === "ok" ? "#4ade80" : status === "error" ? "#f87171" : "#fbbf24", fontSize: 12, marginTop: 8 }}>{statusMsg[status]}</div>}
+    </div>
+  );
+}
+
 export default function Settings() {
   const [keys, setKeys] = useState<Record<string, Record<string, string>>>(loadKeys);
   const [visible, setVisible] = useState<Record<string, boolean>>({});
@@ -530,11 +597,14 @@ export default function Settings() {
           })}
         </div>
 
+        {/* Cross-device sync */}
+        <SyncBox keys={keys} setKeys={setKeys} synced={synced} setSynced={setSynced} />
+
         {/* Info box */}
-        <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 12, padding: "14px 16px", marginTop: 20 }}>
+        <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
           <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>🔐 Bezpieczeństwo</div>
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.6 }}>
-            Klucze są zapisywane lokalnie w przeglądarce (localStorage). Nie są wysyłane na zewnętrzne serwery.
+            Klucze są szyfrowane (AES-256) na serwerze i synchronizowane między urządzeniami.
             Przy każdym żądaniu API klucz jest przesyłany tylko do Twojego własnego serwera.
           </div>
         </div>
