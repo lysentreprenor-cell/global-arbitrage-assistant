@@ -1110,8 +1110,9 @@ export default function TradingBot() {
     try {
       const r = await fetch("/api/bybit/balance", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret, testnet }) });
       const d = await r.json();
-      if (!d.error) setLiveBalance(d.balance);
-    } catch { /* ignore */ }
+      if (d.error) setLiveBalance(-1); // -1 = error signal
+      else setLiveBalance(d.balance ?? 0);
+    } catch (e: any) { setLiveBalance(-1); }
   }, []);
 
   const placeLiveOrder = useCallback(async (side: "long"|"short", price: number) => {
@@ -2553,8 +2554,10 @@ export default function TradingBot() {
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:12 }}>
                 <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
                   <div style={{ fontSize:10, color:M, marginBottom:4 }}>SALDO USDT</div>
-                  <div style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{liveBalance != null ? liveBalance.toFixed(2) : "—"}</div>
-                  <button onClick={fetchLiveBalance} style={{ marginTop:4, background:"none", border:"none", color:M, cursor:"pointer", fontSize:10 }}>↻ odśwież</button>
+                  <div style={{ fontSize:18, fontWeight:700, color: liveBalance === -1 ? R : "#fff" }}>
+                    {liveBalance === null ? "—" : liveBalance === -1 ? "Błąd" : liveBalance.toFixed(2)}
+                  </div>
+                  <button onClick={fetchLiveBalance} style={{ marginTop:6, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, color:"#fff", cursor:"pointer", fontSize:12, padding:"4px 10px", display:"inline-flex", alignItems:"center", gap:4 }}>↻ odśwież</button>
                 </div>
                 <div style={{ background: serverPosition ? (srvPnlPct != null && srvPnlPct >= 0 ? "rgba(34,197,94,0.07)" : "rgba(248,113,113,0.07)") : "rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
                   <div style={{ fontSize:10, color:M, marginBottom:4 }}>POZYCJA</div>
