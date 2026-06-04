@@ -2,7 +2,7 @@ import express from "express";
 
 const router = express.Router();
 
-const BYBIT_BASE = "https://api.bybit.com";
+const BYBIT_BASE = "https://api.bytick.com";
 const KRAKEN = "https://api.kraken.com/0/public";
 
 // Map USDT pairs → Kraken pair names (fallback)

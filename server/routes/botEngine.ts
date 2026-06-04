@@ -120,7 +120,7 @@ function addLog(msg: string, type: LogEntry["type"] = "info") {
 
 async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<string, any>) {
   if (!config) throw new Error("No config");
-  const base = config.testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
+  const base = config.testnet ? "https://api-testnet.bybit.com" : "https://api.bytick.com";
   const ts = Date.now().toString();
   const recvWindow = "5000";
   let paramStr = "";
