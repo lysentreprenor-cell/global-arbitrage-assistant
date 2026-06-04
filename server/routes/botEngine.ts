@@ -129,6 +129,7 @@ async function placeOrder(side: Direction, qty: number): Promise<string> {
     category: "linear", symbol: config.symbol,
     side: side === "long" ? "Buy" : "Sell",
     orderType: "Market", qty: String(qty),
+    positionIdx: 0,
   });
   const orderId = d.result?.orderId ?? "unknown";
   addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | OrderID: ${orderId}`, "buy");
@@ -142,7 +143,8 @@ async function closePosition(reason: string): Promise<boolean> {
     await bybitFetch("POST", "/v5/order/create", {
       category: "linear", symbol: config.symbol,
       side: position.direction === "long" ? "Sell" : "Buy",
-      orderType: "Market", qty: String(position.qty), reduceOnly: true,
+      orderType: "Market", qty: String(position.qty),
+      reduceOnly: true, positionIdx: 0,
     });
     addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
     return true;
@@ -401,6 +403,7 @@ router.post("/start", (req, res) => {
   sessionPnl = 0;
   closeFailCount = 0;
   lastEntryTime = 0;
+  lastPrice = 0;
   logs = [];
   addLog(`Bot started — ${config.symbol} capital=${config.capital} USDT lev=${config.leverage}x | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();

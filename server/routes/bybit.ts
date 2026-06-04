@@ -104,6 +104,7 @@ router.post("/order", async (req, res) => {
       side: side === "long" ? "Buy" : "Sell",
       orderType: "Market",
       qty: String(parsedQty),
+      positionIdx: 0,
     });
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
@@ -123,7 +124,7 @@ router.post("/close", async (req, res) => {
       side: side === "long" ? "Sell" : "Buy",
       orderType: "Market",
       qty: String(parsedQty),
-      reduceOnly: true,
+      reduceOnly: true, positionIdx: 0,
     });
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
@@ -142,27 +143,43 @@ router.post("/position", async (req, res) => {
   } catch (e: any) { res.status(502).json({ error: e.message }); }
 });
 
-// POST /api/bybit/test — diagnose API key connectivity, returns exact error
+// POST /api/bybit/test — diagnose API key: read + trade permissions, account type, balance
 router.post("/test", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
   const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
-  const results: Record<string, any> = { base, testnet: !!testnet };
-  // Try each account type and capture raw response
+  const results: Record<string, any> = { base, testnet: !!testnet, readOk: false, tradeOk: false };
+
+  // 1) Read permission: wallet balance (try all account types)
   for (const accountType of ["UNIFIED", "CONTRACT", "SPOT"]) {
     try {
       const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
       const coins: any[] = data.result?.list?.[0]?.coin ?? [];
       results[accountType] = {
-        ok: true,
-        retCode: data.retCode,
+        ok: true, retCode: data.retCode,
         coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })).filter((c: any) => parseFloat(c.balance) > 0),
       };
-      break; // found working account type
+      results.readOk = true;
+      break;
     } catch (e: any) {
       results[accountType] = { ok: false, error: e.message };
     }
   }
+
+  // 2) Trade permission: set-leverage (non-destructive write — requires Trade permission)
+  try {
+    const d = await bybitFetch("POST", "/v5/position/set-leverage", apiKey, secret, !!testnet, {
+      category: "linear", symbol: "BTCUSDT", buyLeverage: "10", sellLeverage: "10",
+    });
+    // retCode 0 = success; 110043 = "leverage not modified" — both mean Trade permission OK
+    results.tradeOk = d.retCode === 0 || d.retCode === 110043;
+    results.tradeRetCode = d.retCode;
+    results.tradeRetMsg = d.retMsg;
+  } catch (e: any) {
+    results.tradeOk = false;
+    results.tradeError = e.message;
+  }
+
   res.json(results);
 });
 
