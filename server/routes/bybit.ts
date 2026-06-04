@@ -50,16 +50,24 @@ async function bybitFetch(
   return data;
 }
 
-// POST /api/bybit/balance
+// POST /api/bybit/balance — tries UNIFIED, CONTRACT, SPOT in sequence
 router.post("/balance", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  try {
-    const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType: "UNIFIED" });
-    const coins = data.result?.list?.[0]?.coin ?? [];
-    const usdt = coins.find((c: any) => c.coin === "USDT");
-    res.json({ balance: parseFloat(usdt?.walletBalance ?? "0"), equity: parseFloat(usdt?.equity ?? "0") });
-  } catch (e: any) { res.status(502).json({ error: e.message }); }
+  const accountTypes = ["UNIFIED", "CONTRACT", "SPOT"];
+  for (const accountType of accountTypes) {
+    try {
+      const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
+      const coins = data.result?.list?.[0]?.coin ?? [];
+      const usdt = coins.find((c: any) => c.coin === "USDT");
+      const balance = parseFloat(usdt?.walletBalance ?? "0");
+      const equity  = parseFloat(usdt?.equity ?? "0");
+      if (balance > 0 || accountType === accountTypes[accountTypes.length - 1]) {
+        return res.json({ balance, equity, accountType });
+      }
+    } catch { /* try next type */ }
+  }
+  res.status(502).json({ error: "Nie można pobrać salda — sprawdź klucze API" });
 });
 
 // POST /api/bybit/order — place market order
