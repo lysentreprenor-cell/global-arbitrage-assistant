@@ -48,7 +48,9 @@ let sessionPnl = 0;
 
 function saveState() {
   try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config, position, sessionPnl }));
+    // Never persist API keys to disk
+    const safeCfg = config ? { ...config, apiKey: "", secret: "" } : null;
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, position, sessionPnl }));
   } catch { /* ignore */ }
 }
 
@@ -56,9 +58,9 @@ function loadState() {
   try {
     if (!fs.existsSync(STATE_FILE)) return;
     const s = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-    if (s.running && s.config) {
+    if (s.running && s.config && s.config.apiKey) {
       config = s.config;
-      position = null; // always start fresh — don't restore potentially phantom position
+      position = null;
       sessionPnl = 0;
       running = true;
       addLog("Auto-resume po restarcie serwera", "info");
