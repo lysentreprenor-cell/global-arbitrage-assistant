@@ -217,18 +217,18 @@ function calcVolumeMult(volumes: number[]): number {
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
 const SYMBOL_MAP: Record<string, string> = {
-  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD",
+  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD", BNBUSDT: "BNBUSD",
 };
 
-// Cached candle data refreshed every 60s
-let candleCache: { closes:number[]; highs:number[]; lows:number[]; volumes:number[]; cachedAt:number } | null = null;
-// Latest price from fast ticker (refreshed every 5s)
 let lastPrice = 0;
+let lastEntryTime = 0;
+let closeFailCount = 0;
 
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
   try {
-    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=1&since=0`, { signal: AbortSignal.timeout(10000) });
+    const since = Math.floor(Date.now() / 1000) - 100 * 60; // last 100 minutes
+    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=1&since=${since}`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
     const d = await r.json() as any;
     if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
@@ -292,7 +292,16 @@ async function priceCheck() {
       sessionPnl += pnlUsdt;
       addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
       position = null;
+      closeFailCount = 0;
       saveState();
+    } else {
+      closeFailCount++;
+      if (closeFailCount >= 5) {
+        addLog(`⚠️ Zamknięcie nieudane ${closeFailCount}x — czyszczę pozycję lokalnie`, "warn");
+        position = null;
+        closeFailCount = 0;
+        saveState();
+      }
     }
   }
 }
@@ -324,12 +333,12 @@ async function engineTick() {
     // EMA9 crosses below EMA21 → SHORT (bearish crossover)
     const isShort = config.allowShorts && ema9 < ema21 && prevEma9 >= prevEma21 && rsi > 30;
 
-    // Fallback: if no recent crossover, use current position of EMAs
-    const trendLong  = !isLong  && ema9 > ema21 && rsi >= config.rsiMin && rsi <= config.rsiMax;
-    const trendShort = !isShort && config.allowShorts && ema9 < ema21 && rsi > 30 && rsi < 60;
+    // Only enter on confirmed crossover (no trendLong fallback — too noisy)
+    // Also enforce minimum 5 minutes between trades
+    const cooldownOk = Date.now() - lastEntryTime > 5 * 60 * 1000;
 
-    const doLong  = isLong  || trendLong;
-    const doShort = isShort || trendShort;
+    const doLong  = isLong  && cooldownOk;
+    const doShort = isShort && cooldownOk;
 
     if (!doLong && !doShort) {
       addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)}`);
@@ -345,6 +354,7 @@ async function engineTick() {
     try {
       await placeOrder(direction, qty);
       position = { direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price };
+      lastEntryTime = Date.now();
       saveState();
     } catch (e: any) {
       addLog(`🔴 ZLECENIE NIEUDANE: ${e.message}`, "warn");
@@ -379,6 +389,8 @@ router.post("/start", (req, res) => {
   running = true;
   position = null;
   sessionPnl = 0;
+  closeFailCount = 0;
+  lastEntryTime = 0;
   logs = [];
   addLog(`Bot started — ${config.symbol} capital=${config.capital} USDT lev=${config.leverage}x | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
