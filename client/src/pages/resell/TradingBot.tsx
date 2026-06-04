@@ -1072,6 +1072,8 @@ export default function TradingBot() {
   const [serverBotLogs, setServerBotLogs] = useState<{time:string;msg:string;type:string}[]>([]);
   const [serverPosition, setServerPosition] = useState<{direction:string;entryPrice:number;qty:number;entryTime:string}|null>(null);
   const [serverPnl, setServerPnl] = useState(0);
+  const [serverBotLoading, setServerBotLoading] = useState(false);
+  const [serverBotError, setServerBotError] = useState<string|null>(null);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -2509,24 +2511,42 @@ export default function TradingBot() {
                     style={{ width:65, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"6px 8px", color:"#fff", fontSize:13, textAlign:"center" as const }}
                   />
                 </div>
-                <button onClick={async () => {
-                  const { apiKey, secret, testnet } = getBybitKeys();
-                  if (!isOn) {
-                    const r = await fetch("/api/bot/start", { method:"POST", headers:{"Content-Type":"application/json"},
-                      body: JSON.stringify({ apiKey, secret, testnet, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin }) });
-                    const d = await r.json();
-                    if (d.ok) { setServerBotRunning(true); addLog(`🔴 SERWER BOT START — ${liveUsdt} USDT ${config.symbol} lev=${effLev}x`, "warn"); }
-                    else addLog(`🔴 Bot start error: ${d.error}`, "warn");
-                  } else {
-                    await fetch("/api/bot/stop", { method:"POST" });
-                    setServerBotRunning(false);
-                    addLog("⬛ Serwer bot zatrzymany", "info");
-                  }
-                }} style={{ background: isOn ? "rgba(248,113,113,0.2)" : "rgba(34,197,94,0.15)", border:`1px solid ${isOn?"rgba(248,113,113,0.5)":"rgba(34,197,94,0.4)"}`, borderRadius:8, padding:"8px 16px", color: isOn ? "#f87171" : G, cursor:"pointer", fontWeight:700, fontSize:13 }}>
-                  {isOn ? "⬛ STOP" : "▶ START LIVE"}
+                <button
+                  disabled={serverBotLoading}
+                  onClick={() => {
+                    setServerBotError(null);
+                    setServerBotLoading(true);
+                    const { apiKey, secret, testnet } = getBybitKeys();
+                    const url = isOn ? "/api/bot/stop" : "/api/bot/start";
+                    const body = isOn ? {} : { apiKey, secret, testnet, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin };
+                    fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) })
+                      .then(r => r.json())
+                      .then(d => {
+                        if (isOn) {
+                          setServerBotRunning(false);
+                          addLog("⬛ Serwer bot zatrzymany", "info");
+                        } else if (d.ok) {
+                          setServerBotRunning(true);
+                          addLog(`🔴 BOT START — ${liveUsdt} USDT ${config.symbol} lev=${effLev}x`, "warn");
+                        } else {
+                          setServerBotError(d.error ?? "Błąd startu bota");
+                          addLog(`🔴 Bot start error: ${d.error}`, "warn");
+                        }
+                      })
+                      .catch(e => { setServerBotError(e.message); addLog(`🔴 Błąd: ${e.message}`, "warn"); })
+                      .finally(() => setServerBotLoading(false));
+                  }}
+                  style={{ background: isOn ? "rgba(248,113,113,0.2)" : "rgba(34,197,94,0.15)", border:`1px solid ${isOn?"rgba(248,113,113,0.5)":"rgba(34,197,94,0.4)"}`, borderRadius:8, padding:"10px 20px", color: isOn ? "#f87171" : G, cursor: serverBotLoading ? "default" : "pointer", fontWeight:700, fontSize:14, opacity: serverBotLoading ? 0.6 : 1 }}>
+                  {serverBotLoading ? "⏳ …" : isOn ? "⬛ STOP" : "▶ START LIVE"}
                 </button>
               </div>
             </div>
+
+            {serverBotError && (
+              <div style={{ marginTop:8, fontSize:12, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:6, padding:"6px 10px" }}>
+                ❌ {serverBotError}
+              </div>
+            )}
 
             {/* Stats */}
             {isOn && (
