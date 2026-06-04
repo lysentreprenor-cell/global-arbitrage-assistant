@@ -295,54 +295,57 @@ async function priceCheck() {
   }
 }
 
-// ── Full indicator tick (every 60s) ───────────────────────────────────────────
+// ── Full indicator tick (every 30s) ───────────────────────────────────────────
 async function engineTick() {
   if (!config || !running) return;
 
   try {
     const candles = await fetchCandles(config.symbol);
     if (!candles) return;
-    const { closes, highs, lows, volumes } = candles;
+    const { closes } = candles;
     const price = lastPrice > 0 ? lastPrice : candles.price;
 
-    const rsi    = calcRsi(closes);
-    const ema21  = calcEma(closes, 21);
-    const macd   = calcMacd(closes);
-    const adx    = calcAdx(highs, lows, closes);
-    const volMult = calcVolumeMult(volumes);
-    const pvsEma = (price - ema21) / ema21 * 100;
+    const rsi  = calcRsi(closes);
+    const ema9  = calcEma(closes, 9);
+    const ema21 = calcEma(closes, 21);
+    // Previous bar EMAs for crossover detection
+    const prevEma9  = calcEma(closes.slice(0, -1), 9);
+    const prevEma21 = calcEma(closes.slice(0, -1), 21);
 
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} ADX=${adx.toFixed(1)} Vol×${volMult.toFixed(1)} EMA${pvsEma.toFixed(2)}%`);
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)}`);
 
-    // If position open — priceCheck handles exits every 5s, skip here
+    // If position open — priceCheck handles exits every 5s
     if (position) return;
 
-    // ── Scalping entry signal (1m candles, frequent trades) ──
-    // Long: MACD bullish crossover + RSI not overbought
-    const isLong  = macd.macd > macd.signal
-                    && rsi >= config.rsiMin && rsi <= config.rsiMax
-                    && adx >= config.adxMin;
-    // Short: MACD bearish + RSI not oversold
-    const isShort = config.allowShorts
-                    && macd.macd < macd.signal
-                    && rsi > 20 && rsi < (100 - config.rsiMin)
-                    && adx >= config.adxMin;
+    // EMA9 crosses above EMA21 → LONG (bullish crossover)
+    const isLong = ema9 > ema21 && prevEma9 <= prevEma21 && rsi < 70;
+    // EMA9 crosses below EMA21 → SHORT (bearish crossover)
+    const isShort = config.allowShorts && ema9 < ema21 && prevEma9 >= prevEma21 && rsi > 30;
 
-    if (!isLong && !isShort) return;
+    // Fallback: if no recent crossover, use current position of EMAs
+    const trendLong  = !isLong  && ema9 > ema21 && rsi >= config.rsiMin && rsi <= config.rsiMax;
+    const trendShort = !isShort && config.allowShorts && ema9 < ema21 && rsi > 30 && rsi < 60;
 
-    const direction: Direction = isLong ? "long" : "short";
+    const doLong  = isLong  || trendLong;
+    const doShort = isShort || trendShort;
+
+    if (!doLong && !doShort) {
+      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)}`);
+      return;
+    }
+
+    const direction: Direction = doLong ? "long" : "short";
     const decimals = config.symbol === "BTCUSDT" ? 3 : 2;
     const minQty   = config.symbol === "BTCUSDT" ? 0.001 : 0.01;
     const qty = Math.max(parseFloat(((config.capital * config.leverage) / price).toFixed(decimals)), minQty);
 
-    addLog(`SIGNAL ${direction.toUpperCase()} RSI=${rsi.toFixed(1)} ADX=${adx.toFixed(1)} MACD=${macd.macd.toFixed(1)}>${macd.signal.toFixed(1)}`, "info");
+    addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)} RSI=${rsi.toFixed(1)} qty=${qty}`, "info");
     try {
       await placeOrder(direction, qty);
-      // Only set position if order succeeded
       position = { direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price };
       saveState();
     } catch (e: any) {
-      addLog(`🔴 ZLECENIE NIEUDANE: ${e.message} | Sprawdź klucze API w Ustawienia`, "warn");
+      addLog(`🔴 ZLECENIE NIEUDANE: ${e.message}`, "warn");
     }
 
   } catch (e: any) { addLog(`Tick error: ${e.message}`, "warn"); }
