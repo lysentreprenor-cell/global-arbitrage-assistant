@@ -40,6 +40,7 @@ type LogEntry = { time: string; msg: string; type: "info" | "buy" | "sell" | "wa
 
 let running = false;
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let priceIntervalId: ReturnType<typeof setInterval> | null = null;
 let config: BotConfig | null = null;
 let position: Position | null = null;
 let logs: LogEntry[] = [];
@@ -63,6 +64,7 @@ function loadState() {
       addLog("Auto-resume po restarcie serwera", "info");
       engineTick();
       intervalId = setInterval(engineTick, 60_000);
+      priceIntervalId = setInterval(priceCheck, 5_000);
     }
   } catch { /* ignore */ }
 }
@@ -211,9 +213,13 @@ const SYMBOL_MAP: Record<string, string> = {
   BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD",
 };
 
-async function fetchCandles(symbol: string, _testnet: boolean): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
+// Cached candle data refreshed every 60s
+let candleCache: { closes:number[]; highs:number[]; lows:number[]; volumes:number[]; cachedAt:number } | null = null;
+// Latest price from fast ticker (refreshed every 5s)
+let lastPrice = 0;
+
+async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
-  // Kraken public API — free, no auth, not geo-blocked
   try {
     const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=0`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
@@ -222,7 +228,6 @@ async function fetchCandles(symbol: string, _testnet: boolean): Promise<{closes:
     const key = Object.keys(d.result).find(k => k !== "last")!;
     const list: any[] = (d.result[key] ?? []).slice(-100);
     if (list.length < 30) throw new Error("Not enough candles");
-    // Kraken OHLC: [time, open, high, low, close, vwap, volume, count]
     return {
       closes:  list.map((k: any) => parseFloat(k[4])),
       highs:   list.map((k: any) => parseFloat(k[2])),
@@ -236,13 +241,62 @@ async function fetchCandles(symbol: string, _testnet: boolean): Promise<{closes:
   }
 }
 
+async function fetchCurrentPrice(symbol: string): Promise<number | null> {
+  const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
+  try {
+    const r = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const d = await r.json() as any;
+    const key = Object.keys(d.result ?? {})[0];
+    if (!key) return null;
+    return parseFloat(d.result[key].c[0]); // last trade price
+  } catch { return null; }
+}
+
+// ── Fast exit check (every 5s) ────────────────────────────────────────────────
+async function priceCheck() {
+  if (!config || !running || !position) return;
+  const price = await fetchCurrentPrice(config.symbol);
+  if (!price) return;
+  lastPrice = price;
+
+  const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
+  const pct = position.direction === "short" ? -rawPct : rawPct;
+
+  if (position.direction === "long")  position.trailRef = Math.max(position.trailRef, price);
+  if (position.direction === "short") position.trailRef = Math.min(position.trailRef, price);
+
+  const trailSL = position.direction === "long"
+    ? position.trailRef * (1 - config.trailPct / 100)
+    : position.trailRef * (1 + config.trailPct / 100);
+  const initSL = position.direction === "long"
+    ? position.entryPrice * (1 - config.stopLoss / 100)
+    : position.entryPrice * (1 + config.stopLoss / 100);
+
+  let reason: string | null = null;
+  if (pct >= config.takeProfit) reason = `TP +${pct.toFixed(2)}%`;
+  else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+  else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+
+  if (reason) {
+    const pnlUsdt = pct / 100 * config.capital;
+    sessionPnl += pnlUsdt;
+    addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
+    await closePosition(reason);
+    position = null;
+    saveState();
+  }
+}
+
+// ── Full indicator tick (every 60s) ───────────────────────────────────────────
 async function engineTick() {
   if (!config || !running) return;
 
   try {
-    const candles = await fetchCandles(config.symbol, config.testnet);
+    const candles = await fetchCandles(config.symbol);
     if (!candles) return;
-    const { closes, highs, lows, volumes, price } = candles;
+    const { closes, highs, lows, volumes } = candles;
+    const price = lastPrice > 0 ? lastPrice : candles.price;
 
     const rsi    = calcRsi(closes);
     const ema21  = calcEma(closes, 21);
@@ -253,37 +307,8 @@ async function engineTick() {
 
     addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} ADX=${adx.toFixed(1)} Vol×${volMult.toFixed(1)} EMA${pvsEma.toFixed(2)}%`);
 
-    // ── Manage open position ──
-    if (position) {
-      const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
-      const pct = position.direction === "short" ? -rawPct : rawPct;
-
-      // Update trail ref
-      if (position.direction === "long")  position.trailRef = Math.max(position.trailRef, price);
-      if (position.direction === "short") position.trailRef = Math.min(position.trailRef, price);
-
-      const trailSL = position.direction === "long"
-        ? position.trailRef * (1 - config.trailPct / 100)
-        : position.trailRef * (1 + config.trailPct / 100);
-      const initSL = position.direction === "long"
-        ? position.entryPrice * (1 - config.stopLoss / 100)
-        : position.entryPrice * (1 + config.stopLoss / 100);
-
-      let reason: string | null = null;
-      if (pct >= config.takeProfit) reason = `TP +${pct.toFixed(2)}%`;
-      else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-      else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-
-      if (reason) {
-        const pnlUsdt = pct / 100 * config.capital;
-        sessionPnl += pnlUsdt;
-        addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
-        await closePosition(reason);
-        position = null;
-        saveState();
-      }
-      return; // Don't open new position while one is open
-    }
+    // If position open — priceCheck handles exits every 5s, skip here
+    if (position) return;
 
     // ── Check entry signal ──
     const isLong  = rsi >= config.rsiMin && rsi <= config.rsiMax && pvsEma > -2 && pvsEma < 5
@@ -334,6 +359,7 @@ router.post("/start", (req, res) => {
 
   engineTick();
   intervalId = setInterval(engineTick, 60_000);
+  priceIntervalId = setInterval(priceCheck, 5_000);
 
   res.json({ ok: true, message: "Bot started on server" });
 });
@@ -341,6 +367,7 @@ router.post("/start", (req, res) => {
 router.post("/stop", (_req, res) => {
   running = false;
   if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  if (priceIntervalId) { clearInterval(priceIntervalId); priceIntervalId = null; }
   addLog("Bot stopped", "warn");
   saveState();
   res.json({ ok: true });
