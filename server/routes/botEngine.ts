@@ -7,7 +7,6 @@ import express from "express";
 import crypto from "crypto";
 
 const router = express.Router();
-const BINANCE = "https://api.binance.com/api/v3";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -183,19 +182,36 @@ function calcVolumeMult(volumes: number[]): number {
 
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
+async function fetchCandles(symbol: string, testnet: boolean): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
+  // Use Bybit klines (avoids Binance geo-blocking on Replit)
+  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
+  try {
+    const r = await fetch(`${base}/v5/market/kline?category=linear&symbol=${symbol}&interval=60&limit=100`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json() as any;
+    if (d.retCode !== 0) throw new Error(`Bybit ${d.retCode}: ${d.retMsg}`);
+    const list: any[] = (d.result?.list ?? []).reverse(); // Bybit returns newest first
+    if (list.length < 30) throw new Error("Not enough candles");
+    return {
+      closes:  list.map((k: any) => parseFloat(k[4])),
+      highs:   list.map((k: any) => parseFloat(k[2])),
+      lows:    list.map((k: any) => parseFloat(k[3])),
+      volumes: list.map((k: any) => parseFloat(k[5])),
+      price:   parseFloat(list[list.length - 1][4]),
+    };
+  } catch (e: any) {
+    addLog(`Klines error: ${e.message}`, "warn");
+    return null;
+  }
+}
+
 async function engineTick() {
   if (!config || !running) return;
 
   try {
-    // Fetch last 100 1h candles
-    const r = await fetch(`${BINANCE}/klines?symbol=${config.symbol}&interval=1h&limit=100`, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) { addLog(`Binance error ${r.status}`, "warn"); return; }
-    const raw = await r.json() as any[];
-    const closes  = raw.map((k: any) => parseFloat(k[4]));
-    const highs   = raw.map((k: any) => parseFloat(k[2]));
-    const lows    = raw.map((k: any) => parseFloat(k[3]));
-    const volumes = raw.map((k: any) => parseFloat(k[5]));
-    const price   = closes[closes.length - 1];
+    const candles = await fetchCandles(config.symbol, config.testnet);
+    if (!candles) return;
+    const { closes, highs, lows, volumes, price } = candles;
 
     const rsi    = calcRsi(closes);
     const ema21  = calcEma(closes, 21);
