@@ -2,9 +2,10 @@ import express from "express";
 
 const router = express.Router();
 
+const BYBIT_BASE = "https://api.bybit.com";
 const KRAKEN = "https://api.kraken.com/0/public";
 
-// Map USDT pairs → Kraken pair names
+// Map USDT pairs → Kraken pair names (fallback)
 const SYMBOL_MAP: Record<string, string> = {
   BTCUSDT: "XBTUSD",
   ETHUSDT: "ETHUSD",
@@ -24,26 +25,46 @@ const INTERVAL_MAP: Record<string, number> = {
 router.get("/ticker", async (req, res) => {
   const symbol = String(req.query.symbol ?? "BTCUSDT").toUpperCase();
   if (!VALID_SYMBOLS.has(symbol)) return res.status(400).json({ error: "Invalid symbol" });
+
+  // Primary: Bybit public market data (no API keys needed for ticker)
+  try {
+    const r = await fetch(
+      `${BYBIT_BASE}/v5/market/tickers?category=linear&symbol=${symbol}`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    if (r.ok) {
+      const data = await r.json() as any;
+      if (data.retCode === 0 && data.result?.list?.length) {
+        const t = data.result.list[0];
+        const price      = parseFloat(t.lastPrice);
+        const prev24h    = parseFloat(t.prevPrice24h);
+        const change24h  = prev24h > 0 ? ((price - prev24h) / prev24h) * 100 : 0;
+        const high24h    = parseFloat(t.highPrice24h);
+        const low24h     = parseFloat(t.lowPrice24h);
+        const volume24h  = parseFloat(t.volume24h);
+        return res.json({ symbol, price, change24h, high24h, low24h, volume24h, source: "bybit" });
+      }
+    }
+  } catch { /* fall through to Kraken */ }
+
+  // Fallback: Kraken
   const pair = SYMBOL_MAP[symbol];
   try {
-    const [tickerRes, ohlcRes] = await Promise.all([
-      fetch(`${KRAKEN}/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(8000) }),
-      fetch(`${KRAKEN}/OHLC?pair=${pair}&interval=1440`, { signal: AbortSignal.timeout(8000) }),
-    ]);
+    const tickerRes = await fetch(`${KRAKEN}/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(8000) });
     if (!tickerRes.ok) throw new Error(`Kraken HTTP ${tickerRes.status}`);
     const tickerData = await tickerRes.json() as any;
     const pairKey = Object.keys(tickerData.result ?? {})[0];
     if (!pairKey) throw new Error("No ticker data");
     const t = tickerData.result[pairKey];
-    const price = parseFloat(t.c[0]);
-    const open24h = parseFloat(t.o);
-    const high24h = parseFloat(t.h[1]);
-    const low24h = parseFloat(t.l[1]);
+    const price     = parseFloat(t.c[0]);
+    const open24h   = parseFloat(t.o);
+    const high24h   = parseFloat(t.h[1]);
+    const low24h    = parseFloat(t.l[1]);
     const volume24h = parseFloat(t.v[1]);
     const change24h = open24h > 0 ? ((price - open24h) / open24h) * 100 : 0;
-    res.json({ symbol, price, change24h, high24h, low24h, volume24h });
+    return res.json({ symbol, price, change24h, high24h, low24h, volume24h, source: "kraken" });
   } catch (e: any) {
-    res.status(502).json({ error: e.message });
+    return res.status(502).json({ error: e.message });
   }
 });
 
