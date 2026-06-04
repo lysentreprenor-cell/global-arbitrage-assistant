@@ -207,21 +207,27 @@ function calcVolumeMult(volumes: number[]): number {
 
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
+const SYMBOL_MAP: Record<string, string> = {
+  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD",
+};
+
 async function fetchCandles(symbol: string, _testnet: boolean): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
-  // Always use mainnet for market data — price is identical, testnet klines return 403
-  const base = "https://api.bybit.com";
+  const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
+  // Kraken public API — free, no auth, not geo-blocked
   try {
-    const r = await fetch(`${base}/v5/market/kline?category=linear&symbol=${symbol}&interval=60&limit=100`, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=0`, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
     const d = await r.json() as any;
-    if (d.retCode !== 0) throw new Error(`Bybit ${d.retCode}: ${d.retMsg}`);
-    const list: any[] = (d.result?.list ?? []).reverse(); // Bybit returns newest first
+    if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
+    const key = Object.keys(d.result).find(k => k !== "last")!;
+    const list: any[] = (d.result[key] ?? []).slice(-100);
     if (list.length < 30) throw new Error("Not enough candles");
+    // Kraken OHLC: [time, open, high, low, close, vwap, volume, count]
     return {
       closes:  list.map((k: any) => parseFloat(k[4])),
       highs:   list.map((k: any) => parseFloat(k[2])),
       lows:    list.map((k: any) => parseFloat(k[3])),
-      volumes: list.map((k: any) => parseFloat(k[5])),
+      volumes: list.map((k: any) => parseFloat(k[6])),
       price:   parseFloat(list[list.length - 1][4]),
     };
   } catch (e: any) {
