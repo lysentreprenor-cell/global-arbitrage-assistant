@@ -58,8 +58,8 @@ function loadState() {
     const s = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
     if (s.running && s.config) {
       config = s.config;
-      position = s.position ?? null;
-      sessionPnl = s.sessionPnl ?? 0;
+      position = null; // always start fresh — don't restore potentially phantom position
+      sessionPnl = 0;
       running = true;
       addLog("Auto-resume po restarcie serwera", "info");
       engineTick();
