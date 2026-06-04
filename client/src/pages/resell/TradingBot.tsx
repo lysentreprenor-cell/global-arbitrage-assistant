@@ -1067,6 +1067,11 @@ export default function TradingBot() {
   const [liveBalance, setLiveBalance] = useState<number | null>(null);
   const [liveSessionPnl, setLiveSessionPnl] = useState(0);
   const liveSessionPnlRef = useRef(0);
+  // Server-side bot state
+  const [serverBotRunning, setServerBotRunning] = useState(false);
+  const [serverBotLogs, setServerBotLogs] = useState<{time:string;msg:string;type:string}[]>([]);
+  const [serverPosition, setServerPosition] = useState<{direction:string;entryPrice:number;qty:number;entryTime:string}|null>(null);
+  const [serverPnl, setServerPnl] = useState(0);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -1470,6 +1475,25 @@ export default function TradingBot() {
     if (liveMode) { fetchLiveBalance(); liveSessionPnlRef.current = 0; setLiveSessionPnl(0); }
   }, [liveMode, fetchLiveBalance]);
   useEffect(() => { liveUsdtRef.current = parseFloat(liveUsdt) || 9; }, [liveUsdt]);
+
+  // Poll server-side bot status every 15s
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/bot/status");
+        if (r.ok) {
+          const d = await r.json();
+          setServerBotRunning(d.running);
+          setServerBotLogs(d.logs ?? []);
+          setServerPosition(d.position);
+          setServerPnl(d.sessionPnl ?? 0);
+        }
+      } catch { /* ignore */ }
+    };
+    poll();
+    const id = setInterval(poll, 15_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!config.autoMode) return;
@@ -2458,87 +2482,83 @@ export default function TradingBot() {
 
         {/* Live Trading */}
         {hasBybitKeys() && (() => {
-          const openTrade = config.trades.find(t => t.status === "open");
-          const livePnlPct = openTrade && ticker ? (openTrade.direction==="long" ? (ticker.price - openTrade.entryPrice)/openTrade.entryPrice*100 : (openTrade.entryPrice - ticker.price)/openTrade.entryPrice*100) : null;
+          const srvPnlPct = serverPosition && ticker
+            ? (serverPosition.direction==="long" ? (ticker.price - serverPosition.entryPrice)/serverPosition.entryPrice*100 : (serverPosition.entryPrice - ticker.price)/serverPosition.entryPrice*100)
+            : null;
+          const effLev = config.leverageAuto ? calcAutoLeverage(learningRef.current.deepHistory) : config.leverage;
+          const isOn = serverBotRunning;
           return (
-          <div style={{ ...card, marginTop:14, border: liveMode ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)" }}>
-            {/* Header row */}
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+          <div style={{ ...card, marginTop:14, border: isOn ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)" }}>
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap" as const, gap:10 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontSize:16 }}>🔴</span>
                 <span style={{ fontWeight:700, fontSize:14 }}>LIVE TRADING — Bybit</span>
-                {liveMode
+                {isOn
                   ? <span style={{ fontSize:10, background:"rgba(248,113,113,0.15)", border:"1px solid rgba(248,113,113,0.4)", borderRadius:6, padding:"2px 8px", color:"#f87171", display:"flex", alignItems:"center", gap:4 }}>
-                      <span style={{ width:6, height:6, borderRadius:"50%", background:"#f87171", animation:"pulse 1.5s ease-in-out infinite", display:"inline-block" }}/> AKTYWNY
+                      <span style={{ width:6, height:6, borderRadius:"50%", background:"#f87171", animation:"pulse 1.5s ease-in-out infinite", display:"inline-block" }}/> SERWER AKTYWNY
                     </span>
-                  : <span style={{ fontSize:10, color:M }}>OFF</span>
+                  : <span style={{ fontSize:10, color:M }}>OFF — działa nawet po zamknięciu aplikacji</span>
                 }
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <span style={{ fontSize:12, color:M }}>USDT:</span>
-                  <input
-                    type="number" min="1" step="1"
-                    value={liveUsdt}
-                    onChange={e => setLiveUsdt(e.target.value)}
-                    disabled={liveMode}
+                  <input type="number" min="1" step="1" value={liveUsdt}
+                    onChange={e => setLiveUsdt(e.target.value)} disabled={isOn}
                     style={{ width:65, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"6px 8px", color:"#fff", fontSize:13, textAlign:"center" as const }}
                   />
                 </div>
-                <button
-                  onClick={() => {
-                    const n = !liveMode;
-                    setLiveMode(n);
-                    if (n) {
-                      liveQtyRef.current = 0;
-                      addLog(`🔴 LIVE TRADING WŁĄCZONY — ${liveUsdt} USDT na ${config.symbol} | Bybit ${getBybitKeys().testnet?"Testnet":"Live"}`, "warn");
-                    } else {
-                      addLog("⬛ LIVE TRADING wyłączony", "info");
-                    }
-                  }}
-                  style={{ background: liveMode ? "rgba(248,113,113,0.2)" : "rgba(34,197,94,0.15)", border:`1px solid ${liveMode?"rgba(248,113,113,0.5)":"rgba(34,197,94,0.4)"}`, borderRadius:8, padding:"8px 16px", color: liveMode ? "#f87171" : G, cursor:"pointer", fontWeight:700, fontSize:13 }}>
-                  {liveMode ? "⬛ STOP" : "▶ START LIVE"}
+                <button onClick={async () => {
+                  const { apiKey, secret, testnet } = getBybitKeys();
+                  if (!isOn) {
+                    const r = await fetch("/api/bot/start", { method:"POST", headers:{"Content-Type":"application/json"},
+                      body: JSON.stringify({ apiKey, secret, testnet, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin }) });
+                    const d = await r.json();
+                    if (d.ok) { setServerBotRunning(true); addLog(`🔴 SERWER BOT START — ${liveUsdt} USDT ${config.symbol} lev=${effLev}x`, "warn"); }
+                    else addLog(`🔴 Bot start error: ${d.error}`, "warn");
+                  } else {
+                    await fetch("/api/bot/stop", { method:"POST" });
+                    setServerBotRunning(false);
+                    addLog("⬛ Serwer bot zatrzymany", "info");
+                  }
+                }} style={{ background: isOn ? "rgba(248,113,113,0.2)" : "rgba(34,197,94,0.15)", border:`1px solid ${isOn?"rgba(248,113,113,0.5)":"rgba(34,197,94,0.4)"}`, borderRadius:8, padding:"8px 16px", color: isOn ? "#f87171" : G, cursor:"pointer", fontWeight:700, fontSize:13 }}>
+                  {isOn ? "⬛ STOP" : "▶ START LIVE"}
                 </button>
               </div>
             </div>
 
-            {/* Stats row — always visible when liveMode */}
-            {liveMode && (
+            {/* Stats */}
+            {isOn && (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:12 }}>
-                {/* Balance */}
                 <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
                   <div style={{ fontSize:10, color:M, marginBottom:4 }}>SALDO USDT</div>
-                  <div style={{ fontSize:18, fontWeight:700, color:"#fff" }}>
-                    {liveBalance != null ? liveBalance.toFixed(2) : "—"}
-                  </div>
+                  <div style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{liveBalance != null ? liveBalance.toFixed(2) : "—"}</div>
                   <button onClick={fetchLiveBalance} style={{ marginTop:4, background:"none", border:"none", color:M, cursor:"pointer", fontSize:10 }}>↻ odśwież</button>
                 </div>
-                {/* Open position */}
-                <div style={{ background: openTrade ? (livePnlPct != null && livePnlPct >= 0 ? "rgba(34,197,94,0.07)" : "rgba(248,113,113,0.07)") : "rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
+                <div style={{ background: serverPosition ? (srvPnlPct != null && srvPnlPct >= 0 ? "rgba(34,197,94,0.07)" : "rgba(248,113,113,0.07)") : "rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
                   <div style={{ fontSize:10, color:M, marginBottom:4 }}>POZYCJA</div>
-                  {openTrade ? (
-                    <>
-                      <div style={{ fontSize:13, fontWeight:700, color: openTrade.direction==="long"?G:R }}>{openTrade.direction.toUpperCase()} @ ${fmt(openTrade.entryPrice)}</div>
-                      <div style={{ fontSize:16, fontWeight:700, color: livePnlPct != null && livePnlPct >= 0 ? G : R, marginTop:2 }}>
-                        {livePnlPct != null ? `${livePnlPct >= 0 ? "+" : ""}${livePnlPct.toFixed(2)}%` : "—"}
-                      </div>
-                    </>
-                  ) : <div style={{ fontSize:13, color:M, marginTop:4 }}>brak pozycji</div>}
+                  {serverPosition
+                    ? <><div style={{ fontSize:13, fontWeight:700, color: serverPosition.direction==="long"?G:R }}>{serverPosition.direction.toUpperCase()} @ ${fmt(serverPosition.entryPrice)}</div>
+                        <div style={{ fontSize:16, fontWeight:700, color: srvPnlPct != null && srvPnlPct >= 0 ? G : R, marginTop:2 }}>{srvPnlPct != null ? `${srvPnlPct >= 0?"+":""}${srvPnlPct.toFixed(2)}%` : "—"}</div></>
+                    : <div style={{ fontSize:13, color:M, marginTop:4 }}>brak pozycji</div>}
                 </div>
-                {/* Session P&L */}
-                <div style={{ background: liveSessionPnl >= 0 ? "rgba(34,197,94,0.07)" : "rgba(248,113,113,0.07)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
+                <div style={{ background: serverPnl >= 0 ? "rgba(34,197,94,0.07)" : "rgba(248,113,113,0.07)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
                   <div style={{ fontSize:10, color:M, marginBottom:4 }}>WYNIK SESJI</div>
-                  <div style={{ fontSize:18, fontWeight:700, color: liveSessionPnl >= 0 ? G : R }}>
-                    {liveSessionPnl >= 0 ? "+" : ""}{liveSessionPnl.toFixed(2)}
-                  </div>
+                  <div style={{ fontSize:18, fontWeight:700, color: serverPnl >= 0 ? G : R }}>{serverPnl >= 0?"+":""}{serverPnl.toFixed(2)}</div>
                   <div style={{ fontSize:10, color:M }}>USDT</div>
                 </div>
               </div>
             )}
 
-            {liveMode && (
-              <div style={{ marginTop:10, fontSize:11, color:M, background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:6, padding:"8px 12px" }}>
-                ⚠️ Prawdziwe zlecenia na Bybit. Bot musi być <strong style={{color:G}}>AKTYWNY</strong> (przycisk u góry). Dźwignia: <strong style={{color:"#f87171"}}>{config.leverageAuto?`AUTO (${calcAutoLeverage(learningRef.current.deepHistory)}x)`:config.leverage+"x"}</strong>
+            {/* Server logs */}
+            {isOn && serverBotLogs.length > 0 && (
+              <div style={{ marginTop:10, maxHeight:100, overflowY:"auto" as const, fontSize:11, color:M, background:"rgba(0,0,0,0.2)", borderRadius:6, padding:"6px 10px" }}>
+                {serverBotLogs.slice(-8).reverse().map((l,i) => (
+                  <div key={i} style={{ color: l.type==="buy"?G:l.type==="sell"?R:l.type==="warn"?"#f87171":M, marginBottom:2 }}>
+                    {new Date(l.time).toLocaleTimeString("pl")} — {l.msg}
+                  </div>
+                ))}
               </div>
             )}
           </div>
