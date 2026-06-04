@@ -1063,6 +1063,7 @@ export default function TradingBot() {
   const liveModeRef = useRef(false);
   const liveUsdtRef = useRef(9);
   const [liveBalance, setLiveBalance] = useState<number | null>(null);
+  const [liveBalanceCoin, setLiveBalanceCoin] = useState<string>("USDT");
   const [liveSessionPnl, setLiveSessionPnl] = useState(0);
   const liveSessionPnlRef = useRef(0);
   // Server-side bot state
@@ -1108,8 +1109,8 @@ export default function TradingBot() {
     try {
       const r = await fetch("/api/bybit/balance", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret, testnet }) });
       const d = await r.json();
-      if (d.error) setLiveBalance(-1); // -1 = error signal
-      else setLiveBalance(d.balance ?? 0);
+      if (d.error) { setLiveBalance(-1); }
+      else { setLiveBalance(d.balance ?? 0); setLiveBalanceCoin(d.coin ?? "USDT"); }
     } catch (e: any) { setLiveBalance(-1); }
   }, []);
 
@@ -2553,7 +2554,7 @@ export default function TradingBot() {
             {isOn && (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:12 }}>
                 <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
-                  <div style={{ fontSize:10, color:M, marginBottom:4 }}>SALDO USDT</div>
+                  <div style={{ fontSize:10, color:M, marginBottom:4 }}>SALDO {liveBalanceCoin}</div>
                   <div style={{ fontSize:18, fontWeight:700, color: liveBalance === -1 ? R : "#fff" }}>
                     {liveBalance === null ? "—" : liveBalance === -1 ? "Błąd" : liveBalance.toFixed(2)}
                   </div>

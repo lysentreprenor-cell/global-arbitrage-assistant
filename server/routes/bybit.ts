@@ -50,7 +50,7 @@ async function bybitFetch(
   return data;
 }
 
-// POST /api/bybit/balance — tries UNIFIED, CONTRACT, SPOT in sequence
+// POST /api/bybit/balance — tries UNIFIED, CONTRACT, SPOT; returns USDT or total equity
 router.post("/balance", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
@@ -58,12 +58,17 @@ router.post("/balance", async (req, res) => {
   for (const accountType of accountTypes) {
     try {
       const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
-      const coins = data.result?.list?.[0]?.coin ?? [];
+      const coins: any[] = data.result?.list?.[0]?.coin ?? [];
+      if (!coins.length) continue;
+      // Prefer USDT, fallback to any coin with balance > 0
       const usdt = coins.find((c: any) => c.coin === "USDT");
-      const balance = parseFloat(usdt?.walletBalance ?? "0");
-      const equity  = parseFloat(usdt?.equity ?? "0");
-      if (balance > 0 || accountType === accountTypes[accountTypes.length - 1]) {
-        return res.json({ balance, equity, accountType });
+      if (usdt && parseFloat(usdt.walletBalance) > 0) {
+        return res.json({ balance: parseFloat(usdt.walletBalance), equity: parseFloat(usdt.equity ?? usdt.walletBalance), coin: "USDT", accountType });
+      }
+      // No USDT — find any coin with balance (e.g. EUR)
+      const anyCoin = coins.find((c: any) => parseFloat(c.walletBalance) > 0);
+      if (anyCoin) {
+        return res.json({ balance: parseFloat(anyCoin.walletBalance), equity: parseFloat(anyCoin.equity ?? anyCoin.walletBalance), coin: anyCoin.coin, accountType });
       }
     } catch { /* try next type */ }
   }
