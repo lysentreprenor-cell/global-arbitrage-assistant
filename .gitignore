@@ -19,3 +19,5 @@ yarn-error.*
 .claude/
 client/dist/
 bot_state.json
+api_keys.enc
+.bot_key

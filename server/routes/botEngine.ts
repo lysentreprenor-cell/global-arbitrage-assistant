@@ -10,6 +10,43 @@ import path from "path";
 
 const router = express.Router();
 const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
+const KEY_FILE   = path.resolve(process.cwd(), ".bot_key");
+const KEYS_FILE  = path.resolve(process.cwd(), "api_keys.enc");
+
+// ── Encrypted key storage ─────────────────────────────────────────────────────
+
+function getEncKey(): Buffer {
+  if (fs.existsSync(KEY_FILE)) return Buffer.from(fs.readFileSync(KEY_FILE, "utf8").trim(), "hex");
+  const key = crypto.randomBytes(32);
+  fs.writeFileSync(KEY_FILE, key.toString("hex"), { mode: 0o600 });
+  return key;
+}
+
+function encryptApiKeys(apiKey: string, secret: string, testnet: boolean): void {
+  try {
+    const encKey = getEncKey();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", encKey, iv);
+    const payload = JSON.stringify({ apiKey, secret, testnet });
+    const enc = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    fs.writeFileSync(KEYS_FILE, JSON.stringify({
+      iv: iv.toString("hex"), enc: enc.toString("hex"), tag: tag.toString("hex"),
+    }), { mode: 0o600 });
+  } catch { /* ignore */ }
+}
+
+function decryptApiKeys(): { apiKey: string; secret: string; testnet: boolean } | null {
+  try {
+    if (!fs.existsSync(KEYS_FILE)) return null;
+    const encKey = getEncKey();
+    const { iv, enc, tag } = JSON.parse(fs.readFileSync(KEYS_FILE, "utf8"));
+    const decipher = crypto.createDecipheriv("aes-256-gcm", encKey, Buffer.from(iv, "hex"));
+    decipher.setAuthTag(Buffer.from(tag, "hex"));
+    const dec = Buffer.concat([decipher.update(Buffer.from(enc, "hex")), decipher.final()]);
+    return JSON.parse(dec.toString("utf8"));
+  } catch { return null; }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,8 +95,10 @@ function loadState() {
   try {
     if (!fs.existsSync(STATE_FILE)) return;
     const s = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-    if (s.running && s.config && s.config.apiKey) {
-      config = s.config;
+    if (s.running && s.config) {
+      const savedKeys = decryptApiKeys();
+      if (!savedKeys) { addLog("Auto-resume: brak zapisanych kluczy", "warn"); return; }
+      config = { ...s.config, apiKey: savedKeys.apiKey, secret: savedKeys.secret, testnet: savedKeys.testnet };
       position = null;
       sessionPnl = 0;
       running = true;
@@ -377,9 +416,30 @@ async function engineTick() {
 
 // ── HTTP endpoints ────────────────────────────────────────────────────────────
 
+// GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)
+router.get("/keys", (_req, res) => {
+  const keys = decryptApiKeys();
+  res.json({ hasKeys: !!keys, testnet: keys?.testnet ?? false });
+});
+
+// POST /api/bot/keys — save encrypted keys
+router.post("/keys", (req, res) => {
+  const { apiKey, secret, testnet } = req.body;
+  if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
+  encryptApiKeys(apiKey, secret, !!testnet);
+  res.json({ ok: true });
+});
+
 router.post("/start", (req, res) => {
-  const { apiKey, secret, testnet, symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, adxMin } = req.body;
-  if (!apiKey || !secret) return res.status(400).json({ error: "Missing Bybit keys" });
+  let { apiKey, secret, testnet } = req.body;
+  const { symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, adxMin } = req.body;
+
+  // If keys not provided, try to load saved encrypted keys
+  if (!apiKey || !secret) {
+    const saved = decryptApiKeys();
+    if (!saved) return res.status(400).json({ error: "Missing Bybit keys" });
+    apiKey = saved.apiKey; secret = saved.secret; testnet = saved.testnet;
+  }
 
   if (intervalId) { clearInterval(intervalId); intervalId = null; }
   if (priceIntervalId) { clearInterval(priceIntervalId); priceIntervalId = null; }
@@ -397,6 +457,9 @@ router.post("/start", (req, res) => {
     adxMin:  adxMin  ?? 15,
     apiKey, secret, testnet: testnet === true,
   };
+
+  // Save keys encrypted for auto-resume after restarts
+  encryptApiKeys(apiKey, secret, testnet === true);
 
   running = true;
   position = null;

@@ -1473,6 +1473,14 @@ export default function TradingBot() {
     }
   }, [ticker, md, config, update, addLog]);
 
+  // Check if server has saved keys (for cross-device: bot can start without local keys)
+  const [serverHasKeys, setServerHasKeys] = useState(false);
+  useEffect(() => {
+    fetch("/api/bot/keys").then(r => r.json()).then(data => {
+      setServerHasKeys(!!data.hasKeys);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => { fetchData(); const id=setInterval(fetchData,30_000); return ()=>clearInterval(id); }, [fetchData]);
   useEffect(() => { const id=setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(id); }, []);
   useEffect(() => { runEngine(); }, [ticker, md]); // eslint-disable-line
@@ -1592,9 +1600,9 @@ export default function TradingBot() {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             {lastRefresh && <span style={{ fontSize:11, color:M }}>Dane: {fmtTime(lastRefresh.toISOString())}</span>}
-            {hasBybitKeys()
+            {(hasBybitKeys() || serverHasKeys)
               ? <span style={{ fontSize:11, background:"rgba(247,147,26,0.15)", border:"1px solid rgba(247,147,26,0.4)", borderRadius:6, padding:"4px 10px", color:"#fb923c", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
-                  🟡 Bybit {getBybitKeys().testnet ? "Testnet" : "Live"} skonfigurowany
+                  🟡 Bybit {hasBybitKeys() ? (getBybitKeys().testnet ? "Testnet" : "Live") : "Live"} skonfigurowany{serverHasKeys && !hasBybitKeys() ? " (serwer)" : ""}
                 </span>
               : <a href="/resell/settings" style={{ fontSize:11, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"4px 10px", color:M, textDecoration:"none", display:"flex", alignItems:"center", gap:5 }}>
                   ⚙️ Dodaj klucze Bybit →
@@ -2507,7 +2515,7 @@ export default function TradingBot() {
         </div>
 
         {/* Live Trading */}
-        {hasBybitKeys() && (() => {
+        {(hasBybitKeys() || serverHasKeys) && (() => {
           const srvPnlPct = serverPosition && ticker
             ? (serverPosition.direction==="long" ? (ticker.price - serverPosition.entryPrice)/serverPosition.entryPrice*100 : (serverPosition.entryPrice - ticker.price)/serverPosition.entryPrice*100)
             : null;
@@ -2567,9 +2575,9 @@ export default function TradingBot() {
                   onClick={() => {
                     setServerBotError(null);
                     setServerBotLoading(true);
-                    const { apiKey, secret, testnet } = getBybitKeys();
+                    const localKeys = hasBybitKeys() ? getBybitKeys() : { apiKey: "", secret: "", testnet: false };
                     const url = isOn ? "/api/bot/stop" : "/api/bot/start";
-                    const body = isOn ? {} : { apiKey, secret, testnet, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin };
+                    const body = isOn ? {} : { ...localKeys, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin };
                     fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) })
                       .then(r => r.json())
                       .then(d => {

@@ -269,6 +269,17 @@ export default function Settings() {
     saveKeys(keys);
     setSaved(prev => ({ ...prev, [platformId]: true }));
     setTimeout(() => setSaved(prev => ({ ...prev, [platformId]: false })), 2000);
+    // Sync Bybit keys to server (encrypted) for cross-device access
+    if (platformId === "bybit") {
+      const bk = keys.bybit ?? {};
+      if (bk.apiKey && bk.secret) {
+        fetch("/api/bot/keys", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: bk.apiKey, secret: bk.secret, testnet: bk.testnet === "true" }),
+        }).catch(() => {});
+      }
+    }
   };
 
   const clearPlatform = (platformId: string) => {
