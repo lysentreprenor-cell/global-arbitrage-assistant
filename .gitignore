@@ -1,9 +1,8 @@
 node_modules/
 .expo/
-dist/*.cjs
-dist/*.js
 dist/*.map
 !dist/public/
+!dist/index.cjs
 web-build/
 *.jks
 *.p8
