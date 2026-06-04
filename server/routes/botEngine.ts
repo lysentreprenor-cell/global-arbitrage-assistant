@@ -374,6 +374,7 @@ router.post("/start", (req, res) => {
   };
 
   running = true;
+  position = null;
   sessionPnl = 0;
   logs = [];
   addLog(`Bot started — ${config.symbol} capital=${config.capital} USDT lev=${config.leverage}x | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
