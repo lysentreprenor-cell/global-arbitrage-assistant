@@ -1495,24 +1495,31 @@ export default function TradingBot() {
     return () => clearInterval(id);
   }, []);
 
-  // Poll server-side bot status every 15s
+  // Poll server-side bot status every 15s; also refresh balance every 30s while running
+  const pollCountRef = useRef(0);
   useEffect(() => {
     const poll = async () => {
       try {
         const r = await fetch("/api/bot/status");
         if (r.ok) {
           const d = await r.json();
+          const wasRunning = serverBotRunning;
           setServerBotRunning(d.running);
           setServerBotLogs(d.logs ?? []);
           setServerPosition(d.position);
           setServerPnl(d.sessionPnl ?? 0);
+          // Fetch balance when bot just started, or every 2nd poll (~30s) while running
+          pollCountRef.current += 1;
+          if (d.running && (!wasRunning || pollCountRef.current % 2 === 0)) {
+            fetchLiveBalance();
+          }
         }
       } catch { /* ignore */ }
     };
     poll();
     const id = setInterval(poll, 15_000);
     return () => clearInterval(id);
-  }, []);
+  }, [fetchLiveBalance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!config.autoMode) return;
