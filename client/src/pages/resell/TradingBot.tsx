@@ -1066,6 +1066,8 @@ export default function TradingBot() {
   const [liveBalanceCoin, setLiveBalanceCoin] = useState<string>("USDT");
   const [liveSessionPnl, setLiveSessionPnl] = useState(0);
   const liveSessionPnlRef = useRef(0);
+  // Live BTC price ticker
+  const [liveTicker, setLiveTicker] = useState<{price:number;change24h:number;high24h:number;low24h:number}|null>(null);
   // Server-side bot state
   const [serverBotRunning, setServerBotRunning] = useState(false);
   const [serverBotLogs, setServerBotLogs] = useState<{time:string;msg:string;type:string}[]>([]);
@@ -1479,6 +1481,19 @@ export default function TradingBot() {
     if (liveMode) { fetchLiveBalance(); liveSessionPnlRef.current = 0; setLiveSessionPnl(0); }
   }, [liveMode, fetchLiveBalance]);
   useEffect(() => { liveUsdtRef.current = parseFloat(liveUsdt) || 9; }, [liveUsdt]);
+
+  // Live BTC price — every 5s
+  useEffect(() => {
+    const fetchTicker = async () => {
+      try {
+        const r = await fetch("/api/trading/ticker?symbol=BTCUSDT");
+        if (r.ok) { const d = await r.json(); setLiveTicker(d); }
+      } catch { /* ignore */ }
+    };
+    fetchTicker();
+    const id = setInterval(fetchTicker, 5_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Poll server-side bot status every 15s
   useEffect(() => {
@@ -2491,8 +2506,35 @@ export default function TradingBot() {
             : null;
           const effLev = config.leverageAuto ? calcAutoLeverage(learningRef.current.deepHistory) : config.leverage;
           const isOn = serverBotRunning;
-          return (
-          <div style={{ ...card, marginTop:14, border: isOn ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)" }}>
+          return (<>
+          {/* Live BTC price widget */}
+          <div style={{ ...card, marginTop:14, background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.2)", padding:"12px 16px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap" as const, gap:8 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:20 }}>₿</span>
+                <div>
+                  <div style={{ fontSize:11, color:M, marginBottom:2 }}>BTC/USDT • LIVE</div>
+                  <div style={{ fontSize:26, fontWeight:800, color:"#fff", letterSpacing:-1 }}>
+                    {liveTicker ? `$${liveTicker.price.toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0})}` : "—"}
+                  </div>
+                </div>
+                {liveTicker && (
+                  <div style={{ background: liveTicker.change24h >= 0 ? "rgba(34,197,94,0.15)" : "rgba(248,113,113,0.15)", border:`1px solid ${liveTicker.change24h >= 0 ? "rgba(34,197,94,0.4)" : "rgba(248,113,113,0.4)"}`, borderRadius:8, padding:"4px 10px", fontSize:15, fontWeight:700, color: liveTicker.change24h >= 0 ? G : R }}>
+                    {liveTicker.change24h >= 0 ? "+" : ""}{liveTicker.change24h.toFixed(2)}%
+                  </div>
+                )}
+              </div>
+              {liveTicker && (
+                <div style={{ display:"flex", gap:16, fontSize:11, color:M }}>
+                  <div><div style={{ color:"rgba(255,255,255,0.4)", marginBottom:1 }}>24H MAX</div><div style={{ color:"#fff", fontWeight:600 }}>${liveTicker.high24h.toLocaleString("en-US", {maximumFractionDigits:0})}</div></div>
+                  <div><div style={{ color:"rgba(255,255,255,0.4)", marginBottom:1 }}>24H MIN</div><div style={{ color:"#fff", fontWeight:600 }}>${liveTicker.low24h.toLocaleString("en-US", {maximumFractionDigits:0})}</div></div>
+                </div>
+              )}
+              {!liveTicker && <div style={{ fontSize:11, color:M }}>Ładowanie...</div>}
+            </div>
+          </div>
+
+          <div style={{ ...card, marginTop:10, border: isOn ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)" }}>
             {/* Header */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap" as const, gap:10 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -2603,7 +2645,7 @@ export default function TradingBot() {
               </div>
             )}
           </div>
-          );
+          </>);
         })()}
 
         {/* Backtest */}
