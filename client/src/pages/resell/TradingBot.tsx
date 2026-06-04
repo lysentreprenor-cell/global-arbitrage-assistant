@@ -1058,6 +1058,13 @@ export default function TradingBot() {
   const [resetConfirm, setResetConfirm] = useState(false); // #43
   const [usingDeepParams, setUsingDeepParams] = useState(false); // #97
 
+  // Live trading state
+  const [liveMode, setLiveMode] = useState(false);
+  const [liveUsdt, setLiveUsdt] = useState("9");
+  const liveQtyRef = useRef<number>(0);
+  const liveModeRef = useRef(false);
+  const liveUsdtRef = useRef(9);
+
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
   const [tmpRisk,     setTmpRisk]     = useState(String(config.riskPct));
@@ -1086,6 +1093,46 @@ export default function TradingBot() {
       return next;
     });
   }, [saveLearningDebounced]);
+
+  const placeLiveOrder = useCallback(async (side: "long"|"short", price: number) => {
+    if (!hasBybitKeys()) return;
+    const { apiKey, secret, testnet } = getBybitKeys();
+    const usdt = liveUsdtRef.current;
+    const effLev = config.leverageAuto ? calcAutoLeverage(learningRef.current.deepHistory) : config.leverage;
+    const rawQty = (usdt * effLev) / price;
+    // Round to 3 decimals for BTC, 2 for ETH/SOL
+    const decimals = config.symbol === "BTCUSDT" ? 3 : 2;
+    const qty = Math.max(parseFloat(rawQty.toFixed(decimals)), config.symbol === "BTCUSDT" ? 0.001 : 0.01);
+    liveQtyRef.current = qty;
+    try {
+      const r = await fetch("/api/bybit/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey, secret, testnet, symbol: config.symbol, side, qty, leverage: effLev }),
+      });
+      const d = await r.json();
+      if (d.error) addLog(`🔴 LIVE błąd zlecenia: ${d.error}`, "warn");
+      else addLog(`🟢 LIVE ${side.toUpperCase()} ${config.symbol.replace("USDT","")} qty=${qty} @ $${fmt(price)} | OrderID: ${d.orderId}`, "buy");
+    } catch (e: any) { addLog(`🔴 LIVE błąd: ${e.message}`, "warn"); }
+  }, [config.symbol, config.leverage, config.leverageAuto, addLog]);
+
+  const closeLiveOrder = useCallback(async (side: "long"|"short", price: number, reason: string) => {
+    if (!hasBybitKeys()) return;
+    const { apiKey, secret, testnet } = getBybitKeys();
+    const qty = liveQtyRef.current;
+    if (qty <= 0) return;
+    try {
+      const r = await fetch("/api/bybit/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey, secret, testnet, symbol: config.symbol, side, qty }),
+      });
+      const d = await r.json();
+      if (d.error) addLog(`🔴 LIVE błąd zamknięcia: ${d.error}`, "warn");
+      else addLog(`🔴 LIVE CLOSE ${side.toUpperCase()} @ $${fmt(price)} — ${reason}`, "sell");
+      liveQtyRef.current = 0;
+    } catch (e: any) { addLog(`🔴 LIVE błąd zamknięcia: ${e.message}`, "warn"); }
+  }, [config.symbol, addLog]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -1273,6 +1320,7 @@ export default function TradingBot() {
       const meta: TradeMeta = { rsi: md.rsi, adx: md.adx, volumeMult: md.volumeMult, atrPercentile: md.atrPercentile, ribbonBull: md.ribbonBull };
       update({ trades:[...config.trades, { id:Date.now(), symbol:config.symbol, direction, entryTime:new Date().toISOString(), entryPrice:ticker.price, size, status:"open", slPct, tpPct, trailRef:ticker.price, peakGainPct:0, meta }] });
       addLog(`▶ ${direction.toUpperCase()} ${config.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | RSI ${rsi} | ADX ${adx}${config.dynamicExits?" | ATR exits":""}${config.trailStop?" | Trail":""}  | SL ${slPct.toFixed(1)}% / TP ${tpPct.toFixed(1)}%`, "buy");
+      if (liveModeRef.current) placeLiveOrder(direction, ticker.price);
       return;
     }
 
@@ -1342,6 +1390,7 @@ export default function TradingBot() {
       const justClosed: PaperTrade = { ...openTrade, status:"closed" as const, exitTime:new Date().toISOString(), exitPrice:ticker.price, pnl, pnlPct:pct, reason, trailRef:updatedTrailRef };
       update({ trades:config.trades.map(t=>t.id===openTrade.id ? justClosed : t) });
       addLog(`■ CLOSE ${openTrade.direction.toUpperCase()} ${openTrade.symbol.replace("USDT","")} @ $${fmt(ticker.price)} | ${fmtUsd(pnl)} (${fmtPct(pct)}) — ${REASON_LABEL[reason]}`, pnl>=0?"sell":"warn");
+      if (liveModeRef.current) closeLiveOrder(openTrade.direction, ticker.price, REASON_LABEL[reason]);
 
       if (config.learningEnabled) {
         const prevClosed = config.trades.filter(t=>t.status==="closed");
@@ -1397,6 +1446,8 @@ export default function TradingBot() {
   useEffect(() => { fetchData(); const id=setInterval(fetchData,30_000); return ()=>clearInterval(id); }, [fetchData]);
   useEffect(() => { const id=setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(id); }, []);
   useEffect(() => { runEngine(); }, [ticker, md]); // eslint-disable-line
+  useEffect(() => { liveModeRef.current = liveMode; }, [liveMode]);
+  useEffect(() => { liveUsdtRef.current = parseFloat(liveUsdt) || 9; }, [liveUsdt]);
 
   useEffect(() => {
     if (!config.autoMode) return;
@@ -2382,6 +2433,55 @@ export default function TradingBot() {
             </div>
           )}
         </div>
+
+        {/* Live Trading */}
+        {hasBybitKeys() && (
+          <div style={{ ...card, marginTop:14, border: liveMode ? "1px solid rgba(248,113,113,0.5)" : "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:16 }}>🔴</span>
+                <span style={{ fontWeight:700, fontSize:14 }}>LIVE TRADING — Bybit</span>
+                {liveMode
+                  ? <span style={{ fontSize:10, background:"rgba(248,113,113,0.15)", border:"1px solid rgba(248,113,113,0.4)", borderRadius:6, padding:"2px 8px", color:"#f87171", display:"flex", alignItems:"center", gap:4 }}>
+                      <span style={{ width:6, height:6, borderRadius:"50%", background:"#f87171", animation:"pulse 1.5s ease-in-out infinite", display:"inline-block" }}/> AKTYWNY
+                    </span>
+                  : <span style={{ fontSize:10, color:M }}>OFF — bot będzie składał prawdziwe zlecenia</span>
+                }
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ fontSize:12, color:M }}>USDT:</span>
+                  <input
+                    type="number" min="1" step="1"
+                    value={liveUsdt}
+                    onChange={e => setLiveUsdt(e.target.value)}
+                    disabled={liveMode}
+                    style={{ width:70, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"6px 8px", color:"#fff", fontSize:13, textAlign:"center" }}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const n = !liveMode;
+                    setLiveMode(n);
+                    if (n) {
+                      liveQtyRef.current = 0;
+                      addLog(`🔴 LIVE TRADING WŁĄCZONY — ${liveUsdt} USDT na ${config.symbol} | Bybit ${getBybitKeys().testnet?"Testnet":"Live"}`, "warn");
+                    } else {
+                      addLog("⬛ LIVE TRADING wyłączony", "info");
+                    }
+                  }}
+                  style={{ background: liveMode ? "rgba(248,113,113,0.2)" : "rgba(34,197,94,0.15)", border:`1px solid ${liveMode?"rgba(248,113,113,0.5)":"rgba(34,197,94,0.4)"}`, borderRadius:8, padding:"8px 18px", color: liveMode ? "#f87171" : G, cursor:"pointer", fontWeight:700, fontSize:13 }}>
+                  {liveMode ? "⬛ STOP LIVE" : "▶ START LIVE"}
+                </button>
+              </div>
+            </div>
+            {liveMode && (
+              <div style={{ marginTop:10, fontSize:11, color:M, background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:6, padding:"8px 12px" }}>
+                ⚠️ Bot automatycznie składa <strong style={{color:"#f87171"}}>prawdziwe zlecenia</strong> na Bybit gdy wykryje sygnał. Upewnij się że bot jest AKTYWNY (przycisk u góry). Aktualna dźwignia: <strong style={{color:"#f87171"}}>{config.leverageAuto?`AUTO (${calcAutoLeverage(learningRef.current.deepHistory)}x)`:config.leverage+"x"}</strong>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Backtest */}
         <div style={{ ...card, marginTop:14 }}>

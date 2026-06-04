@@ -31,6 +31,7 @@ import agentRouter from "./routes/agent";
 import ebayRouter from "./routes/ebay";
 import etsyRouter from "./routes/etsy";
 import tradingRouter from "./routes/trading";
+import bybitRouter from "./routes/bybit";
 
 const app = express();
 const httpServer = createServer(app);
@@ -308,6 +309,7 @@ process.on("uncaughtException", (err) => {
   app.use("/api/ebay", ebayRouter);
   app.use("/api/etsy", etsyRouter);
   app.use("/api/trading", tradingRouter);
+  app.use("/api/bybit", bybitRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
