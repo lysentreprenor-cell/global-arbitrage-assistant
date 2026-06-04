@@ -328,20 +328,30 @@ async function engineTick() {
     // If position open — priceCheck handles exits every 5s
     if (position) return;
 
-    // EMA9 crosses above EMA21 → LONG (bullish crossover)
-    const isLong = ema9 > ema21 && prevEma9 <= prevEma21 && rsi < 70;
-    // EMA9 crosses below EMA21 → SHORT (bearish crossover)
-    const isShort = config.allowShorts && ema9 < ema21 && prevEma9 >= prevEma21 && rsi > 30;
+    const rsiMin = config.rsiMin ?? 40;  // use frontend value (default 40)
+    const rsiMax = config.rsiMax ?? 65;  // use frontend value (default 65)
 
-    // Only enter on confirmed crossover (no trendLong fallback — too noisy)
-    // Also enforce minimum 5 minutes between trades
-    const cooldownOk = Date.now() - lastEntryTime > 5 * 60 * 1000;
+    // Signal A: EMA crossover (trend reversal — high conviction)
+    const crossBuy  = ema9 > ema21 && prevEma9 <= prevEma21;
+    const crossSell = ema9 < ema21 && prevEma9 >= prevEma21;
+
+    // Signal B: RSI mean-reversion scalping
+    // LONG: oversold dip (RSI < rsiMin); works in any trend
+    // SHORT: overbought peak (RSI > rsiMax); works in any trend
+    const rsiBuy  = rsi < rsiMin;
+    const rsiSell = rsi > rsiMax;
+
+    const isLong  = crossBuy  || rsiBuy;
+    const isShort = config.allowShorts && (crossSell || rsiSell);
+
+    // 3-minute cooldown between trades
+    const cooldownOk = Date.now() - lastEntryTime > 3 * 60 * 1000;
 
     const doLong  = isLong  && cooldownOk;
     const doShort = isShort && cooldownOk;
 
     if (!doLong && !doShort) {
-      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)}`);
+      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)} (min=${rsiMin} max=${rsiMax})`);
       return;
     }
 
@@ -374,15 +384,15 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    rsiMin: rsiMin ?? 35,      // scalping: szeroki zakres RSI
-    rsiMax: rsiMax ?? 70,
-    trailPct: trailPct ?? 0.1, // 0.1% trailing stop
-    stopLoss: stopLoss ?? 0.3,  // 0.3% stop loss (szybkie cięcie strat)
-    takeProfit: takeProfit ?? 0.5, // 0.5% take profit (szybki zysk)
-    leverage: leverage ?? 10,   // 10x dźwignia dla małego kapitału
-    allowShorts: allowShorts ?? true, // shortuj też
+    rsiMin:     rsiMin     ?? 40,   // buy dip when RSI < 40
+    rsiMax:     rsiMax     ?? 65,   // sell pump when RSI > 65
+    trailPct:   trailPct   ?? 0.15, // 0.15% trailing stop
+    stopLoss:   stopLoss   ?? 0.4,  // 0.4% stop loss
+    takeProfit: takeProfit ?? 0.6,  // 0.6% take profit (scalping)
+    leverage:   leverage   ?? 10,
+    allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
-    adxMin: adxMin ?? 15,      // niższy próg ADX
+    adxMin:  adxMin  ?? 15,
     apiKey, secret, testnet: testnet === true,
   };
 
