@@ -182,9 +182,9 @@ function calcVolumeMult(volumes: number[]): number {
 
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
-async function fetchCandles(symbol: string, testnet: boolean): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
-  // Use Bybit klines (avoids Binance geo-blocking on Replit)
-  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
+async function fetchCandles(symbol: string, _testnet: boolean): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
+  // Always use mainnet for market data — price is identical, testnet klines return 403
+  const base = "https://api.bybit.com";
   try {
     const r = await fetch(`${base}/v5/market/kline?category=linear&symbol=${symbol}&interval=60&limit=100`, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
