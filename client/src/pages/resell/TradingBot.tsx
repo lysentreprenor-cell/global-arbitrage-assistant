@@ -413,38 +413,36 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
 }
 
 async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
-  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=2400`);
-  if (!res.ok) throw new Error(`Binance ${res.status}`);
-  const raw: any[][] = await res.json();
-  return raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5], utcH:new Date(k[0]).getUTCHours() }));
+  const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=2400`);
+  if (!res.ok) throw new Error(`Klines ${res.status}`);
+  const raw: any[] = await res.json();
+  if (raw.error) throw new Error(raw.error);
+  return raw.map(k=>({ time: k.time as number, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, utcH: new Date(k.time as number).getUTCHours() }));
 }
 
-// Fetch complete history from Binance (paginated) — BTC/USDT available from Aug 2017
+// Fetch paginated history via server proxy (Kraken, ~90 days max in hourly)
 async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => void): Promise<CandleData[]> {
   const all: CandleData[] = [];
-  // BTCUSDT pair listed on Binance ~Aug 2017; ETHUSDT/SOLUSDT similar era
-  const originMap: Record<Symbol, number> = {
-    BTCUSDT: new Date("2017-08-17").getTime(),
-    ETHUSDT: new Date("2017-08-17").getTime(),
-    SOLUSDT: new Date("2020-09-01").getTime(),
-  };
-  let startTime = originMap[symbol] ?? new Date("2017-08-17").getTime();
-  const endTime  = Date.now();
-  const totalMs  = endTime - startTime;
+  const maxDays = 90; // Kraken provides ~90 days of hourly data via pagination
+  const totalCandles = maxDays * 24;
+  const pages = Math.ceil(totalCandles / 720);
+  const candleSec = 3600;
+  let pageSince = Math.floor(Date.now() / 1000) - (pages * 720 * candleSec);
 
-  while (startTime < endTime - 3600000) {
-    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=1000&startTime=${startTime}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Binance ${res.status}`);
-    const raw: any[][] = await res.json();
-    if (!raw.length) break;
-    all.push(...raw.map(k=>({ time:k[0] as number, open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5], utcH:new Date(k[0]).getUTCHours() })));
-    startTime = (raw[raw.length-1][0] as number) + 3600000;
-    onProgress(Math.min(99, ((startTime - originMap[symbol]) / totalMs) * 100));
-    // yield to browser UI between chunks
-    await new Promise(r => setTimeout(r, 0));
+  for (let p = 0; p < pages; p++) {
+    const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720&since=${pageSince}`);
+    if (!res.ok) break;
+    const raw: any[] = await res.json();
+    if (!Array.isArray(raw) || raw.length === 0) break;
+    all.push(...raw.map(k=>({ time: k.time as number, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, utcH: new Date(k.time as number).getUTCHours() })));
+    pageSince = Math.floor((raw[raw.length - 1].time as number) / 1000) + candleSec;
+    onProgress(Math.min(99, ((p + 1) / pages) * 100));
+    await new Promise(r => setTimeout(r, 50));
   }
-  return all;
+  // Deduplicate and sort
+  const seen = new Set<number>();
+  const deduped = all.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; });
+  return deduped.sort((a, b) => a.time - b.time);
 }
 
 async function runBacktest(cfg: BtCfg): Promise<BtResult> {
@@ -1164,21 +1162,23 @@ export default function TradingBot() {
   const fetchData = useCallback(async () => {
     try {
       const [tRes, kRes, k4Res] = await Promise.all([
-        fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${config.symbol}`),
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${config.symbol}&interval=1h&limit=200`),
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${config.symbol}&interval=4h&limit=60`), // #86
+        fetch(`/api/trading/ticker?symbol=${config.symbol}`),
+        fetch(`/api/trading/klines?symbol=${config.symbol}&interval=1h&limit=200`),
+        fetch(`/api/trading/klines?symbol=${config.symbol}&interval=4h&limit=60`),
       ]);
-      if (!tRes.ok || !kRes.ok) throw new Error(`Binance ${tRes.status}`);
+      if (!tRes.ok || !kRes.ok) throw new Error(`Błąd danych ${tRes.status}`);
       const td = await tRes.json();
+      if (td.error) throw new Error(td.error);
       const klines: any[] = await kRes.json();
-      const closes  = klines.map(k=>parseFloat(k[4]));
-      const opens   = klines.map(k=>parseFloat(k[1]));
-      const highs   = klines.map(k=>parseFloat(k[2]));
-      const lows    = klines.map(k=>parseFloat(k[3]));
-      const volumes = klines.map(k=>parseFloat(k[5]));
-      const candleArr: CandleData[] = klines.map(k=>({ time:k[0], open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5], utcH:new Date(k[0]).getUTCHours() }));
+      if (!Array.isArray(klines) || klines.length === 0) throw new Error("Brak danych świec");
+      const closes  = klines.map(k=>parseFloat(k.close ?? k[4]));
+      const opens   = klines.map(k=>parseFloat(k.open  ?? k[1]));
+      const highs   = klines.map(k=>parseFloat(k.high  ?? k[2]));
+      const lows    = klines.map(k=>parseFloat(k.low   ?? k[3]));
+      const volumes = klines.map(k=>parseFloat(k.volume ?? k[5]));
+      const candleArr: CandleData[] = klines.map(k=>({ time:k.time??k[0], open:parseFloat(k.open??k[1]), high:parseFloat(k.high??k[2]), low:parseFloat(k.low??k[3]), close:parseFloat(k.close??k[4]), volume:parseFloat(k.volume??k[5]), utcH:new Date(k.time??k[0]).getUTCHours() }));
       const last = closes.length-1;
-      setTicker({ price:parseFloat(td.lastPrice), change24h:parseFloat(td.priceChangePercent), high24h:parseFloat(td.highPrice), low24h:parseFloat(td.lowPrice) });
+      setTicker({ price: td.price, change24h: td.change24h, high24h: td.high24h, low24h: td.low24h });
       const ema21val = calcEMA21(closes);
       const avgVol = volumes.slice(-21, -1).reduce((a,b)=>a+b,0) / 20;
       const volMult = avgVol > 0 ? volumes[last] / avgVol : 1;
@@ -1200,7 +1200,7 @@ export default function TradingBot() {
       const sortedW=[...bbWidths].sort((a,b)=>a-b); const p20W=sortedW.length?sortedW[Math.floor(sortedW.length*0.2)]:0;
       const upperWick=highs[last]-Math.max(opens[last],closes[last]); const bodyAbs=Math.abs(closes[last]-opens[last])||1e-9;
       // #86 4H RSI
-      let rsi4h=50; try { const k4:any[]=await k4Res.json(); if(Array.isArray(k4)) rsi4h=calcRSI(k4.map(k=>parseFloat(k[4]))); } catch {}
+      let rsi4h=50; try { const k4:any[]=await k4Res.json(); if(Array.isArray(k4)) rsi4h=calcRSI(k4.map((k:any)=>parseFloat(k.close??k[4]))); } catch {}
       // #93 sparkline
       rsiSparkRef.current = [...rsiSparkRef.current.slice(-19), rsiNow];
       setMd({
