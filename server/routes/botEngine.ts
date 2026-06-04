@@ -5,8 +5,11 @@
  */
 import express from "express";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 
 const router = express.Router();
+const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +44,28 @@ let config: BotConfig | null = null;
 let position: Position | null = null;
 let logs: LogEntry[] = [];
 let sessionPnl = 0;
+
+function saveState() {
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config, position, sessionPnl }));
+  } catch { /* ignore */ }
+}
+
+function loadState() {
+  try {
+    if (!fs.existsSync(STATE_FILE)) return;
+    const s = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    if (s.running && s.config) {
+      config = s.config;
+      position = s.position ?? null;
+      sessionPnl = s.sessionPnl ?? 0;
+      running = true;
+      addLog("Auto-resume po restarcie serwera", "info");
+      engineTick();
+      intervalId = setInterval(engineTick, 60_000);
+    }
+  } catch { /* ignore */ }
+}
 
 function addLog(msg: string, type: LogEntry["type"] = "info") {
   const entry: LogEntry = { time: new Date().toISOString(), msg, type };
@@ -249,6 +274,7 @@ async function engineTick() {
         addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
         await closePosition(reason);
         position = null;
+        saveState();
       }
       return; // Don't open new position while one is open
     }
@@ -270,6 +296,7 @@ async function engineTick() {
     addLog(`SIGNAL ${direction.toUpperCase()} RSI=${rsi.toFixed(1)} ADX=${adx.toFixed(1)} Vol×${volMult.toFixed(1)}`, "info");
     await placeOrder(direction, qty);
     position = { direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price };
+    saveState();
 
   } catch (e: any) { addLog(`Tick error: ${e.message}`, "warn"); }
 }
@@ -297,8 +324,8 @@ router.post("/start", (req, res) => {
   sessionPnl = 0;
   logs = [];
   addLog(`Bot started — ${config.symbol} capital=${config.capital} USDT lev=${config.leverage}x`, "info");
+  saveState();
 
-  // Run immediately, then every 60s
   engineTick();
   intervalId = setInterval(engineTick, 60_000);
 
@@ -309,6 +336,7 @@ router.post("/stop", (_req, res) => {
   running = false;
   if (intervalId) { clearInterval(intervalId); intervalId = null; }
   addLog("Bot stopped", "warn");
+  saveState();
   res.json({ ok: true });
 });
 
@@ -321,5 +349,8 @@ router.get("/status", (_req, res) => {
     leverage: config?.leverage,
   });
 });
+
+// Auto-resume bot if it was running before server restart
+setTimeout(loadState, 3000);
 
 export default router;
