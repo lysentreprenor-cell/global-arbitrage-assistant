@@ -33,6 +33,7 @@ import etsyRouter from "./routes/etsy";
 import tradingRouter from "./routes/trading";
 import bybitRouter from "./routes/bybit";
 import botEngineRouter from "./routes/botEngine";
+import keysSyncRouter from "./routes/keysSync";
 
 const app = express();
 const httpServer = createServer(app);
@@ -312,6 +313,7 @@ process.on("uncaughtException", (err) => {
   app.use("/api/trading", tradingRouter);
   app.use("/api/bybit", bybitRouter);
   app.use("/api/bot", botEngineRouter);
+  app.use("/api/keys/sync", keysSyncRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

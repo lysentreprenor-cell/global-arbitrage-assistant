@@ -162,6 +162,22 @@ export default function Settings() {
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [synced, setSynced] = useState(false);
+
+  // Load keys from server on first visit (cross-device sync)
+  useEffect(() => {
+    const local = loadKeys();
+    const hasLocal = Object.keys(local).length > 0;
+    if (!hasLocal) {
+      fetch("/api/keys/sync").then(r => r.json()).then(data => {
+        if (data.ok && data.keys && Object.keys(data.keys).length > 0) {
+          saveKeys(data.keys);
+          setKeys(data.keys);
+          setSynced(true);
+        }
+      }).catch(() => {});
+    }
+  }, []);
   const [testResult, setTestResult] = useState<Record<string, "ok" | "fail" | null>>({});
   const [customApis, setCustomApis] = useState<{ id: string; name: string; baseUrl: string; apiKey: string }[]>(() => {
     try { return JSON.parse(localStorage.getItem("resell_custom_apis") || "[]"); } catch { return []; }
@@ -269,7 +285,13 @@ export default function Settings() {
     saveKeys(keys);
     setSaved(prev => ({ ...prev, [platformId]: true }));
     setTimeout(() => setSaved(prev => ({ ...prev, [platformId]: false })), 2000);
-    // Sync Bybit keys to server (encrypted) for cross-device access
+    // Sync all keys to server encrypted (cross-device)
+    fetch("/api/keys/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(keys),
+    }).catch(() => {});
+    // Also sync Bybit keys separately for bot engine
     if (platformId === "bybit") {
       const bk = keys.bybit ?? {};
       if (bk.apiKey && bk.secret) {
