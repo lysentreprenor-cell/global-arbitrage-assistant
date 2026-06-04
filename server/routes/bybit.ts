@@ -138,4 +138,28 @@ router.post("/position", async (req, res) => {
   } catch (e: any) { res.status(502).json({ error: e.message }); }
 });
 
+// POST /api/bybit/test — diagnose API key connectivity, returns exact error
+router.post("/test", async (req, res) => {
+  const { apiKey, secret, testnet } = req.body;
+  if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
+  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
+  const results: Record<string, any> = { base, testnet: !!testnet };
+  // Try each account type and capture raw response
+  for (const accountType of ["UNIFIED", "CONTRACT", "SPOT"]) {
+    try {
+      const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
+      const coins: any[] = data.result?.list?.[0]?.coin ?? [];
+      results[accountType] = {
+        ok: true,
+        retCode: data.retCode,
+        coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })).filter((c: any) => parseFloat(c.balance) > 0),
+      };
+      break; // found working account type
+    } catch (e: any) {
+      results[accountType] = { ok: false, error: e.message };
+    }
+  }
+  res.json(results);
+});
+
 export default router;

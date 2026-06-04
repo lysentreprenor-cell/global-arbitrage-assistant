@@ -112,29 +112,30 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
   return d;
 }
 
-async function placeOrder(side: Direction, qty: number) {
-  if (!config) return;
-  try {
-    if (config.leverage > 1) {
-      try {
-        await bybitFetch("POST", "/v5/position/set-leverage", {
-          category: "linear", symbol: config.symbol,
-          buyLeverage: String(config.leverage), sellLeverage: String(config.leverage),
-        });
-      } catch { /* may already be set */ }
-    }
-    const d = await bybitFetch("POST", "/v5/order/create", {
-      category: "linear", symbol: config.symbol,
-      side: side === "long" ? "Buy" : "Sell",
-      orderType: "Market", qty: String(qty),
-    });
-    addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | OrderID: ${d.result?.orderId}`, "buy");
-    return d.result?.orderId;
-  } catch (e: any) { addLog(`🔴 Order error: ${e.message}`, "warn"); }
+// Returns orderId on success, throws on failure
+async function placeOrder(side: Direction, qty: number): Promise<string> {
+  if (!config) throw new Error("No config");
+  if (config.leverage > 1) {
+    try {
+      await bybitFetch("POST", "/v5/position/set-leverage", {
+        category: "linear", symbol: config.symbol,
+        buyLeverage: String(config.leverage), sellLeverage: String(config.leverage),
+      });
+    } catch { /* leverage may already be set */ }
+  }
+  const d = await bybitFetch("POST", "/v5/order/create", {
+    category: "linear", symbol: config.symbol,
+    side: side === "long" ? "Buy" : "Sell",
+    orderType: "Market", qty: String(qty),
+  });
+  const orderId = d.result?.orderId ?? "unknown";
+  addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | OrderID: ${orderId}`, "buy");
+  return orderId;
 }
 
-async function closePosition(reason: string) {
-  if (!config || !position) return;
+// Returns true on success, false on failure
+async function closePosition(reason: string): Promise<boolean> {
+  if (!config || !position) return false;
   try {
     await bybitFetch("POST", "/v5/order/create", {
       category: "linear", symbol: config.symbol,
@@ -142,7 +143,11 @@ async function closePosition(reason: string) {
       orderType: "Market", qty: String(position.qty), reduceOnly: true,
     });
     addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
-  } catch (e: any) { addLog(`🔴 Close error: ${e.message}`, "warn"); }
+    return true;
+  } catch (e: any) {
+    addLog(`🔴 Close error: ${e.message}`, "warn");
+    return false;
+  }
 }
 
 // ── Indicators ────────────────────────────────────────────────────────────────
@@ -280,11 +285,13 @@ async function priceCheck() {
 
   if (reason) {
     const pnlUsdt = pct / 100 * config.capital;
-    sessionPnl += pnlUsdt;
-    addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
-    await closePosition(reason);
-    position = null;
-    saveState();
+    const closed = await closePosition(reason);
+    if (closed) {
+      sessionPnl += pnlUsdt;
+      addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
+      position = null;
+      saveState();
+    }
   }
 }
 
@@ -328,10 +335,15 @@ async function engineTick() {
     const minQty   = config.symbol === "BTCUSDT" ? 0.001 : 0.01;
     const qty = Math.max(parseFloat(((config.capital * config.leverage) / price).toFixed(decimals)), minQty);
 
-    addLog(`SIGNAL ${direction.toUpperCase()} RSI=${rsi.toFixed(1)} ADX=${adx.toFixed(1)} Vol×${volMult.toFixed(1)}`, "info");
-    await placeOrder(direction, qty);
-    position = { direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price };
-    saveState();
+    addLog(`SIGNAL ${direction.toUpperCase()} RSI=${rsi.toFixed(1)} ADX=${adx.toFixed(1)} MACD=${macd.macd.toFixed(1)}>${macd.signal.toFixed(1)}`, "info");
+    try {
+      await placeOrder(direction, qty);
+      // Only set position if order succeeded
+      position = { direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price };
+      saveState();
+    } catch (e: any) {
+      addLog(`🔴 ZLECENIE NIEUDANE: ${e.message} | Sprawdź klucze API w Ustawienia`, "warn");
+    }
 
   } catch (e: any) { addLog(`Tick error: ${e.message}`, "warn"); }
 }
