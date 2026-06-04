@@ -357,7 +357,8 @@ router.post("/start", (req, res) => {
   const { apiKey, secret, testnet, symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, adxMin } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing Bybit keys" });
 
-  if (running && intervalId) clearInterval(intervalId);
+  if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  if (priceIntervalId) { clearInterval(priceIntervalId); priceIntervalId = null; }
 
   config = {
     symbol: symbol || "BTCUSDT",
