@@ -164,19 +164,18 @@ export default function Settings() {
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [synced, setSynced] = useState(false);
 
-  // Load keys from server on first visit (cross-device sync)
+  // Sync keys from server on every visit — merge server keys with local (server fills missing)
   useEffect(() => {
-    const local = loadKeys();
-    const hasLocal = Object.keys(local).length > 0;
-    if (!hasLocal) {
-      fetch("/api/keys/sync").then(r => r.json()).then(data => {
-        if (data.ok && data.keys && Object.keys(data.keys).length > 0) {
-          saveKeys(data.keys);
-          setKeys(data.keys);
-          setSynced(true);
-        }
-      }).catch(() => {});
-    }
+    fetch("/api/keys/sync").then(r => r.json()).then(data => {
+      if (data.ok && data.keys && Object.keys(data.keys).length > 0) {
+        const local = loadKeys();
+        // Server keys fill in any platforms missing locally
+        const merged = { ...data.keys, ...local };
+        saveKeys(merged);
+        setKeys(merged);
+        setSynced(true);
+      }
+    }).catch(() => {});
   }, []);
   const [testResult, setTestResult] = useState<Record<string, "ok" | "fail" | null>>({});
   const [customApis, setCustomApis] = useState<{ id: string; name: string; baseUrl: string; apiKey: string }[]>(() => {
