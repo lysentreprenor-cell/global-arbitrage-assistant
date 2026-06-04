@@ -63,7 +63,7 @@ function loadState() {
       running = true;
       addLog("Auto-resume po restarcie serwera", "info");
       engineTick();
-      intervalId = setInterval(engineTick, 60_000);
+      intervalId = setInterval(engineTick, 30_000);
       priceIntervalId = setInterval(priceCheck, 5_000);
     }
   } catch { /* ignore */ }
@@ -221,7 +221,7 @@ let lastPrice = 0;
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
   try {
-    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=0`, { signal: AbortSignal.timeout(10000) });
+    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=1&since=0`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
     const d = await r.json() as any;
     if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
@@ -310,12 +310,16 @@ async function engineTick() {
     // If position open — priceCheck handles exits every 5s, skip here
     if (position) return;
 
-    // ── Check entry signal ──
-    const isLong  = rsi >= config.rsiMin && rsi <= config.rsiMax && pvsEma > -2 && pvsEma < 5
-                    && macd.macd > macd.signal && adx >= config.adxMin && volMult >= 1.2;
-    const isShort = config.allowShorts && rsi >= config.rsiMin && rsi <= config.rsiMax
-                    && pvsEma > -5 && pvsEma < 2
-                    && macd.macd < macd.signal && adx >= config.adxMin && volMult >= 1.2;
+    // ── Scalping entry signal (1m candles, frequent trades) ──
+    // Long: MACD bullish crossover + RSI not overbought
+    const isLong  = macd.macd > macd.signal
+                    && rsi >= config.rsiMin && rsi <= config.rsiMax
+                    && adx >= config.adxMin;
+    // Short: MACD bearish + RSI not oversold
+    const isShort = config.allowShorts
+                    && macd.macd < macd.signal
+                    && rsi > 20 && rsi < (100 - config.rsiMin)
+                    && adx >= config.adxMin;
 
     if (!isLong && !isShort) return;
 
@@ -342,24 +346,27 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    rsiMin: rsiMin ?? 50, rsiMax: rsiMax ?? 70,
-    trailPct: trailPct ?? 0.15, stopLoss: stopLoss ?? 1.0, takeProfit: takeProfit ?? 2.0,
-    leverage: leverage ?? 1,
-    allowShorts: allowShorts ?? false,
+    rsiMin: rsiMin ?? 35,      // scalping: szeroki zakres RSI
+    rsiMax: rsiMax ?? 70,
+    trailPct: trailPct ?? 0.1, // 0.1% trailing stop
+    stopLoss: stopLoss ?? 0.3,  // 0.3% stop loss (szybkie cięcie strat)
+    takeProfit: takeProfit ?? 0.5, // 0.5% take profit (szybki zysk)
+    leverage: leverage ?? 10,   // 10x dźwignia dla małego kapitału
+    allowShorts: allowShorts ?? true, // shortuj też
     capital: capital ?? 9,
-    adxMin: adxMin ?? 20,
+    adxMin: adxMin ?? 15,      // niższy próg ADX
     apiKey, secret, testnet: testnet === true,
   };
 
   running = true;
   sessionPnl = 0;
   logs = [];
-  addLog(`Bot started — ${config.symbol} capital=${config.capital} USDT lev=${config.leverage}x`, "info");
+  addLog(`Bot started — ${config.symbol} capital=${config.capital} USDT lev=${config.leverage}x | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
 
   engineTick();
-  intervalId = setInterval(engineTick, 60_000);
-  priceIntervalId = setInterval(priceCheck, 5_000);
+  intervalId = setInterval(engineTick, 30_000);   // co 30s — świece 1m
+  priceIntervalId = setInterval(priceCheck, 5_000); // co 5s — cena live
 
   res.json({ ok: true, message: "Bot started on server" });
 });
