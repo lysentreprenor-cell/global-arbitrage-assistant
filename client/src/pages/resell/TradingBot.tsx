@@ -2550,6 +2550,23 @@ export default function TradingBot() {
               </div>
             )}
 
+            {/* Test API connection button */}
+            {!isOn && (
+              <div style={{ marginTop:8 }}>
+                <button onClick={async () => {
+                  const { apiKey, secret, testnet } = getBybitKeys();
+                  if (!apiKey || !secret) { alert("Najpierw wpisz klucze API w Settings"); return; }
+                  try {
+                    const r = await fetch("/api/bybit/test", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret, testnet }) });
+                    const d = await r.json();
+                    alert("Wynik testu Bybit API:\n" + JSON.stringify(d, null, 2));
+                  } catch(e: any) { alert("Błąd: " + e.message); }
+                }} style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:6, padding:"6px 14px", color:"#fbbf24", cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                  🔍 Test połączenia Bybit
+                </button>
+              </div>
+            )}
+
             {/* Stats */}
             {isOn && (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:12 }}>
