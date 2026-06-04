@@ -18,3 +18,4 @@ yarn-error.*
 .env.local
 .claude/
 client/dist/
+bot_state.json
