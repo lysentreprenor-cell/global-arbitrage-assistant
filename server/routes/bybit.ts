@@ -1,5 +1,6 @@
 import express from "express";
 import crypto from "crypto";
+import { getBybitDispatcher } from "../proxyDispatcher";
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ async function bybitFetch(
   const toSign = ts + apiKey + recvWindow + paramStr;
   const sig = crypto.createHmac("sha256", secret).update(toSign).digest("hex");
 
-  const r = await fetch(url, {
+  const fetchOpts: any = {
     method,
     headers: {
       "X-BAPI-API-KEY": apiKey,
@@ -43,7 +44,10 @@ async function bybitFetch(
     },
     body: fetchBody,
     signal: AbortSignal.timeout(10000),
-  });
+  };
+  const dispatcher = getBybitDispatcher();
+  if (dispatcher) fetchOpts.dispatcher = dispatcher;
+  const r = await fetch(url, fetchOpts);
   if (!r.ok) {
     let body = "";
     try { body = await r.text(); } catch { /* ignore */ }

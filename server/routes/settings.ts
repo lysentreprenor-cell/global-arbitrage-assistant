@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
+import { getBybitDispatcher } from "../proxyDispatcher";
 
 const router = Router();
 
@@ -57,9 +58,10 @@ router.post("/test-key", async (req: Request, res: Response) => {
         // 1) Read permission: wallet balance
         const ts1 = Date.now().toString();
         const pStr = new URLSearchParams({ accountType: "UNIFIED" }).toString();
-        const r1 = await fetch(`${base}/v5/account/wallet-balance?${pStr}`, {
-          headers: headers(ts1, hmac(ts1, pStr)), signal: AbortSignal.timeout(8000),
-        });
+        const bybitDispatcher = getBybitDispatcher();
+        const opts1: any = { headers: headers(ts1, hmac(ts1, pStr)), signal: AbortSignal.timeout(8000) };
+        if (bybitDispatcher) opts1.dispatcher = bybitDispatcher;
+        const r1 = await fetch(`${base}/v5/account/wallet-balance?${pStr}`, opts1);
         if (!r1.ok) return res.json({ ok: false, readOk: false, tradeOk: false, error: `HTTP ${r1.status}` });
         const d1 = await r1.json() as any;
         if (d1.retCode !== 0) return res.json({ ok: false, readOk: false, tradeOk: false, retCode: d1.retCode, retMsg: d1.retMsg });
@@ -67,10 +69,9 @@ router.post("/test-key", async (req: Request, res: Response) => {
         // 2) Trade permission: set-leverage (non-destructive, requires Trade permission)
         const ts2 = Date.now().toString();
         const body2 = JSON.stringify({ category: "linear", symbol: "BTCUSDT", buyLeverage: "10", sellLeverage: "10" });
-        const r2 = await fetch(`${base}/v5/position/set-leverage`, {
-          method: "POST", body: body2,
-          headers: headers(ts2, hmac(ts2, body2)), signal: AbortSignal.timeout(8000),
-        });
+        const opts2: any = { method: "POST", body: body2, headers: headers(ts2, hmac(ts2, body2)), signal: AbortSignal.timeout(8000) };
+        if (bybitDispatcher) opts2.dispatcher = bybitDispatcher;
+        const r2 = await fetch(`${base}/v5/position/set-leverage`, opts2);
         const d2 = await r2.json() as any;
         // retCode 0 = success, 110043 = leverage not modified (already set — still means Trade OK)
         const tradeOk = r2.ok && (d2.retCode === 0 || d2.retCode === 110043);
