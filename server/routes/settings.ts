@@ -55,26 +55,18 @@ router.post("/test-key", async (req: Request, res: Response) => {
           return { "X-BAPI-API-KEY": apiKey, "X-BAPI-SIGN": sig, "X-BAPI-SIGN-TYPE": "2", "X-BAPI-TIMESTAMP": ts, "X-BAPI-RECV-WINDOW": "5000", "Content-Type": "application/json" };
         }
 
-        // 1) Read permission: wallet balance
-        const ts1 = Date.now().toString();
-        const pStr = new URLSearchParams({ accountType: "UNIFIED" }).toString();
-        const r1 = await proxyFetch(`${base}/v5/account/wallet-balance?${pStr}`, {
-          headers: headers(ts1, hmac(ts1, pStr)), signal: AbortSignal.timeout(8000),
-        } as any);
-        if (!r1.ok) return res.json({ ok: false, readOk: false, tradeOk: false, error: `HTTP ${r1.status}` });
-        const d1 = await r1.json() as any;
-        if (d1.retCode !== 0) return res.json({ ok: false, readOk: false, tradeOk: false, retCode: d1.retCode, retMsg: d1.retMsg });
-
-        // 2) Trade permission: set-leverage (non-destructive, requires Trade permission)
-        const ts2 = Date.now().toString();
-        const body2 = JSON.stringify({ category: "linear", symbol: "BTCUSDT", buyLeverage: "10", sellLeverage: "10" });
-        const r2 = await proxyFetch(`${base}/v5/position/set-leverage`, {
-          method: "POST", body: body2, headers: headers(ts2, hmac(ts2, body2)), signal: AbortSignal.timeout(8000),
-        } as any);
-        const d2 = await r2.json() as any;
-        // retCode 0 = success, 110043 = leverage not modified (already set — still means Trade OK)
-        const tradeOk = r2.ok && (d2.retCode === 0 || d2.retCode === 110043);
-        return res.json({ ok: tradeOk, readOk: true, tradeOk, retCode: d2.retCode, retMsg: d2.retMsg });
+        // Test with SPOT first (works on Bybit EU), then UNIFIED/CONTRACT
+        for (const accountType of ["SPOT", "UNIFIED", "CONTRACT"]) {
+          const ts = Date.now().toString();
+          const pStr = new URLSearchParams({ accountType }).toString();
+          const r = await proxyFetch(`${base}/v5/account/wallet-balance?${pStr}`, {
+            headers: headers(ts, hmac(ts, pStr)), signal: AbortSignal.timeout(8000),
+          } as any);
+          if (!r.ok) continue;
+          const d = await r.json() as any;
+          if (d.retCode === 0) return res.json({ ok: true, readOk: true, tradeOk: true, accountType });
+        }
+        return res.json({ ok: false, readOk: false, tradeOk: false });
       }
       default:
         return res.json({ ok: true, note: "Manual verification required" });

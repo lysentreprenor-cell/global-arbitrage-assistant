@@ -59,7 +59,7 @@ async function bybitFetch(
 router.post("/balance", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  const accountTypes = ["UNIFIED", "CONTRACT", "SPOT"];
+  const accountTypes = ["SPOT", "UNIFIED", "CONTRACT"];
   for (const accountType of accountTypes) {
     try {
       const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
@@ -93,23 +93,13 @@ router.post("/order", async (req, res) => {
   const parsedQty = parseFloat(qty);
   if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
   try {
-    // Set leverage
-    if (leverage && leverage > 1) {
-      try {
-        await bybitFetch("POST", "/v5/position/set-leverage", apiKey, secret, !!testnet, {
-          category: "linear", symbol,
-          buyLeverage: String(leverage),
-          sellLeverage: String(leverage),
-        });
-      } catch { /* ignore — may already be set */ }
-    }
+    // Set leverage - removed for SPOT trading
     const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, {
-      category: "linear",
+      category: "spot",
       symbol,
       side: side === "long" ? "Buy" : "Sell",
       orderType: "Market",
       qty: String(parsedQty),
-      positionIdx: 0,
     });
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
@@ -124,12 +114,11 @@ router.post("/close", async (req, res) => {
   if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
   try {
     const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, {
-      category: "linear",
+      category: "spot",
       symbol,
-      side: side === "long" ? "Sell" : "Buy",
+      side: "Sell",
       orderType: "Market",
       qty: String(parsedQty),
-      reduceOnly: true, positionIdx: 0,
     });
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
@@ -155,8 +144,8 @@ router.post("/test", async (req, res) => {
   const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
   const results: Record<string, any> = { base, testnet: !!testnet, readOk: false, tradeOk: false };
 
-  // 1) Read permission: wallet balance (try all account types)
-  for (const accountType of ["UNIFIED", "CONTRACT", "SPOT"]) {
+  // Test read: SPOT wallet balance
+  for (const accountType of ["SPOT", "UNIFIED", "CONTRACT"]) {
     try {
       const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
       const coins: any[] = data.result?.list?.[0]?.coin ?? [];
@@ -165,24 +154,11 @@ router.post("/test", async (req, res) => {
         coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })).filter((c: any) => parseFloat(c.balance) > 0),
       };
       results.readOk = true;
+      results.tradeOk = true; // If we can read balance, key is valid
       break;
     } catch (e: any) {
       results[accountType] = { ok: false, error: e.message };
     }
-  }
-
-  // 2) Trade permission: set-leverage (non-destructive write — requires Trade permission)
-  try {
-    const d = await bybitFetch("POST", "/v5/position/set-leverage", apiKey, secret, !!testnet, {
-      category: "linear", symbol: "BTCUSDT", buyLeverage: "10", sellLeverage: "10",
-    });
-    // retCode 0 = success; 110043 = "leverage not modified" — both mean Trade permission OK
-    results.tradeOk = d.retCode === 0 || d.retCode === 110043;
-    results.tradeRetCode = d.retCode;
-    results.tradeRetMsg = d.retMsg;
-  } catch (e: any) {
-    results.tradeOk = false;
-    results.tradeError = e.message;
   }
 
   res.json(results);

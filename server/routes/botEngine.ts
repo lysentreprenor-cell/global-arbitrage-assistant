@@ -157,19 +157,10 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
 // Returns orderId on success, throws on failure
 async function placeOrder(side: Direction, qty: number): Promise<string> {
   if (!config) throw new Error("No config");
-  if (config.leverage > 1) {
-    try {
-      await bybitFetch("POST", "/v5/position/set-leverage", {
-        category: "linear", symbol: config.symbol,
-        buyLeverage: String(config.leverage), sellLeverage: String(config.leverage),
-      });
-    } catch { /* leverage may already be set */ }
-  }
   const d = await bybitFetch("POST", "/v5/order/create", {
-    category: "linear", symbol: config.symbol,
+    category: "spot", symbol: config.symbol,
     side: side === "long" ? "Buy" : "Sell",
     orderType: "Market", qty: String(qty),
-    positionIdx: 0,
   });
   const orderId = d.result?.orderId ?? "unknown";
   addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | OrderID: ${orderId}`, "buy");
@@ -181,12 +172,11 @@ async function closePosition(reason: string): Promise<boolean> {
   if (!config || !position) return false;
   try {
     await bybitFetch("POST", "/v5/order/create", {
-      category: "linear", symbol: config.symbol,
-      side: position.direction === "long" ? "Sell" : "Buy",
+      category: "spot", symbol: config.symbol,
+      side: "Sell",
       orderType: "Market", qty: String(position.qty),
-      reduceOnly: true, positionIdx: 0,
     });
-    addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
+    addLog(`🔴 LIVE CLOSE LONG — ${reason}`, "sell");
     return true;
   } catch (e: any) {
     addLog(`🔴 Close error: ${e.message}`, "warn");
@@ -384,7 +374,7 @@ async function engineTick() {
     const rsiSell = rsi > rsiMax;
 
     const isLong  = crossBuy  || rsiBuy;
-    const isShort = config.allowShorts && (crossSell || rsiSell);
+    const isShort = config.allowShorts && (crossSell || rsiSell) && !!position;
 
     // 3-minute cooldown between trades
     const cooldownOk = Date.now() - lastEntryTime > 3 * 60 * 1000;
@@ -398,9 +388,9 @@ async function engineTick() {
     }
 
     const direction: Direction = doLong ? "long" : "short";
-    const decimals = config.symbol === "BTCUSDT" ? 3 : 2;
-    const minQty   = config.symbol === "BTCUSDT" ? 0.001 : 0.01;
-    const qty = Math.max(parseFloat(((config.capital * config.leverage) / price).toFixed(decimals)), minQty);
+    const decimals = config.symbol === "BTCUSDT" ? 5 : 4;
+    const minQty   = config.symbol === "BTCUSDT" ? 0.00005 : 0.0001;
+    const qty = Math.max(parseFloat((config.capital / price).toFixed(decimals)), minQty);
 
     addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)} RSI=${rsi.toFixed(1)} qty=${qty}`, "info");
     try {
@@ -469,7 +459,7 @@ router.post("/start", (req, res) => {
   lastEntryTime = 0;
   lastPrice = 0;
   logs = [];
-  addLog(`Bot started — ${config.symbol} capital=${config.capital} USDT lev=${config.leverage}x | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
+  addLog(`Bot started — ${config.symbol} SPOT capital=${config.capital} USDT | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
 
   engineTick();
