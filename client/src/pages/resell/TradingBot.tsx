@@ -2779,6 +2779,34 @@ export default function TradingBot() {
                   </div>
                 )}
                 {hist.length === 1 && <span style={{color:M}}> — uruchom jeszcze raz żeby bot zbudował konsensus</span>}
+                {(() => {
+                  const activeSharpe = ens ? ens.sharpe : deepResult.sharpe;
+                  const activeWR = ens ? ens.winRate : deepResult.winRate;
+                  if (activeSharpe <= -900) return null;
+                  const sharpeScore = Math.min(Math.max(activeSharpe, 0), 4) / 4 * 65;
+                  const runsScore   = Math.min(hist.filter(r=>r.sharpe>0).length, 5) / 5 * 20;
+                  const wrScore     = Math.max(0, Math.min((activeWR - 40) / 20, 1)) * 15;
+                  const pct = Math.round(Math.min(sharpeScore + runsScore + wrScore, 100));
+                  const stars = pct >= 80 ? 5 : pct >= 60 ? 4 : pct >= 40 ? 3 : pct >= 20 ? 2 : 1;
+                  const label = pct >= 80 ? "Ekspert" : pct >= 60 ? "Zaawansowany" : pct >= 40 ? "Średni" : pct >= 20 ? "Początkujący" : "Słaby";
+                  const color = pct >= 80 ? "#4ade80" : pct >= 60 ? "#86efac" : pct >= 40 ? "#fbbf24" : pct >= 20 ? "#fb923c" : "#f87171";
+                  return (
+                    <div style={{ marginTop:8, padding:"6px 10px", background:"rgba(0,0,0,0.2)", borderRadius:6 }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                        <span style={{ color:"rgba(255,255,255,0.6)", fontSize:11 }}>🎓 Poziom wytrenowania</span>
+                        <span style={{ color, fontWeight:700, fontSize:11 }}>{"★".repeat(stars)}{"☆".repeat(5-stars)} {label} ({pct}%)</span>
+                      </div>
+                      <div style={{ height:5, background:"rgba(255,255,255,0.1)", borderRadius:3, overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg, #fb923c, ${color})`, borderRadius:3, transition:"width 0.5s" }}/>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>
+                        <span>Sharpe {activeSharpe.toFixed(2)}</span>
+                        <span>WR {activeWR.toFixed(0)}%</span>
+                        <span>{hist.filter(r=>r.sharpe>0).length}/{hist.length} treningów OK</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {deepResult.sharpe <= -900 && (
                   <div style={{ marginTop:6 }}>
                     <button onClick={()=>{ const m={...learningRef.current,deepHistory:[],optHistory:[],ensembleResult:null,deepResult:null,optResult:null}; learningRef.current=m; saveLearning(m); setDeepResult(null); setOptResult(null); addLog("Historia Deep Train wyczyszczona — uruchom ponownie","info"); }} style={{ background:"rgba(248,113,113,0.15)", border:"1px solid rgba(248,113,113,0.4)", borderRadius:6, padding:"4px 10px", color:"#f87171", cursor:"pointer", fontSize:11, fontWeight:700 }}>🗑 Wyczyść złą historię i zacznij od nowa</button>
