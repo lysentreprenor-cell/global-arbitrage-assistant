@@ -144,7 +144,12 @@ router.post("/position", async (req, res) => {
 router.post("/test", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  const results: Record<string, any> = { testnet: !!testnet, readOk: false, tradeOk: false };
+  const trimmedKey = apiKey.trim();
+  const results: Record<string, any> = {
+    testnet: !!testnet, readOk: false, tradeOk: false,
+    keyPreview: trimmedKey.substring(0, 8) + "..." + trimmedKey.slice(-4),
+    keyLength: trimmedKey.length,
+  };
 
   for (const endpoint of ["https://api.bybit.com", "https://api.bybit.eu"]) {
     if (testnet) break;
