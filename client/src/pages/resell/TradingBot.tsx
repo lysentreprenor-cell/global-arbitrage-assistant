@@ -96,6 +96,7 @@ type BotConfig = {
   filterAutoMode: boolean; // system sam włącza/wyłącza filtry na podstawie Deep Train + rynku
   // auto strategy
   strategyAutoMode: boolean; // system sam dobiera RSI/Trail/SL/TP z Deep Train
+  scheduleStartAt: number | null; // Unix ms timestamp when bot should auto-enable
   trades: PaperTrade[];
 };
 
@@ -873,6 +874,7 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:true, s
   leverageAuto:false,
   filterAutoMode:false,
   strategyAutoMode:false,
+  scheduleStartAt:null,
   trades:[] };
 
 function loadConfig(): BotConfig {
@@ -1252,6 +1254,7 @@ export default function TradingBot() {
 
   const runEngine = useCallback(() => {
     if (!ticker || !md || !config.enabled) return;
+    if (config.scheduleStartAt && Date.now() < config.scheduleStartAt) return;
     const sess = getSessionInfo(new Date());
     const { rsi, ema21, atr, adx } = md;
     const aboveEMA = ticker.price > ema21;
@@ -1551,6 +1554,14 @@ export default function TradingBot() {
     else if (prevSessionRef.current && !s.inSession) { prevSessionRef.current=false; update({enabled:false}); addLog("AUTO: Sesja zakończona 23:00 UTC — bot zatrzymany","warn"); }
   }, [now]); // eslint-disable-line
 
+  useEffect(() => {
+    if (!config.scheduleStartAt) return;
+    if (Date.now() >= config.scheduleStartAt) {
+      update({ enabled:true, scheduleStartAt:null });
+      addLog("⏱ Zaplanowany start — bot uruchomiony automatycznie", "info");
+    }
+  }, [now]); // eslint-disable-line
+
   useEffect(() => { if (logRef.current) logRef.current.scrollTop=logRef.current.scrollHeight; }, [activityLog]);
 
   // ─── Derived ───────────────────────────────────────────────────────────────
@@ -1658,6 +1669,53 @@ export default function TradingBot() {
               {config.enabled ? <><Play size={14}/> AKTYWNY</> : <><Pause size={14}/> ZATRZYMANY</>}
             </button>
           </div>
+        </div>
+
+        {/* Scheduled start timer */}
+        <div style={{ ...card, display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+          <Clock size={13} color={config.scheduleStartAt ? "#fb923c" : M}/>
+          <span style={{ fontSize:12, color: config.scheduleStartAt ? "#fb923c" : M, fontWeight:700 }}>
+            {config.scheduleStartAt ? "BOT STARTUJE ZA:" : "ZAPLANUJ START:"}
+          </span>
+          {config.scheduleStartAt ? (
+            <>
+              <span style={{ fontSize:15, fontWeight:700, color:"#fb923c" }}>
+                {(() => {
+                  const ms = config.scheduleStartAt - now.getTime();
+                  if (ms <= 0) return "wkrótce...";
+                  const d = Math.floor(ms / 86400000);
+                  const h = Math.floor((ms % 86400000) / 3600000);
+                  const m = Math.floor((ms % 3600000) / 60000);
+                  return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+                })()}
+              </span>
+              <span style={{ fontSize:11, color:M }}>
+                ({new Date(config.scheduleStartAt).toLocaleDateString("pl",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"})})
+              </span>
+              <button onClick={()=>{ update({scheduleStartAt:null}); addLog("⏱ Timer anulowany","info"); }}
+                style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:6, padding:"4px 12px", color:R, cursor:"pointer", fontSize:12, fontWeight:700, marginLeft:"auto" }}>
+                Anuluj
+              </button>
+            </>
+          ) : (
+            <select
+              value=""
+              onChange={e=>{
+                const days=parseInt(e.target.value);
+                if(!days) return;
+                const at=Date.now()+days*86400000;
+                update({scheduleStartAt:at, enabled:false});
+                const label=days===1?"1 dzień":`${days} dni`;
+                addLog(`⏱ Bot zaplanowany za ${label} — start ${new Date(at).toLocaleDateString("pl",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}`, "info");
+              }}
+              style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.18)", borderRadius:6, padding:"5px 10px", color:"#fff", fontSize:12, cursor:"pointer", outline:"none" }}
+            >
+              <option value="">Wybierz dni...</option>
+              {Array.from({length:30},(_,i)=>i+1).map(d=>(
+                <option key={d} value={d}>{d===1?"1 dzień":`${d} dni`}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Leverage card — separate row, always visible */}
