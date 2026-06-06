@@ -14,7 +14,7 @@ async function bybitFetch(
   testnet: boolean,
   params?: Record<string, any>
 ) {
-  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bytick.com";
+  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
   const ts = Date.now().toString();
   const recvWindow = "5000";
   let paramStr = "";
@@ -152,7 +152,7 @@ router.post("/position", async (req, res) => {
 router.post("/test", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bytick.com";
+  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
   const results: Record<string, any> = { base, testnet: !!testnet, readOk: false, tradeOk: false };
 
   // 1) Read permission: wallet balance (try all account types)

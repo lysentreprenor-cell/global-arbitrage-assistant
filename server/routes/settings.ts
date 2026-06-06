@@ -45,7 +45,7 @@ router.post("/test-key", async (req: Request, res: Response) => {
         const secret = keys?.secret || "";
         const testnet = keys?.testnet === "true";
         if (!apiKey || !secret) return res.json({ ok: false });
-        const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bytick.com";
+        const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
 
         function hmac(ts: string, body: string) {
           const toSign = ts + apiKey + "5000" + body;
