@@ -21,3 +21,4 @@ bot_state.json
 api_keys.enc
 all_keys.enc
 .bot_key
+.bybit_proxy
