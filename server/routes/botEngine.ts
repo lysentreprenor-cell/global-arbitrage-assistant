@@ -7,7 +7,7 @@ import express from "express";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { getBybitDispatcher } from "../proxyDispatcher";
+import { bybitFetch as proxyFetch } from "../proxyDispatcher";
 
 const router = express.Router();
 const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
@@ -139,7 +139,7 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
   const toSign = ts + config.apiKey + recvWindow + paramStr;
   const sig = crypto.createHmac("sha256", config.secret).update(toSign).digest("hex");
 
-  const fetchOpts: any = {
+  const r = await proxyFetch(url, {
     method, body: fetchBody,
     headers: {
       "X-BAPI-API-KEY": config.apiKey, "X-BAPI-SIGN": sig,
@@ -147,10 +147,7 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
       "X-BAPI-RECV-WINDOW": recvWindow, "Content-Type": "application/json",
     },
     signal: AbortSignal.timeout(10000),
-  };
-  const dispatcher = getBybitDispatcher();
-  if (dispatcher) fetchOpts.dispatcher = dispatcher;
-  const r = await fetch(url, fetchOpts);
+  } as any);
   if (!r.ok) throw new Error(`Bybit HTTP ${r.status}`);
   const d = await r.json() as any;
   if (d.retCode !== 0) throw new Error(`Bybit ${d.retCode}: ${d.retMsg}`);
