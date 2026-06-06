@@ -140,31 +140,35 @@ router.post("/position", async (req, res) => {
   } catch (e: any) { res.status(502).json({ error: e.message }); }
 });
 
-// POST /api/bybit/test — diagnose API key on both com and eu endpoints
+// POST /api/bybit/test — diagnose API key
 router.post("/test", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
   const results: Record<string, any> = { testnet: !!testnet, readOk: false, tradeOk: false };
 
-  // Test both endpoints to detect which one accepts the key
   for (const endpoint of ["https://api.bybit.com", "https://api.bybit.eu"]) {
-    if (testnet) break; // testnet only has one endpoint
-    const endResults: Record<string, any> = {};
-    for (const accountType of ["SPOT", "UNIFIED", "CONTRACT"]) {
-      try {
-        const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, false, { accountType }, endpoint);
-        const coins: any[] = data.result?.list?.[0]?.coin ?? [];
-        endResults[accountType] = { ok: true, coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })).filter((c: any) => parseFloat(c.balance) > 0) };
-        results.readOk = true;
-        results.tradeOk = true;
-        results.workingEndpoint = endpoint;
-        results[endpoint] = endResults;
-        return res.json(results);
-      } catch (e: any) {
-        endResults[accountType] = { ok: false, error: e.message };
+    if (testnet) break;
+    try {
+      // First: validate key exists via query-api (no account permission needed)
+      const info = await bybitFetch("GET", "/v5/user/query-api", apiKey, secret, false, {}, endpoint);
+      results[endpoint] = { keyValid: true, permissions: info.result };
+      // Second: try wallet balance
+      for (const accountType of ["SPOT", "UNIFIED", "CONTRACT"]) {
+        try {
+          const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, false, { accountType }, endpoint);
+          const coins: any[] = data.result?.list?.[0]?.coin ?? [];
+          results[endpoint].balance = { accountType, coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })) };
+          results.readOk = true;
+          results.tradeOk = true;
+          results.workingEndpoint = endpoint;
+          break;
+        } catch (e: any) {
+          results[endpoint][`balance_${accountType}`] = e.message;
+        }
       }
+    } catch (e: any) {
+      results[endpoint] = { keyValid: false, error: e.message };
     }
-    results[endpoint] = endResults;
   }
 
   res.json(results);
