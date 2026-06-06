@@ -1051,7 +1051,7 @@ export default function TradingBot() {
       const raw = localStorage.getItem("bot_history_cache");
       if (!raw) return null;
       const cached = JSON.parse(raw) as { symbol: Symbol; candles: CandleData[]; ts: number };
-      if (Date.now() - cached.ts > 6 * 3600 * 1000) return null; // stale after 6h
+      if (Date.now() - cached.ts > 30 * 24 * 3600 * 1000) return null; // refresh after 30 days
       return cached;
     } catch { return null; }
   })());
