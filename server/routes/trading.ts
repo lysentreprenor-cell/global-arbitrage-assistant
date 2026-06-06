@@ -105,11 +105,14 @@ router.get("/klines", async (req, res) => {
       const candleSec = krakenInterval * 60; // interval in seconds
       let pageSince = Math.floor(Date.now() / 1000) - (pages * 720 * candleSec);
       for (let p = 0; p < pages; p++) {
-        const page = await krakenOhlcPage(pair, krakenInterval, pageSince);
-        if (!page.length) break;
-        allCandles.push(...page);
-        pageSince = (page[page.length - 1][0] as number) + candleSec;
-        if (pageSince * 1000 > Date.now()) break;
+        if (p > 0) await new Promise(r => setTimeout(r, 250));
+        try {
+          const page = await krakenOhlcPage(pair, krakenInterval, pageSince);
+          if (!page.length) break;
+          allCandles.push(...page);
+          pageSince = (page[page.length - 1][0] as number) + candleSec;
+          if (pageSince * 1000 > Date.now()) break;
+        } catch { break; }
       }
       // Deduplicate by timestamp and sort
       const seen = new Set<number>();

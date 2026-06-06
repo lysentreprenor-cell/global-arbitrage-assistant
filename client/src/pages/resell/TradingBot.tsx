@@ -413,7 +413,7 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
 }
 
 async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
-  const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=2400`);
+  const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720`);
   if (!res.ok) throw new Error(`Klines ${res.status}`);
   const raw: any[] = await res.json();
   if (raw.error) throw new Error(raw.error);
