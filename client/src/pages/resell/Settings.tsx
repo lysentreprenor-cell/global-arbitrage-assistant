@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Settings as SettingsIcon, Key, Eye, EyeOff, Check, ExternalLink, Trash2, Plus, AlertCircle, CheckCircle, Link2 } from "lucide-react";
 import { loadEbayToken, saveEbayToken, clearEbayToken, isEbayConnected } from "@/lib/ebayAuth";
 import { saveEtsyToken, clearEtsyToken, isEtsyConnected } from "@/lib/etsyAuth";
@@ -163,16 +163,23 @@ function SyncBox({ keys, setKeys, synced, setSynced }: {
   synced: boolean;
   setSynced: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
-  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "empty" | "error" | "cleared">("idle");
 
   const pull = async () => {
+    if (!confirm("Pobierz klucze z serwera?\n\nUWAGA: Klucze z serwera ZASTĄPIĄ klucze w przeglądarce dla platform, których nie masz lokalnie. Twoje istniejące klucze lokalne NIE zostaną nadpisane.")) return;
     setStatus("loading");
     try {
       const r = await fetch("/api/keys/sync");
       const data = await r.json();
       if (data.ok && data.keys && Object.keys(data.keys).length > 0) {
         const local = loadKeys();
-        const merged = { ...data.keys, ...local };
+        // Only fill in platforms missing locally — never overwrite existing local platforms
+        const merged = { ...data.keys };
+        for (const platform of Object.keys(local)) {
+          if (Object.values(local[platform] || {}).some(v => v.trim().length > 0)) {
+            merged[platform] = local[platform];
+          }
+        }
         saveKeys(merged);
         setKeys(merged);
         setSynced(true);
@@ -198,16 +205,29 @@ function SyncBox({ keys, setKeys, synced, setSynced }: {
     setTimeout(() => setStatus("idle"), 4000);
   };
 
+  const clearServer = async () => {
+    if (!confirm("Wyczyścić klucze z serwera?\n\nTo usunie wszystkie klucze zapisane na serwerze (plik all_keys.enc). Klucze w przeglądarce pozostaną bez zmian.")) return;
+    setStatus("loading");
+    try {
+      const r = await fetch("/api/keys/sync", { method: "DELETE" });
+      const data = await r.json();
+      setStatus(data.ok ? "cleared" : "error");
+    } catch { setStatus("error"); }
+    setTimeout(() => setStatus("idle"), 4000);
+  };
+
   const statusMsg: Record<string, string> = {
     loading: "⏳ Łączenie z serwerem...",
     ok: "✅ Sukces!",
-    empty: "⚠️ Serwer nie ma jeszcze kluczy — najpierw zapisz na telefonie",
+    empty: "⚠️ Serwer nie ma jeszcze kluczy — najpierw wyślij klucze na serwer",
     error: "❌ Błąd połączenia — sprawdź czy Replit działa",
+    cleared: "🗑️ Klucze serwera wyczyszczone",
   };
 
   return (
     <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, padding: "14px 16px", marginTop: 20 }}>
-      <div style={{ color: "#fbbf24", fontWeight: 700, fontSize: 13, marginBottom: 10 }}>🔄 Synchronizacja między urządzeniami</div>
+      <div style={{ color: "#fbbf24", fontWeight: 700, fontSize: 13, marginBottom: 4 }}>🔄 Synchronizacja między urządzeniami</div>
+      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10 }}>Zapisz klucz w przeglądarce → Wyślij na serwer → Pobierz na nowym urządzeniu</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
         <button onClick={pull} disabled={status === "loading"}
           style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(251,191,36,0.4)", background: "rgba(251,191,36,0.1)", color: "#fbbf24", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
@@ -218,8 +238,12 @@ function SyncBox({ keys, setKeys, synced, setSynced }: {
           ⬆ Wyślij klucze na serwer
         </button>
       </div>
-      {synced && status === "idle" && <div style={{ color: "#4ade80", fontSize: 12, marginTop: 8 }}>✅ Klucze zsynchronizowane z serwera</div>}
-      {status !== "idle" && <div style={{ color: status === "ok" ? "#4ade80" : status === "error" ? "#f87171" : "#fbbf24", fontSize: 12, marginTop: 8 }}>{statusMsg[status]}</div>}
+      <button onClick={clearServer} disabled={status === "loading"}
+        style={{ width: "100%", marginTop: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: "#f87171", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+        🗑️ Wyczyść klucze serwera (naprawa błędów)
+      </button>
+      {synced && status === "idle" && <div style={{ color: "#4ade80", fontSize: 12, marginTop: 8 }}>✅ Klucze zsynchronizowane</div>}
+      {status !== "idle" && <div style={{ color: status === "ok" || status === "cleared" ? "#4ade80" : status === "error" ? "#f87171" : "#fbbf24", fontSize: 12, marginTop: 8 }}>{statusMsg[status]}</div>}
     </div>
   );
 }
@@ -231,19 +255,7 @@ export default function Settings() {
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [synced, setSynced] = useState(false);
 
-  // Sync keys from server on every visit — merge server keys with local (server fills missing)
-  useEffect(() => {
-    fetch("/api/keys/sync").then(r => r.json()).then(data => {
-      if (data.ok && data.keys && Object.keys(data.keys).length > 0) {
-        const local = loadKeys();
-        // Server keys fill in any platforms missing locally
-        const merged = { ...data.keys, ...local };
-        saveKeys(merged);
-        setKeys(merged);
-        setSynced(true);
-      }
-    }).catch(() => {});
-  }, []);
+  // No auto-sync on page load — prevents stale server keys from overwriting correct local keys.
   const [testResult, setTestResult] = useState<Record<string, "ok" | "fail" | null>>({});
   const [customApis, setCustomApis] = useState<{ id: string; name: string; baseUrl: string; apiKey: string }[]>(() => {
     try { return JSON.parse(localStorage.getItem("resell_custom_apis") || "[]"); } catch { return []; }

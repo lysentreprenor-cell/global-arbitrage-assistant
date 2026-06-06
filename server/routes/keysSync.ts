@@ -55,4 +55,14 @@ router.get("/", (_req, res) => {
   res.json({ ok: true, keys });
 });
 
+// DELETE /api/keys/sync — wipe all server-side stored keys
+router.delete("/", (_req, res) => {
+  try {
+    if (fs.existsSync(ALL_KEYS_FILE)) fs.unlinkSync(ALL_KEYS_FILE);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 export default router;
