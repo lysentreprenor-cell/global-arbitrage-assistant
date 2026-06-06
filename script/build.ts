@@ -28,6 +28,7 @@ const allowlist = [
   "uuid",
   "ws",
   "xlsx",
+  "undici",
   "zod",
   "zod-validation-error",
 ];
