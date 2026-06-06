@@ -12,9 +12,10 @@ async function bybitFetch(
   apiKey: string,
   secret: string,
   testnet: boolean,
-  params?: Record<string, any>
+  params?: Record<string, any>,
+  baseOverride?: string,
 ) {
-  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
+  const base = baseOverride ?? (testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com");
   apiKey = apiKey.trim();
   secret = secret.trim();
   const ts = Date.now().toString();
@@ -139,28 +140,31 @@ router.post("/position", async (req, res) => {
   } catch (e: any) { res.status(502).json({ error: e.message }); }
 });
 
-// POST /api/bybit/test — diagnose API key: read + trade permissions, account type, balance
+// POST /api/bybit/test — diagnose API key on both com and eu endpoints
 router.post("/test", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
-  const results: Record<string, any> = { base, testnet: !!testnet, readOk: false, tradeOk: false };
+  const results: Record<string, any> = { testnet: !!testnet, readOk: false, tradeOk: false };
 
-  // Test read: SPOT wallet balance
-  for (const accountType of ["SPOT", "UNIFIED", "CONTRACT"]) {
-    try {
-      const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
-      const coins: any[] = data.result?.list?.[0]?.coin ?? [];
-      results[accountType] = {
-        ok: true, retCode: data.retCode,
-        coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })).filter((c: any) => parseFloat(c.balance) > 0),
-      };
-      results.readOk = true;
-      results.tradeOk = true; // If we can read balance, key is valid
-      break;
-    } catch (e: any) {
-      results[accountType] = { ok: false, error: e.message };
+  // Test both endpoints to detect which one accepts the key
+  for (const endpoint of ["https://api.bybit.com", "https://api.bybit.eu"]) {
+    if (testnet) break; // testnet only has one endpoint
+    const endResults: Record<string, any> = {};
+    for (const accountType of ["SPOT", "UNIFIED", "CONTRACT"]) {
+      try {
+        const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, false, { accountType }, endpoint);
+        const coins: any[] = data.result?.list?.[0]?.coin ?? [];
+        endResults[accountType] = { ok: true, coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })).filter((c: any) => parseFloat(c.balance) > 0) };
+        results.readOk = true;
+        results.tradeOk = true;
+        results.workingEndpoint = endpoint;
+        results[endpoint] = endResults;
+        return res.json(results);
+      } catch (e: any) {
+        endResults[accountType] = { ok: false, error: e.message };
+      }
     }
+    results[endpoint] = endResults;
   }
 
   res.json(results);
