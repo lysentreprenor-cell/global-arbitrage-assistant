@@ -2819,11 +2819,36 @@ export default function TradingBot() {
           {optResult && !deepResult && (() => {
             const hist = learningRef.current.optHistory;
             const ens  = calcEnsemble(hist);
+            const activeSharpe = ens ? ens.sharpe : optResult.sharpe;
+            const activeWR = ens ? ens.winRate : optResult.winRate;
+            const sharpeScore = Math.min(Math.max(activeSharpe, 0), 4) / 4 * 65;
+            const runsScore   = Math.min(hist.filter(r=>r.sharpe>0).length, 5) / 5 * 20;
+            const wrScore     = Math.max(0, Math.min((activeWR - 40) / 20, 1)) * 15;
+            const pct = Math.round(Math.min(sharpeScore + runsScore + wrScore, 100));
+            const stars = pct >= 80 ? 5 : pct >= 60 ? 4 : pct >= 40 ? 3 : pct >= 20 ? 2 : 1;
+            const label = pct >= 80 ? "Ekspert" : pct >= 60 ? "Zaawansowany" : pct >= 40 ? "Średni" : pct >= 20 ? "Początkujący" : "Słaby";
+            const color = pct >= 80 ? "#4ade80" : pct >= 60 ? "#86efac" : pct >= 40 ? "#fbbf24" : pct >= 20 ? "#fb923c" : "#f87171";
             return (
               <div style={{ background:"rgba(251,191,36,0.07)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:8, padding:"10px 14px", marginBottom:10, fontSize:12 }}>
                 <span style={{color:"#fbbf24",fontWeight:700}}>🧠 Auto-Opt #{hist.length}:</span>
                 {" "}RSI [{optResult.rsiMin}-{optResult.rsiMax}] · Trail {optResult.trailPct}% · Sharpe <span style={{color:optResult.sharpe>=1?G:"#f59e0b"}}>{optResult.sharpe.toFixed(2)}</span> · WR <span style={{color:G}}>{optResult.winRate.toFixed(0)}%</span>
                 {hist.length >= 2 && ens && <span style={{color:"#fbbf24"}}> · 🎯 konsensus {hist.length}×: RSI [{ens.rsiMin}-{ens.rsiMax}] Trail {ens.trailPct}%</span>}
+                {activeSharpe > -900 && (
+                  <div style={{ marginTop:8, padding:"6px 10px", background:"rgba(0,0,0,0.2)", borderRadius:6 }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                      <span style={{ color:"rgba(255,255,255,0.6)", fontSize:11 }}>🎓 Poziom wytrenowania</span>
+                      <span style={{ color, fontWeight:700, fontSize:11 }}>{"★".repeat(stars)}{"☆".repeat(5-stars)} {label} ({pct}%)</span>
+                    </div>
+                    <div style={{ height:5, background:"rgba(255,255,255,0.1)", borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg, #fbbf24, ${color})`, borderRadius:3, transition:"width 0.5s" }}/>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>
+                      <span>Sharpe {activeSharpe.toFixed(2)}</span>
+                      <span>WR {activeWR.toFixed(0)}%</span>
+                      <span>{hist.filter(r=>r.sharpe>0).length}/{hist.length} treningów OK</span>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
