@@ -1046,7 +1046,15 @@ export default function TradingBot() {
   const [deepLoading, setDeepLoading]   = useState(false);
   const [deepProgress, setDeepProgress] = useState(0);
   const [deepResult, setDeepResult]     = useState<OptResult | null>(() => loadLearning().deepResult);
-  const fullHistoryRef = useRef<{ symbol: Symbol; candles: CandleData[] } | null>(null);
+  const fullHistoryRef = useRef<{ symbol: Symbol; candles: CandleData[]; ts: number } | null>((() => {
+    try {
+      const raw = localStorage.getItem("bot_history_cache");
+      if (!raw) return null;
+      const cached = JSON.parse(raw) as { symbol: Symbol; candles: CandleData[]; ts: number };
+      if (Date.now() - cached.ts > 6 * 3600 * 1000) return null; // stale after 6h
+      return cached;
+    } catch { return null; }
+  })());
   const [activityLog, setActivityLog]   = useState<LogEntry[]>(() => loadLearning().activityLog);
   const logRef         = useRef<HTMLDivElement>(null);
   const prevSessionRef = useRef<boolean | null>(null);
@@ -2688,10 +2696,13 @@ export default function TradingBot() {
                     let candles: CandleData[];
                     if (fullHistoryRef.current?.symbol === config.symbol) {
                       candles = fullHistoryRef.current.candles;
+                      addLog(`🧠 Używam historii z cache (${candles.length} świec)`, "info");
                       setDeepProgress(50);
                     } else {
                       candles = await fetchFullHistory(config.symbol, p => setDeepProgress(p * 0.6));
-                      fullHistoryRef.current = { symbol: config.symbol, candles };
+                      const entry = { symbol: config.symbol, candles, ts: Date.now() };
+                      fullHistoryRef.current = entry;
+                      try { localStorage.setItem("bot_history_cache", JSON.stringify(entry)); } catch { /* quota exceeded */ }
                     }
                     addLog(`🧠 Pobrano ${candles.length} świec (${Math.round(candles.length/24/365*10)/10} lat). Optymalizacja 16 kombinacji×${Math.min(config.deepTrainWindows,30)} okien…`,"info");
                     setDeepProgress(65);
