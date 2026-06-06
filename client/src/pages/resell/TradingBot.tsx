@@ -432,7 +432,7 @@ async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => voi
 
   for (let p = 0; p < pages; p++) {
     try {
-      const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720&since=${pageSince}`);
+      const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720&since=${pageSince}`, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) { failedPages++; if (failedPages >= 3) break; continue; }
       const raw: any[] = await res.json();
       if (!Array.isArray(raw) || raw.length === 0) break;
@@ -441,7 +441,7 @@ async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => voi
       failedPages = 0;
     } catch { failedPages++; if (failedPages >= 3) break; }
     onProgress(Math.min(99, ((p + 1) / pages) * 100));
-    await new Promise(r => setTimeout(r, 400)); // 400ms — avoid Kraken rate limit
+    await new Promise(r => setTimeout(r, 300));
   }
   // Deduplicate and sort
   const seen = new Set<number>();
