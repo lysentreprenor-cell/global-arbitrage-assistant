@@ -423,26 +423,32 @@ async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
 // Fetch paginated history via server proxy (Kraken, ~90 days max in hourly)
 async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => void): Promise<CandleData[]> {
   const all: CandleData[] = [];
-  const maxDays = 90; // Kraken provides ~90 days of hourly data via pagination
+  const maxDays = 90;
   const totalCandles = maxDays * 24;
   const pages = Math.ceil(totalCandles / 720);
   const candleSec = 3600;
   let pageSince = Math.floor(Date.now() / 1000) - (pages * 720 * candleSec);
+  let failedPages = 0;
 
   for (let p = 0; p < pages; p++) {
-    const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720&since=${pageSince}`);
-    if (!res.ok) break;
-    const raw: any[] = await res.json();
-    if (!Array.isArray(raw) || raw.length === 0) break;
-    all.push(...raw.map(k=>({ time: k.time as number, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, utcH: new Date(k.time as number).getUTCHours() })));
-    pageSince = Math.floor((raw[raw.length - 1].time as number) / 1000) + candleSec;
+    try {
+      const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720&since=${pageSince}`);
+      if (!res.ok) { failedPages++; if (failedPages >= 3) break; continue; }
+      const raw: any[] = await res.json();
+      if (!Array.isArray(raw) || raw.length === 0) break;
+      all.push(...raw.map(k=>({ time: k.time as number, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, utcH: new Date(k.time as number).getUTCHours() })));
+      pageSince = Math.floor((raw[raw.length - 1].time as number) / 1000) + candleSec;
+      failedPages = 0;
+    } catch { failedPages++; if (failedPages >= 3) break; }
     onProgress(Math.min(99, ((p + 1) / pages) * 100));
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 400)); // 400ms — avoid Kraken rate limit
   }
   // Deduplicate and sort
   const seen = new Set<number>();
   const deduped = all.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; });
-  return deduped.sort((a, b) => a.time - b.time);
+  const sorted = deduped.sort((a, b) => a.time - b.time);
+  if (sorted.length < 800) throw new Error(`Za mało danych historycznych (${sorted.length} świec) — Kraken API niedostępny lub zablokowany. Spróbuj za kilka minut.`);
+  return sorted;
 }
 
 async function runBacktest(cfg: BtCfg): Promise<BtResult> {
