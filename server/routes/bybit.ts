@@ -15,6 +15,8 @@ async function bybitFetch(
   params?: Record<string, any>
 ) {
   const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.eu";
+  apiKey = apiKey.trim();
+  secret = secret.trim();
   const ts = Date.now().toString();
   const recvWindow = "5000";
   let paramStr = "";

@@ -41,8 +41,8 @@ router.post("/test-key", async (req: Request, res: Response) => {
         return res.json({ ok: r.ok });
       }
       case "bybit": {
-        const apiKey = keys?.apiKey || "";
-        const secret = keys?.secret || "";
+        const apiKey = (keys?.apiKey || "").trim();
+        const secret = (keys?.secret || "").trim();
         const testnet = keys?.testnet === "true";
         if (!apiKey || !secret) return res.json({ ok: false });
         const base = testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.eu";

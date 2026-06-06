@@ -417,7 +417,7 @@ router.get("/keys", (_req, res) => {
 router.post("/keys", (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  encryptApiKeys(apiKey, secret, !!testnet);
+  encryptApiKeys(apiKey.trim(), secret.trim(), !!testnet);
   res.json({ ok: true });
 });
 
