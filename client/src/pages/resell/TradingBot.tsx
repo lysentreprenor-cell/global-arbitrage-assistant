@@ -447,7 +447,7 @@ async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => voi
   const seen = new Set<number>();
   const deduped = all.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; });
   const sorted = deduped.sort((a, b) => a.time - b.time);
-  if (sorted.length < 800) throw new Error(`Za mało danych historycznych (${sorted.length} świec) — Kraken API niedostępny lub zablokowany. Spróbuj za kilka minut.`);
+  if (sorted.length < 600) throw new Error(`Za mało danych historycznych (${sorted.length} świec) — Kraken API niedostępny lub zablokowany. Spróbuj za kilka minut.`);
   return sorted;
 }
 
@@ -494,7 +494,7 @@ async function runDeepOptimizeAsync(
     [50,70,0.10],[50,70,0.15],[50,70,0.25],[50,70,0.35],
     [42,62,0.15],[42,62,0.25],[48,68,0.15],[48,68,0.25],
   ];
-  const WINDOW = 800;
+  const WINDOW = Math.min(800, Math.max(200, Math.floor(allCandles.length / 5)));
   const N_WINDOWS = Math.min(cfg.deepTrainWindows ?? 30, Math.floor(allCandles.length / WINDOW));
   const windows: CandleData[][] = [];
   const step = Math.floor((allCandles.length - WINDOW) / Math.max(1, N_WINDOWS));
@@ -2865,7 +2865,7 @@ export default function TradingBot() {
           })()}
           {!btResult && !btLoading && !btError && !deepLoading && (
             <div style={{ fontSize:13, color:M, lineHeight:1.7 }}>
-              {config.allow24h?"Tryb 24H: bot szuka sygnałów przez całą dobę, trzyma pozycję max "+config.maxHoldCandles+"h.":"Tryb sesja: bot handluje w oknie 21:00–23:00 UTC."} Kliknij <strong style={{color:"#fb923c"}}>Deep Train</strong> żeby wytrenować na całej historii Binance (2017–dziś) lub <strong style={{color:"#fbbf24"}}>Auto-Opt</strong> na ostatnich 800 świecach.
+              {config.allow24h?"Tryb 24H: bot szuka sygnałów przez całą dobę, trzyma pozycję max "+config.maxHoldCandles+"h.":"Tryb sesja: bot handluje w oknie 21:00–23:00 UTC."} Kliknij <strong style={{color:"#fb923c"}}>Deep Train</strong> żeby wytrenować na całej historii Binance (2017–dziś) lub <strong style={{color:"#fbbf24"}}>Auto-Opt</strong> na ostatnich świecach.
             </div>
           )}
           {btError && <div style={{ color:R, fontSize:13, marginTop:8, display:"flex", alignItems:"center", gap:6 }}><AlertCircle size={14}/> {btError}</div>}
