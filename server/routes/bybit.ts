@@ -62,28 +62,34 @@ async function bybitFetch(
 router.post("/balance", async (req, res) => {
   const { apiKey, secret, testnet } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  const accountTypes = ["SPOT", "UNIFIED", "CONTRACT"];
+  // UNIFIED first — most common for global Bybit accounts; SPOT second for EU/legacy
+  const accountTypes = ["UNIFIED", "SPOT", "CONTRACT"];
+  let fallback: any = null;
   for (const accountType of accountTypes) {
     try {
       const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
       const coins: any[] = data.result?.list?.[0]?.coin ?? [];
-      // API call succeeded — return balance even if 0 (funds may be in margin)
       const usdt = coins.find((c: any) => c.coin === "USDT");
       if (usdt) {
         const balance   = parseFloat(usdt.walletBalance ?? "0");
         const equity    = parseFloat(usdt.equity ?? usdt.walletBalance ?? "0");
         const available = parseFloat(usdt.availableToWithdraw ?? usdt.availableBalance ?? usdt.walletBalance ?? "0");
-        return res.json({ balance, equity, available, coin: "USDT", accountType });
+        // If USDT found but balance is 0, keep checking other account types for non-zero
+        if (balance > 0) return res.json({ balance, equity, available, coin: "USDT", accountType });
+        if (!fallback) fallback = { balance, equity, available, coin: "USDT", accountType };
+        continue;
       }
-      // No USDT coin — return first available coin or 0
       if (coins.length > 0) {
         const c = coins[0];
-        return res.json({ balance: parseFloat(c.walletBalance ?? "0"), equity: parseFloat(c.equity ?? c.walletBalance ?? "0"), coin: c.coin, accountType });
+        const balance = parseFloat(c.walletBalance ?? "0");
+        if (balance > 0) return res.json({ balance, equity: parseFloat(c.equity ?? c.walletBalance ?? "0"), coin: c.coin, accountType });
+        if (!fallback) fallback = { balance, equity: parseFloat(c.equity ?? c.walletBalance ?? "0"), coin: c.coin, accountType };
       }
-      // Account type accessible but no coins — return 0 rather than error
-      return res.json({ balance: 0, equity: 0, coin: "USDT", accountType });
+      // No coins in this account type — try next
     } catch { /* try next account type */ }
   }
+  // No account had non-zero balance — return last known 0 or error
+  if (fallback) return res.json(fallback);
   res.status(502).json({ error: "Nie można pobrać salda — sprawdź klucze API" });
 });
 
