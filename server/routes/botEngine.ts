@@ -158,9 +158,10 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
 async function placeOrder(side: Direction, qty: number): Promise<string> {
   if (!config) throw new Error("No config");
   const d = await bybitFetch("POST", "/v5/order/create", {
-    category: "spot", symbol: config.symbol,
+    category: "linear", symbol: config.symbol,
     side: side === "long" ? "Buy" : "Sell",
     orderType: "Market", qty: String(qty),
+    positionIdx: 0,
   });
   const orderId = d.result?.orderId ?? "unknown";
   addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | OrderID: ${orderId}`, "buy");
@@ -172,11 +173,12 @@ async function closePosition(reason: string): Promise<boolean> {
   if (!config || !position) return false;
   try {
     await bybitFetch("POST", "/v5/order/create", {
-      category: "spot", symbol: config.symbol,
-      side: "Sell",
+      category: "linear", symbol: config.symbol,
+      side: position.direction === "long" ? "Sell" : "Buy",
       orderType: "Market", qty: String(position.qty),
+      positionIdx: 0, reduceOnly: true,
     });
-    addLog(`🔴 LIVE CLOSE LONG — ${reason}`, "sell");
+    addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
     return true;
   } catch (e: any) {
     addLog(`🔴 Close error: ${e.message}`, "warn");
@@ -374,7 +376,7 @@ async function engineTick() {
     const rsiSell = rsi > rsiMax;
 
     const isLong  = crossBuy  || rsiBuy;
-    const isShort = config.allowShorts && (crossSell || rsiSell) && !!position;
+    const isShort = config.allowShorts && (crossSell || rsiSell) && !position;
 
     // 3-minute cooldown between trades
     const cooldownOk = Date.now() - lastEntryTime > 3 * 60 * 1000;

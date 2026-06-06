@@ -102,13 +102,13 @@ router.post("/order", async (req, res) => {
   const parsedQty = parseFloat(qty);
   if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
   try {
-    // Set leverage - removed for SPOT trading
     const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, {
-      category: "spot",
+      category: "linear",
       symbol,
       side: side === "long" ? "Buy" : "Sell",
       orderType: "Market",
       qty: String(parsedQty),
+      positionIdx: 0,
     });
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
@@ -123,11 +123,13 @@ router.post("/close", async (req, res) => {
   if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
   try {
     const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, {
-      category: "spot",
+      category: "linear",
       symbol,
-      side: "Sell",
+      side: side === "long" ? "Sell" : "Buy",
       orderType: "Market",
       qty: String(parsedQty),
+      positionIdx: 0,
+      reduceOnly: true,
     });
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
