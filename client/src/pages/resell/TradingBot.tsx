@@ -1123,9 +1123,9 @@ export default function TradingBot() {
 
   const fetchLiveBalance = useCallback(async () => {
     if (!hasBybitKeys()) return;
-    const { apiKey, secret, testnet } = getBybitKeys();
+    const { apiKey, secret, testnet, platform } = getBybitKeys();
     try {
-      const r = await fetch("/api/bybit/balance", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret, testnet }) });
+      const r = await fetch("/api/bybit/balance", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret, testnet, platform }) });
       const d = await r.json();
       if (d.error) { setLiveBalance(-1); }
       else { setLiveBalance(d.balance ?? 0); setLiveBalanceCoin(d.coin ?? "USDT"); }
@@ -1134,18 +1134,21 @@ export default function TradingBot() {
 
   const placeLiveOrder = useCallback(async (side: "long"|"short", price: number) => {
     if (!hasBybitKeys()) return;
-    const { apiKey, secret, testnet } = getBybitKeys();
+    const { apiKey, secret, testnet, platform } = getBybitKeys();
     const usdt = liveUsdtRef.current;
     const effLev = config.leverageAuto ? calcAutoLeverage(learningRef.current.deepHistory) : config.leverage;
     const rawQty = (usdt * effLev) / price;
-    const decimals = config.symbol === "BTCUSDT" ? 3 : 2;
-    const qty = Math.max(parseFloat(rawQty.toFixed(decimals)), config.symbol === "BTCUSDT" ? 0.001 : 0.01);
+    // EU spot allows fine qty steps; global linear has coarse steps (BTC 0.001)
+    const spec = platform === "eu"
+      ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
+      : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 } : { dec: 2, min: 0.01 });
+    const qty = Math.max(parseFloat(rawQty.toFixed(spec.dec)), spec.min);
     liveQtyRef.current = qty;
     try {
       const r = await fetch("/api/bybit/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, secret, testnet, symbol: config.symbol, side, qty, leverage: effLev }),
+        body: JSON.stringify({ apiKey, secret, testnet, platform, symbol: config.symbol, side, qty, leverage: effLev }),
       });
       const d = await r.json();
       if (d.error) addLog(`🔴 LIVE błąd zlecenia: ${d.error}`, "warn");
@@ -1156,14 +1159,14 @@ export default function TradingBot() {
 
   const closeLiveOrder = useCallback(async (side: "long"|"short", price: number, reason: string, pnlPct?: number) => {
     if (!hasBybitKeys()) return;
-    const { apiKey, secret, testnet } = getBybitKeys();
+    const { apiKey, secret, testnet, platform } = getBybitKeys();
     const qty = liveQtyRef.current;
     if (qty <= 0) return;
     try {
       const r = await fetch("/api/bybit/close", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, secret, testnet, symbol: config.symbol, side, qty }),
+        body: JSON.stringify({ apiKey, secret, testnet, platform, symbol: config.symbol, side, qty }),
       });
       const d = await r.json();
       if (d.error) addLog(`🔴 LIVE błąd zamknięcia: ${d.error}`, "warn");

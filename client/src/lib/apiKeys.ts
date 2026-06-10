@@ -31,9 +31,10 @@ export function getAllegroKeys(): { clientId: string; clientSecret: string } {
   return { clientId: k.clientId ?? "", clientSecret: k.clientSecret ?? "" };
 }
 
-export function getBybitKeys(): { apiKey: string; secret: string; testnet: boolean } {
+export function getBybitKeys(): { apiKey: string; secret: string; testnet: boolean; platform: "global" | "eu" } {
   const k = getApiKeys().bybit ?? {};
-  return { apiKey: k.apiKey ?? "", secret: k.secret ?? "", testnet: k.testnet === "true" };
+  return { apiKey: k.apiKey ?? "", secret: k.secret ?? "", testnet: k.testnet === "true",
+    platform: (k.platform ?? "").trim().toLowerCase() === "eu" ? "eu" : "global" };
 }
 
 export function hasBybitKeys(): boolean {

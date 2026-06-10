@@ -110,15 +110,16 @@ const PLATFORM_APIS: ApiEntry[] = [
   },
   {
     id: "bybit",
-    name: "Bybit Futures",
+    name: "Bybit Trading",
     logo: "🟡",
     color: "#f7931a",
-    description: "Klucze do prawdziwego tradingu na Bybit USDT Perpetual Futures. Utwórz klucze API na bybit.com → Profil → API. Wymagane uprawnienia: Kontrakty (odczyt + zapis). NIGDY nie włączaj uprawnień do wypłat!",
+    description: "Klucze do prawdziwego tradingu na Bybit. Global (bybit.com): USDT Perpetual Futures. EU (bybit.eu): spot margin do 10x — dla kont europejskich. Utwórz klucze API → Profil → API. Wymagane uprawnienia: trading (odczyt + zapis). NIGDY nie włączaj uprawnień do wypłat!",
     docsUrl: "https://www.bybit.com/app/user/api-management",
     keyLabel: "API Key",
     fields: [
       { key: "apiKey", label: "API Key", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
       { key: "secret", label: "API Secret", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      { key: "platform", label: "Platforma (wpisz 'eu' dla Bybit EU / bybit.eu, puste = Global)", placeholder: "eu" },
       { key: "testnet", label: "Testnet (wpisz 'true' dla testnet.bybit.com)", placeholder: "false" },
     ],
   },
@@ -376,7 +377,7 @@ export default function Settings() {
         fetch("/api/bot/keys", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apiKey: bk.apiKey, secret: bk.secret, testnet: bk.testnet === "true" }),
+          body: JSON.stringify({ apiKey: bk.apiKey, secret: bk.secret, testnet: bk.testnet === "true", platform: (bk.platform ?? "").trim().toLowerCase() === "eu" ? "eu" : "global" }),
         }).catch(() => {});
       }
     }

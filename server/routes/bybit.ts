@@ -58,16 +58,21 @@ async function bybitFetch(
   return data;
 }
 
+function platformBase(platform?: string): string | undefined {
+  return platform === "eu" ? "https://api.bybit.eu" : undefined;
+}
+
 // POST /api/bybit/balance — tries UNIFIED, CONTRACT, SPOT; returns USDT balance
 router.post("/balance", async (req, res) => {
-  const { apiKey, secret, testnet } = req.body;
+  const { apiKey, secret, testnet, platform } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
+  const base = platformBase(platform);
   // UNIFIED first — most common for global Bybit accounts; SPOT second for EU/legacy
   const accountTypes = ["UNIFIED", "SPOT", "CONTRACT"];
   let fallback: any = null;
   for (const accountType of accountTypes) {
     try {
-      const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType });
+      const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType }, base);
       const coins: any[] = data.result?.list?.[0]?.coin ?? [];
       const usdt = coins.find((c: any) => c.coin === "USDT");
       if (usdt) {
@@ -95,42 +100,38 @@ router.post("/balance", async (req, res) => {
 
 // POST /api/bybit/order — place market order
 router.post("/order", async (req, res) => {
-  const { apiKey, secret, testnet, symbol, side, qty, leverage } = req.body;
+  const { apiKey, secret, testnet, symbol, side, qty, platform } = req.body;
   if (!apiKey || !secret || !symbol || !side || !qty) return res.status(400).json({ error: "Missing params" });
   if (!VALID_SYMBOLS.has(symbol)) return res.status(400).json({ error: "Invalid symbol" });
   if (!["long","short"].includes(side)) return res.status(400).json({ error: "Invalid side" });
   const parsedQty = parseFloat(qty);
   if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
   try {
-    const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, {
-      category: "linear",
-      symbol,
-      side: side === "long" ? "Buy" : "Sell",
-      orderType: "Market",
-      qty: String(parsedQty),
-      positionIdx: 0,
-    });
+    const params: Record<string, any> = platform === "eu"
+      ? { category: "spot", symbol, side: side === "long" ? "Buy" : "Sell",
+          orderType: "Market", qty: String(parsedQty), marketUnit: "baseCoin", isLeverage: 1 }
+      : { category: "linear", symbol, side: side === "long" ? "Buy" : "Sell",
+          orderType: "Market", qty: String(parsedQty), positionIdx: 0 };
+    const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, params, platformBase(platform));
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
 });
 
 // POST /api/bybit/close — close position (reduce only)
 router.post("/close", async (req, res) => {
-  const { apiKey, secret, testnet, symbol, side, qty } = req.body;
+  const { apiKey, secret, testnet, symbol, side, qty, platform } = req.body;
   if (!apiKey || !secret || !symbol || !side || !qty) return res.status(400).json({ error: "Missing params" });
   if (!VALID_SYMBOLS.has(symbol)) return res.status(400).json({ error: "Invalid symbol" });
   const parsedQty = parseFloat(qty);
   if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
   try {
-    const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, {
-      category: "linear",
-      symbol,
-      side: side === "long" ? "Sell" : "Buy",
-      orderType: "Market",
-      qty: String(parsedQty),
-      positionIdx: 0,
-      reduceOnly: true,
-    });
+    const closeSide = side === "long" ? "Sell" : "Buy";
+    const params: Record<string, any> = platform === "eu"
+      ? { category: "spot", symbol, side: closeSide,
+          orderType: "Market", qty: String(parsedQty), marketUnit: "baseCoin", isLeverage: 1 }
+      : { category: "linear", symbol, side: closeSide,
+          orderType: "Market", qty: String(parsedQty), positionIdx: 0, reduceOnly: true };
+    const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, params, platformBase(platform));
     res.json({ orderId: data.result?.orderId, retCode: data.retCode });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
 });

@@ -23,12 +23,12 @@ function getEncKey(): Buffer {
   return key;
 }
 
-function encryptApiKeys(apiKey: string, secret: string, testnet: boolean): void {
+function encryptApiKeys(apiKey: string, secret: string, testnet: boolean, platform: Platform = "global"): void {
   try {
     const encKey = getEncKey();
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv("aes-256-gcm", encKey, iv);
-    const payload = JSON.stringify({ apiKey, secret, testnet });
+    const payload = JSON.stringify({ apiKey, secret, testnet, platform });
     const enc = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
     const tag = cipher.getAuthTag();
     fs.writeFileSync(KEYS_FILE, JSON.stringify({
@@ -37,7 +37,7 @@ function encryptApiKeys(apiKey: string, secret: string, testnet: boolean): void 
   } catch { /* ignore */ }
 }
 
-function decryptApiKeys(): { apiKey: string; secret: string; testnet: boolean } | null {
+function decryptApiKeys(): { apiKey: string; secret: string; testnet: boolean; platform?: Platform } | null {
   try {
     if (!fs.existsSync(KEYS_FILE)) return null;
     const encKey = getEncKey();
@@ -52,6 +52,7 @@ function decryptApiKeys(): { apiKey: string; secret: string; testnet: boolean } 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Direction = "long" | "short";
+type Platform = "global" | "eu";
 
 type BotConfig = {
   symbol: string;
@@ -62,6 +63,7 @@ type BotConfig = {
   capital: number; // USDT to use per trade
   adxMin: number;
   apiKey: string; secret: string; testnet: boolean;
+  platform: Platform; // "eu" → api.bybit.eu (spot margin), "global" → api.bybit.com (linear)
 };
 
 type Position = {
@@ -99,7 +101,7 @@ function loadState() {
     if (s.running && s.config) {
       const savedKeys = decryptApiKeys();
       if (!savedKeys) { addLog("Auto-resume: brak zapisanych kluczy", "warn"); return; }
-      config = { ...s.config, apiKey: savedKeys.apiKey, secret: savedKeys.secret, testnet: savedKeys.testnet };
+      config = { ...s.config, apiKey: savedKeys.apiKey, secret: savedKeys.secret, testnet: savedKeys.testnet, platform: savedKeys.platform ?? s.config.platform ?? "global" };
       position = null;
       sessionPnl = 0;
       running = true;
@@ -121,7 +123,8 @@ function addLog(msg: string, type: LogEntry["type"] = "info") {
 
 async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<string, any>) {
   if (!config) throw new Error("No config");
-  const base = config.testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
+  const base = config.testnet ? "https://api-testnet.bybit.com"
+    : config.platform === "eu" ? "https://api.bybit.eu" : "https://api.bybit.com";
   const ts = Date.now().toString();
   const recvWindow = "5000";
   let paramStr = "";
@@ -157,12 +160,12 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
 // Returns orderId on success, throws on failure
 async function placeOrder(side: Direction, qty: number): Promise<string> {
   if (!config) throw new Error("No config");
-  const d = await bybitFetch("POST", "/v5/order/create", {
-    category: "linear", symbol: config.symbol,
-    side: side === "long" ? "Buy" : "Sell",
-    orderType: "Market", qty: String(qty),
-    positionIdx: 0,
-  });
+  const params: Record<string, any> = config.platform === "eu"
+    ? { category: "spot", symbol: config.symbol, side: side === "long" ? "Buy" : "Sell",
+        orderType: "Market", qty: String(qty), marketUnit: "baseCoin", isLeverage: 1 }
+    : { category: "linear", symbol: config.symbol, side: side === "long" ? "Buy" : "Sell",
+        orderType: "Market", qty: String(qty), positionIdx: 0 };
+  const d = await bybitFetch("POST", "/v5/order/create", params);
   const orderId = d.result?.orderId ?? "unknown";
   addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | OrderID: ${orderId}`, "buy");
   return orderId;
@@ -172,12 +175,13 @@ async function placeOrder(side: Direction, qty: number): Promise<string> {
 async function closePosition(reason: string): Promise<boolean> {
   if (!config || !position) return false;
   try {
-    await bybitFetch("POST", "/v5/order/create", {
-      category: "linear", symbol: config.symbol,
-      side: position.direction === "long" ? "Sell" : "Buy",
-      orderType: "Market", qty: String(position.qty),
-      positionIdx: 0, reduceOnly: true,
-    });
+    const closeSide = position.direction === "long" ? "Sell" : "Buy";
+    const params: Record<string, any> = config.platform === "eu"
+      ? { category: "spot", symbol: config.symbol, side: closeSide,
+          orderType: "Market", qty: String(position.qty), marketUnit: "baseCoin", isLeverage: 1 }
+      : { category: "linear", symbol: config.symbol, side: closeSide,
+          orderType: "Market", qty: String(position.qty), positionIdx: 0, reduceOnly: true };
+    await bybitFetch("POST", "/v5/order/create", params);
     addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
     return true;
   } catch (e: any) {
@@ -390,9 +394,11 @@ async function engineTick() {
     }
 
     const direction: Direction = doLong ? "long" : "short";
-    const decimals = config.symbol === "BTCUSDT" ? 5 : 4;
-    const minQty   = config.symbol === "BTCUSDT" ? 0.00005 : 0.0001;
-    const qty = Math.max(parseFloat((config.capital / price).toFixed(decimals)), minQty);
+    // Qty steps differ: spot (EU margin) allows fine precision, linear (global) has coarse steps
+    const spec = config.platform === "eu"
+      ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
+      : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
+    const qty = Math.max(parseFloat((config.capital / price).toFixed(spec.dec)), spec.min);
 
     addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)} RSI=${rsi.toFixed(1)} qty=${qty}`, "info");
     try {
@@ -412,19 +418,19 @@ async function engineTick() {
 // GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)
 router.get("/keys", (_req, res) => {
   const keys = decryptApiKeys();
-  res.json({ hasKeys: !!keys, testnet: keys?.testnet ?? false });
+  res.json({ hasKeys: !!keys, testnet: keys?.testnet ?? false, platform: keys?.platform ?? "global" });
 });
 
 // POST /api/bot/keys — save encrypted keys
 router.post("/keys", (req, res) => {
-  const { apiKey, secret, testnet } = req.body;
+  const { apiKey, secret, testnet, platform } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  encryptApiKeys(apiKey.trim(), secret.trim(), !!testnet);
+  encryptApiKeys(apiKey.trim(), secret.trim(), !!testnet, platform === "eu" ? "eu" : "global");
   res.json({ ok: true });
 });
 
 router.post("/start", (req, res) => {
-  let { apiKey, secret, testnet } = req.body;
+  let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, adxMin } = req.body;
 
   // If keys not provided, try to load saved encrypted keys
@@ -432,6 +438,7 @@ router.post("/start", (req, res) => {
     const saved = decryptApiKeys();
     if (!saved) return res.status(400).json({ error: "Missing Bybit keys" });
     apiKey = saved.apiKey; secret = saved.secret; testnet = saved.testnet;
+    platform = platform ?? saved.platform;
   }
 
   if (intervalId) { clearInterval(intervalId); intervalId = null; }
@@ -449,10 +456,11 @@ router.post("/start", (req, res) => {
     capital: capital ?? 9,
     adxMin:  adxMin  ?? 15,
     apiKey, secret, testnet: testnet === true,
+    platform: platform === "eu" ? "eu" : "global",
   };
 
   // Save keys encrypted for auto-resume after restarts
-  encryptApiKeys(apiKey, secret, testnet === true);
+  encryptApiKeys(apiKey, secret, testnet === true, config.platform);
 
   running = true;
   position = null;
@@ -461,7 +469,7 @@ router.post("/start", (req, res) => {
   lastEntryTime = 0;
   lastPrice = 0;
   logs = [];
-  addLog(`Bot started — ${config.symbol} SPOT capital=${config.capital} USDT | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
+  addLog(`Bot started — ${config.symbol} ${config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)"} capital=${config.capital} USDT | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
 
   engineTick();
