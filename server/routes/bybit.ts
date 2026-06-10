@@ -54,7 +54,7 @@ async function bybitFetch(
     throw new Error(`Bybit HTTP ${r.status}: ${body.slice(0, 200)}`);
   }
   const data = await r.json() as any;
-  if (data.retCode !== 0) throw new Error(`Bybit error ${data.retCode}: ${data.retMsg}`);
+  if (data.retCode !== 0) throw new Error(`Bybit error ${data.retCode}: ${data.retMsg || "brak opisu — sprawdź uprawnienia klucza API"}`);
   return data;
 }
 

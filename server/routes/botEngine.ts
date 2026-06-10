@@ -398,10 +398,33 @@ async function engineTick() {
     const spec = config.platform === "eu"
       ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
       : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
-    const qty = Math.max(parseFloat((config.capital / price).toFixed(spec.dec)), spec.min);
+    const effLev = Math.max(1, config.leverage ?? 1);
+    const qty = Math.max(parseFloat(((config.capital * effLev) / price).toFixed(spec.dec)), spec.min);
 
-    addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)} RSI=${rsi.toFixed(1)} qty=${qty}`, "info");
+    // Balance check before placing order
     try {
+      const balData = await bybitFetch("GET", "/v5/account/wallet-balance",
+        { accountType: config.platform === "eu" ? "SPOT" : "UNIFIED" });
+      const coins: any[] = balData.result?.list?.[0]?.coin ?? [];
+      const usdtCoin = coins.find((c: any) => c.coin === "USDT");
+      const avail = parseFloat(usdtCoin?.availableToWithdraw ?? usdtCoin?.availableBalance ?? usdtCoin?.walletBalance ?? "0");
+      if (avail < config.capital) {
+        addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} USDT < ${config.capital} USDT — pomijam`, "warn");
+        return;
+      }
+    } catch { /* balance check failed — proceed anyway */ }
+
+    addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)} RSI=${rsi.toFixed(1)} qty=${qty} lev=${effLev}x`, "info");
+    try {
+      // For global linear: set leverage before first order of each session
+      if (config.platform !== "eu" && effLev > 1) {
+        try {
+          await bybitFetch("POST", "/v5/position/set-leverage", {
+            category: "linear", symbol: config.symbol,
+            buyLeverage: String(effLev), sellLeverage: String(effLev),
+          });
+        } catch { /* already set or not applicable — ignore */ }
+      }
       await placeOrder(direction, qty);
       position = { direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price };
       lastEntryTime = Date.now();
@@ -477,6 +500,19 @@ router.post("/start", (req, res) => {
   priceIntervalId = setInterval(priceCheck, 5_000); // co 5s — cena live
 
   res.json({ ok: true, message: "Bot started on server" });
+});
+
+// POST /api/bot/params — live-update RSI/trail params without restarting bot
+router.post("/params", (req, res) => {
+  if (!config || !running) return res.status(400).json({ error: "Bot not running" });
+  const { rsiMin, rsiMax, trailPct, stopLoss, takeProfit } = req.body;
+  if (rsiMin != null)     config.rsiMin     = parseFloat(rsiMin);
+  if (rsiMax != null)     config.rsiMax     = parseFloat(rsiMax);
+  if (trailPct != null)   config.trailPct   = parseFloat(trailPct);
+  if (stopLoss != null)   config.stopLoss   = parseFloat(stopLoss);
+  if (takeProfit != null) config.takeProfit = parseFloat(takeProfit);
+  addLog(`⚙️ Parametry zaktualizowane (Deep Train): RSI[${config.rsiMin}-${config.rsiMax}] Trail${config.trailPct}%`, "info");
+  res.json({ ok: true });
 });
 
 router.post("/stop", (_req, res) => {

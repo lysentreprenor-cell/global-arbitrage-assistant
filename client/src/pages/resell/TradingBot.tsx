@@ -1561,7 +1561,7 @@ export default function TradingBot() {
     if (!config.scheduleStartAt) return;
     if (Date.now() >= config.scheduleStartAt) {
       update({ enabled:true, scheduleStartAt:null });
-      addLog("⏱ Zaplanowany start — bot uruchomiony automatycznie", "info");
+      addLog(`⏱ Zaplanowany start (${new Date(config.scheduleStartAt).toLocaleString("pl",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}) — bot uruchomiony automatycznie`, "info");
     }
   }, [now]); // eslint-disable-line
 
@@ -2119,12 +2119,12 @@ export default function TradingBot() {
                   <div>
                     <div style={{ fontSize:11, color:M, marginBottom:5 }}>RSI min (def: 50)</div>
                     <input type="number" value={tmpRsiMin} min={30} max={55} onChange={e=>setTmpRsiMin(e.target.value)}
-                      onBlur={()=>{const n=parseFloat(tmpRsiMin); if(!isNaN(n)&&n>=30&&n<=55) update({rsiMin:n});}} style={inputStyle()}/>
+                      onBlur={()=>{const n=parseFloat(tmpRsiMin); if(!isNaN(n)&&n>=30&&n<=55&&n<config.rsiMax-5) update({rsiMin:n}); else setTmpRsiMin(String(config.rsiMin));}} style={inputStyle()}/>
                   </div>
                   <div>
                     <div style={{ fontSize:11, color:M, marginBottom:5 }}>RSI max (def: 65)</div>
                     <input type="number" value={tmpRsiMax} min={55} max={80} onChange={e=>setTmpRsiMax(e.target.value)}
-                      onBlur={()=>{const n=parseFloat(tmpRsiMax); if(!isNaN(n)&&n>=55&&n<=80) update({rsiMax:n});}} style={inputStyle()}/>
+                      onBlur={()=>{const n=parseFloat(tmpRsiMax); if(!isNaN(n)&&n>=55&&n<=80&&n>config.rsiMin+5) update({rsiMax:n}); else setTmpRsiMax(String(config.rsiMax));}} style={inputStyle()}/>
                   </div>
                   <div>
                     <div style={{ fontSize:11, color:M, marginBottom:5 }}>Max dist EMA % (def: 2.0)</div>
@@ -2634,7 +2634,7 @@ export default function TradingBot() {
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap" as const, gap:10 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontSize:16 }}>🔴</span>
-                <span style={{ fontWeight:700, fontSize:14 }}>LIVE TRADING — Bybit</span>
+                <span style={{ fontWeight:700, fontSize:14 }}>LIVE TRADING — Bybit {hasBybitKeys() ? (getBybitKeys().platform === "eu" ? "🇪🇺 EU" : "🌍 Global") : ""}</span>
                 {isOn
                   ? <span style={{ fontSize:10, background:"rgba(248,113,113,0.15)", border:"1px solid rgba(248,113,113,0.4)", borderRadius:6, padding:"2px 8px", color:"#f87171", display:"flex", alignItems:"center", gap:4 }}>
                       <span style={{ width:6, height:6, borderRadius:"50%", background:"#f87171", animation:"pulse 1.5s ease-in-out infinite", display:"inline-block" }}/> SERWER AKTYWNY
@@ -2794,6 +2794,12 @@ export default function TradingBot() {
                     setTmpRsiMin(String(apply.rsiMin)); setTmpRsiMax(String(apply.rsiMax)); setTmpTrailPct(String(apply.trailPct));
                     const ensembleNote = newHistory.length >= 2 ? ` · 🎯 konsensus ${newHistory.length} treningów: RSI[${apply.rsiMin}-${apply.rsiMax}] Trail${apply.trailPct}%` : "";
                     addLog(`🧠 Deep Train #${newHistory.length} (${r.windows} okien): RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${ensembleNote}`,"info");
+                    // Sync updated params to server bot if running
+                    if (serverBotRunning) {
+                      fetch("/api/bot/params", { method:"POST", headers:{"Content-Type":"application/json"},
+                        body: JSON.stringify({ rsiMin:apply.rsiMin, rsiMax:apply.rsiMax, trailPct:apply.trailPct }),
+                      }).then(()=>addLog("🔄 Parametry Deep Train zastosowane do serwer-bota","info")).catch(()=>{});
+                    }
                     learningRef.current = { ...learningRef.current, deepResult: r, deepHistory: newHistory, ensembleResult: ensemble };
                     saveLearning(learningRef.current);
                     // AUTO strategia: apply updated filters + leverage after each Deep Train
@@ -2811,7 +2817,7 @@ export default function TradingBot() {
                   : <><BarChart2 size={12}/> Deep Train</>}
               </button>
               <button
-                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); const newOptHist=[...learningRef.current.optHistory.slice(-4), r]; const optEns=calcEnsemble(newOptHist); const applyOpt=newOptHist.length>=2&&optEns?optEns:r; setOptResult(r); update({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct}); setTmpRsiMin(String(applyOpt.rsiMin)); setTmpRsiMax(String(applyOpt.rsiMax)); setTmpTrailPct(String(applyOpt.trailPct)); const optNote=newOptHist.length>=2?` · konsensus ${newOptHist.length}×: RSI[${applyOpt.rsiMin}-${applyOpt.rsiMax}]`:""; addLog(`🧠 Auto-opt #${newOptHist.length}: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${optNote}`,"info"); learningRef.current={...learningRef.current,optResult:r,optHistory:newOptHist}; saveLearning(learningRef.current); } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
+                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); const newOptHist=[...learningRef.current.optHistory.slice(-4), r]; const optEns=calcEnsemble(newOptHist); const applyOpt=newOptHist.length>=2&&optEns?optEns:r; setOptResult(r); update({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct}); setTmpRsiMin(String(applyOpt.rsiMin)); setTmpRsiMax(String(applyOpt.rsiMax)); setTmpTrailPct(String(applyOpt.trailPct)); const optNote=newOptHist.length>=2?` · konsensus ${newOptHist.length}×: RSI[${applyOpt.rsiMin}-${applyOpt.rsiMax}]`:""; addLog(`🧠 Auto-opt #${newOptHist.length}: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${optNote}`,"info"); learningRef.current={...learningRef.current,optResult:r,optHistory:newOptHist}; saveLearning(learningRef.current); if(serverBotRunning){fetch("/api/bot/params",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct})}).then(()=>addLog("🔄 Parametry Auto-Opt zastosowane do serwer-bota","info")).catch(()=>{});} } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
                 disabled={optLoading||btLoading||deepLoading}
                 style={{ background:optLoading?"rgba(251,191,36,0.05)":"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:8, padding:"8px 14px", color:optLoading?M:"#fbbf24", cursor:optLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
                 {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
