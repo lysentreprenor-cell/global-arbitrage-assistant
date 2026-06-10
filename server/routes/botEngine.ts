@@ -53,7 +53,7 @@ function decryptApiKeys(): { apiKey: string; secret: string; testnet: boolean; p
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Direction = "long" | "short";
-type Platform = "global" | "eu";
+type Platform = "global" | "eu" | "kraken";
 
 type BotConfig = {
   symbol: string;
@@ -64,7 +64,7 @@ type BotConfig = {
   capital: number; // USDT to use per trade
   adxMin: number;
   apiKey: string; secret: string; testnet: boolean;
-  platform: Platform; // "eu" → api.bybit.eu (spot margin), "global" → api.bybit.com (linear)
+  platform: Platform; // "kraken" → spot, "eu" → api.bybit.eu (spot margin), "global" → api.bybit.com (linear)
 };
 
 type Position = {
@@ -162,9 +162,47 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
   return d;
 }
 
-// Returns orderId on success, throws on failure
+// ── Kraken API ────────────────────────────────────────────────────────────────
+
+async function krakenPrivate(path: string, params: Record<string, any> = {}) {
+  if (!config) throw new Error("No config");
+  const nonce = Date.now() * 1000;
+  const allParams = { ...params, nonce: nonce.toString() };
+  const body = new URLSearchParams(allParams as Record<string, string>).toString();
+  const sha256 = crypto.createHash("sha256").update(nonce + body).digest();
+  const hmacInput = Buffer.concat([Buffer.from(path), sha256]);
+  const sign = crypto
+    .createHmac("sha512", Buffer.from(config.secret, "base64"))
+    .update(hmacInput)
+    .digest("base64");
+  const r = await fetch(`https://api.kraken.com${path}`, {
+    method: "POST",
+    headers: {
+      "API-Key": config.apiKey.trim(),
+      "API-Sign": sign,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
+  const d = await r.json() as any;
+  if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
+  return d.result;
+}
+
+// Returns orderId/txid on success, throws on failure
 async function placeOrder(side: Direction, qty: number): Promise<string> {
   if (!config) throw new Error("No config");
+  if (config.platform === "kraken") {
+    const pair = SYMBOL_MAP[config.symbol] ?? "XBTUSD";
+    const result = await krakenPrivate("/0/private/AddOrder", {
+      pair, type: side === "long" ? "buy" : "sell", ordertype: "market", volume: String(qty),
+    });
+    const txid = result.txid?.[0] ?? "unknown";
+    addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | TxID: ${txid}`, "buy");
+    return txid;
+  }
   const params: Record<string, any> = config.platform === "eu"
     ? { category: "spot", symbol: config.symbol, side: side === "long" ? "Buy" : "Sell",
         orderType: "Market", qty: String(qty), marketUnit: "baseCoin", isLeverage: 1 }
@@ -180,6 +218,15 @@ async function placeOrder(side: Direction, qty: number): Promise<string> {
 async function closePosition(reason: string): Promise<boolean> {
   if (!config || !position) return false;
   try {
+    if (config.platform === "kraken") {
+      const pair = SYMBOL_MAP[config.symbol] ?? "XBTUSD";
+      const closeSide = position.direction === "long" ? "sell" : "buy";
+      await krakenPrivate("/0/private/AddOrder", {
+        pair, type: closeSide, ordertype: "market", volume: String(position.qty),
+      });
+      addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
+      return true;
+    }
     const closeSide = position.direction === "long" ? "Sell" : "Buy";
     const params: Record<string, any> = config.platform === "eu"
       ? { category: "spot", symbol: config.symbol, side: closeSide,
@@ -397,28 +444,41 @@ async function engineTick() {
     const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
     const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
 
-    const spec = config.platform === "eu"
+    const spec = config.platform === "kraken"
+      ? (config.symbol === "BTCUSDT" ? { dec: 4, min: 0.0001 } : config.symbol === "ETHUSDT" ? { dec: 3, min: 0.004 } : { dec: 2, min: 0.01 })
+      : config.platform === "eu"
       ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
       : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
-    const effLev = Math.max(1, config.leverage ?? 1);
+    const effLev = config.platform === "kraken" ? 1 : Math.max(1, config.leverage ?? 1);
     const qty = Math.max(parseFloat(((config.capital * effLev) / price).toFixed(spec.dec)), spec.min);
 
     // Balance check
     try {
-      const balData = await bybitFetch("GET", "/v5/account/wallet-balance",
-        { accountType: config.platform === "eu" ? "SPOT" : "UNIFIED" });
-      const coins: any[] = balData.result?.list?.[0]?.coin ?? [];
-      const usdtCoin = coins.find((c: any) => c.coin === "USDT");
-      const avail = parseFloat(usdtCoin?.availableToWithdraw ?? usdtCoin?.availableBalance ?? usdtCoin?.walletBalance ?? "0");
-      if (avail < config.capital) {
-        addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} USDT < ${config.capital} USDT — pomijam`, "warn");
-        return;
+      if (config.platform === "kraken") {
+        const balResult = await krakenPrivate("/0/private/Balance");
+        const usd = parseFloat(balResult.ZUSD ?? "0");
+        const eur = parseFloat(balResult.ZEUR ?? "0");
+        const avail = usd > 0 ? usd : eur;
+        if (avail < config.capital) {
+          addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} < ${config.capital} — pomijam`, "warn");
+          return;
+        }
+      } else {
+        const balData = await bybitFetch("GET", "/v5/account/wallet-balance",
+          { accountType: config.platform === "eu" ? "SPOT" : "UNIFIED" });
+        const coins: any[] = balData.result?.list?.[0]?.coin ?? [];
+        const usdtCoin = coins.find((c: any) => c.coin === "USDT");
+        const avail = parseFloat(usdtCoin?.availableToWithdraw ?? usdtCoin?.availableBalance ?? usdtCoin?.walletBalance ?? "0");
+        if (avail < config.capital) {
+          addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} USDT < ${config.capital} USDT — pomijam`, "warn");
+          return;
+        }
       }
     } catch { /* proceed anyway */ }
 
     addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% → SL=${effSL.toFixed(2)}% TP=${effTP.toFixed(2)}% qty=${qty} lev=${effLev}x`, "info");
     try {
-      if (config.platform !== "eu" && effLev > 1) {
+      if (config.platform !== "eu" && config.platform !== "kraken" && effLev > 1) {
         try {
           await bybitFetch("POST", "/v5/position/set-leverage", {
             category: "linear", symbol: config.symbol,
@@ -452,7 +512,8 @@ router.get("/keys", (_req, res) => {
 router.post("/keys", (req, res) => {
   const { apiKey, secret, testnet, platform } = req.body;
   if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
-  encryptApiKeys(apiKey.trim(), secret.trim(), !!testnet, platform === "eu" ? "eu" : "global");
+  const plat: Platform = platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global";
+  encryptApiKeys(apiKey.trim(), secret.trim(), !!testnet, plat);
   res.json({ ok: true });
 });
 
@@ -463,7 +524,7 @@ router.post("/start", (req, res) => {
   // If keys not provided, try to load saved encrypted keys
   if (!apiKey || !secret) {
     const saved = decryptApiKeys();
-    if (!saved) return res.status(400).json({ error: "Missing Bybit keys" });
+    if (!saved) return res.status(400).json({ error: "Missing exchange keys" });
     apiKey = saved.apiKey; secret = saved.secret; testnet = saved.testnet;
     platform = platform ?? saved.platform;
   }
@@ -483,7 +544,7 @@ router.post("/start", (req, res) => {
     capital: capital ?? 9,
     adxMin:  adxMin  ?? 15,
     apiKey, secret, testnet: testnet === true,
-    platform: platform === "eu" ? "eu" : "global",
+    platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
 
   // Save keys encrypted for auto-resume after restarts
@@ -496,7 +557,8 @@ router.post("/start", (req, res) => {
   lastEntryTime = 0;
   lastPrice = 0;
   logs = [];
-  addLog(`Bot started — ${config.symbol} ${config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)"} capital=${config.capital} USDT | Scalping TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
+  const platformLabel = config.platform === "kraken" ? "Kraken (spot)" : config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)";
+  addLog(`Bot started — ${config.symbol} ${platformLabel} capital=${config.capital} USDT | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
 
   engineTick();

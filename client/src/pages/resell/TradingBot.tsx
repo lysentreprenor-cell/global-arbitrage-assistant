@@ -5,7 +5,7 @@ import {
   FlaskConical, Radio, Zap, ArrowUpCircle, ArrowDownCircle, BarChart2,
 } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
-import { hasBybitKeys, getBybitKeys } from "@/lib/apiKeys";
+import { hasBybitKeys, getBybitKeys, hasKrakenKeys, getKrakenKeys } from "@/lib/apiKeys";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1122,6 +1122,16 @@ export default function TradingBot() {
   }, [saveLearningDebounced]);
 
   const fetchLiveBalance = useCallback(async () => {
+    if (hasKrakenKeys()) {
+      const { apiKey, secret } = getKrakenKeys();
+      try {
+        const r = await fetch("/api/kraken/balance", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret }) });
+        const d = await r.json();
+        if (d.error) { setLiveBalance(-1); }
+        else { setLiveBalance(d.balance ?? 0); setLiveBalanceCoin(d.currency ?? "USD"); }
+      } catch { setLiveBalance(-1); }
+      return;
+    }
     if (!hasBybitKeys()) return;
     const { apiKey, secret, testnet, platform } = getBybitKeys();
     try {
@@ -1129,10 +1139,30 @@ export default function TradingBot() {
       const d = await r.json();
       if (d.error) { setLiveBalance(-1); }
       else { setLiveBalance(d.balance ?? 0); setLiveBalanceCoin(d.coin ?? "USDT"); }
-    } catch (e: any) { setLiveBalance(-1); }
+    } catch { setLiveBalance(-1); }
   }, []);
 
   const placeLiveOrder = useCallback(async (side: "long"|"short", price: number) => {
+    if (hasKrakenKeys()) {
+      const { apiKey, secret } = getKrakenKeys();
+      const usdt = liveUsdtRef.current;
+      const rawQty = usdt / price; // Kraken spot — no leverage
+      const spec = config.symbol === "BTCUSDT" ? { dec: 4, min: 0.0001 } : config.symbol === "ETHUSDT" ? { dec: 3, min: 0.004 } : { dec: 2, min: 0.01 };
+      const qty = Math.max(parseFloat(rawQty.toFixed(spec.dec)), spec.min);
+      liveQtyRef.current = qty;
+      try {
+        const r = await fetch("/api/kraken/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey, secret, symbol: config.symbol, side, qty }),
+        });
+        const d = await r.json();
+        if (d.error) addLog(`🔴 LIVE błąd zlecenia: ${d.error}`, "warn");
+        else addLog(`🟢 LIVE ${side.toUpperCase()} ${config.symbol.replace("USDT","")} qty=${qty} @ $${fmt(price)} | TxID: ${d.txid}`, "buy");
+        fetchLiveBalance();
+      } catch (e: any) { addLog(`🔴 LIVE błąd: ${e.message}`, "warn"); }
+      return;
+    }
     if (!hasBybitKeys()) return;
     const { apiKey, secret, testnet, platform } = getBybitKeys();
     const usdt = liveUsdtRef.current;
@@ -1158,10 +1188,31 @@ export default function TradingBot() {
   }, [config.symbol, config.leverage, config.leverageAuto, addLog, fetchLiveBalance]);
 
   const closeLiveOrder = useCallback(async (side: "long"|"short", price: number, reason: string, pnlPct?: number) => {
-    if (!hasBybitKeys()) return;
-    const { apiKey, secret, testnet, platform } = getBybitKeys();
     const qty = liveQtyRef.current;
     if (qty <= 0) return;
+    if (hasKrakenKeys()) {
+      const { apiKey, secret } = getKrakenKeys();
+      try {
+        const r = await fetch("/api/kraken/close", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey, secret, symbol: config.symbol, side, qty }),
+        });
+        const d = await r.json();
+        if (d.error) addLog(`🔴 LIVE błąd zamknięcia: ${d.error}`, "warn");
+        else {
+          const pnlUsdt = pnlPct != null ? (liveUsdtRef.current * pnlPct / 100) : 0;
+          liveSessionPnlRef.current += pnlUsdt;
+          setLiveSessionPnl(liveSessionPnlRef.current);
+          addLog(`🔴 LIVE CLOSE ${side.toUpperCase()} @ $${fmt(price)} — ${reason}${pnlPct != null ? ` | ${pnlPct>=0?"+":""}${pnlPct.toFixed(2)}% (${pnlUsdt>=0?"+":""}${pnlUsdt.toFixed(2)} USD)` : ""}`, "sell");
+        }
+        liveQtyRef.current = 0;
+        setTimeout(fetchLiveBalance, 2000);
+      } catch (e: any) { addLog(`🔴 LIVE błąd zamknięcia: ${e.message}`, "warn"); }
+      return;
+    }
+    if (!hasBybitKeys()) return;
+    const { apiKey, secret, testnet, platform } = getBybitKeys();
     try {
       const r = await fetch("/api/bybit/close", {
         method: "POST",

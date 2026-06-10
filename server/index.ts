@@ -32,6 +32,7 @@ import ebayRouter from "./routes/ebay";
 import etsyRouter from "./routes/etsy";
 import tradingRouter from "./routes/trading";
 import bybitRouter from "./routes/bybit";
+import krakenRouter from "./routes/kraken";
 import botEngineRouter from "./routes/botEngine";
 import keysSyncRouter from "./routes/keysSync";
 
@@ -312,6 +313,7 @@ process.on("uncaughtException", (err) => {
   app.use("/api/etsy", etsyRouter);
   app.use("/api/trading", tradingRouter);
   app.use("/api/bybit", bybitRouter);
+  app.use("/api/kraken", krakenRouter);
   app.use("/api/bot", botEngineRouter);
   app.use("/api/keys/sync", keysSyncRouter);
 

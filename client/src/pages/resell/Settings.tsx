@@ -124,6 +124,19 @@ const PLATFORM_APIS: ApiEntry[] = [
     ],
   },
   {
+    id: "kraken",
+    name: "Kraken Trading",
+    logo: "🐙",
+    color: "#5741d9",
+    description: "Klucze do prawdziwego tradingu na Kraken (spot, bez dźwigni). Brak ograniczeń IP — działa z każdego serwera. Utwórz klucze API → Security → API. Wymagane uprawnienia: Query Funds + Create & Modify Orders. NIGDY nie włączaj uprawnień do wypłat!",
+    docsUrl: "https://www.kraken.com/u/security/api",
+    keyLabel: "API Key",
+    fields: [
+      { key: "apiKey", label: "API Key", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+      { key: "secret", label: "API Secret (Base64)", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    ],
+  },
+  {
     id: "rapidapi",
     name: "RapidAPI Hub",
     logo: "⚡",
@@ -370,7 +383,7 @@ export default function Settings() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(keys),
     }).catch(() => {});
-    // Also sync Bybit keys separately for bot engine
+    // Sync Bybit / Kraken keys to bot engine for server-side auto-trading
     if (platformId === "bybit") {
       const bk = keys.bybit ?? {};
       if (bk.apiKey && bk.secret) {
@@ -378,6 +391,16 @@ export default function Settings() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ apiKey: bk.apiKey, secret: bk.secret, testnet: bk.testnet === "true", platform: (bk.platform ?? "").trim().toLowerCase() === "eu" ? "eu" : "global" }),
+        }).catch(() => {});
+      }
+    }
+    if (platformId === "kraken") {
+      const kk = keys.kraken ?? {};
+      if (kk.apiKey && kk.secret) {
+        fetch("/api/bot/keys", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: kk.apiKey, secret: kk.secret, testnet: false, platform: "kraken" }),
         }).catch(() => {});
       }
     }
@@ -397,12 +420,24 @@ export default function Settings() {
     setTesting(prev => ({ ...prev, [platformId]: true }));
     setTestResult(prev => ({ ...prev, [platformId]: null }));
     try {
-      const res = await fetch("/api/settings/test-key", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ platformId, keys: keys[platformId] }),
-      });
-      const data = await res.json();
+      let data: { ok: boolean };
+      if (platformId === "kraken") {
+        const kk = keys.kraken ?? {};
+        const r = await fetch("/api/kraken/test", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ apiKey: kk.apiKey, secret: kk.secret }),
+        });
+        const d = await r.json();
+        data = { ok: d.readOk === true };
+      } else {
+        const res = await fetch("/api/settings/test-key", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ platformId, keys: keys[platformId] }),
+        });
+        data = await res.json();
+      }
       setTestResult(prev => ({ ...prev, [platformId]: data.ok ? "ok" : "fail" }));
     } catch {
       setTestResult(prev => ({ ...prev, [platformId]: "fail" }));

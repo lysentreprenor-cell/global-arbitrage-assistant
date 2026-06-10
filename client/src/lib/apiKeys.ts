@@ -42,6 +42,16 @@ export function hasBybitKeys(): boolean {
   return apiKey.length > 10 && secret.length > 10;
 }
 
+export function getKrakenKeys(): { apiKey: string; secret: string } {
+  const k = getApiKeys().kraken ?? {};
+  return { apiKey: k.apiKey ?? "", secret: k.secret ?? "" };
+}
+
+export function hasKrakenKeys(): boolean {
+  const { apiKey, secret } = getKrakenKeys();
+  return apiKey.length > 5 && secret.length > 10;
+}
+
 export function hasAnyKey(): boolean {
   const k = getApiKeys();
   return !!(k.anthropic?.apiKey || k.ebay?.appId || k.etsy?.apiKey);
