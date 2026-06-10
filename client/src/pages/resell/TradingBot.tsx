@@ -386,8 +386,8 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
     }
     skipUntil=exitIdx;
     let pnlPct=dir==="long"?(exit-entry)/entry*100:(entry-exit)/entry*100;
-    // #12/#36 fee-adjusted returns
-    if (cfg.feeSimulation) pnlPct -= cfg.feePct;
+    // #12/#36 fee-adjusted returns: entry + exit fees + 0.05% slippage
+    if (cfg.feeSimulation) pnlPct -= cfg.feePct * 2 + 0.05;
     // leverage: fixed or smart-auto (per-trade signal quality gate)
     let tradeLev = cfg.leverage;
     if (cfg.leverageAuto && cfg.leverage > 1) {
@@ -509,7 +509,7 @@ async function runDeepOptimizeAsync(
     let sumSharpe=0, sumWR=0, sumRet=0, valid=0;
     for (const w of windows) {
       const r = runBacktestSync(w, {...cfg, rsiMin, rsiMax, trailPct});
-      if (r.trades.length >= 4) { sumSharpe+=r.sharpe; sumWR+=r.winRate; sumRet+=r.totalReturn; valid++; }
+      if (r.trades.length >= 12) { sumSharpe+=r.sharpe; sumWR+=r.winRate; sumRet+=r.totalReturn; valid++; }
     }
     if (valid >= Math.floor(N_WINDOWS * 0.5) && sumSharpe/valid > best.sharpe) {
       best = { rsiMin, rsiMax, trailPct, sharpe:parseFloat((sumSharpe/valid).toFixed(2)), winRate:sumWR/valid, totalReturn:sumRet/valid, windows:valid };
@@ -795,12 +795,12 @@ function sparkline(vals: number[]): string {
 }
 
 function adaptFromTrades(closed: PaperTrade[], cfg: BotConfig): Partial<BotConfig> | null {
-  // Need at least 15 trades for meaningful signal; use last 15 for context
-  const recent = closed.slice(-15);
-  if (recent.length < 10) return null;
+  // Need at least 20 trades for statistically meaningful signal
+  const recent = closed.slice(-20);
+  if (recent.length < 20) return null;
   const wr = recent.filter(t=>(t.pnlPct??0)>0).length / recent.length;
-  // Only adapt when there's a clear problem: WR < 40% over 10+ trades
-  if (wr >= 0.42) return null;
+  // Only adapt when there's a clear problem: WR < 38% over 20 trades
+  if (wr >= 0.38) return null;
 
   const slCount    = recent.filter(t=>t.reason==="stop_loss").length;
   const trailCount = recent.filter(t=>t.reason==="trail_stop").length;

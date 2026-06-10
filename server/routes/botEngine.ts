@@ -107,7 +107,7 @@ function loadState() {
       running = true;
       addLog("Auto-resume po restarcie serwera", "info");
       engineTick();
-      intervalId = setInterval(engineTick, 30_000);
+      intervalId = setInterval(engineTick, 5 * 60_000);
       priceIntervalId = setInterval(priceCheck, 5_000);
     }
   } catch { /* ignore */ }
@@ -265,14 +265,14 @@ let closeFailCount = 0;
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
   try {
-    const since = Math.floor(Date.now() / 1000) - 100 * 60; // last 100 minutes
-    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=1&since=${since}`, { signal: AbortSignal.timeout(10000) });
+    const since = Math.floor(Date.now() / 1000) - 150 * 3600; // last 150 hours (1h candles)
+    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=${since}`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
     const d = await r.json() as any;
     if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
     const key = Object.keys(d.result).find(k => k !== "last")!;
-    const list: any[] = (d.result[key] ?? []).slice(-100);
-    if (list.length < 30) throw new Error("Not enough candles");
+    const list: any[] = (d.result[key] ?? []).slice(-150);
+    if (list.length < 50) throw new Error("Not enough candles");
     return {
       closes:  list.map((k: any) => parseFloat(k[4])),
       highs:   list.map((k: any) => parseFloat(k[2])),
@@ -344,14 +344,14 @@ async function priceCheck() {
   }
 }
 
-// ── Full indicator tick (every 30s) ───────────────────────────────────────────
+// ── Full indicator tick (every 5 min — 1h candles) ───────────────────────────
 async function engineTick() {
   if (!config || !running) return;
 
   try {
     const candles = await fetchCandles(config.symbol);
     if (!candles) return;
-    const { closes } = candles;
+    const { closes, highs, lows, volumes } = candles;
     const price = lastPrice > 0 ? lastPrice : candles.price;
 
     const rsi  = calcRsi(closes);
@@ -361,35 +361,47 @@ async function engineTick() {
     const prevEma9  = calcEma(closes.slice(0, -1), 9);
     const prevEma21 = calcEma(closes.slice(0, -1), 21);
 
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)}`);
+    // Multi-indicator confluence
+    const { macd: macdLine, signal: macdSignal } = calcMacd(closes);
+    const adx     = calcAdx(highs, lows, closes);
+    const volMult = calcVolumeMult(volumes);
+
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} MACD=${macdLine.toFixed(1)}/${macdSignal.toFixed(1)} ADX=${adx.toFixed(0)} Vol×${volMult.toFixed(2)}`);
 
     // If position open — priceCheck handles exits every 5s
     if (position) return;
 
-    const rsiMin = config.rsiMin ?? 40;  // use frontend value (default 40)
-    const rsiMax = config.rsiMax ?? 65;  // use frontend value (default 65)
+    const rsiMin = config.rsiMin ?? 40;
+    const rsiMax = config.rsiMax ?? 65;
+    const adxMin = config.adxMin ?? 15;
 
     // Signal A: EMA crossover (trend reversal — high conviction)
     const crossBuy  = ema9 > ema21 && prevEma9 <= prevEma21;
     const crossSell = ema9 < ema21 && prevEma9 >= prevEma21;
 
-    // Signal B: RSI mean-reversion scalping
-    // LONG: oversold dip (RSI < rsiMin); works in any trend
-    // SHORT: overbought peak (RSI > rsiMax); works in any trend
+    // Signal B: RSI mean-reversion (oversold/overbought on 1h timeframe)
     const rsiBuy  = rsi < rsiMin;
     const rsiSell = rsi > rsiMax;
 
-    const isLong  = crossBuy  || rsiBuy;
-    const isShort = config.allowShorts && (crossSell || rsiSell) && !position;
+    // Confluence filters — require 2 of 3: MACD direction, ADX trend strength, volume
+    const macdBull  = macdLine > macdSignal;
+    const macdBear  = macdLine < macdSignal;
+    const trendOk   = adx >= adxMin;
+    const volOk     = volMult >= 1.2;
+    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
+    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
 
-    // 3-minute cooldown between trades
-    const cooldownOk = Date.now() - lastEntryTime > 3 * 60 * 1000;
+    const isLong  = (crossBuy  || rsiBuy)  && longConf;
+    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && !position;
+
+    // 1h cooldown between trades (candle period)
+    const cooldownOk = Date.now() - lastEntryTime > 60 * 60 * 1000;
 
     const doLong  = isLong  && cooldownOk;
     const doShort = isShort && cooldownOk;
 
     if (!doLong && !doShort) {
-      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)} (min=${rsiMin} max=${rsiMax})`);
+      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} Vol×${volMult.toFixed(2)}`);
       return;
     }
 
@@ -496,7 +508,7 @@ router.post("/start", (req, res) => {
   saveState();
 
   engineTick();
-  intervalId = setInterval(engineTick, 30_000);   // co 30s — świece 1m
+  intervalId = setInterval(engineTick, 5 * 60_000); // co 5 min — świece 1h
   priceIntervalId = setInterval(priceCheck, 5_000); // co 5s — cena live
 
   res.json({ ok: true, message: "Bot started on server" });
