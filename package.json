@@ -9,6 +9,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "test": "vitest run",
     "messages:firestore-scan": "grep -RInE \"from .firebase/database|getDatabase\\(|realtimeDb|onValue\\(|push\\(ref\\(\" src --exclude-dir=node_modules || true"
   },
   "dependencies": {
@@ -113,7 +114,8 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.22.0",
     "typescript": "5.6.3",
-    "vite": "^7.1.9"
+    "vite": "^7.1.9",
+    "vitest": "^4.1.8"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

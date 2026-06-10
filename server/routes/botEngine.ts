@@ -8,6 +8,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { bybitFetch as proxyFetch } from "../proxyDispatcher";
+import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult } from "../lib/indicators";
 
 const router = express.Router();
 const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
@@ -72,6 +73,10 @@ type Position = {
   qty: number;
   entryTime: string;
   trailRef: number;
+  slPct: number;        // effective stop-loss % (ATR-based or config fallback)
+  tpPct: number;        // effective take-profit %
+  trailPct: number;     // effective trailing-stop %
+  breakEvenSet: boolean; // true once SL has been moved to break-even
 };
 
 type LogEntry = { time: string; msg: string; type: "info" | "buy" | "sell" | "warn" };
@@ -191,66 +196,7 @@ async function closePosition(reason: string): Promise<boolean> {
 }
 
 // ── Indicators ────────────────────────────────────────────────────────────────
-
-function calcRsi(closes: number[], period = 14): number {
-  if (closes.length < period + 1) return 50;
-  let gains = 0, losses = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
-    const d = closes[i] - closes[i - 1];
-    if (d > 0) gains += d; else losses -= d;
-  }
-  const rs = losses === 0 ? 100 : gains / losses;
-  return 100 - 100 / (1 + rs);
-}
-
-function calcEma(values: number[], period: number): number {
-  if (values.length < period) return values[values.length - 1] ?? 0;
-  const k = 2 / (period + 1);
-  let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  for (let i = period; i < values.length; i++) ema = values[i] * k + ema * (1 - k);
-  return ema;
-}
-
-function calcMacd(closes: number[]): { macd: number; signal: number } {
-  if (closes.length < 26) return { macd: 0, signal: 0 };
-  const ema12 = calcEma(closes, 12);
-  const ema26 = calcEma(closes, 26);
-  const macdLine = ema12 - ema26;
-  // Simplified signal: use last 9 macd values
-  const macdValues: number[] = [];
-  for (let i = Math.max(0, closes.length - 35); i < closes.length; i++) {
-    const slice = closes.slice(0, i + 1);
-    if (slice.length >= 26) macdValues.push(calcEma(slice, 12) - calcEma(slice, 26));
-  }
-  const signal = macdValues.length >= 9 ? calcEma(macdValues, 9) : macdLine;
-  return { macd: macdLine, signal };
-}
-
-function calcAdx(highs: number[], lows: number[], closes: number[], period = 14): number {
-  if (closes.length < period + 1) return 20;
-  const tr: number[] = [], plusDm: number[] = [], minusDm: number[] = [];
-  for (let i = 1; i < closes.length; i++) {
-    const h = highs[i], l = lows[i], pc = closes[i - 1];
-    tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
-    const upMove = h - highs[i - 1], downMove = lows[i - 1] - l;
-    plusDm.push(upMove > downMove && upMove > 0 ? upMove : 0);
-    minusDm.push(downMove > upMove && downMove > 0 ? downMove : 0);
-  }
-  const sumTr = tr.slice(-period).reduce((a, b) => a + b, 0);
-  const sumPlusDm = plusDm.slice(-period).reduce((a, b) => a + b, 0);
-  const sumMinusDm = minusDm.slice(-period).reduce((a, b) => a + b, 0);
-  if (sumTr === 0) return 20;
-  const plusDi = 100 * sumPlusDm / sumTr;
-  const minusDi = 100 * sumMinusDm / sumTr;
-  const dx = plusDi + minusDi === 0 ? 0 : 100 * Math.abs(plusDi - minusDi) / (plusDi + minusDi);
-  return dx;
-}
-
-function calcVolumeMult(volumes: number[]): number {
-  if (volumes.length < 20) return 1;
-  const avg = volumes.slice(-20, -1).reduce((a, b) => a + b, 0) / 19;
-  return avg === 0 ? 1 : volumes[volumes.length - 1] / avg;
-}
+// All functions imported from ../lib/indicators
 
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
@@ -306,20 +252,35 @@ async function priceCheck() {
   lastPrice = price;
 
   const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
-  const pct = position.direction === "short" ? -rawPct : rawPct;
+  const pct    = position.direction === "short" ? -rawPct : rawPct;
 
+  // Update trailing high/low reference
   if (position.direction === "long")  position.trailRef = Math.max(position.trailRef, price);
   if (position.direction === "short") position.trailRef = Math.min(position.trailRef, price);
 
+  // Break-even: once profit reaches 50% of TP, lock trail at entry price
+  if (!position.breakEvenSet && pct >= position.tpPct * 0.5) {
+    position.breakEvenSet = true;
+    // Push trailRef so that trailSL lands exactly at entryPrice
+    if (position.direction === "long") {
+      const neededRef = position.entryPrice / (1 - position.trailPct / 100);
+      position.trailRef = Math.max(position.trailRef, neededRef);
+    } else {
+      const neededRef = position.entryPrice / (1 + position.trailPct / 100);
+      position.trailRef = Math.min(position.trailRef, neededRef);
+    }
+    addLog(`🔒 Break-even aktywny przy +${pct.toFixed(2)}%`, "info");
+  }
+
   const trailSL = position.direction === "long"
-    ? position.trailRef * (1 - config.trailPct / 100)
-    : position.trailRef * (1 + config.trailPct / 100);
+    ? position.trailRef * (1 - position.trailPct / 100)
+    : position.trailRef * (1 + position.trailPct / 100);
   const initSL = position.direction === "long"
-    ? position.entryPrice * (1 - config.stopLoss / 100)
-    : position.entryPrice * (1 + config.stopLoss / 100);
+    ? position.entryPrice * (1 - position.slPct / 100)
+    : position.entryPrice * (1 + position.slPct / 100);
 
   let reason: string | null = null;
-  if (pct >= config.takeProfit) reason = `TP +${pct.toFixed(2)}%`;
+  if (pct >= position.tpPct) reason = `TP +${pct.toFixed(2)}%`;
   else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
   else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
 
@@ -354,36 +315,61 @@ async function engineTick() {
     const { closes, highs, lows, volumes } = candles;
     const price = lastPrice > 0 ? lastPrice : candles.price;
 
-    const rsi  = calcRsi(closes);
-    const ema9  = calcEma(closes, 9);
-    const ema21 = calcEma(closes, 21);
-    // Previous bar EMAs for crossover detection
+    const rsi     = calcRsi(closes);
+    const ema9    = calcEma(closes, 9);
+    const ema21   = calcEma(closes, 21);
     const prevEma9  = calcEma(closes.slice(0, -1), 9);
     const prevEma21 = calcEma(closes.slice(0, -1), 21);
 
-    // Multi-indicator confluence
     const { macd: macdLine, signal: macdSignal } = calcMacd(closes);
     const adx     = calcAdx(highs, lows, closes);
     const volMult = calcVolumeMult(volumes);
+    const atr     = calcAtr(highs, lows, closes);
+    const atrPct  = price > 0 ? (atr / price) * 100 : 0;
 
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} MACD=${macdLine.toFixed(1)}/${macdSignal.toFixed(1)} ADX=${adx.toFixed(0)} Vol×${volMult.toFixed(2)}`);
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} MACD=${macdLine.toFixed(1)}/${macdSignal.toFixed(1)} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% Vol×${volMult.toFixed(2)}`);
 
-    // If position open — priceCheck handles exits every 5s
-    if (position) return;
+    // ── Open position management ─────────────────────────────────────────────
+    if (position) {
+      const holdHours = (Date.now() - new Date(position.entryTime).getTime()) / 3_600_000;
 
+      // Max hold: 48h time-based exit to prevent stuck positions
+      if (holdHours >= 48) {
+        const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
+        const pct    = position.direction === "short" ? -rawPct : rawPct;
+        addLog(`⏱️ Max hold 48h (${holdHours.toFixed(0)}h) — zamykam pozycję`, "warn");
+        const closed = await closePosition(`Max hold ${holdHours.toFixed(0)}h`);
+        if (closed) { sessionPnl += pct / 100 * config.capital; position = null; saveState(); }
+        return;
+      }
+
+      // RSI extreme exit: momentum has fully reversed — take whatever we have
+      const rsiOverbought = position.direction === "long"  && rsi > 78;
+      const rsiOversold   = position.direction === "short" && rsi < 22;
+      if (rsiOverbought || rsiOversold) {
+        const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
+        const pct    = position.direction === "short" ? -rawPct : rawPct;
+        const reason = `RSI extreme ${rsi.toFixed(1)}`;
+        addLog(`📊 RSI exit — ${reason} | P&L ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`, pct >= 0 ? "sell" : "warn");
+        const closed = await closePosition(reason);
+        if (closed) { sessionPnl += pct / 100 * config.capital; position = null; saveState(); }
+        return;
+      }
+
+      return; // normal tick — priceCheck handles SL/TP/trail every 5s
+    }
+
+    // ── Entry logic ──────────────────────────────────────────────────────────
     const rsiMin = config.rsiMin ?? 40;
     const rsiMax = config.rsiMax ?? 65;
     const adxMin = config.adxMin ?? 15;
 
-    // Signal A: EMA crossover (trend reversal — high conviction)
     const crossBuy  = ema9 > ema21 && prevEma9 <= prevEma21;
     const crossSell = ema9 < ema21 && prevEma9 >= prevEma21;
+    const rsiBuy    = rsi < rsiMin;
+    const rsiSell   = rsi > rsiMax;
 
-    // Signal B: RSI mean-reversion (oversold/overbought on 1h timeframe)
-    const rsiBuy  = rsi < rsiMin;
-    const rsiSell = rsi > rsiMax;
-
-    // Confluence filters — require 2 of 3: MACD direction, ADX trend strength, volume
+    // Confluence: require 2 of 3 (MACD direction, ADX strength, volume spike)
     const macdBull  = macdLine > macdSignal;
     const macdBear  = macdLine < macdSignal;
     const trendOk   = adx >= adxMin;
@@ -392,11 +378,9 @@ async function engineTick() {
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
 
     const isLong  = (crossBuy  || rsiBuy)  && longConf;
-    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && !position;
+    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf;
 
-    // 1h cooldown between trades (candle period)
     const cooldownOk = Date.now() - lastEntryTime > 60 * 60 * 1000;
-
     const doLong  = isLong  && cooldownOk;
     const doShort = isShort && cooldownOk;
 
@@ -406,14 +390,20 @@ async function engineTick() {
     }
 
     const direction: Direction = doLong ? "long" : "short";
-    // Qty steps differ: spot (EU margin) allows fine precision, linear (global) has coarse steps
+
+    // ATR-based dynamic TP/SL — use whichever is wider to avoid being stopped by noise
+    // 1h BTC ATR is typically 0.5–1.5%; fixed 0.6% TP would be too tight
+    const effSL    = Math.max(config.stopLoss,   atrPct * 1.5);
+    const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
+    const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
+
     const spec = config.platform === "eu"
       ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
       : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
     const effLev = Math.max(1, config.leverage ?? 1);
     const qty = Math.max(parseFloat(((config.capital * effLev) / price).toFixed(spec.dec)), spec.min);
 
-    // Balance check before placing order
+    // Balance check
     try {
       const balData = await bybitFetch("GET", "/v5/account/wallet-balance",
         { accountType: config.platform === "eu" ? "SPOT" : "UNIFIED" });
@@ -424,21 +414,23 @@ async function engineTick() {
         addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} USDT < ${config.capital} USDT — pomijam`, "warn");
         return;
       }
-    } catch { /* balance check failed — proceed anyway */ }
+    } catch { /* proceed anyway */ }
 
-    addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} EMA9=${ema9.toFixed(0)} EMA21=${ema21.toFixed(0)} RSI=${rsi.toFixed(1)} qty=${qty} lev=${effLev}x`, "info");
+    addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% → SL=${effSL.toFixed(2)}% TP=${effTP.toFixed(2)}% qty=${qty} lev=${effLev}x`, "info");
     try {
-      // For global linear: set leverage before first order of each session
       if (config.platform !== "eu" && effLev > 1) {
         try {
           await bybitFetch("POST", "/v5/position/set-leverage", {
             category: "linear", symbol: config.symbol,
             buyLeverage: String(effLev), sellLeverage: String(effLev),
           });
-        } catch { /* already set or not applicable — ignore */ }
+        } catch { /* already set */ }
       }
       await placeOrder(direction, qty);
-      position = { direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price };
+      position = {
+        direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price,
+        slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
+      };
       lastEntryTime = Date.now();
       saveState();
     } catch (e: any) {
