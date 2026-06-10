@@ -1679,12 +1679,12 @@ export default function TradingBot() {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             {lastRefresh && <span style={{ fontSize:11, color:M }}>Dane: {fmtTime(lastRefresh.toISOString())}</span>}
-            {(hasBybitKeys() || serverHasKeys)
-              ? <span style={{ fontSize:11, background:"rgba(247,147,26,0.15)", border:"1px solid rgba(247,147,26,0.4)", borderRadius:6, padding:"4px 10px", color:"#fb923c", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
-                  🟡 Bybit {hasBybitKeys() ? (getBybitKeys().testnet ? "Testnet" : "Live") : "Live"} skonfigurowany{serverHasKeys && !hasBybitKeys() ? " (serwer)" : ""}
+            {(hasKrakenKeys() || hasBybitKeys() || serverHasKeys)
+              ? <span style={{ fontSize:11, background:"rgba(87,65,217,0.15)", border:"1px solid rgba(87,65,217,0.4)", borderRadius:6, padding:"4px 10px", color:"#a78bfa", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                  {hasKrakenKeys() ? "🐙 Kraken Live" : `🟡 Bybit ${hasBybitKeys() ? (getBybitKeys().testnet ? "Testnet" : "Live") : "Live"}`} skonfigurowany{serverHasKeys && !hasKrakenKeys() && !hasBybitKeys() ? " (serwer)" : ""}
                 </span>
               : <a href="/resell/settings" style={{ fontSize:11, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"4px 10px", color:M, textDecoration:"none", display:"flex", alignItems:"center", gap:5 }}>
-                  ⚙️ Dodaj klucze Bybit →
+                  ⚙️ Dodaj klucze Kraken/Bybit →
                 </a>
             }
             <button onClick={fetchData} style={{ background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:8, padding:"6px 14px", color:G, cursor:"pointer", fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
@@ -2646,7 +2646,7 @@ export default function TradingBot() {
         </div>
 
         {/* Live Trading */}
-        {(hasBybitKeys() || serverHasKeys) && (() => {
+        {(hasKrakenKeys() || hasBybitKeys() || serverHasKeys) && (() => {
           const srvPnlPct = serverPosition && ticker
             ? (serverPosition.direction==="long" ? (ticker.price - serverPosition.entryPrice)/serverPosition.entryPrice*100 : (serverPosition.entryPrice - ticker.price)/serverPosition.entryPrice*100)
             : null;
@@ -2685,7 +2685,7 @@ export default function TradingBot() {
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap" as const, gap:10 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontSize:16 }}>🔴</span>
-                <span style={{ fontWeight:700, fontSize:14 }}>LIVE TRADING — Bybit {hasBybitKeys() ? (getBybitKeys().platform === "eu" ? "🇪🇺 EU" : "🌍 Global") : ""}</span>
+                <span style={{ fontWeight:700, fontSize:14 }}>LIVE TRADING — {hasKrakenKeys() ? "Kraken 🐙" : hasBybitKeys() ? `Bybit ${getBybitKeys().platform === "eu" ? "🇪🇺 EU" : "🌍 Global"}` : "Serwer"}</span>
                 {isOn
                   ? <span style={{ fontSize:10, background:"rgba(248,113,113,0.15)", border:"1px solid rgba(248,113,113,0.4)", borderRadius:6, padding:"2px 8px", color:"#f87171", display:"flex", alignItems:"center", gap:4 }}>
                       <span style={{ width:6, height:6, borderRadius:"50%", background:"#f87171", animation:"pulse 1.5s ease-in-out infinite", display:"inline-block" }}/> SERWER AKTYWNY
@@ -2706,7 +2706,7 @@ export default function TradingBot() {
                   onClick={() => {
                     setServerBotError(null);
                     setServerBotLoading(true);
-                    const localKeys = hasBybitKeys() ? getBybitKeys() : { apiKey: "", secret: "", testnet: false };
+                    const localKeys = hasKrakenKeys() ? { ...getKrakenKeys(), testnet: false, platform: "kraken" } : hasBybitKeys() ? getBybitKeys() : { apiKey: "", secret: "", testnet: false, platform: "global" };
                     const url = isOn ? "/api/bot/stop" : "/api/bot/start";
                     const body = isOn ? {} : { ...localKeys, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin };
                     fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) })
@@ -2742,15 +2742,24 @@ export default function TradingBot() {
             {!isOn && (
               <div style={{ marginTop:8 }}>
                 <button onClick={async () => {
-                  const { apiKey, secret, testnet } = getBybitKeys();
-                  if (!apiKey || !secret) { alert("Najpierw wpisz klucze API w Settings"); return; }
-                  try {
-                    const r = await fetch("/api/bybit/test", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret, testnet }) });
-                    const d = await r.json();
-                    alert("Wynik testu Bybit API:\n" + JSON.stringify(d, null, 2));
-                  } catch(e: any) { alert("Błąd: " + e.message); }
+                  if (hasKrakenKeys()) {
+                    const { apiKey, secret } = getKrakenKeys();
+                    try {
+                      const r = await fetch("/api/kraken/test", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret }) });
+                      const d = await r.json();
+                      alert("Wynik testu Kraken API:\n" + (d.readOk ? `✅ OK\nUSD: ${d.balance?.USD}\nEUR: ${d.balance?.EUR}\nBTC: ${d.balance?.BTC}` : `❌ Błąd: ${d.error}`));
+                    } catch(e: any) { alert("Błąd: " + e.message); }
+                  } else {
+                    const { apiKey, secret, testnet } = getBybitKeys();
+                    if (!apiKey || !secret) { alert("Najpierw wpisz klucze API w Settings"); return; }
+                    try {
+                      const r = await fetch("/api/bybit/test", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret, testnet }) });
+                      const d = await r.json();
+                      alert("Wynik testu Bybit API:\n" + JSON.stringify(d, null, 2));
+                    } catch(e: any) { alert("Błąd: " + e.message); }
+                  }
                 }} style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:6, padding:"6px 14px", color:"#fbbf24", cursor:"pointer", fontSize:12, fontWeight:600 }}>
-                  🔍 Test połączenia Bybit
+                  🔍 Test połączenia {hasKrakenKeys() ? "Kraken" : "Bybit"}
                 </button>
               </div>
             )}
