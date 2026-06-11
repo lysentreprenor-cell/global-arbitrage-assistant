@@ -2776,6 +2776,19 @@ export default function TradingBot() {
                     style={{ width:65, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"6px 8px", color:"#fff", fontSize:13, textAlign:"center" as const }}
                   />
                 </div>
+                {/* Live leverage selector */}
+                {!isOn && (
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:12, color:M }}>Dźwignia:</span>
+                    {[1,2,3,5].map(lv => (
+                      <button key={lv} onClick={() => update({ leverage: lv })} disabled={isOn}
+                        style={{ background: effLev===lv ? (lv===1?"rgba(148,163,184,0.2)":lv<=3?"rgba(251,191,36,0.2)":"rgba(248,113,113,0.2)") : "rgba(255,255,255,0.04)", border:`1px solid ${effLev===lv?(lv===1?"rgba(148,163,184,0.5)":lv<=3?"rgba(251,191,36,0.5)":"rgba(248,113,113,0.5)"):"rgba(255,255,255,0.12)"}`, borderRadius:6, padding:"5px 10px", color: effLev===lv?(lv===1?"#94a3b8":lv<=3?"#fbbf24":"#f87171"):M, cursor:"pointer", fontSize:12, fontWeight: effLev===lv?700:400 }}>
+                        {lv}×
+                      </button>
+                    ))}
+                    {effLev > 1 && <span style={{ fontSize:10, color:"#f87171" }}>liq -{(100/effLev).toFixed(0)}%</span>}
+                  </div>
+                )}
                 <button
                   disabled={serverBotLoading}
                   onClick={() => {
