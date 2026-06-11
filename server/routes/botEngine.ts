@@ -55,16 +55,19 @@ function decryptApiKeys(): { apiKey: string; secret: string; testnet: boolean; p
 type Direction = "long" | "short";
 type Platform = "global" | "eu" | "kraken";
 
+type KrakenFiat = "USD" | "EUR";
+
 type BotConfig = {
   symbol: string;
   rsiMin: number; rsiMax: number;
   trailPct: number; stopLoss: number; takeProfit: number;
   leverage: number;
   allowShorts: boolean;
-  capital: number; // USDT to use per trade
+  capital: number;
   adxMin: number;
   apiKey: string; secret: string; testnet: boolean;
-  platform: Platform; // "kraken" → spot, "eu" → api.bybit.eu (spot margin), "global" → api.bybit.com (linear)
+  platform: Platform;
+  krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
 };
 
 type Position = {
@@ -203,7 +206,7 @@ async function krakenPrivate(path: string, params: Record<string, any> = {}) {
 async function placeOrder(side: Direction, qty: number): Promise<string> {
   if (!config) throw new Error("No config");
   if (config.platform === "kraken") {
-    const pair = SYMBOL_MAP[config.symbol] ?? "XBTUSD";
+    const pair = krakenPair(config.symbol);
     const result = await krakenPrivate("/0/private/AddOrder", {
       pair, type: side === "long" ? "buy" : "sell", ordertype: "market", volume: String(qty),
     });
@@ -227,7 +230,7 @@ async function closePosition(reason: string): Promise<boolean> {
   if (!config || !position) return false;
   try {
     if (config.platform === "kraken") {
-      const pair = SYMBOL_MAP[config.symbol] ?? "XBTUSD";
+      const pair = krakenPair(config.symbol);
       const closeSide = position.direction === "long" ? "sell" : "buy";
       await krakenPrivate("/0/private/AddOrder", {
         pair, type: closeSide, ordertype: "market", volume: String(position.qty),
@@ -255,16 +258,28 @@ async function closePosition(reason: string): Promise<boolean> {
 
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
-const SYMBOL_MAP: Record<string, string> = {
-  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD", BNBUSDT: "BNBUSD",
+const SYMBOL_MAP_USD: Record<string, string> = {
+  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD",
 };
+const SYMBOL_MAP_EUR: Record<string, string> = {
+  BTCUSDT: "XBTEUR", ETHUSDT: "ETHEUR", SOLUSDT: "SOLEUR",
+};
+// For non-Kraken platforms
+const SYMBOL_MAP: Record<string, string> = {
+  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD",
+};
+
+function krakenPair(symbol: string): string {
+  const fiat = config?.krakenFiat ?? "USD";
+  return (fiat === "EUR" ? SYMBOL_MAP_EUR : SYMBOL_MAP_USD)[symbol] ?? "XBTUSD";
+}
 
 let lastPrice = 0;
 let lastEntryTime = 0;
 let closeFailCount = 0;
 
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
-  const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
+  const pair = krakenPair(symbol);
   try {
     const since = Math.floor(Date.now() / 1000) - 150 * 3600; // last 150 hours (1h candles)
     const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=${since}`, { signal: AbortSignal.timeout(10000) });
@@ -288,7 +303,7 @@ async function fetchCandles(symbol: string): Promise<{closes:number[];highs:numb
 }
 
 async function fetchCurrentPrice(symbol: string): Promise<number | null> {
-  const pair = SYMBOL_MAP[symbol] ?? "XBTUSD";
+  const pair = krakenPair(symbol);
   try {
     const r = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
@@ -486,9 +501,11 @@ async function engineTick() {
         const balResult = await krakenPrivate("/0/private/Balance");
         const usd = parseFloat(balResult.ZUSD ?? "0");
         const eur = parseFloat(balResult.ZEUR ?? "0");
-        const avail = usd > 0 ? usd : eur;
+        // Auto-detect fiat: prefer whichever is larger
+        config.krakenFiat = eur > usd ? "EUR" : "USD";
+        const avail = config.krakenFiat === "EUR" ? eur : usd;
         if (avail < config.capital) {
-          addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} < ${config.capital} — pomijam`, "warn");
+          addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} ${config.krakenFiat} < ${config.capital} — pomijam`, "warn");
           return;
         }
       } else {
@@ -585,8 +602,11 @@ router.post("/start", (req, res) => {
   lastEntryTime = 0;
   lastPrice = 0;
   logs = [];
-  const platformLabel = config.platform === "kraken" ? "Kraken (spot)" : config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)";
-  addLog(`Bot started — ${config.symbol} ${platformLabel} capital=${config.capital} USDT | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
+  const platformLabel = config.platform === "kraken"
+    ? `Kraken (spot ${config.krakenFiat ?? "USD"})`
+    : config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)";
+  const capitalLabel = config.platform === "kraken" ? (config.krakenFiat ?? "USD") : "USDT";
+  addLog(`Bot started — ${config.symbol} ${platformLabel} capital=${config.capital} ${capitalLabel} | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
 
   engineTick();
