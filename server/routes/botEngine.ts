@@ -666,6 +666,125 @@ router.get("/status", (_req, res) => {
   });
 });
 
+// ── Backtest / simulation (public — no auth required) ─────────────────────────
+
+router.post("/backtest", async (req, res) => {
+  try {
+    const {
+      symbol = "BTCUSDT",
+      rsiMin = 40, rsiMax = 65, adxMin = 15,
+      confluenceMin = 2, volMultMin = 1.2, cooldownMin = 60,
+      stopLoss = 0.4, takeProfit = 0.6, trailPct = 0.15,
+    } = req.body ?? {};
+
+    // Map Bybit symbol to Kraken pair (USD)
+    const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
+    const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+    const since = Math.floor(Date.now() / 1000) - 720 * 3600; // 30 days
+    const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=${since}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
+    const d = await r.json() as any;
+    if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
+    const key = Object.keys(d.result).find(k => k !== "last")!;
+    const raw: any[] = d.result[key] ?? [];
+    if (raw.length < 60) throw new Error("Za mało danych historycznych");
+
+    const closes  = raw.map((c: any) => parseFloat(c[4]));
+    const highs   = raw.map((c: any) => parseFloat(c[2]));
+    const lows    = raw.map((c: any) => parseFloat(c[3]));
+    const volumes = raw.map((c: any) => parseFloat(c[6]));
+
+    type SimTrade = { dir: string; entryPrice: number; exitPrice: number; pnlPct: number; reason: string; date: string };
+    const trades: SimTrade[] = [];
+    const cooldownMs = (cooldownMin as number) * 60 * 1000;
+    let lastEntry = 0;
+
+    for (let i = 50; i < raw.length - 2; i++) {
+      const tMs = raw[i][0] * 1000;
+      if (tMs - lastEntry <= cooldownMs) continue;
+
+      const sc = closes.slice(Math.max(0, i - 149), i + 1);
+      const sh = highs.slice(Math.max(0, i - 149), i + 1);
+      const sl = lows.slice(Math.max(0, i - 149), i + 1);
+      const sv = volumes.slice(Math.max(0, i - 149), i + 1);
+
+      const rsi     = calcRsi(sc);
+      const ema9    = calcEma(sc, 9);
+      const ema21   = calcEma(sc, 21);
+      const prevSc  = closes.slice(Math.max(0, i - 150), i);
+      const prevE9  = calcEma(prevSc, 9);
+      const prevE21 = calcEma(prevSc, 21);
+      const { macd: macdLine, signal: macdSig } = calcMacd(sc);
+      const adx     = calcAdx(sh, sl, sc);
+      const volMult = calcVolumeMult(sv);
+      const atr     = calcAtr(sh, sl, sc);
+      const price   = parseFloat(raw[i][4]);
+
+      const crossBuy  = ema9 > ema21 && prevE9 <= prevE21;
+      const rsiBuy    = rsi < (rsiMin as number);
+      const macdBull  = macdLine > macdSig;
+      const trendOk   = adx >= (adxMin as number);
+      const volOk     = volMult >= (volMultMin as number);
+      const confScore = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0);
+      if (confScore < (confluenceMin as number)) continue;
+      if (!crossBuy && !rsiBuy) continue;
+
+      const atrPct  = price > 0 ? (atr / price) * 100 : 0;
+      const effSL   = Math.max(stopLoss as number, atrPct * 1.5);
+      const effTP   = Math.max(takeProfit as number, atrPct * 2.5);
+      const effTrl  = Math.max(trailPct as number, atrPct * 0.8);
+
+      let exit = price, reason = "session_end", trailRef = price;
+      for (let j = i + 1; j < Math.min(i + 48, raw.length); j++) {
+        const hi = parseFloat(raw[j][2]);
+        const lo = parseFloat(raw[j][3]);
+        const cl = parseFloat(raw[j][4]);
+        trailRef = Math.max(trailRef, hi);
+        if (lo <= price * (1 - effSL / 100))  { exit = price * (1 - effSL / 100); reason = "stop_loss";   break; }
+        if (hi >= price * (1 + effTP / 100))  { exit = price * (1 + effTP / 100); reason = "take_profit"; break; }
+        const tSL = trailRef * (1 - effTrl / 100);
+        if (cl <= tSL && j > i + 2)           { exit = tSL;                       reason = "trail_stop";  break; }
+        if (j === i + 47) exit = cl;
+      }
+
+      const pnlPct = (exit - price) / price * 100;
+      trades.push({ dir: "long", entryPrice: parseFloat(price.toFixed(2)), exitPrice: parseFloat(exit.toFixed(2)), pnlPct: parseFloat(pnlPct.toFixed(3)), reason, date: new Date(tMs).toISOString() });
+      lastEntry = tMs;
+    }
+
+    const wins = trades.filter(t => t.pnlPct > 0).length;
+    const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+    const totalReturn = trades.reduce((s, t) => s + t.pnlPct, 0);
+    const avgWin  = wins > 0 ? trades.filter(t => t.pnlPct > 0).reduce((s, t) => s + t.pnlPct, 0) / wins : 0;
+    const losses  = trades.length - wins;
+    const avgLoss = losses > 0 ? trades.filter(t => t.pnlPct <= 0).reduce((s, t) => s + t.pnlPct, 0) / losses : 0;
+    let equity = 100, peakEq = 100, maxDD = 0;
+    for (const t of trades) {
+      equity *= (1 + t.pnlPct / 100);
+      if (equity > peakEq) peakEq = equity;
+      const dd = (peakEq - equity) / peakEq * 100;
+      if (dd > maxDD) maxDD = dd;
+    }
+
+    res.json({
+      ok: true,
+      days: Math.round(raw.length / 24),
+      symbol,
+      numTrades: trades.length,
+      winRate: parseFloat(winRate.toFixed(1)),
+      totalReturn: parseFloat(totalReturn.toFixed(2)),
+      maxDrawdown: parseFloat(maxDD.toFixed(2)),
+      avgWin: parseFloat(avgWin.toFixed(2)),
+      avgLoss: parseFloat(avgLoss.toFixed(2)),
+      finalEquity: parseFloat(equity.toFixed(2)),
+      trades: trades.slice(-30),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Auto-resume bot if it was running before server restart
 setTimeout(loadState, 3000);
 

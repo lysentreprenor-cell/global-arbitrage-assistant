@@ -1101,6 +1101,10 @@ export default function TradingBot() {
   const [serverPnl, setServerPnl] = useState(0);
   const [serverBotLoading, setServerBotLoading] = useState(false);
   const [serverBotError, setServerBotError] = useState<string|null>(null);
+  const [simLoading, setSimLoading] = useState(false);
+  const [simResult, setSimResult] = useState<{days:number;symbol:string;numTrades:number;winRate:number;totalReturn:number;maxDrawdown:number;avgWin:number;avgLoss:number;finalEquity:number;trades:{dir:string;entryPrice:number;exitPrice:number;pnlPct:number;reason:string;date:string}[]}|null>(null);
+  const [simError, setSimError] = useState<string|null>(null);
+  const [showSimTrades, setShowSimTrades] = useState(false);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -2800,12 +2804,76 @@ export default function TradingBot() {
                   style={{ background: isOn ? "rgba(248,113,113,0.2)" : "rgba(34,197,94,0.15)", border:`1px solid ${isOn?"rgba(248,113,113,0.5)":"rgba(34,197,94,0.4)"}`, borderRadius:8, padding:"10px 20px", color: isOn ? "#f87171" : G, cursor: serverBotLoading ? "default" : "pointer", fontWeight:700, fontSize:14, opacity: serverBotLoading ? 0.6 : 1 }}>
                   {serverBotLoading ? "⏳ …" : isOn ? "⬛ STOP" : "▶ START LIVE"}
                 </button>
+                <button
+                  disabled={simLoading}
+                  onClick={async () => {
+                    setSimLoading(true); setSimError(null); setSimResult(null); setShowSimTrades(false);
+                    try {
+                      const r = await fetch("/api/bot/backtest", { method:"POST", headers:{"Content-Type":"application/json"},
+                        body: JSON.stringify({ symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, adxMin: config.adxMin,
+                          confluenceMin: config.confluenceMin ?? 2, volMultMin: config.volMultMin ?? 1.2, cooldownMin: config.cooldownMin ?? 60,
+                          stopLoss: config.stopLoss, takeProfit: config.takeProfit, trailPct: config.trailPct }) });
+                      const d = await r.json();
+                      if (d.error) throw new Error(d.error);
+                      setSimResult(d);
+                    } catch(e: any) { setSimError(e.message); }
+                    finally { setSimLoading(false); }
+                  }}
+                  style={{ background:"rgba(139,92,246,0.15)", border:"1px solid rgba(139,92,246,0.4)", borderRadius:8, padding:"10px 16px", color:"#a78bfa", cursor: simLoading ? "default" : "pointer", fontWeight:700, fontSize:13, opacity: simLoading ? 0.6 : 1 }}>
+                  {simLoading ? "⏳ …" : "🔬 Symulacja"}
+                </button>
               </div>
             </div>
 
             {serverBotError && (
               <div style={{ marginTop:8, fontSize:12, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:6, padding:"6px 10px" }}>
                 ❌ {serverBotError}
+              </div>
+            )}
+
+            {simError && (
+              <div style={{ marginTop:8, fontSize:12, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:6, padding:"6px 10px" }}>
+                ❌ Symulacja błąd: {simError}
+              </div>
+            )}
+
+            {simResult && (
+              <div style={{ marginTop:10, background:"rgba(139,92,246,0.07)", border:"1px solid rgba(139,92,246,0.3)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:"#a78bfa", letterSpacing:1 }}>🔬 SYMULACJA — {simResult.symbol} · {simResult.days}d · {simResult.numTrades} transakcji</span>
+                  <button onClick={() => setSimResult(null)} style={{ background:"none", border:"none", color:M, cursor:"pointer", fontSize:14 }}>✕</button>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:10 }}>
+                  {[
+                    { label:"Win Rate", value:`${simResult.winRate.toFixed(1)}%`, color: simResult.winRate >= 50 ? G : R },
+                    { label:"Łączny zwrot", value:`${simResult.totalReturn >= 0?"+":""}${simResult.totalReturn.toFixed(2)}%`, color: simResult.totalReturn >= 0 ? G : R },
+                    { label:"Max Drawdown", value:`-${simResult.maxDrawdown.toFixed(2)}%`, color: simResult.maxDrawdown > 10 ? R : "#fbbf24" },
+                    { label:"Kapitał końcowy", value:`${simResult.finalEquity.toFixed(1)}`, color: simResult.finalEquity >= 100 ? G : R },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{ background:"rgba(0,0,0,0.2)", borderRadius:7, padding:"8px 10px", textAlign:"center" as const }}>
+                      <div style={{ fontSize:9, color:M, marginBottom:3, letterSpacing:0.5 }}>{label.toUpperCase()}</div>
+                      <div style={{ fontSize:15, fontWeight:700, color }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", gap:16, fontSize:11, color:M, marginBottom:8 }}>
+                  <span>Avg Win: <span style={{ color:G }}>+{simResult.avgWin.toFixed(2)}%</span></span>
+                  <span>Avg Loss: <span style={{ color:R }}>{simResult.avgLoss.toFixed(2)}%</span></span>
+                </div>
+                <button onClick={() => setShowSimTrades(p => !p)} style={{ background:"rgba(139,92,246,0.1)", border:"1px solid rgba(139,92,246,0.3)", borderRadius:6, padding:"4px 12px", color:"#a78bfa", cursor:"pointer", fontSize:11, fontWeight:600 }}>
+                  {showSimTrades ? "▲ Ukryj transakcje" : `▼ Pokaż ${simResult.trades.length} transakcji`}
+                </button>
+                {showSimTrades && (
+                  <div style={{ marginTop:8, maxHeight:180, overflowY:"auto" as const }}>
+                    {simResult.trades.map((t, i) => (
+                      <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"3px 0", borderBottom:"1px solid rgba(255,255,255,0.05)", color: t.pnlPct >= 0 ? G : R }}>
+                        <span>{new Date(t.date).toLocaleDateString("pl", { day:"2-digit", month:"2-digit" })} {new Date(t.date).toLocaleTimeString("pl", { hour:"2-digit", minute:"2-digit" })}</span>
+                        <span>${t.entryPrice.toLocaleString()} → ${t.exitPrice.toLocaleString()}</span>
+                        <span>{t.pnlPct >= 0 ? "+" : ""}{t.pnlPct.toFixed(2)}% — {t.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
