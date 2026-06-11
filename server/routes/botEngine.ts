@@ -110,6 +110,7 @@ function loadState() {
       position = null;
       sessionPnl = 0;
       running = true;
+      saveState();
       addLog("Auto-resume po restarcie serwera", "info");
       engineTick();
       intervalId = setInterval(engineTick, 5 * 60_000);

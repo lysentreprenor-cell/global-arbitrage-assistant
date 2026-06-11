@@ -252,14 +252,17 @@ process.on("uncaughtException", (err) => {
     res.json({ ok: true, ts: Date.now() });
   });
 
-  // Self-ping co 4 minuty — Replit śpi po ~30 min braku ruchu
-  const SELF_URL = process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/ping`
+  // Self-ping co 3 minuty — zapobiega uśpieniu Replit (wymaga zewnętrznego URL)
+  const SELF_URL =
+    process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/ping`
+    : process.env.REPL_SLUG && process.env.REPL_OWNER
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/api/ping`
     : `http://localhost:${process.env.PORT || 3000}/api/ping`;
   setInterval(() => {
     fetch(SELF_URL).catch(() => {});
-  }, 4 * 60 * 1000);
-  log(`keepalive self-ping → ${SELF_URL} (every 4 min)`);
+  }, 3 * 60 * 1000);
+  log(`keepalive self-ping → ${SELF_URL} (every 3 min)`);
 
   // ── Wersja build (dla auto-update) ─────────────────────────────────────────
   app.get("/api/version", (_req: Request, res: Response) => {
