@@ -1105,6 +1105,7 @@ export default function TradingBot() {
   const [simResult, setSimResult] = useState<{days:number;symbol:string;numTrades:number;winRate:number;totalReturn:number;maxDrawdown:number;avgWin:number;avgLoss:number;finalEquity:number;trades:{dir:string;entryPrice:number;exitPrice:number;pnlPct:number;reason:string;date:string}[]}|null>(null);
   const [simError, setSimError] = useState<string|null>(null);
   const [showSimTrades, setShowSimTrades] = useState(false);
+  const [connTestResult, setConnTestResult] = useState<{readOk:boolean;balance?:{USD:number;EUR:number;BTC:number;ETH:number};marginEnabled?:boolean;freeMargin?:number|null;marginLevel?:number|null;error?:string}|null>(null);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -2892,15 +2893,16 @@ export default function TradingBot() {
 
             {/* Test API connection button */}
             {!isOn && (
-              <div style={{ marginTop:8 }}>
+              <div style={{ marginTop:8, display:"flex", flexDirection:"column" as const, gap:8 }}>
                 <button onClick={async () => {
+                  setConnTestResult(null);
                   if (hasKrakenKeys()) {
                     const { apiKey, secret } = getKrakenKeys();
                     try {
                       const r = await fetch("/api/kraken/test", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret }) });
                       const d = await r.json();
-                      alert("Wynik testu Kraken API:\n" + (d.readOk ? `✅ OK\nUSD: ${d.balance?.USD}\nEUR: ${d.balance?.EUR}\nBTC: ${d.balance?.BTC}` : `❌ Błąd: ${d.error}`));
-                    } catch(e: any) { alert("Błąd: " + e.message); }
+                      setConnTestResult(d);
+                    } catch(e: any) { setConnTestResult({ readOk: false, error: e.message }); }
                   } else {
                     const { apiKey, secret, testnet } = getBybitKeys();
                     if (!apiKey || !secret) { alert("Najpierw wpisz klucze API w Settings"); return; }
@@ -2910,9 +2912,41 @@ export default function TradingBot() {
                       alert("Wynik testu Bybit API:\n" + JSON.stringify(d, null, 2));
                     } catch(e: any) { alert("Błąd: " + e.message); }
                   }
-                }} style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:6, padding:"6px 14px", color:"#fbbf24", cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                }} style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:6, padding:"6px 14px", color:"#fbbf24", cursor:"pointer", fontSize:12, fontWeight:600, alignSelf:"flex-start" as const }}>
                   🔍 Test połączenia {hasKrakenKeys() ? "Kraken" : "Bybit"}
                 </button>
+
+                {connTestResult && (
+                  <div style={{ background: connTestResult.readOk ? "rgba(34,197,94,0.07)" : "rgba(248,113,113,0.07)", border:`1px solid ${connTestResult.readOk?"rgba(34,197,94,0.3)":"rgba(248,113,113,0.3)"}`, borderRadius:8, padding:"10px 14px", fontSize:12 }}>
+                    {connTestResult.readOk ? (
+                      <>
+                        <div style={{ fontWeight:700, color:G, marginBottom:8 }}>✅ Połączenie OK</div>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
+                          {(connTestResult.balance?.EUR ?? 0) > 0 && <div style={{ color:M }}>EUR: <span style={{ color:"#fff" }}>{connTestResult.balance!.EUR.toFixed(2)}</span></div>}
+                          {(connTestResult.balance?.USD ?? 0) > 0 && <div style={{ color:M }}>USD: <span style={{ color:"#fff" }}>{connTestResult.balance!.USD.toFixed(2)}</span></div>}
+                          {(connTestResult.balance?.BTC ?? 0) > 0 && <div style={{ color:M }}>BTC: <span style={{ color:"#fff" }}>{connTestResult.balance!.BTC.toFixed(6)}</span></div>}
+                          {(connTestResult.balance?.ETH ?? 0) > 0 && <div style={{ color:M }}>ETH: <span style={{ color:"#fff" }}>{connTestResult.balance!.ETH.toFixed(4)}</span></div>}
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:6 }}>
+                          <span style={{ fontSize:18 }}>{connTestResult.marginEnabled ? "✅" : "❌"}</span>
+                          <div>
+                            <div style={{ fontWeight:700, color: connTestResult.marginEnabled ? G : R, fontSize:13 }}>
+                              Margin trading: {connTestResult.marginEnabled ? "AKTYWNY" : "NIEAKTYWNY"}
+                            </div>
+                            <div style={{ color:M, fontSize:11, marginTop:2 }}>
+                              {connTestResult.marginEnabled
+                                ? `Wolny margin: ${connTestResult.freeMargin?.toFixed(2)} EUR/USD · Dźwignie i shorty dostępne`
+                                : "Konto spot — brak dźwigni i shortów. Włącz Intermediate na kraken.com"}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ color:R }}>❌ Błąd: {connTestResult.error}</div>
+                    )}
+                    <button onClick={() => setConnTestResult(null)} style={{ marginTop:8, background:"none", border:"none", color:M, cursor:"pointer", fontSize:11 }}>✕ Zamknij</button>
+                  </div>
+                )}
               </div>
             )}
 

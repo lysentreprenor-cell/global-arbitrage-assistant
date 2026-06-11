@@ -115,16 +115,21 @@ router.post("/test", async (req, res) => {
       krakenPrivate(apiKey, secret, "/0/private/Balance"),
       krakenPrivate(apiKey, secret, "/0/private/TradeBalance").catch(() => null),
     ]);
+    // mf = free margin, ml = margin level — present only when margin is enabled on the account
+    const freeMargin   = tradeBalance?.mf != null ? parseFloat(tradeBalance.mf) : null;
+    const marginLevel  = tradeBalance?.ml != null ? parseFloat(tradeBalance.ml) : null;
+    const marginEnabled = freeMargin !== null;
     res.json({
-      readOk:   true,
-      tradeOk:  true,
+      readOk:  true,
+      tradeOk: true,
       balance: {
         USD: parseFloat(balance.ZUSD ?? "0"),
         EUR: parseFloat(balance.ZEUR ?? "0"),
         BTC: parseFloat(balance.XXBT ?? "0"),
         ETH: parseFloat(balance.XETH ?? "0"),
       },
-      equity: tradeBalance ? parseFloat(tradeBalance.e ?? "0") : null,
+      equity:        tradeBalance ? parseFloat(tradeBalance.e ?? "0") : null,
+      marginEnabled, freeMargin, marginLevel,
     });
   } catch (e: any) {
     res.json({ readOk: false, tradeOk: false, error: e.message });
