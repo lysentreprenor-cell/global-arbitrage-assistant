@@ -98,7 +98,7 @@ type BotConfig = {
   strategyAutoMode: boolean; // system sam dobiera RSI/Trail/SL/TP z Deep Train
   scheduleStartAt: number | null; // Unix ms timestamp when bot should auto-enable
   // Risk level preset
-  riskLevel: "cautious" | "normal" | "aggressive" | null;
+  riskLevel: "cautious" | "normal" | "aggressive" | "superaggressive" | null;
   confluenceMin: number;  // 1=aggressive, 2=normal, 3=cautious
   volMultMin: number;     // volume spike threshold
   cooldownMin: number;    // minutes between live entries
@@ -2547,13 +2547,13 @@ export default function TradingBot() {
                 {/* Risk level selector */}
                 <div style={{ gridColumn:"span 2", background:"rgba(15,20,35,0.6)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:14, padding:"16px" }}>
                   <div style={{ fontSize:11, fontWeight:700, color:M, letterSpacing:1, marginBottom:12 }}>POZIOM RYZYKA</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                     {([
                       {
                         key:"cautious" as const,
                         icon:"🐢", label:"Ostrożny",
                         color:"#34d399", bg:"rgba(52,211,153,0.08)", border:"rgba(52,211,153,0.3)",
-                        desc:"Mało transakcji,\nwysokie pewność",
+                        desc:"Mało transakcji,\nwysoka pewność",
                         trades:"1–3 / tydzień",
                         cfg:{ rsiMin:34, rsiMax:68, adxMin:20, confluenceMin:3, volMultMin:1.5, cooldownMin:90, stopLoss:0.35, takeProfit:0.8, trailPct:0.2 },
                       },
@@ -2570,8 +2570,16 @@ export default function TradingBot() {
                         icon:"🚀", label:"Agresywny",
                         color:"#f87171", bg:"rgba(248,113,113,0.08)", border:"rgba(248,113,113,0.3)",
                         desc:"Dużo transakcji,\nwyższe ryzyko",
-                        trades:"10+ / dzień",
+                        trades:"10–30 / dzień",
                         cfg:{ rsiMin:48, rsiMax:58, adxMin:10, confluenceMin:1, volMultMin:1.0, cooldownMin:20, stopLoss:0.5, takeProfit:0.5, trailPct:0.1 },
+                      },
+                      {
+                        key:"superaggressive" as const,
+                        icon:"⚡", label:"Super Agresywny",
+                        color:"#f59e0b", bg:"rgba(245,158,11,0.08)", border:"rgba(245,158,11,0.4)",
+                        desc:"Maksymalna ilość\ntransakcji — scalping",
+                        trades:"50–100+ / dzień",
+                        cfg:{ rsiMin:58, rsiMax:48, adxMin:5, confluenceMin:1, volMultMin:1.0, cooldownMin:5, stopLoss:0.6, takeProfit:0.4, trailPct:0.08 },
                       },
                     ] as const).map(lvl => {
                       const active = config.riskLevel === lvl.key;
