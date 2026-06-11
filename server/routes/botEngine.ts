@@ -65,6 +65,9 @@ type BotConfig = {
   allowShorts: boolean;
   capital: number;
   adxMin: number;
+  confluenceMin: number;  // 1=aggressive, 2=normal, 3=cautious
+  volMultMin: number;     // volume spike threshold (1.0 = disabled)
+  cooldownMin: number;    // minutes between entries
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -467,10 +470,11 @@ async function engineTick() {
     // Confluence: require 2 of 3 (MACD direction, ADX strength, volume spike)
     const macdBull  = macdLine > macdSignal;
     const macdBear  = macdLine < macdSignal;
+    const confMin   = config.confluenceMin ?? 2;
     const trendOk   = adx >= adxMin;
-    const volOk     = volMult >= 1.2;
-    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
-    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
+    const volOk     = volMult >= (config.volMultMin ?? 1.2);
+    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confMin;
+    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confMin;
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
@@ -479,7 +483,8 @@ async function engineTick() {
     const krakenSpot = config.platform === "kraken" && effLev === 1;
     const isShort = !krakenSpot && config.allowShorts && (crossSell || rsiSell) && shortConf;
 
-    const cooldownOk = Date.now() - lastEntryTime > 60 * 60 * 1000;
+    const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
+    const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
     const doLong  = isLong  && cooldownOk;
     const doShort = isShort && cooldownOk;
 
@@ -572,7 +577,8 @@ router.post("/keys", (req, res) => {
 
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
-  const { symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, adxMin } = req.body;
+  const { symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, adxMin,
+          confluenceMin, volMultMin, cooldownMin } = req.body;
 
   // If keys not provided, try to load saved encrypted keys
   if (!apiKey || !secret) {
@@ -595,7 +601,10 @@ router.post("/start", (req, res) => {
     leverage:   leverage   ?? 10,
     allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
-    adxMin:  adxMin  ?? 15,
+    adxMin:        adxMin        ?? 15,
+    confluenceMin: confluenceMin ?? 2,
+    volMultMin:    volMultMin    ?? 1.2,
+    cooldownMin:   cooldownMin   ?? 60,
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };

@@ -97,6 +97,11 @@ type BotConfig = {
   // auto strategy
   strategyAutoMode: boolean; // system sam dobiera RSI/Trail/SL/TP z Deep Train
   scheduleStartAt: number | null; // Unix ms timestamp when bot should auto-enable
+  // Risk level preset
+  riskLevel: "cautious" | "normal" | "aggressive" | null;
+  confluenceMin: number;  // 1=aggressive, 2=normal, 3=cautious
+  volMultMin: number;     // volume spike threshold
+  cooldownMin: number;    // minutes between live entries
   trades: PaperTrade[];
 };
 
@@ -875,6 +880,10 @@ const DEFAULTS: BotConfig = { enabled:false, autoMode:false, allowShorts:true, s
   filterAutoMode:false,
   strategyAutoMode:false,
   scheduleStartAt:null,
+  riskLevel:null,
+  confluenceMin:2,
+  volMultMin:1.2,
+  cooldownMin:60,
   trades:[] };
 
 function loadConfig(): BotConfig {
@@ -2535,19 +2544,60 @@ export default function TradingBot() {
                     <button onClick={()=>update({profitLock:!config.profitLock})} style={{ background:config.profitLock?"rgba(56,189,248,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${config.profitLock?"#38bdf8":"rgba(255,255,255,0.2)"}`, borderRadius:7, padding:"5px 10px", color:config.profitLock?"#38bdf8":M, cursor:"pointer", fontWeight:700, fontSize:11 }}>{config.profitLock?"ON":"OFF"}</button>
                   </div>
                 </div>
-                {/* #41 Strategy presets */}
-                <div style={{ background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:10, padding:"12px 14px", gridColumn:"span 2" }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:"#818cf8", marginBottom:8 }}>#41 Presety strategii</div>
-                  <div style={{ display:"flex", gap:8 }}>
-                    {[
-                      { name:"🐢 Konserwatywny", cfg:{ riskPct:5, trailPct:0.35, rsiMin:50, rsiMax:65, macdFilter:true, volumeFilter:true, drawdownProtection:true, recoveryMode:true, breakEvenStop:true } },
-                      { name:"⚖️ Zbalansowany",  cfg:{ riskPct:10, trailPct:0.25, rsiMin:45, rsiMax:65, macdFilter:true, volumeFilter:true, drawdownProtection:true } },
-                      { name:"🚀 Agresywny",     cfg:{ riskPct:15, trailPct:0.15, rsiMin:48, rsiMax:68, macdFilter:true, volumeFilter:true, drawdownProtection:false } },
-                    ].map(p=>(
-                      <button key={p.name} onClick={()=>{ update(p.cfg as Partial<BotConfig>); addLog(`Preset: ${p.name}`,"info"); }}
-                        style={{ flex:1, background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:7, padding:"7px 6px", color:"#818cf8", cursor:"pointer", fontSize:11, fontWeight:700 }}>{p.name}</button>
-                    ))}
+                {/* Risk level selector */}
+                <div style={{ gridColumn:"span 2", background:"rgba(15,20,35,0.6)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:14, padding:"16px" }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:M, letterSpacing:1, marginBottom:12 }}>POZIOM RYZYKA</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                    {([
+                      {
+                        key:"cautious" as const,
+                        icon:"🐢", label:"Ostrożny",
+                        color:"#34d399", bg:"rgba(52,211,153,0.08)", border:"rgba(52,211,153,0.3)",
+                        desc:"Mało transakcji,\nwysokie pewność",
+                        trades:"1–3 / tydzień",
+                        cfg:{ rsiMin:34, rsiMax:68, adxMin:20, confluenceMin:3, volMultMin:1.5, cooldownMin:90, stopLoss:0.35, takeProfit:0.8, trailPct:0.2 },
+                      },
+                      {
+                        key:"normal" as const,
+                        icon:"⚖️", label:"Normalny",
+                        color:"#60a5fa", bg:"rgba(96,165,250,0.08)", border:"rgba(96,165,250,0.3)",
+                        desc:"Balans między\nilością a jakością",
+                        trades:"3–7 / tydzień",
+                        cfg:{ rsiMin:40, rsiMax:65, adxMin:15, confluenceMin:2, volMultMin:1.2, cooldownMin:60, stopLoss:0.4, takeProfit:0.6, trailPct:0.15 },
+                      },
+                      {
+                        key:"aggressive" as const,
+                        icon:"🚀", label:"Agresywny",
+                        color:"#f87171", bg:"rgba(248,113,113,0.08)", border:"rgba(248,113,113,0.3)",
+                        desc:"Dużo transakcji,\nwyższe ryzyko",
+                        trades:"10+ / dzień",
+                        cfg:{ rsiMin:48, rsiMax:58, adxMin:10, confluenceMin:1, volMultMin:1.0, cooldownMin:20, stopLoss:0.5, takeProfit:0.5, trailPct:0.1 },
+                      },
+                    ] as const).map(lvl => {
+                      const active = config.riskLevel === lvl.key;
+                      return (
+                        <button key={lvl.key} onClick={() => {
+                          update({ ...lvl.cfg, riskLevel: lvl.key } as any);
+                          addLog(`Poziom ryzyka: ${lvl.label} — ${lvl.trades}`, "info");
+                        }} style={{
+                          background: active ? lvl.bg : "rgba(255,255,255,0.03)",
+                          border: `2px solid ${active ? lvl.color : "rgba(255,255,255,0.08)"}`,
+                          borderRadius:10, padding:"12px 8px", cursor:"pointer", textAlign:"center",
+                          transition:"all .15s",
+                        }}>
+                          <div style={{ fontSize:22, marginBottom:4 }}>{lvl.icon}</div>
+                          <div style={{ fontSize:12, fontWeight:800, color: active ? lvl.color : "#fff", marginBottom:4 }}>{lvl.label}</div>
+                          <div style={{ fontSize:10, color:"#4a5568", lineHeight:1.4, whiteSpace:"pre-line" }}>{lvl.desc}</div>
+                          <div style={{ fontSize:10, color: active ? lvl.color : "#4a5568", marginTop:5, fontWeight:600 }}>{lvl.trades}</div>
+                        </button>
+                      );
+                    })}
                   </div>
+                  {config.riskLevel && (
+                    <div style={{ marginTop:10, fontSize:11, color:M, padding:"8px 12px", background:"rgba(255,255,255,0.03)", borderRadius:8 }}>
+                      RSI [{config.rsiMin}–{config.rsiMax}] · ADX≥{config.adxMin} · Potwierdzenia: {config.confluenceMin}/3 · Wolumen: ×{(config.volMultMin??1.2).toFixed(1)} · Cooldown: {config.cooldownMin}min
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2721,7 +2771,7 @@ export default function TradingBot() {
                     setServerBotLoading(true);
                     const localKeys = hasKrakenKeys() ? { ...getKrakenKeys(), testnet: false, platform: "kraken" } : hasBybitKeys() ? getBybitKeys() : { apiKey: "", secret: "", testnet: false, platform: "global" };
                     const url = isOn ? "/api/bot/stop" : "/api/bot/start";
-                    const body = isOn ? {} : { ...localKeys, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin };
+                    const body = isOn ? {} : { ...localKeys, symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, trailPct: config.trailPct, stopLoss: config.stopLoss, takeProfit: config.takeProfit, leverage: effLev, allowShorts: config.allowShorts, capital: parseFloat(liveUsdt)||9, adxMin: config.adxMin, confluenceMin: config.confluenceMin ?? 2, volMultMin: config.volMultMin ?? 1.2, cooldownMin: config.cooldownMin ?? 60 };
                     fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) })
                       .then(r => r.json())
                       .then(d => {
