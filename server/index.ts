@@ -1,5 +1,6 @@
 import "./envValidate";
 import express, { type Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { registerHealthSecretsRoute } from "./routes/healthSecrets";
 import { installAuthFix } from "./replitAuthFix";
@@ -283,6 +284,87 @@ process.on("uncaughtException", (err) => {
     res.setHeader("Service-Worker-Allowed", "/");
     return res.send(injected);
   });
+
+  // ── App password gate ─────────────────────────────────────────────────────────
+  // Set APP_PASSWORD in Replit Secrets to enable. Leave empty to disable.
+  const APP_PASS = process.env.APP_PASSWORD;
+  if (APP_PASS) {
+    const TOKEN = crypto.createHash("sha256").update(APP_PASS + "resellassist-2024").digest("hex");
+    const COOKIE = "app_token";
+
+    const LOGIN_PAGE = `<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ResellAssist — Login</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080a0e;color:#fff;font-family:system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:#0f1117;border:1px solid #1e2230;border-radius:20px;padding:44px 36px;width:100%;max-width:380px;text-align:center;box-shadow:0 25px 60px #000a}
+.icon{font-size:40px;margin-bottom:12px}
+.logo{font-size:22px;font-weight:800;color:#f59e0b;letter-spacing:.5px}
+.sub{color:#4a5568;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-bottom:36px;margin-top:4px}
+input{width:100%;padding:15px 18px;background:#181c27;border:1.5px solid #252b3a;border-radius:12px;color:#fff;font-size:16px;outline:none;transition:border-color .2s;margin-bottom:14px;letter-spacing:.05em}
+input:focus{border-color:#f59e0b}
+input::placeholder{color:#3a4155}
+button{width:100%;padding:15px;background:#f59e0b;color:#000;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s,transform .1s;letter-spacing:.3px}
+button:hover{opacity:.92}
+button:active{transform:scale(.98)}
+.err{color:#ef4444;font-size:13px;margin-top:14px;display:none;min-height:18px}
+.lock{color:#2a3040;font-size:11px;margin-top:28px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">📈</div>
+  <div class="logo">ResellAssist</div>
+  <div class="sub">Global Intelligence</div>
+  <form id="f">
+    <input type="password" id="pw" placeholder="Hasło dostępu" autofocus autocomplete="current-password"/>
+    <button type="submit">Wejdź →</button>
+    <div class="err" id="err">Nieprawidłowe hasło</div>
+  </form>
+  <div class="lock">🔒 Dostęp chroniony hasłem</div>
+</div>
+<script>
+document.getElementById('f').onsubmit=async e=>{
+  e.preventDefault();
+  const r=await fetch('/api/app-auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
+  if(r.ok){location.reload();}
+  else{const el=document.getElementById('err');el.style.display='block';document.getElementById('pw').value='';document.getElementById('pw').focus();setTimeout(()=>el.style.display='none',3000);}
+};
+</script>
+</body>
+</html>`;
+
+    // Login endpoint — registered BEFORE auth middleware so it's always reachable
+    app.post("/api/app-auth/login", (req: Request, res: Response) => {
+      if (req.body?.password === APP_PASS) {
+        res.setHeader("Set-Cookie", `${COOKIE}=${TOKEN}; HttpOnly; Path=/; Max-Age=${30 * 24 * 60 * 60}; SameSite=Lax`);
+        res.json({ ok: true });
+      } else {
+        res.status(401).json({ error: "Nieprawidłowe hasło" });
+      }
+    });
+
+    // Auth gate — runs for every request that reached this point
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      // Parse cookie header manually (no cookie-parser dep needed)
+      const cookies = Object.fromEntries(
+        (req.headers.cookie ?? "").split(";").filter(Boolean).map(c => {
+          const [k, ...v] = c.trim().split("=");
+          return [k.trim(), v.join("=")];
+        })
+      );
+      if (cookies[COOKIE] === TOKEN) return next();
+      if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Unauthorized" });
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(LOGIN_PAGE);
+    });
+
+    log("App password gate enabled — set APP_PASSWORD in Replit Secrets to change");
+  }
 
   // Health / diagnostics — secrets presence check (no values, public)
   registerHealthSecretsRoute(app);
