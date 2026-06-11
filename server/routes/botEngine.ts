@@ -472,6 +472,8 @@ async function engineTick() {
     const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
 
+    const effLev = Math.max(1, config.leverage ?? 1);
+
     const isLong  = (crossBuy  || rsiBuy)  && longConf;
     // Kraken spot (lev=1): no shorting; Kraken margin (lev>1): shorts allowed
     const krakenSpot = config.platform === "kraken" && effLev === 1;
@@ -499,7 +501,6 @@ async function engineTick() {
       : config.platform === "eu"
       ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
       : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
-    const effLev = Math.max(1, config.leverage ?? 1);
     const qty = Math.max(parseFloat(((config.capital * effLev) / price).toFixed(spec.dec)), spec.min);
 
     // Balance check

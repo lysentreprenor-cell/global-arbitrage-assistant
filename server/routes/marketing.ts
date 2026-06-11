@@ -1,28 +1,11 @@
 import { Router, type Request, type Response } from "express";
+import { sanitize, parseJsonSalvage, selectModel } from "../lib/marketingUtils";
 
 const router = Router();
 
-function parseJsonSalvage(text: string): any {
-  // Try object first, then array
-  for (const re of [/\{[\s\S]*\}/, /\[[\s\S]*\]/]) {
-    const m = text.match(re);
-    if (!m) continue;
-    try { return JSON.parse(m[0]); } catch { /* try salvage */ }
-    let partial = m[0];
-    // Remove trailing incomplete key/value pair
-    partial = partial.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, "").replace(/,\s*$/, "");
-    // Close open structures
-    const stack: string[] = [];
-    for (const ch of partial) {
-      if (ch === "{") stack.push("}");
-      else if (ch === "[") stack.push("]");
-      else if (ch === "}" || ch === "]") stack.pop();
-    }
-    partial += stack.reverse().join("");
-    try { return JSON.parse(partial); } catch { /* next pattern */ }
-  }
-  return null;
-}
+const CLAUDE_TIMEOUT = 55_000; // 55s — before Replit's 60s proxy timeout
+
+function claudeSignal() { return AbortSignal.timeout(CLAUDE_TIMEOUT); }
 
 // ── YouTube metadata fetch ───────────────────────────────────────────────────
 router.get("/fetch-yt", async (req: Request, res: Response) => {
@@ -275,6 +258,9 @@ router.post("/gen-comments", async (req: Request, res: Response) => {
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
 
+  const productSafe     = sanitize(product, 100);
+  const descriptionSafe = sanitize(description, 500);
+
   const hasReal = Array.isArray(realComments) && realComments.length > 0;
   const realCtx = hasReal
     ? `\nREAL YOUTUBE COMMENTS TO ANALYZE:\n${realComments.slice(0, 15).map((c: any, i: number) => `${i + 1}. [👍${c.likes}] "${c.text}"`).join("\n")}`
@@ -282,8 +268,8 @@ router.post("/gen-comments", async (req: Request, res: Response) => {
 
   const prompt = `You are a social-media comment marketing strategist. Generate strategic marketing comments for YouTube and TikTok.
 
-Product: ${product}
-Description: ${description || "N/A"}
+Product: ${productSafe}
+Description: ${descriptionSafe || "N/A"}
 Target Market: ${targetMarket}
 Campaign Type: ${campaignType}${realCtx}
 
@@ -343,6 +329,7 @@ Return ONLY valid JSON (no markdown):
         system: "You are a social-media comment marketing expert. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: claudeSignal(),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({})) as any;
@@ -350,9 +337,9 @@ Return ONLY valid JSON (no markdown):
     }
     const data = await r.json() as any;
     const text: string = data.content?.[0]?.text ?? "";
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
-    return res.json(JSON.parse(match[0]));
+    const parsed = parseJsonSalvage(text);
+    if (!parsed) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
+    return res.json(parsed);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal error" });
   }
@@ -371,6 +358,9 @@ router.post("/generate", async (req: Request, res: Response) => {
   if (!product) return res.status(400).json({ error: "product required" });
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const productSafe     = sanitize(product, 100);
+  const descriptionSafe = sanitize(description, 500);
 
   const language = marketType === "country"
     ? (MARKET_LANGUAGE[targetMarket] ?? "English")
@@ -550,10 +540,10 @@ router.post("/generate", async (req: Request, res: Response) => {
   const prompt = `You are a world-class performance marketing strategist. Create a targeted marketing campaign.
 
 CAMPAIGN BRIEF:
-- Product: ${product}
+- Product: ${productSafe}
 - Category: ${category}
-- Price: $${priceUSD} USD
-- Description: ${description || "Not provided"}
+- Price: $${Number(priceUSD) || 0} ${currency}
+- Description: ${descriptionSafe || "Not provided"}
 - Target Market: ${targetMarket} (${marketType})
 - Campaign Type: ${campaignLabels[campaignType] ?? campaignType}
 - Language: ${language}
@@ -570,12 +560,7 @@ Return ONLY valid JSON (no markdown):
 {${jsonBody}
 }`;
 
-  const tokenPerSection: Record<string, number> = { s: 600, m: 1600, l: 3200 };
-  const totalEst = sel.reduce((sum, s) => sum + (tokenPerSection[det(s)] || 1600), 0);
-  const hasLong = sel.some(s => det(s) === "l");
-  const useHaiku = sel.length <= 3 && !hasLong;
-  const model = useHaiku ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6";
-  const maxTok = Math.min(useHaiku ? 6000 : 16000, Math.max(2000, totalEst + 600));
+  const { model, maxTokens: maxTok } = selectModel(sel, sectionDetail);
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -587,6 +572,7 @@ Return ONLY valid JSON (no markdown):
         system: "You are a world-class international performance marketing strategist. Generate complete, ready-to-use marketing campaigns. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: claudeSignal(),
     });
 
     if (!r.ok) {
@@ -595,31 +581,13 @@ Return ONLY valid JSON (no markdown):
     }
     const data = await r.json() as any;
     const text: string = data.content?.[0]?.text ?? "";
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
-
-    let campaign: any;
-    try {
-      campaign = JSON.parse(match[0]);
-    } catch {
-      // JSON truncated — try to salvage by closing open structures
-      let partial = match[0];
-      // Count unclosed braces/brackets and close them
-      let opens = 0;
-      for (const ch of partial) { if (ch === "{" || ch === "[") opens++; else if (ch === "}" || ch === "]") opens--; }
-      // Remove trailing incomplete key/value
-      partial = partial.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, "").replace(/,\s*$/, "");
-      // Close remaining open structures
-      const stack: string[] = [];
-      for (const ch of partial) { if (ch === "{") stack.push("}"); else if (ch === "[") stack.push("]"); else if (ch === "}" || ch === "]") stack.pop(); }
-      partial += stack.reverse().join("");
-      try { campaign = JSON.parse(partial); } catch {
-        return res.status(502).json({ error: "JSON truncated — try again or shorten the description", raw: text.slice(0, 200) });
-      }
+    const campaign = parseJsonSalvage(text);
+    if (!campaign || typeof campaign !== "object" || Array.isArray(campaign)) {
+      return res.status(502).json({ error: "JSON truncated — try again or shorten the description", raw: text.slice(0, 200) });
     }
     return res.json({
       campaign,
-      meta: { product, targetMarket, marketType, campaignType, language, currency },
+      meta: { product: productSafe, targetMarket, marketType, campaignType, language, currency },
       usage: data.usage ?? null,
       model,
     });
@@ -641,6 +609,9 @@ router.post("/agent-run", async (req: Request, res: Response) => {
   if (!product) { res.status(400).json({ error: "product required" }); return; }
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) { res.status(400).json({ error: "Anthropic API key required" }); return; }
+
+  const productSafe     = sanitize(product, 100);
+  const descriptionSafe = sanitize(description, 500);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -699,8 +670,8 @@ router.post("/agent-run", async (req: Request, res: Response) => {
 
   const systemPrompt = `You are an expert performance marketing strategist building a campaign section by section.
 
-PRODUCT: ${product} | CATEGORY: ${category} | PRICE: $${priceUSD}
-DESCRIPTION: ${description || "N/A"}
+PRODUCT: ${productSafe} | CATEGORY: ${category} | PRICE: $${Number(priceUSD) || 0}
+DESCRIPTION: ${descriptionSafe || "N/A"}
 MARKET: ${targetMarket} (${marketType}) | LANGUAGE: ${language} | CURRENCY: ${currency}
 CAMPAIGN TYPE: ${campaignLabels[campaignType] ?? campaignType}
 VOICE: ${voice} | BUDGET: ${budgetLabels[campaignBudget] ?? budgetLabels.auto}
@@ -734,6 +705,7 @@ Rules:
           tools: [TOOL],
           messages,
         }),
+        signal: claudeSignal(),
       });
 
       if (!r.ok) {
@@ -755,7 +727,7 @@ Rules:
         } else {
           send("done", {
             campaign,
-            meta: { product, targetMarket, marketType, campaignType, language, currency },
+            meta: { product: productSafe, targetMarket, marketType, campaignType, language, currency },
             usage: data.usage ?? null,
             model: "claude-sonnet-4-6",
           });
@@ -794,7 +766,7 @@ Rules:
           // Actually just emit done now
           const campaign: any = {};
           for (const [, content] of Object.entries(collectedSections)) Object.assign(campaign, content);
-          send("done", { campaign, meta: { product, targetMarket, marketType, campaignType, language, currency }, model: "claude-sonnet-4-6" });
+          send("done", { campaign, meta: { product: productSafe, targetMarket, marketType, campaignType, language, currency }, model: "claude-sonnet-4-6" });
           res.end(); return;
         }
         continue;
@@ -820,11 +792,13 @@ router.post("/gen-sequence", async (req: Request, res: Response) => {
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
 
+  const productSafe     = sanitize(product, 100);
+  const descriptionSafe = sanitize(description, 500);
   const language = MARKET_LANGUAGE[targetMarket] ?? "English";
 
   const prompt = `You are an email marketing expert. Create a 5-email drip sequence for:
-Product: ${product}
-Description: ${description || "N/A"}
+Product: ${productSafe}
+Description: ${descriptionSafe || "N/A"}
 Target Market: ${targetMarket}
 Campaign Type: ${campaignType}
 Voice/Tone: ${voice}
@@ -833,15 +807,16 @@ Language: ${language}
 Return ONLY a valid JSON array of 5 email objects (no markdown):
 [
   {
-    "timing": "Dzień 0 — od razu",
-    "goal": "Powitanie i pierwsza wartość",
+    "timing": "Day 0 — immediately after signup",
+    "goal": "Welcome and first value",
     "subject": "email subject in ${language}",
     "preheader": "email preheader in ${language}",
     "body": "full email body 200-300 words in ${language}",
     "cta": "button text in ${language}"
   }
 ]
-Write all content (subject, preheader, body, cta) in ${language}. Keep JSON keys in English.`;
+Timing values should describe the send schedule in English (e.g. "Day 0 — immediately", "Day 3", "Day 7", "Day 14", "Day 21").
+Write subject, preheader, body, and cta in ${language}. Keep JSON keys in English.`;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -853,6 +828,7 @@ Write all content (subject, preheader, body, cta) in ${language}. Keep JSON keys
         system: "You are an email marketing expert. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: claudeSignal(),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({})) as any;
@@ -878,13 +854,16 @@ router.post("/gen-landing", async (req: Request, res: Response) => {
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
 
+  const productSafe     = sanitize(product, 100);
+  const descriptionSafe = sanitize(description, 500);
   const language = MARKET_LANGUAGE[targetMarket] ?? "English";
+  const currency = MARKET_CURRENCY[targetMarket] ?? "USD";
 
   const prompt = `You are a world-class copywriter specializing in high-converting landing pages. Create full landing page copy for:
-Product: ${product}
-Description: ${description || "N/A"}
+Product: ${productSafe}
+Description: ${descriptionSafe || "N/A"}
 Target Market: ${targetMarket}
-Price: $${priceUSD} USD
+Price: ${Number(priceUSD) || 0} ${currency}
 Voice/Tone: ${voice}
 Language: ${language}
 
@@ -944,6 +923,7 @@ Write all user-facing content in ${language}. Keep JSON keys in English.`;
         system: "You are a world-class conversion copywriter. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: claudeSignal(),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({})) as any;
@@ -969,11 +949,13 @@ router.post("/gen-calendar", async (req: Request, res: Response) => {
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
 
+  const productSafe     = sanitize(product, 100);
+  const descriptionSafe = sanitize(description, 500);
   const language = MARKET_LANGUAGE[targetMarket] ?? "English";
 
   const prompt = `You are a social media strategist. Create a 30-day content calendar for:
-Product: ${product}
-Description: ${description || "N/A"}
+Product: ${productSafe}
+Description: ${descriptionSafe || "N/A"}
 Target Market: ${targetMarket}
 Campaign Type: ${campaignType}
 Voice/Tone: ${voice}
@@ -983,7 +965,7 @@ Return ONLY a valid JSON array of exactly 30 items (no markdown):
 [
   {
     "day": 1,
-    "label": "Tydzień 1 — Poniedziałek",
+    "label": "Week 1 — Monday",
     "platform": "TikTok",
     "type": "Reel",
     "hook": "first sentence that stops scroll in ${language}",
@@ -992,7 +974,7 @@ Return ONLY a valid JSON array of exactly 30 items (no markdown):
     "bestTime": "18:00–20:00"
   }
 ]
-Use platforms: TikTok, Instagram, Facebook, YouTube. Vary them across days. Write hook and content in ${language}. Keep JSON keys in English. Return all 30 days.`;
+Use platforms: TikTok, Instagram, Facebook, YouTube. Vary them across days. Label should follow format "Week N — Weekday" in English. Write hook and content in ${language}. Keep JSON keys in English. Return all 30 days.`;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -1004,6 +986,7 @@ Use platforms: TikTok, Instagram, Facebook, YouTube. Vary them across days. Writ
         system: "You are a social media content strategist. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: claudeSignal(),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({})) as any;
@@ -1029,13 +1012,16 @@ router.post("/gen-influencer", async (req: Request, res: Response) => {
   const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
 
+  const productSafe     = sanitize(product, 100);
+  const descriptionSafe = sanitize(description, 500);
   const language = MARKET_LANGUAGE[targetMarket] ?? "English";
+  const currency = MARKET_CURRENCY[targetMarket] ?? "USD";
 
   const prompt = `You are an influencer marketing expert. Create an influencer outreach kit for:
-Product: ${product}
-Description: ${description || "N/A"}
+Product: ${productSafe}
+Description: ${descriptionSafe || "N/A"}
 Target Market: ${targetMarket}
-Price: $${priceUSD} USD
+Price: ${Number(priceUSD) || 0} ${currency}
 Campaign Type: ${campaignType}
 Voice/Tone: ${voice}
 Language: ${language}
@@ -1060,6 +1046,7 @@ Write all user-facing text in ${language}. Keep JSON keys in English.`;
         system: "You are an influencer marketing expert. Always respond with valid JSON only.",
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: claudeSignal(),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({})) as any;
