@@ -207,11 +207,14 @@ async function placeOrder(side: Direction, qty: number): Promise<string> {
   if (!config) throw new Error("No config");
   if (config.platform === "kraken") {
     const pair = krakenPair(config.symbol);
-    const result = await krakenPrivate("/0/private/AddOrder", {
+    const effLev = Math.max(1, config.leverage ?? 1);
+    const orderParams: Record<string, string> = {
       pair, type: side === "long" ? "buy" : "sell", ordertype: "market", volume: String(qty),
-    });
+    };
+    if (effLev > 1) orderParams.leverage = String(effLev);
+    const result = await krakenPrivate("/0/private/AddOrder", orderParams);
     const txid = result.txid?.[0] ?? "unknown";
-    addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | TxID: ${txid}`, "buy");
+    addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty}${effLev > 1 ? ` lev=${effLev}x` : ""} | TxID: ${txid}`, "buy");
     return txid;
   }
   const params: Record<string, any> = config.platform === "eu"
@@ -232,9 +235,12 @@ async function closePosition(reason: string): Promise<boolean> {
     if (config.platform === "kraken") {
       const pair = krakenPair(config.symbol);
       const closeSide = position.direction === "long" ? "sell" : "buy";
-      await krakenPrivate("/0/private/AddOrder", {
+      const effLev = Math.max(1, config.leverage ?? 1);
+      const closeParams: Record<string, string> = {
         pair, type: closeSide, ordertype: "market", volume: String(position.qty),
-      });
+      };
+      if (effLev > 1) closeParams.leverage = String(effLev);
+      await krakenPrivate("/0/private/AddOrder", closeParams);
       addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
       return true;
     }
@@ -467,8 +473,9 @@ async function engineTick() {
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
 
     const isLong  = (crossBuy  || rsiBuy)  && longConf;
-    // Kraken spot: no short selling (would require owning the asset to sell)
-    const isShort = config.platform !== "kraken" && config.allowShorts && (crossSell || rsiSell) && shortConf;
+    // Kraken spot (lev=1): no shorting; Kraken margin (lev>1): shorts allowed
+    const krakenSpot = config.platform === "kraken" && effLev === 1;
+    const isShort = !krakenSpot && config.allowShorts && (crossSell || rsiSell) && shortConf;
 
     const cooldownOk = Date.now() - lastEntryTime > 60 * 60 * 1000;
     const doLong  = isLong  && cooldownOk;
@@ -492,7 +499,7 @@ async function engineTick() {
       : config.platform === "eu"
       ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
       : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
-    const effLev = config.platform === "kraken" ? 1 : Math.max(1, config.leverage ?? 1);
+    const effLev = Math.max(1, config.leverage ?? 1);
     const qty = Math.max(parseFloat(((config.capital * effLev) / price).toFixed(spec.dec)), spec.min);
 
     // Balance check
@@ -602,8 +609,9 @@ router.post("/start", (req, res) => {
   lastEntryTime = 0;
   lastPrice = 0;
   logs = [];
+  const krakenLev = Math.max(1, config.leverage ?? 1);
   const platformLabel = config.platform === "kraken"
-    ? `Kraken (spot ${config.krakenFiat ?? "USD"})`
+    ? `Kraken (${krakenLev > 1 ? `margin ${krakenLev}x` : "spot"} ${config.krakenFiat ?? "USD"})`
     : config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)";
   const capitalLabel = config.platform === "kraken" ? (config.krakenFiat ?? "USD") : "USDT";
   addLog(`Bot started — ${config.symbol} ${platformLabel} capital=${config.capital} ${capitalLabel} | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
