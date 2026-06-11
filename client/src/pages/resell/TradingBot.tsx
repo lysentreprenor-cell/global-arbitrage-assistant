@@ -1080,6 +1080,7 @@ export default function TradingBot() {
   const liveUsdtRef = useRef(9);
   const [liveBalance, setLiveBalance] = useState<number | null>(null);
   const [liveBalanceCoin, setLiveBalanceCoin] = useState<string>("USDT");
+  const [liveBalanceExtra, setLiveBalanceExtra] = useState<{btc?:number;eth?:number;usd?:number;eur?:number} | null>(null);
   const [liveSessionPnl, setLiveSessionPnl] = useState(0);
   const liveSessionPnlRef = useRef(0);
   // Live BTC price ticker
@@ -1127,8 +1128,12 @@ export default function TradingBot() {
       try {
         const r = await fetch("/api/kraken/balance", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey, secret }) });
         const d = await r.json();
-        if (d.error) { setLiveBalance(-1); }
-        else { setLiveBalance(d.balance ?? 0); setLiveBalanceCoin(d.currency ?? "USD"); }
+        if (d.error) { setLiveBalance(-1); setLiveBalanceExtra(null); }
+        else {
+          setLiveBalance(d.balance ?? 0);
+          setLiveBalanceCoin(d.currency ?? "USD");
+          setLiveBalanceExtra({ btc: d.btc, eth: d.eth, usd: d.usd, eur: d.eur });
+        }
       } catch { setLiveBalance(-1); }
       return;
     }
@@ -2768,10 +2773,18 @@ export default function TradingBot() {
             {isOn && (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:12 }}>
                 <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>
-                  <div style={{ fontSize:10, color:M, marginBottom:4 }}>SALDO {liveBalanceCoin}</div>
+                  <div style={{ fontSize:10, color:M, marginBottom:4 }}>SALDO</div>
                   <div style={{ fontSize:18, fontWeight:700, color: liveBalance === -1 ? R : "#fff" }}>
-                    {liveBalance === null ? "—" : liveBalance === -1 ? "Błąd" : liveBalance.toFixed(2)}
+                    {liveBalance === null ? "—" : liveBalance === -1 ? "Błąd" : `${liveBalance.toFixed(liveBalanceCoin === "BTC" ? 6 : 2)} ${liveBalanceCoin}`}
                   </div>
+                  {liveBalanceExtra && hasKrakenKeys() && (
+                    <div style={{ fontSize:10, color:M, marginTop:3, lineHeight:1.5 }}>
+                      {(liveBalanceExtra.usd ?? 0) > 0 && <div>USD: {(liveBalanceExtra.usd!).toFixed(2)}</div>}
+                      {(liveBalanceExtra.eur ?? 0) > 0 && <div>EUR: {(liveBalanceExtra.eur!).toFixed(2)}</div>}
+                      {(liveBalanceExtra.btc ?? 0) > 0 && <div>BTC: {(liveBalanceExtra.btc!).toFixed(6)}</div>}
+                      {(liveBalanceExtra.eth ?? 0) > 0 && <div>ETH: {(liveBalanceExtra.eth!).toFixed(4)}</div>}
+                    </div>
+                  )}
                   <button onClick={fetchLiveBalance} style={{ marginTop:6, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, color:"#fff", cursor:"pointer", fontSize:12, padding:"4px 10px", display:"inline-flex", alignItems:"center", gap:4 }}>↻ odśwież</button>
                 </div>
                 <div style={{ background: serverPosition ? (srvPnlPct != null && srvPnlPct >= 0 ? "rgba(34,197,94,0.07)" : "rgba(248,113,113,0.07)") : "rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 12px", textAlign:"center" as const }}>

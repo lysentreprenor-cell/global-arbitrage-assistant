@@ -59,9 +59,12 @@ router.post("/balance", async (req, res) => {
     const result = await krakenPrivate(apiKey, secret, "/0/private/Balance");
     const usd = parseFloat(result.ZUSD ?? "0");
     const eur = parseFloat(result.ZEUR ?? "0");
-    const balance  = usd > 0 ? usd : eur;
-    const currency = usd > 0 ? "USD" : "EUR";
-    res.json({ balance, currency, raw: { ZUSD: usd, ZEUR: eur } });
+    const btc = parseFloat(result.XXBT ?? "0");
+    const eth = parseFloat(result.XETH ?? "0");
+    // Primary fiat balance: USD > EUR > 0; secondary: crypto
+    const balance  = usd > 0 ? usd : eur > 0 ? eur : btc;
+    const currency = usd > 0 ? "USD" : eur > 0 ? "EUR" : "BTC";
+    res.json({ balance, currency, usd, eur, btc, eth });
   } catch (e: any) { res.status(502).json({ error: e.message }); }
 });
 
