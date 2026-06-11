@@ -1074,7 +1074,7 @@ export default function TradingBot() {
 
   // Live trading state
   const [liveMode, setLiveMode] = useState(false);
-  const [liveUsdt, setLiveUsdt] = useState("9");
+  const [liveUsdt, setLiveUsdt] = useState(() => localStorage.getItem("bot_live_usdt") ?? "9");
   const liveQtyRef = useRef<number>(0);
   const liveModeRef = useRef(false);
   const liveUsdtRef = useRef(9);
@@ -1564,7 +1564,11 @@ export default function TradingBot() {
     liveModeRef.current = liveMode;
     if (liveMode) { fetchLiveBalance(); liveSessionPnlRef.current = 0; setLiveSessionPnl(0); }
   }, [liveMode, fetchLiveBalance]);
-  useEffect(() => { liveUsdtRef.current = parseFloat(liveUsdt) || 9; }, [liveUsdt]);
+  useEffect(() => {
+    const val = parseFloat(liveUsdt) || 9;
+    liveUsdtRef.current = val;
+    localStorage.setItem("bot_live_usdt", liveUsdt);
+  }, [liveUsdt]);
 
   // Live BTC price — every 5s
   useEffect(() => {
@@ -1592,6 +1596,10 @@ export default function TradingBot() {
           setServerBotLogs(d.logs ?? []);
           setServerPosition(d.position);
           setServerPnl(d.sessionPnl ?? 0);
+          // Sync capital from server on auto-resume
+          if (d.running && !wasRunning && d.capital) {
+            setLiveUsdt(String(d.capital));
+          }
           // Fetch balance when bot just started, or every 2nd poll (~30s) while running
           pollCountRef.current += 1;
           if (d.running && (!wasRunning || pollCountRef.current % 2 === 0)) {
