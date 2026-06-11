@@ -107,11 +107,18 @@ function loadState() {
       const savedKeys = decryptApiKeys();
       if (!savedKeys) { addLog("Auto-resume: brak zapisanych kluczy", "warn"); return; }
       config = { ...s.config, apiKey: savedKeys.apiKey, secret: savedKeys.secret, testnet: savedKeys.testnet, platform: savedKeys.platform ?? s.config.platform ?? "global" };
-      position = null;
-      sessionPnl = 0;
+      // Restore position if it's not stale (< 48h old)
+      if (s.position && s.position.entryTime) {
+        const ageH = (Date.now() - new Date(s.position.entryTime).getTime()) / 3_600_000;
+        position = ageH < 48 ? s.position : null;
+        if (position) lastEntryTime = new Date(position.entryTime).getTime();
+      } else {
+        position = null;
+      }
+      sessionPnl = s.sessionPnl ?? 0;
       running = true;
       saveState();
-      addLog("Auto-resume po restarcie serwera", "info");
+      addLog(`Auto-resume po restarcie${position ? ` — przywrócono pozycję ${position.direction.toUpperCase()} z ${new Date(position.entryTime).toLocaleTimeString()}` : ""}`, "info");
       engineTick();
       intervalId = setInterval(engineTick, 5 * 60_000);
       priceIntervalId = setInterval(priceCheck, 5_000);
@@ -170,7 +177,7 @@ async function krakenPrivate(path: string, params: Record<string, any> = {}) {
   const nonce = Date.now() * 1000;
   const allParams = { ...params, nonce: nonce.toString() };
   const body = new URLSearchParams(allParams as Record<string, string>).toString();
-  const sha256 = crypto.createHash("sha256").update(nonce + body).digest();
+  const sha256 = crypto.createHash("sha256").update(allParams.nonce + body).digest();
   const hmacInput = Buffer.concat([Buffer.from(path), sha256]);
   const sign = crypto
     .createHmac("sha512", Buffer.from(config.secret, "base64"))
@@ -330,10 +337,12 @@ async function priceCheck() {
   let reason: string | null = null;
   if (pct >= position.tpPct) reason = `TP +${pct.toFixed(2)}%`;
   else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-  else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+  else if (position.direction === "short" && price >= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
 
   if (reason) {
-    const pnlUsdt = pct / 100 * config.capital;
+    const KRAKEN_FEE_RT = 0.0052; // 0.26% taker × 2 (open + close)
+    const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
+    const pnlUsdt = pct / 100 * config.capital - feeCost;
     const closed = await closePosition(reason);
     if (closed) {
       sessionPnl += pnlUsdt;
@@ -361,18 +370,23 @@ async function engineTick() {
     const candles = await fetchCandles(config.symbol);
     if (!candles) return;
     const { closes, highs, lows, volumes } = candles;
-    const price = lastPrice > 0 ? lastPrice : candles.price;
+    // Always fetch live price for accurate entry — don't rely on priceCheck interval
+    const livePrice = await fetchCurrentPrice(config.symbol);
+    const price = livePrice ?? (lastPrice > 0 ? lastPrice : candles.price);
+    if (livePrice) lastPrice = livePrice;
 
-    const rsi     = calcRsi(closes);
-    const ema9    = calcEma(closes, 9);
-    const ema21   = calcEma(closes, 21);
-    const prevEma9  = calcEma(closes.slice(0, -1), 9);
-    const prevEma21 = calcEma(closes.slice(0, -1), 21);
+    // Use closed candles only (drop last which may be in-progress) for cross detection
+    const closedCloses = closes.slice(0, -1);
+    const rsi     = calcRsi(closedCloses);
+    const ema9    = calcEma(closedCloses, 9);
+    const ema21   = calcEma(closedCloses, 21);
+    const prevEma9  = calcEma(closedCloses.slice(0, -1), 9);
+    const prevEma21 = calcEma(closedCloses.slice(0, -1), 21);
 
-    const { macd: macdLine, signal: macdSignal } = calcMacd(closes);
-    const adx     = calcAdx(highs, lows, closes);
-    const volMult = calcVolumeMult(volumes);
-    const atr     = calcAtr(highs, lows, closes);
+    const { macd: macdLine, signal: macdSignal } = calcMacd(closedCloses);
+    const adx     = calcAdx(highs.slice(0, -1), lows.slice(0, -1), closedCloses);
+    const volMult = calcVolumeMult(volumes.slice(0, -1));
+    const atr     = calcAtr(highs.slice(0, -1), lows.slice(0, -1), closedCloses);
     const atrPct  = price > 0 ? (atr / price) * 100 : 0;
 
     addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} MACD=${macdLine.toFixed(1)}/${macdSignal.toFixed(1)} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% Vol×${volMult.toFixed(2)}`);
@@ -387,20 +401,32 @@ async function engineTick() {
         const pct    = position.direction === "short" ? -rawPct : rawPct;
         addLog(`⏱️ Max hold 48h (${holdHours.toFixed(0)}h) — zamykam pozycję`, "warn");
         const closed = await closePosition(`Max hold ${holdHours.toFixed(0)}h`);
-        if (closed) { sessionPnl += pct / 100 * config.capital; position = null; saveState(); }
+        if (closed) {
+          const KRAKEN_FEE_RT = 0.0052;
+          const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
+          sessionPnl += pct / 100 * config.capital - feeCost;
+          position = null;
+          saveState();
+        }
         return;
       }
 
       // RSI extreme exit: momentum has fully reversed — take whatever we have
-      const rsiOverbought = position.direction === "long"  && rsi > 78;
-      const rsiOversold   = position.direction === "short" && rsi < 22;
+      const rsiOverbought = position.direction === "long"  && rsi > Math.max(config.rsiMax + 8, 78);
+      const rsiOversold   = position.direction === "short" && rsi < Math.min(config.rsiMin - 8, 22);
       if (rsiOverbought || rsiOversold) {
         const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
         const pct    = position.direction === "short" ? -rawPct : rawPct;
         const reason = `RSI extreme ${rsi.toFixed(1)}`;
         addLog(`📊 RSI exit — ${reason} | P&L ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`, pct >= 0 ? "sell" : "warn");
         const closed = await closePosition(reason);
-        if (closed) { sessionPnl += pct / 100 * config.capital; position = null; saveState(); }
+        if (closed) {
+          const KRAKEN_FEE_RT = 0.0052;
+          const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
+          sessionPnl += pct / 100 * config.capital - feeCost;
+          position = null;
+          saveState();
+        }
         return;
       }
 
@@ -426,7 +452,8 @@ async function engineTick() {
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= 2;
 
     const isLong  = (crossBuy  || rsiBuy)  && longConf;
-    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf;
+    // Kraken spot: no short selling (would require owning the asset to sell)
+    const isShort = config.platform !== "kraken" && config.allowShorts && (crossSell || rsiSell) && shortConf;
 
     const cooldownOk = Date.now() - lastEntryTime > 60 * 60 * 1000;
     const doLong  = isLong  && cooldownOk;
