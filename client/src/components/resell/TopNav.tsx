@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { href: "/resell/autopilot",    label: "Autopilot",   icon: Rocket },
   { href: "/resell/trading-bot",  label: "Trading Bot", icon: Activity },
   { href: "/resell/settings",     label: "API",         icon: Settings },
+  { href: "/resell/transport",    label: "Transport",   icon: Truck },
 ];
 
 export function TopNav() {
