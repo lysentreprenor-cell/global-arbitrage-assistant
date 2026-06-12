@@ -2576,7 +2576,7 @@ export default function TradingBot() {
                         color:"#f87171", bg:"rgba(248,113,113,0.08)", border:"rgba(248,113,113,0.3)",
                         desc:"Dużo transakcji,\nwyższe ryzyko",
                         trades:"10–30 / dzień",
-                        cfg:{ rsiMin:48, rsiMax:58, adxMin:10, confluenceMin:1, volMultMin:1.0, cooldownMin:20, stopLoss:0.5, takeProfit:0.5, trailPct:0.1 },
+                        cfg:{ rsiMin:48, rsiMax:58, adxMin:10, confluenceMin:1, volMultMin:1.0, cooldownMin:20, stopLoss:0.5, takeProfit:1.0, trailPct:0.1 },
                       },
                       {
                         key:"superaggressive" as const,
