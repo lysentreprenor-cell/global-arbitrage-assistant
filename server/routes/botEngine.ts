@@ -128,7 +128,7 @@ function loadState() {
       saveState();
       addLog(`Auto-resume po restarcie${position ? ` — przywrócono pozycję ${position.direction.toUpperCase()} z ${new Date(position.entryTime).toLocaleTimeString()}` : ""}`, "info");
       engineTick();
-      intervalId = setInterval(engineTick, 5 * 60_000);
+      intervalId = setInterval(engineTick, 60_000);
       priceIntervalId = setInterval(priceCheck, 5_000);
     }
   } catch { /* ignore */ }
@@ -307,8 +307,8 @@ let lastEntrySignal = "";
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = krakenPair(symbol);
   try {
-    const since = Math.floor(Date.now() / 1000) - 150 * 3600; // last 150 hours (1h candles)
-    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=${since}`, { signal: AbortSignal.timeout(10000) });
+    const since = Math.floor(Date.now() / 1000) - 150 * 5 * 60; // last 150 × 5min candles
+    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${since}`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
     const d = await r.json() as any;
     if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
@@ -702,18 +702,18 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    rsiMin:     rsiMin     ?? 40,   // buy dip when RSI < 40
-    rsiMax:     rsiMax     ?? 65,   // sell pump when RSI > 65
-    trailPct:   trailPct   ?? 0.15, // 0.15% trailing stop
-    stopLoss:   stopLoss   ?? 0.4,  // 0.4% stop loss
-    takeProfit: takeProfit ?? 0.6,  // 0.6% take profit (scalping)
+    rsiMin:     rsiMin     ?? 35,   // buy dip when RSI < 35 (5m — częstsze sygnały)
+    rsiMax:     rsiMax     ?? 68,   // sell pump when RSI > 68
+    trailPct:   trailPct   ?? 0.12, // 0.12% trailing stop (ciaśniejszy dla 5m)
+    stopLoss:   stopLoss   ?? 0.3,  // 0.3% stop loss
+    takeProfit: takeProfit ?? 0.6,  // 0.6% take profit
     leverage:   leverage   ?? 10,
     allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
-    adxMin:        adxMin        ?? 15,
-    confluenceMin: confluenceMin ?? 2,
-    volMultMin:    volMultMin    ?? 1.2,
-    cooldownMin:   cooldownMin   ?? 60,
+    adxMin:        adxMin        ?? 12,  // niższy próg — 5m mają słabszy ADX
+    confluenceMin: confluenceMin ?? 1,   // 1 z 3 potwierdzeń (mniej restrykcyjne)
+    volMultMin:    volMultMin    ?? 1.0, // brak filtra wolumenu
+    cooldownMin:   cooldownMin   ?? 20,  // 20min między wejściami (zamiast 60)
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
@@ -752,7 +752,7 @@ router.post("/start", (req, res) => {
   saveState();
 
   engineTick();
-  intervalId = setInterval(engineTick, 5 * 60_000); // co 5 min — świece 1h
+  intervalId = setInterval(engineTick, 60_000); // co 1 min — świece 5m
   priceIntervalId = setInterval(priceCheck, 5_000); // co 5s — cena live
 
   res.json({ ok: true, message: "Bot started on server" });
