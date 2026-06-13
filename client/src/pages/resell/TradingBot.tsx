@@ -1106,7 +1106,8 @@ export default function TradingBot() {
   const [simError, setSimError] = useState<string|null>(null);
   const [showSimTrades, setShowSimTrades] = useState(false);
   const [connTestResult, setConnTestResult] = useState<{readOk:boolean;balance?:{USD:number;EUR:number;BTC:number;ETH:number};marginEnabled?:boolean;freeMargin?:number|null;marginLevel?:number|null;error?:string}|null>(null);
-  const [serverDipStats, setServerDipStats] = useState<{dipFromHigh:number;marketRegime:string;crashActive:boolean;prevRsi:number}|null>(null);
+  const [serverDipStats, setServerDipStats] = useState<{dipFromHigh:number;marketRegime:string;crashActive:boolean;prevRsi:number;fourHourTrend:string;rangeMode:boolean}|null>(null);
+  const [serverSessionStats, setServerSessionStats] = useState<{wins:number;losses:number;winRate:number;avgWin:number;avgLoss:number;maxDrawdown:number;tradeHistory:{dir:string;entry:number;exit:number;pnlUsdt:number;pnlPct:number;reason:string;signal:string;time:string;durationH:number}[]}|null>(null);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -1612,6 +1613,7 @@ export default function TradingBot() {
           setServerPosition(d.position);
           setServerPnl(d.sessionPnl ?? 0);
           if (d.dipStats) setServerDipStats(d.dipStats);
+          if (d.sessionStats) setServerSessionStats(d.sessionStats);
           // Sync capital from server on auto-resume
           if (d.running && !wasRunning && d.capital) {
             setLiveUsdt(String(d.capital));
@@ -3000,11 +3002,19 @@ export default function TradingBot() {
                   </div>
                   {/* Market regime */}
                   <div style={{ background: serverDipStats.marketRegime==="bear" ? "rgba(248,113,113,0.12)" : serverDipStats.marketRegime==="bull" ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)", border:`1px solid ${serverDipStats.marketRegime==="bear"?"rgba(248,113,113,0.35)":serverDipStats.marketRegime==="bull"?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.1)"}`, borderRadius:6, padding:"5px 10px", textAlign:"center" as const }}>
-                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>REŻIM RYNKU</div>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>REŻIM 1H</div>
                     <div style={{ fontSize:14, fontWeight:700, color: serverDipStats.marketRegime==="bear" ? R : serverDipStats.marketRegime==="bull" ? G : "#fbbf24" }}>
                       {serverDipStats.marketRegime==="bear" ? "🐻 BEAR" : serverDipStats.marketRegime==="bull" ? "🐂 BULL" : "〰 NEUTRAL"}
                     </div>
                     <div style={{ fontSize:9, color:M, marginTop:1 }}>{serverDipStats.marketRegime==="bear" ? "filtr RSI aktywny" : serverDipStats.marketRegime==="bull" ? "EMA sprzyja" : "oba sygnały OK"}</div>
+                  </div>
+                  {/* 4H trend */}
+                  <div style={{ background: serverDipStats.fourHourTrend==="bear" ? "rgba(248,113,113,0.12)" : serverDipStats.fourHourTrend==="bull" ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)", border:`1px solid ${serverDipStats.fourHourTrend==="bear"?"rgba(248,113,113,0.35)":serverDipStats.fourHourTrend==="bull"?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.1)"}`, borderRadius:6, padding:"5px 10px", textAlign:"center" as const }}>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>TREND 4H</div>
+                    <div style={{ fontSize:14, fontWeight:700, color: serverDipStats.fourHourTrend==="bear" ? R : serverDipStats.fourHourTrend==="bull" ? G : "#fbbf24" }}>
+                      {serverDipStats.fourHourTrend==="bear" ? "↘ DOWN" : serverDipStats.fourHourTrend==="bull" ? "↗ UP" : "→ FLAT"}
+                    </div>
+                    <div style={{ fontSize:9, color:M, marginTop:1 }}>{serverDipStats.rangeMode ? "⚠ ADX range!" : serverDipStats.fourHourTrend==="bear" ? "TrendFollow blok" : "EMA 9/21"}</div>
                   </div>
                   {/* RSI context */}
                   <div style={{ background:"rgba(139,92,246,0.08)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:6, padding:"5px 10px", textAlign:"center" as const }}>
@@ -3022,6 +3032,52 @@ export default function TradingBot() {
                     <div>🐻 Bear: filtr RSI-dip włączony</div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Session statistics panel */}
+            {isOn && serverSessionStats && (serverSessionStats.wins + serverSessionStats.losses) > 0 && (
+              <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(0,0,0,0.25)", borderRadius:8, border:"1px solid rgba(255,255,255,0.07)" }}>
+                <div style={{ fontSize:9, color:M, letterSpacing:1, marginBottom:6, fontWeight:700 }}>STATYSTYKI SESJI</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const, marginBottom:8 }}>
+                  {/* Win rate */}
+                  <div style={{ background: serverSessionStats.winRate >= 55 ? "rgba(34,197,94,0.1)" : serverSessionStats.winRate >= 45 ? "rgba(245,158,11,0.1)" : "rgba(248,113,113,0.1)", border:`1px solid ${serverSessionStats.winRate>=55?"rgba(34,197,94,0.3)":serverSessionStats.winRate>=45?"rgba(245,158,11,0.3)":"rgba(248,113,113,0.3)"}`, borderRadius:6, padding:"5px 12px", textAlign:"center" as const }}>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>WIN RATE</div>
+                    <div style={{ fontSize:15, fontWeight:700, color: serverSessionStats.winRate >= 55 ? G : serverSessionStats.winRate >= 45 ? "#fbbf24" : R }}>{serverSessionStats.winRate.toFixed(0)}%</div>
+                    <div style={{ fontSize:9, color:M }}>{serverSessionStats.wins}W / {serverSessionStats.losses}L</div>
+                  </div>
+                  {/* Avg win/loss */}
+                  <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"5px 12px", textAlign:"center" as const }}>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>AVG WIN/LOSS</div>
+                    <div style={{ fontSize:13, fontWeight:700 }}>
+                      <span style={{ color:G }}>+{serverSessionStats.avgWin.toFixed(2)}%</span>
+                      <span style={{ color:M }}> / </span>
+                      <span style={{ color:R }}>{serverSessionStats.avgLoss.toFixed(2)}%</span>
+                    </div>
+                    <div style={{ fontSize:9, color:M }}>R:R {serverSessionStats.avgLoss !== 0 ? Math.abs(serverSessionStats.avgWin / serverSessionStats.avgLoss).toFixed(2) : "—"}</div>
+                  </div>
+                  {/* Max drawdown */}
+                  <div style={{ background: serverSessionStats.maxDrawdown > 5 ? "rgba(248,113,113,0.1)" : "rgba(255,255,255,0.03)", border:`1px solid ${serverSessionStats.maxDrawdown>5?"rgba(248,113,113,0.3)":"rgba(255,255,255,0.08)"}`, borderRadius:6, padding:"5px 12px", textAlign:"center" as const }}>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>MAX DRAWDOWN</div>
+                    <div style={{ fontSize:15, fontWeight:700, color: serverSessionStats.maxDrawdown > 5 ? R : serverSessionStats.maxDrawdown > 2 ? "#fbbf24" : G }}>-{serverSessionStats.maxDrawdown.toFixed(2)}</div>
+                    <div style={{ fontSize:9, color:M }}>USDT sesja</div>
+                  </div>
+                </div>
+                {/* Recent trade history */}
+                {serverSessionStats.tradeHistory.length > 0 && (
+                  <div style={{ maxHeight:120, overflowY:"auto" as const, fontSize:10 }}>
+                    {serverSessionStats.tradeHistory.slice(-6).reverse().map((t, i) => (
+                      <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"2px 0", borderBottom:"1px solid rgba(255,255,255,0.04)", color: t.pnlPct >= 0 ? G : R }}>
+                        <span style={{ color:M }}>{new Date(t.time).toLocaleTimeString("pl",{hour:"2-digit",minute:"2-digit"})}</span>
+                        <span style={{ color: t.dir==="long" ? G : R, fontWeight:600 }}>{t.dir.toUpperCase()}</span>
+                        <span style={{ fontSize:9, color:M }}>[{t.signal}]</span>
+                        <span>${t.entry.toLocaleString("en-US",{maximumFractionDigits:0})} → ${t.exit.toLocaleString("en-US",{maximumFractionDigits:0})}</span>
+                        <span style={{ fontWeight:700 }}>{t.pnlPct >= 0 ? "+" : ""}{t.pnlPct.toFixed(2)}%</span>
+                        <span style={{ color:M }}>{t.durationH.toFixed(1)}h</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
