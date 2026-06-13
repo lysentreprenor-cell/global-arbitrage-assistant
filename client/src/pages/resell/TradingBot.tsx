@@ -419,26 +419,26 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
 }
 
 async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
-  const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720`);
+  const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=5m&limit=720`);
   if (!res.ok) throw new Error(`Klines ${res.status}`);
   const raw: any[] = await res.json();
   if (raw.error) throw new Error(raw.error);
   return raw.map(k=>({ time: k.time as number, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, utcH: new Date(k.time as number).getUTCHours() }));
 }
 
-// Fetch paginated history via server proxy (Kraken, ~90 days max in hourly)
+// Fetch paginated 5m history (~30 days = 8640 candles, 12 pages)
 async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => void): Promise<CandleData[]> {
   const all: CandleData[] = [];
-  const maxDays = 90;
-  const totalCandles = maxDays * 24;
+  const maxDays = 30;
+  const totalCandles = maxDays * 24 * 12; // 5m candles per day
   const pages = Math.ceil(totalCandles / 720);
-  const candleSec = 3600;
+  const candleSec = 5 * 60; // 5 minutes
   let pageSince = Math.floor(Date.now() / 1000) - (pages * 720 * candleSec);
   let failedPages = 0;
 
   for (let p = 0; p < pages; p++) {
     try {
-      const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=1h&limit=720&since=${pageSince}`, { signal: AbortSignal.timeout(15000) });
+      const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=5m&limit=720&since=${pageSince}`, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) { failedPages++; if (failedPages >= 3) break; continue; }
       const raw: any[] = await res.json();
       if (!Array.isArray(raw) || raw.length === 0) break;
@@ -453,13 +453,14 @@ async function fetchFullHistory(symbol: Symbol, onProgress: (pct: number) => voi
   const seen = new Set<number>();
   const deduped = all.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; });
   const sorted = deduped.sort((a, b) => a.time - b.time);
-  if (sorted.length < 600) throw new Error(`Za mało danych historycznych (${sorted.length} świec) — Kraken API niedostępny lub zablokowany. Spróbuj za kilka minut.`);
+  if (sorted.length < 500) throw new Error(`Za mało danych historycznych (${sorted.length} świec 5m) — Kraken API niedostępny. Spróbuj za chwilę.`);
   return sorted;
 }
 
 async function runBacktest(cfg: BtCfg): Promise<BtResult> {
   const all = await fetchCandleData(cfg.symbol);
-  const windowSize = cfg.allow24h ? 300 : 500 + Math.floor(Math.random() * 200);
+  // 5m candles: 720 candles = 60h (2.5 days) per window
+  const windowSize = cfg.allow24h ? 720 : 1200 + Math.floor(Math.random() * 400);
   const minS=30, maxS=all.length-windowSize-2;
   const start = maxS>minS ? minS+Math.floor(Math.random()*(maxS-minS)) : minS;
   return runBacktestSync(all.slice(start, start+windowSize), cfg);
@@ -500,7 +501,8 @@ async function runDeepOptimizeAsync(
     [50,70,0.10],[50,70,0.15],[50,70,0.25],[50,70,0.35],
     [42,62,0.15],[42,62,0.25],[48,68,0.15],[48,68,0.25],
   ];
-  const WINDOW = Math.min(800, Math.max(200, Math.floor(allCandles.length / 5)));
+  // 5m: allCandles ~8640 (30d). WINDOW=1728 → ~6 days per window — enough for signal frequency
+  const WINDOW = Math.min(2000, Math.max(500, Math.floor(allCandles.length / 5)));
   const N_WINDOWS = Math.min(cfg.deepTrainWindows ?? 30, Math.floor(allCandles.length / WINDOW));
   const windows: CandleData[][] = [];
   const step = Math.floor((allCandles.length - WINDOW) / Math.max(1, N_WINDOWS));
@@ -3109,7 +3111,7 @@ export default function TradingBot() {
               <button
                 onClick={async()=>{
                   setDeepLoading(true); setDeepProgress(0); setDeepResult(null);
-                  addLog(`🧠 Deep Train start — pobieranie historii ${config.symbol} od 2017…`,"info");
+                  addLog(`🧠 Deep Train start — pobieranie 30 dni historii ${config.symbol} (świece 5m)…`,"info");
                   try {
                     let candles: CandleData[];
                     if (fullHistoryRef.current?.symbol === config.symbol) {
@@ -3187,7 +3189,7 @@ export default function TradingBot() {
           {deepLoading && (
             <div style={{ marginBottom:10 }}>
               <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"#fb923c", marginBottom:4 }}>
-                <span>🧠 Deep Train — {deepProgress < 62 ? `pobieranie historii ${config.symbol} od 2017` : `optymalizacja ${Math.round((deepProgress-65)/35*16)}/16 kombinacji`}</span>
+                <span>🧠 Deep Train — {deepProgress < 62 ? `pobieranie 30d historii ${config.symbol} (5m)` : `optymalizacja ${Math.round((deepProgress-65)/35*16)}/16 kombinacji`}</span>
                 <span>{deepProgress.toFixed(0)}%</span>
               </div>
               <div style={{ height:4, background:"rgba(255,255,255,0.07)", borderRadius:2 }}>
