@@ -1106,6 +1106,7 @@ export default function TradingBot() {
   const [simError, setSimError] = useState<string|null>(null);
   const [showSimTrades, setShowSimTrades] = useState(false);
   const [connTestResult, setConnTestResult] = useState<{readOk:boolean;balance?:{USD:number;EUR:number;BTC:number;ETH:number};marginEnabled?:boolean;freeMargin?:number|null;marginLevel?:number|null;error?:string}|null>(null);
+  const [serverDipStats, setServerDipStats] = useState<{dipFromHigh:number;marketRegime:string;crashActive:boolean;prevRsi:number}|null>(null);
 
   // Settings temp values
   const [tmpCapital,  setTmpCapital]  = useState(String(config.capital));
@@ -1610,6 +1611,7 @@ export default function TradingBot() {
           setServerBotLogs(d.logs ?? []);
           setServerPosition(d.position);
           setServerPnl(d.sessionPnl ?? 0);
+          if (d.dipStats) setServerDipStats(d.dipStats);
           // Sync capital from server on auto-resume
           if (d.running && !wasRunning && d.capital) {
             setLiveUsdt(String(d.capital));
@@ -2979,6 +2981,46 @@ export default function TradingBot() {
                   <div style={{ fontSize:10, color:M, marginBottom:4 }}>WYNIK SESJI</div>
                   <div style={{ fontSize:18, fontWeight:700, color: serverPnl >= 0 ? G : R }}>{serverPnl >= 0?"+":""}{serverPnl.toFixed(2)}</div>
                   <div style={{ fontSize:10, color:M }}>USDT</div>
+                </div>
+              </div>
+            )}
+
+            {/* Dip statistics context panel */}
+            {isOn && serverDipStats && (
+              <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(0,0,0,0.25)", borderRadius:8, border:"1px solid rgba(255,255,255,0.07)" }}>
+                <div style={{ fontSize:9, color:M, letterSpacing:1, marginBottom:6, fontWeight:700 }}>KONTEKST RYNKU (STATYSTYKI BTC)</div>
+                <div style={{ display:"flex", gap:10, flexWrap:"wrap" as const }}>
+                  {/* Dip from 24h high */}
+                  <div style={{ background: serverDipStats.crashActive ? "rgba(248,113,113,0.12)" : serverDipStats.dipFromHigh > 2 ? "rgba(245,158,11,0.1)" : "rgba(34,197,94,0.08)", border:`1px solid ${serverDipStats.crashActive?"rgba(248,113,113,0.35)":serverDipStats.dipFromHigh>2?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.2)"}`, borderRadius:6, padding:"5px 10px", textAlign:"center" as const }}>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>SPADEK OD SZCZYTU 24H</div>
+                    <div style={{ fontSize:14, fontWeight:700, color: serverDipStats.crashActive ? R : serverDipStats.dipFromHigh > 2 ? "#fbbf24" : G }}>
+                      -{serverDipStats.dipFromHigh.toFixed(1)}%
+                    </div>
+                    <div style={{ fontSize:9, color:M, marginTop:1 }}>{serverDipStats.crashActive ? "⛔ BLOK CRASH" : serverDipStats.dipFromHigh > 2 ? "⚠ głęboki" : "✓ OK"}</div>
+                  </div>
+                  {/* Market regime */}
+                  <div style={{ background: serverDipStats.marketRegime==="bear" ? "rgba(248,113,113,0.12)" : serverDipStats.marketRegime==="bull" ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)", border:`1px solid ${serverDipStats.marketRegime==="bear"?"rgba(248,113,113,0.35)":serverDipStats.marketRegime==="bull"?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.1)"}`, borderRadius:6, padding:"5px 10px", textAlign:"center" as const }}>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>REŻIM RYNKU</div>
+                    <div style={{ fontSize:14, fontWeight:700, color: serverDipStats.marketRegime==="bear" ? R : serverDipStats.marketRegime==="bull" ? G : "#fbbf24" }}>
+                      {serverDipStats.marketRegime==="bear" ? "🐻 BEAR" : serverDipStats.marketRegime==="bull" ? "🐂 BULL" : "〰 NEUTRAL"}
+                    </div>
+                    <div style={{ fontSize:9, color:M, marginTop:1 }}>{serverDipStats.marketRegime==="bear" ? "filtr RSI aktywny" : serverDipStats.marketRegime==="bull" ? "EMA sprzyja" : "oba sygnały OK"}</div>
+                  </div>
+                  {/* RSI context */}
+                  <div style={{ background:"rgba(139,92,246,0.08)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:6, padding:"5px 10px", textAlign:"center" as const }}>
+                    <div style={{ fontSize:9, color:M, marginBottom:2 }}>RSI POPRZEDNI</div>
+                    <div style={{ fontSize:14, fontWeight:700, color: serverDipStats.prevRsi < 40 ? "#f59e0b" : serverDipStats.prevRsi > 65 ? R : G }}>
+                      {serverDipStats.prevRsi.toFixed(1)}
+                    </div>
+                    <div style={{ fontSize:9, color:M, marginTop:1 }}>{serverDipStats.prevRsi < 40 ? "⚡ odbicie?" : serverDipStats.prevRsi > 65 ? "wykupienie" : "strefa neutralna"}</div>
+                  </div>
+                  {/* Legend */}
+                  <div style={{ fontSize:10, color:M, display:"flex", flexDirection:"column" as const, justifyContent:"center", gap:3, paddingLeft:4 }}>
+                    <div>📊 Stat. BTC: RSI&lt;40 ~15% czasu</div>
+                    <div>🔄 Śr. odbicie: 60-70% w 4-8h</div>
+                    <div>⛔ &gt;5% crash: pomijamy wejście</div>
+                    <div>🐻 Bear: filtr RSI-dip włączony</div>
+                  </div>
                 </div>
               </div>
             )}

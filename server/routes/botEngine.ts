@@ -286,6 +286,9 @@ function krakenPair(symbol: string): string {
 let lastPrice = 0;
 let lastEntryTime = 0;
 let closeFailCount = 0;
+let prevRsi = 50;          // RSI recovery detection: was oversold, now bouncing
+let dipFromHigh = 0;       // current % dip from 24h close high
+let marketRegime: "bull" | "bear" | "neutral" = "neutral";
 
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = krakenPair(symbol);
@@ -413,7 +416,25 @@ async function engineTick() {
     const atr     = calcAtr(highs.slice(0, -1), lows.slice(0, -1), closedCloses);
     const atrPct  = price > 0 ? (atr / price) * 100 : 0;
 
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)} MACD=${macdLine.toFixed(1)}/${macdSignal.toFixed(1)} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% Vol×${volMult.toFixed(2)}`);
+    // ── Dip statistics (BTC mean reversion context) ──────────────────────────
+    // 1. RSI Recovery: RSI was oversold (< rsiMin) and is now rising — catches the bounce
+    const rsiRecovering = prevRsi < (config.rsiMin ?? 40) && rsi > prevRsi + 1.0;
+    // 2. Bear market regime: EMA9 < EMA21 AND 5-candle price slope < -1.5% — downtrend
+    const slope5 = closedCloses.length >= 6
+      ? (closedCloses[closedCloses.length-1] - closedCloses[closedCloses.length-6]) / closedCloses[closedCloses.length-6] * 100
+      : 0;
+    const bearMkt = ema9 < ema21 && slope5 < -1.5;
+    const bullMkt = ema9 > ema21 && slope5 > 0.3;
+    marketRegime = bearMkt ? "bear" : bullMkt ? "bull" : "neutral";
+    // 3. Crash protection: price >5% below 24h high — avoid catching falling knives in crashes
+    const recent24Closes = closedCloses.slice(-24);
+    const recent24High = recent24Closes.length > 0 ? Math.max(...recent24Closes) : price;
+    dipFromHigh = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
+    const inCrash = dipFromHigh > 5.0;
+    // Update prevRsi for next tick
+    prevRsi = rsi;
+
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% Vol×${volMult.toFixed(2)} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
 
     // ── Open position management ─────────────────────────────────────────────
     if (position) {
@@ -464,7 +485,8 @@ async function engineTick() {
 
     const crossBuy  = ema9 > ema21 && prevEma9 <= prevEma21;
     const crossSell = ema9 < ema21 && prevEma9 >= prevEma21;
-    const rsiBuy    = rsi < rsiMin;
+    // RSI buy: either RSI < threshold OR recovering from oversold (bounce confirmation)
+    const rsiBuy    = rsi < rsiMin || rsiRecovering;
     const rsiSell   = rsi > rsiMax;
 
     // Confluence: require 2 of 3 (MACD direction, ADX strength, volume spike)
@@ -478,7 +500,11 @@ async function engineTick() {
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
-    const isLong  = (crossBuy  || rsiBuy)  && longConf;
+    // Bear market filter: skip RSI dip signals in clear downtrend (EMA + price slope)
+    // EMA crossover signals still allowed — they mark trend reversal
+    const rsiBuyFiltered = rsiBuy && !bearMkt;
+    // Crash protection: >5% dip from 24h high = crash risk, skip new entries
+    const isLong  = (crossBuy || rsiBuyFiltered) && longConf && !inCrash;
     // Kraken spot (lev=1): no shorting; Kraken margin (lev>1): shorts allowed
     const krakenSpot = config.platform === "kraken" && effLev === 1;
     const isShort = !krakenSpot && config.allowShorts && (crossSell || rsiSell) && shortConf;
@@ -489,7 +515,8 @@ async function engineTick() {
     const doShort = isShort && cooldownOk;
 
     if (!doLong && !doShort) {
-      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} Vol×${volMult.toFixed(2)}`);
+      const blockReason = inCrash ? `Crash (-${dipFromHigh.toFixed(1)}%)` : bearMkt ? `BearMarket(${marketRegime})` : `brak`;
+      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} Vol×${volMult.toFixed(2)} [blok: ${blockReason}]`);
       return;
     }
 
@@ -618,6 +645,9 @@ router.post("/start", (req, res) => {
   closeFailCount = 0;
   lastEntryTime = 0;
   lastPrice = 0;
+  prevRsi = 50;
+  dipFromHigh = 0;
+  marketRegime = "neutral";
   logs = [];
   const krakenLev = Math.max(1, config.leverage ?? 1);
   const platformLabel = config.platform === "kraken"
@@ -663,6 +693,13 @@ router.get("/status", (_req, res) => {
     symbol: config?.symbol,
     capital: config?.capital,
     leverage: config?.leverage,
+    dipStats: {
+      dipFromHigh: parseFloat(dipFromHigh.toFixed(1)),
+      marketRegime,
+      rsiRecovering: prevRsi < (config?.rsiMin ?? 40) && prevRsi > 0,
+      prevRsi: parseFloat(prevRsi.toFixed(1)),
+      crashActive: dipFromHigh > 5.0,
+    },
   });
 });
 
