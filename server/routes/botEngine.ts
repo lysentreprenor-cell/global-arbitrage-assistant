@@ -83,9 +83,11 @@ type Position = {
   tpPct: number;        // effective take-profit %
   trailPct: number;     // effective trailing-stop %
   breakEvenSet: boolean; // true once SL has been moved to break-even
+  signal?: string;             // which condition triggered entry (optional for restored positions)
 };
 
 type LogEntry = { time: string; msg: string; type: "info" | "buy" | "sell" | "warn" };
+type TradeRecord = { dir: Direction; entry: number; exit: number; pnlUsdt: number; pnlPct: number; reason: string; signal: string; time: string; durationH: number };
 
 // ── Global state ──────────────────────────────────────────────────────────────
 
@@ -289,6 +291,18 @@ let closeFailCount = 0;
 let prevRsi = 50;          // RSI recovery detection: was oversold, now bouncing
 let dipFromHigh = 0;       // current % dip from 24h close high
 let marketRegime: "bull" | "bear" | "neutral" = "neutral";
+let tickCount = 0;             // warmup: skip rsiRecovering first 3 ticks
+let adxLowCount = 0;           // consecutive ticks with ADX < 20
+let rangeMode = false;         // true when ADX<20 for 6+ consecutive ticks
+let dailyDate = "";            // YYYY-MM-DD for daily loss reset
+let dailyStartPnl = 0;         // sessionPnl at start of current day
+let tradeHistory: TradeRecord[] = [];
+let sessionWins = 0;
+let sessionLosses = 0;
+let sessionPeakPnl = 0;
+let sessionMaxDrawdown = 0;
+let fourHourTrend: "bull" | "bear" | "neutral" = "neutral";
+let lastEntrySignal = "";
 
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = krakenPair(symbol);
@@ -326,6 +340,37 @@ async function fetchCurrentPrice(symbol: string): Promise<number | null> {
   } catch { return null; }
 }
 
+async function fetch4HCandles(symbol: string): Promise<{ema9:number;ema21:number}|null> {
+  const pair = krakenPair(symbol);
+  try {
+    const since = Math.floor(Date.now() / 1000) - 50 * 4 * 3600;
+    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${since}`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const d = await r.json() as any;
+    if (d.error?.length) return null;
+    const key = Object.keys(d.result).find(k => k !== "last")!;
+    const list: any[] = (d.result[key] ?? []).slice(-30);
+    if (list.length < 22) return null;
+    const c4h = list.map((k: any) => parseFloat(k[4]));
+    return { ema9: calcEma(c4h, 9), ema21: calcEma(c4h, 21) };
+  } catch { return null; }
+}
+
+function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: number, reason: string) {
+  const durationH = (Date.now() - new Date(pos.entryTime).getTime()) / 3_600_000;
+  if (pnlPct > 0) sessionWins++;
+  else sessionLosses++;
+  if (sessionPnl > sessionPeakPnl) sessionPeakPnl = sessionPnl;
+  const dd = sessionPeakPnl > sessionPnl ? sessionPeakPnl - sessionPnl : 0;
+  if (dd > sessionMaxDrawdown) sessionMaxDrawdown = dd;
+  tradeHistory = [...tradeHistory.slice(-49), {
+    dir: pos.direction, entry: pos.entryPrice, exit: exitPrice,
+    pnlUsdt, pnlPct: parseFloat(pnlPct.toFixed(3)),
+    reason, signal: pos.signal ?? "unknown",
+    time: new Date().toISOString(), durationH: parseFloat(durationH.toFixed(1)),
+  }];
+}
+
 // ── Fast exit check (every 5s) ────────────────────────────────────────────────
 async function priceCheck() {
   if (!config || !running || !position) return;
@@ -340,9 +385,10 @@ async function priceCheck() {
   if (position.direction === "long")  position.trailRef = Math.max(position.trailRef, price);
   if (position.direction === "short") position.trailRef = Math.min(position.trailRef, price);
 
-  // Break-even: once profit reaches 50% of TP, lock trail at entry price
+  // Break-even: once profit reaches 50% of TP, lock trail at entry price + tighten trail (TP1)
   if (!position.breakEvenSet && pct >= position.tpPct * 0.5) {
     position.breakEvenSet = true;
+    position.trailPct = Math.max(position.trailPct * 0.5, 0.08); // tighten trail after TP1
     // Push trailRef so that trailSL lands exactly at entryPrice
     if (position.direction === "long") {
       const neededRef = position.entryPrice / (1 - position.trailPct / 100);
@@ -351,7 +397,7 @@ async function priceCheck() {
       const neededRef = position.entryPrice / (1 + position.trailPct / 100);
       position.trailRef = Math.min(position.trailRef, neededRef);
     }
-    addLog(`🔒 Break-even aktywny przy +${pct.toFixed(2)}%`, "info");
+    addLog(`🎯 TP1 +${pct.toFixed(2)}% — break-even + trail zwężony do ${position.trailPct.toFixed(2)}%`, "info");
   }
 
   const trailSL = position.direction === "long"
@@ -373,6 +419,7 @@ async function priceCheck() {
     const closed = await closePosition(reason);
     if (closed) {
       sessionPnl += pnlUsdt;
+      recordTrade(position, price, pnlUsdt, pct, reason);
       addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
       position = null;
       closeFailCount = 0;
@@ -416,9 +463,27 @@ async function engineTick() {
     const atr     = calcAtr(highs.slice(0, -1), lows.slice(0, -1), closedCloses);
     const atrPct  = price > 0 ? (atr / price) * 100 : 0;
 
+    // ── Warmup & auxiliary indicators ────────────────────────────────────────
+    tickCount++;
+    const warmedUp = tickCount > 3;
+    const utcHour = new Date().getUTCHours();
+    const lowLiqHour = utcHour >= 2 && utcHour < 6;
+    // Daily loss tracking
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (dailyDate !== todayStr) { dailyDate = todayStr; dailyStartPnl = sessionPnl; }
+    const dailyLossPct = config.capital > 0 ? (sessionPnl - dailyStartPnl) / config.capital * 100 : 0;
+    // 4H trend
+    const h4 = await fetch4HCandles(config.symbol);
+    if (h4) fourHourTrend = h4.ema9 > h4.ema21 * 1.001 ? "bull" : h4.ema9 < h4.ema21 * 0.999 ? "bear" : "neutral";
+    // Range detection: ADX < 20 for 6+ consecutive ticks → mean-reversion only mode
+    if (adx < 20) adxLowCount++;
+    else adxLowCount = 0;
+    rangeMode = adxLowCount >= 6;
+
     // ── Dip statistics (BTC mean reversion context) ──────────────────────────
     // 1. RSI Recovery: RSI was oversold (< rsiMin) and is now rising — catches the bounce
-    const rsiRecovering = prevRsi < (config.rsiMin ?? 40) && rsi > prevRsi + 1.0;
+    //    warmedUp guard: skip first 3 ticks when prevRsi starts at 50 (cold start false positives)
+    const rsiRecovering = warmedUp && prevRsi < (config.rsiMin ?? 40) && rsi > prevRsi + 1.0;
     // 2. Bear market regime: EMA9 < EMA21 AND 5-candle price slope < -1.5% — downtrend
     const slope5 = closedCloses.length >= 6
       ? (closedCloses[closedCloses.length-1] - closedCloses[closedCloses.length-6]) / closedCloses[closedCloses.length-6] * 100
@@ -434,7 +499,7 @@ async function engineTick() {
     // Update prevRsi for next tick
     prevRsi = rsi;
 
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% Vol×${volMult.toFixed(2)} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
 
     // ── Open position management ─────────────────────────────────────────────
     if (position) {
@@ -478,6 +543,16 @@ async function engineTick() {
       return; // normal tick — priceCheck handles SL/TP/trail every 5s
     }
 
+    // ── Entry filters (time, daily loss) ────────────────────────────────────
+    if (dailyLossPct <= -3.0) {
+      addLog(`⛔ Dzienny limit straty -3%: ${dailyLossPct.toFixed(1)}% — blokuję nowe wejścia`, "warn");
+      return;
+    }
+    if (lowLiqHour) {
+      addLog(`⏸ Niska płynność UTC ${utcHour}:xx (02-06) — pomijam sygnał`, "info");
+      return;
+    }
+
     // ── Entry logic ──────────────────────────────────────────────────────────
     const rsiMin = config.rsiMin ?? 40;
     const rsiMax = config.rsiMax ?? 65;
@@ -500,11 +575,15 @@ async function engineTick() {
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
+    // Trend-following: RSI 50-63 + MACD↑ + EMA9>EMA21 + ADX≥25 (not just dip-buying)
+    // Disabled in range mode (ADX<20 for 6+ ticks) — momentum entries fail in consolidation
+    const trendFollow = !rangeMode && rsi >= 50 && rsi <= 63 && macdBull && ema9 > ema21 && adx >= 25 && fourHourTrend !== "bear";
+
     // Bear market filter: skip RSI dip signals in clear downtrend (EMA + price slope)
     // EMA crossover signals still allowed — they mark trend reversal
     const rsiBuyFiltered = rsiBuy && !bearMkt;
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
-    const isLong  = (crossBuy || rsiBuyFiltered) && longConf && !inCrash;
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash;
     // Kraken spot (lev=1): no shorting; Kraken margin (lev>1): shorts allowed
     const krakenSpot = config.platform === "kraken" && effLev === 1;
     const isShort = !krakenSpot && config.allowShorts && (crossSell || rsiSell) && shortConf;
@@ -515,10 +594,12 @@ async function engineTick() {
     const doShort = isShort && cooldownOk;
 
     if (!doLong && !doShort) {
-      const blockReason = inCrash ? `Crash (-${dipFromHigh.toFixed(1)}%)` : bearMkt ? `BearMarket(${marketRegime})` : `brak`;
-      addLog(`Brak sygnału — EMA9${ema9 > ema21 ? ">" : "<"}EMA21 RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} Vol×${volMult.toFixed(2)} [blok: ${blockReason}]`);
+      const blockReason = inCrash ? `Crash(-${dipFromHigh.toFixed(1)}%)` : bearMkt ? `Bear` : rangeMode ? `Range(ADX${adx.toFixed(0)})` : `brak`;
+      addLog(`Brak sygnału — RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} 4H:${fourHourTrend} Reżim:${marketRegime} [blok:${blockReason}]`);
       return;
     }
+    // Determine which signal triggered
+    lastEntrySignal = crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : "RSI_dip";
 
     const direction: Direction = doLong ? "long" : "short";
 
@@ -561,7 +642,7 @@ async function engineTick() {
       }
     } catch { /* proceed anyway */ }
 
-    addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} ATR=${atrPct.toFixed(2)}% → SL=${effSL.toFixed(2)}% TP=${effTP.toFixed(2)}% qty=${qty} lev=${effLev}x`, "info");
+    addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} [${lastEntrySignal}] RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% → SL=${effSL.toFixed(2)}% TP=${effTP.toFixed(2)}% qty=${qty} lev=${effLev}x`, "info");
     try {
       if (config.platform !== "eu" && config.platform !== "kraken" && effLev > 1) {
         try {
@@ -575,6 +656,7 @@ async function engineTick() {
       position = {
         direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
+        signal: lastEntrySignal,
       };
       lastEntryTime = Date.now();
       saveState();
@@ -648,6 +730,18 @@ router.post("/start", (req, res) => {
   prevRsi = 50;
   dipFromHigh = 0;
   marketRegime = "neutral";
+  tickCount = 0;
+  adxLowCount = 0;
+  rangeMode = false;
+  dailyDate = "";
+  dailyStartPnl = 0;
+  tradeHistory = [];
+  sessionWins = 0;
+  sessionLosses = 0;
+  sessionPeakPnl = 0;
+  sessionMaxDrawdown = 0;
+  fourHourTrend = "neutral";
+  lastEntrySignal = "";
   logs = [];
   const krakenLev = Math.max(1, config.leverage ?? 1);
   const platformLabel = config.platform === "kraken"
@@ -687,6 +781,12 @@ router.post("/stop", (_req, res) => {
 });
 
 router.get("/status", (_req, res) => {
+  const totalTrades = sessionWins + sessionLosses;
+  const winRate = totalTrades > 0 ? sessionWins / totalTrades * 100 : 0;
+  const histWins  = tradeHistory.filter(t => t.pnlPct > 0);
+  const histLosses = tradeHistory.filter(t => t.pnlPct <= 0);
+  const avgWin  = histWins.length  > 0 ? histWins.reduce((s, t) => s + t.pnlPct, 0)  / histWins.length  : 0;
+  const avgLoss = histLosses.length > 0 ? histLosses.reduce((s, t) => s + t.pnlPct, 0) / histLosses.length : 0;
   res.json({
     running, position, sessionPnl,
     logs: logs.slice(-50),
@@ -696,9 +796,20 @@ router.get("/status", (_req, res) => {
     dipStats: {
       dipFromHigh: parseFloat(dipFromHigh.toFixed(1)),
       marketRegime,
-      rsiRecovering: prevRsi < (config?.rsiMin ?? 40) && prevRsi > 0,
+      rsiRecovering: tickCount > 3 && prevRsi < (config?.rsiMin ?? 40) && prevRsi > 0,
       prevRsi: parseFloat(prevRsi.toFixed(1)),
       crashActive: dipFromHigh > 5.0,
+      fourHourTrend,
+      rangeMode,
+    },
+    sessionStats: {
+      wins: sessionWins,
+      losses: sessionLosses,
+      winRate: parseFloat(winRate.toFixed(1)),
+      avgWin: parseFloat(avgWin.toFixed(2)),
+      avgLoss: parseFloat(avgLoss.toFixed(2)),
+      maxDrawdown: parseFloat(sessionMaxDrawdown.toFixed(2)),
+      tradeHistory: tradeHistory.slice(-10),
     },
   });
 });
