@@ -1061,7 +1061,7 @@ export default function TradingBot() {
   const [deepResult, setDeepResult]     = useState<OptResult | null>(() => loadLearning().deepResult);
   const fullHistoryRef = useRef<{ symbol: Symbol; candles: CandleData[]; ts: number } | null>((() => {
     try {
-      const raw = localStorage.getItem("bot_history_cache");
+      const raw = localStorage.getItem("bot_history_cache_5m");
       if (!raw) return null;
       const cached = JSON.parse(raw) as { symbol: Symbol; candles: CandleData[]; ts: number };
       if (Date.now() - cached.ts > 30 * 24 * 3600 * 1000) return null; // refresh after 30 days
@@ -3122,9 +3122,9 @@ export default function TradingBot() {
                       candles = await fetchFullHistory(config.symbol, p => setDeepProgress(p * 0.6));
                       const entry = { symbol: config.symbol, candles, ts: Date.now() };
                       fullHistoryRef.current = entry;
-                      try { localStorage.setItem("bot_history_cache", JSON.stringify(entry)); } catch { /* quota exceeded */ }
+                      try { localStorage.setItem("bot_history_cache_5m", JSON.stringify(entry)); } catch { /* quota exceeded */ }
                     }
-                    addLog(`🧠 Pobrano ${candles.length} świec (${Math.round(candles.length/24/365*10)/10} lat). Optymalizacja 16 kombinacji×${Math.min(config.deepTrainWindows,30)} okien…`,"info");
+                    addLog(`🧠 Pobrano ${candles.length} świec 5m (${Math.round(candles.length*5/60/24)} dni). Optymalizacja 16 kombinacji×${Math.min(config.deepTrainWindows,30)} okien…`,"info");
                     setDeepProgress(65);
                     // async — yields 4ms between each combo, UI stays responsive + real progress
                     // onBestSoFar saves partial result immediately so closing browser mid-run preserves learning
