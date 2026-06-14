@@ -135,7 +135,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const long = dir === "long";
 
     // ── exit scan (mirrors priceCheck + engineTick exits) ──
-    let exit = price, reason = "max_hold";
+    let exitPx = price, reason = "max_hold";
     let trailRef = price, breakEvenSet = false;
     let exitIdx = Math.min(i + MAX_HOLD, raw.length - 1);
     for (let j = i + 1; j < Math.min(i + MAX_HOLD, raw.length); j++) {
@@ -154,18 +154,18 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
       const initSL  = long ? price * (1 - effSL / 100)     : price * (1 + effSL / 100);
       const effSLp  = long ? Math.max(trailSL, initSL)     : Math.min(trailSL, initSL);
       // SL/trail first (pessimistic), then TP, then RSI-extreme at close
-      if (long ? lo <= effSLp : hi >= effSLp) { exit = effSLp; reason = (long ? effSLp > price : effSLp < price) ? "trail_stop" : "stop_loss"; break; }
-      if (long ? hi >= price * (1 + effTP / 100) : lo <= price * (1 - effTP / 100)) { exit = long ? price * (1 + effTP / 100) : price * (1 - effTP / 100); reason = "take_profit"; break; }
+      if (long ? lo <= effSLp : hi >= effSLp) { exitPx = effSLp; reason = (long ? effSLp > price : effSLp < price) ? "trail_stop" : "stop_loss"; break; }
+      if (long ? hi >= price * (1 + effTP / 100) : lo <= price * (1 - effTP / 100)) { exitPx = long ? price * (1 + effTP / 100) : price * (1 - effTP / 100); reason = "take_profit"; break; }
       const rsiJ = calcRsi(closes.slice(Math.max(0, j - 149), j + 1));
-      if (long && rsiJ > Math.max(rsiMax + 8, 78)) { exit = cl; reason = "rsi_extreme"; break; }
-      if (!long && rsiJ < Math.min(rsiMin - 8, 22)) { exit = cl; reason = "rsi_extreme"; break; }
-      exit = cl;
+      if (long && rsiJ > Math.max(rsiMax + 8, 78)) { exitPx = cl; reason = "rsi_extreme"; break; }
+      if (!long && rsiJ < Math.min(rsiMin - 8, 22)) { exitPx = cl; reason = "rsi_extreme"; break; }
+      exitPx = cl;
     }
 
-    const rawPct = long ? (exit - price) / price * 100 : (price - exit) / price * 100;
+    const rawPct = long ? (exitPx - price) / price * 100 : (price - exitPx) / price * 100;
     const netPct = rawPct - FEE_RT * 100; // subtract round-trip fee (matches live pnl accounting)
     dayPnlPct += netPct;
-    trades.push({ dir, entry: parseFloat(price.toFixed(2)), exit: parseFloat(exit.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, time: new Date(tMs).toISOString() });
+    trades.push({ dir, entry: parseFloat(price.toFixed(2)), exit: parseFloat(exitPx.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, time: new Date(tMs).toISOString() });
     lastEntry = tMs;
     skipUntil = exitIdx;
   }
