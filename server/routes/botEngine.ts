@@ -818,6 +818,7 @@ router.get("/status", (_req, res) => {
       maxDrawdown: parseFloat(sessionMaxDrawdown.toFixed(2)),
       tradeHistory: tradeHistory.slice(-10),
     },
+    autoRetrain: { enabled: !!autoRetrainId, intervalH: autoRetrainIntervalH },
   });
 });
 
@@ -897,91 +898,158 @@ router.post("/backtest", async (req, res) => {
   }
 });
 
-// ── Optimizer: grid-search rsiMin/rsiMax/trailPct over ~14d, pick best Sharpe ──
+// ── Shared optimization engine (walk-forward + extended grid) ─────────────────
+
+type OptCombo = {
+  rsiMin: number; rsiMax: number; trailPct: number; stopLoss: number; takeProfit: number;
+  trainWinRate: number; trainReturn: number; trainSharpe: number; trainTrades: number;
+  validWinRate: number; validReturn: number; validSharpe: number; validTrades: number;
+  confidence: number; score: number;
+};
+
+async function runOptimize(params: {
+  symbol: string; adxMin: number; confluenceMin: number;
+  volMultMin: number; cooldownMin: number; leverage: number; allowShorts: boolean;
+}): Promise<{ result: OptCombo; days: number; combosTested: number }> {
+  const { symbol, adxMin, confluenceMin, volMultMin, cooldownMin, leverage, allowShorts } = params;
+  const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
+  const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+  const FIVE = 5 * 60;
+
+  // Fetch ~18 days (8 pages × 720 candles)
+  const wantPages = 8;
+  let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
+  let raw: any[] = [];
+  for (let pg = 0; pg < wantPages; pg++) {
+    const rr = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${sinceP}`, { signal: AbortSignal.timeout(15000) });
+    if (!rr.ok) break;
+    const dd = await rr.json() as any;
+    if (dd.error?.length) break;
+    const k = Object.keys(dd.result).find(x => x !== "last")!;
+    const page: any[] = dd.result[k] ?? [];
+    if (!page.length) break;
+    raw.push(...page);
+    sinceP = page[page.length - 1][0] + FIVE;
+    if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 200));
+  }
+  const seen = new Set<number>();
+  raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
+  if (raw.length < 300) throw new Error("Za mało danych historycznych 5m");
+
+  // 4H candles (optional)
+  let raw4: any[] = [];
+  try {
+    const h4since = Math.floor(Date.now() / 1000) - 200 * 4 * 3600;
+    const r4 = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${h4since}`, { signal: AbortSignal.timeout(10000) });
+    if (r4.ok) {
+      const d4 = await r4.json() as any;
+      if (!d4.error?.length) { const k4 = Object.keys(d4.result).find(x => x !== "last")!; raw4 = d4.result[k4] ?? []; }
+    }
+  } catch { /* neutral fallback */ }
+
+  // Walk-forward split: 70% train → 30% validate
+  const splitIdx = Math.floor(raw.length * 0.70);
+  const trainRaw = raw.slice(0, splitIdx);
+  const validRaw = raw.slice(splitIdx);
+
+  // Extended grid: [rsiMin, rsiMax, trailPct, stopLoss, takeProfit]
+  const grid: [number, number, number, number, number][] = [
+    [40, 60, 0.10, 0.30, 0.80], [40, 60, 0.15, 0.40, 1.00], [40, 60, 0.25, 0.50, 1.30],
+    [45, 65, 0.10, 0.30, 0.80], [45, 65, 0.15, 0.40, 1.00], [45, 65, 0.25, 0.50, 1.30],
+    [50, 70, 0.10, 0.30, 0.80], [50, 70, 0.15, 0.40, 1.00], [50, 70, 0.25, 0.50, 1.30],
+    [42, 62, 0.15, 0.40, 1.00], [48, 68, 0.15, 0.40, 1.00], [35, 68, 0.12, 0.30, 0.70],
+    [48, 58, 0.08, 0.25, 0.60], [45, 55, 0.10, 0.30, 0.70], [50, 60, 0.10, 0.30, 0.70],
+    [52, 62, 0.12, 0.35, 0.80], [38, 62, 0.18, 0.45, 1.10], [43, 63, 0.20, 0.45, 1.20],
+    [46, 66, 0.12, 0.35, 0.90], [40, 65, 0.15, 0.40, 1.00],
+  ];
+
+  let best: OptCombo | null = null;
+
+  for (const [rsiMin, rsiMax, trailPct, stopLoss, takeProfit] of grid) {
+    const p = { rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin, stopLoss, takeProfit, trailPct, leverage, allowShorts };
+    const tr = simulate(trainRaw, raw4, p);
+    if (tr.numTrades < 4) continue;
+    const vr = simulate(validRaw, raw4, p);
+
+    // Confidence: 60% win-rate consistency + 40% validation return positive
+    const wrRatio = tr.winRate > 0 ? Math.min(1, vr.winRate / tr.winRate) : 0;
+    const confidence = Math.round(wrRatio * 60 + (vr.totalReturn >= 0 ? 40 : vr.totalReturn >= -1 ? 20 : 0));
+    const score = tr.sharpe * (confidence / 100);
+
+    const cand: OptCombo = {
+      rsiMin, rsiMax, trailPct, stopLoss, takeProfit,
+      trainWinRate: parseFloat(tr.winRate.toFixed(1)),   trainReturn: parseFloat(tr.totalReturn.toFixed(2)),
+      trainSharpe:  parseFloat(tr.sharpe.toFixed(2)),    trainTrades: tr.numTrades,
+      validWinRate: parseFloat((vr.winRate ?? 0).toFixed(1)),   validReturn: parseFloat((vr.totalReturn ?? 0).toFixed(2)),
+      validSharpe:  parseFloat((vr.sharpe ?? 0).toFixed(2)),    validTrades: vr.numTrades ?? 0,
+      confidence, score,
+    };
+    if (!best || cand.score > best.score) best = cand;
+  }
+
+  if (!best) throw new Error("Żadna kombinacja nie miała wystarczająco transakcji");
+  return { result: best, days: Math.round(raw.length * 5 / 60 / 24), combosTested: grid.length };
+}
+
+// ── Auto-retrain timer ─────────────────────────────────────────────────────────
+
+let autoRetrainId: ReturnType<typeof setInterval> | null = null;
+let autoRetrainIntervalH = 24;
+
+async function doAutoRetrain() {
+  if (!running || !config) return;
+  try {
+    addLog("🧠 Auto-retrain start…", "info");
+    const { result } = await runOptimize({
+      symbol: config.symbol, adxMin: config.adxMin,
+      confluenceMin: config.confluenceMin, volMultMin: config.volMultMin,
+      cooldownMin: config.cooldownMin, leverage: config.leverage,
+      allowShorts: config.allowShorts,
+    });
+    if (result.confidence >= 55 && result.trainWinRate >= 45) {
+      config.rsiMin     = result.rsiMin;
+      config.rsiMax     = result.rsiMax;
+      config.trailPct   = result.trailPct;
+      config.stopLoss   = result.stopLoss;
+      config.takeProfit = result.takeProfit;
+      addLog(`🧠 Auto-retrain ✓ RSI[${result.rsiMin}–${result.rsiMax}] SL${result.stopLoss}% TP${result.takeProfit}% conf=${result.confidence}%`, "info");
+    } else {
+      addLog(`🧠 Auto-retrain: wynik słaby (conf=${result.confidence}% WR=${result.trainWinRate}%) — bez zmian`, "warn");
+    }
+  } catch (e: any) {
+    addLog(`🧠 Auto-retrain błąd: ${e.message}`, "warn");
+  }
+}
+
+// POST /api/bot/autotrain — enable/disable server-side auto-retraining
+router.post("/autotrain", (req, res) => {
+  const { enabled, intervalH = 24 } = req.body ?? {};
+  if (autoRetrainId) { clearInterval(autoRetrainId); autoRetrainId = null; }
+  if (enabled) {
+    autoRetrainIntervalH = Math.max(1, Math.min(168, Number(intervalH) || 24));
+    autoRetrainId = setInterval(doAutoRetrain, autoRetrainIntervalH * 3600 * 1000);
+    addLog(`🧠 Auto-retrain włączony co ${autoRetrainIntervalH}h`, "info");
+    res.json({ ok: true, enabled: true, intervalH: autoRetrainIntervalH });
+  } else {
+    addLog("🧠 Auto-retrain wyłączony", "info");
+    res.json({ ok: true, enabled: false });
+  }
+});
+
+// ── Optimizer HTTP endpoint ────────────────────────────────────────────────────
 router.post("/optimize", async (req, res) => {
   try {
     const {
       symbol = "BTCUSDT",
       adxMin = 12, confluenceMin = 1, volMultMin = 1.0, cooldownMin = 20,
-      stopLoss = 0.3, takeProfit = 0.6,
       leverage = 1, allowShorts = false,
     } = req.body ?? {};
 
-    const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
-    const pair = PAIR_MAP[symbol] ?? "XBTUSD";
-    const FIVE = 5 * 60; // 5m in seconds
-
-    // ── Fetch 5m candles, paginated (~14 days = 6 pages × 720) ─────────────────
-    const wantPages = 6;
-    let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
-    let raw: any[] = [];
-    for (let p = 0; p < wantPages; p++) {
-      const rr = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${sinceP}`, { signal: AbortSignal.timeout(15000) });
-      if (!rr.ok) break;
-      const dd = await rr.json() as any;
-      if (dd.error?.length) break;
-      const k = Object.keys(dd.result).find(x => x !== "last")!;
-      const page: any[] = dd.result[k] ?? [];
-      if (!page.length) break;
-      raw.push(...page);
-      sinceP = page[page.length - 1][0] + FIVE;
-      if (p < wantPages - 1) await new Promise(r2 => setTimeout(r2, 200));
-    }
-    const seen = new Set<number>();
-    raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
-    if (raw.length < 200) throw new Error("Za mało danych historycznych 5m");
-
-    // ── Fetch 4H candles ONCE (mirrors live fetch4HCandles) ────────────────────
-    let raw4: any[] = [];
-    try {
-      const h4since = Math.floor(Date.now() / 1000) - 200 * 4 * 3600;
-      const r4 = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${h4since}`, { signal: AbortSignal.timeout(10000) });
-      if (r4.ok) {
-        const d4 = await r4.json() as any;
-        if (!d4.error?.length) {
-          const k4 = Object.keys(d4.result).find(x => x !== "last")!;
-          raw4 = d4.result[k4] ?? [];
-        }
-      }
-    } catch { /* 4h optional — falls back to neutral */ }
-
-    // ── Grid of [rsiMin, rsiMax, trailPct] ─────────────────────────────────────
-    const grid: [number, number, number][] = [
-      [40, 60, 0.10], [40, 60, 0.15], [40, 60, 0.25],
-      [45, 65, 0.10], [45, 65, 0.15], [45, 65, 0.25],
-      [50, 70, 0.10], [50, 70, 0.15], [50, 70, 0.25],
-      [42, 62, 0.15], [48, 68, 0.15], [35, 68, 0.12],
-    ];
-
-    type Combo = { rsiMin: number; rsiMax: number; trailPct: number; sharpe: number; winRate: number; totalReturn: number; numTrades: number };
-    let best: Combo | null = null;
-    let mostTrades: Combo | null = null;
-    for (const [rsiMin, rsiMax, trailPct] of grid) {
-      const r = simulate(raw, raw4, {
-        rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin,
-        stopLoss, takeProfit, trailPct, leverage, allowShorts,
-      });
-      const cand = { rsiMin, rsiMax, trailPct, sharpe: r.sharpe, winRate: r.winRate, totalReturn: r.totalReturn, numTrades: r.numTrades };
-      if (!mostTrades || cand.numTrades > mostTrades.numTrades) mostTrades = cand;
-      if (cand.numTrades >= 8 && (!best || cand.sharpe > best.sharpe)) best = cand;
-    }
-
-    const lowConfidence = !best;
-    const pick = best ?? mostTrades!;
-
-    res.json({
-      ok: true,
-      rsiMin: pick.rsiMin,
-      rsiMax: pick.rsiMax,
-      trailPct: pick.trailPct,
-      sharpe: pick.sharpe,
-      winRate: pick.winRate,
-      totalReturn: pick.totalReturn,
-      numTrades: pick.numTrades,
-      days: Math.round(raw.length * 5 / 60 / 24),
-      combosTested: grid.length,
-      lowConfidence,
+    const { result, days, combosTested } = await runOptimize({
+      symbol, adxMin, confluenceMin, volMultMin, cooldownMin, leverage, allowShorts,
     });
+
+    res.json({ ok: true, ...result, days, combosTested });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

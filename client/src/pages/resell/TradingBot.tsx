@@ -49,8 +49,18 @@ type SimResult = {
 };
 
 type OptResult = {
-  rsiMin: number; rsiMax: number; trailPct: number;
-  sharpe: number; winRate: number; totalReturn: number; numTrades: number;
+  rsiMin: number; rsiMax: number; trailPct: number; stopLoss: number; takeProfit: number;
+  trainWinRate: number; trainReturn: number; trainSharpe: number; trainTrades: number;
+  validWinRate: number; validReturn: number; validSharpe: number; validTrades: number;
+  confidence: number; days: number; combosTested: number;
+  // legacy fields for compatibility
+  winRate?: number; totalReturn?: number; sharpe?: number; numTrades?: number;
+};
+
+type TrainEntry = {
+  ts: string; rsiMin: number; rsiMax: number; trailPct: number;
+  stopLoss: number; takeProfit: number;
+  trainWinRate: number; validWinRate: number; confidence: number; applied: boolean;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -70,6 +80,7 @@ const SYMBOLS:    Symbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
 const LEVERAGES:  number[] = [1, 2, 3, 5];
 const TRADES_KEY   = "kraken_trades_v2";
 const SETTINGS_KEY = "bot_settings_v2";
+const TRAIN_KEY    = "bot_train_history";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -133,6 +144,12 @@ export default function TradingBot() {
   });
   const [optRunning, setOptRunning] = useState(false);
   const [optApplied, setOptApplied] = useState(false);
+  const [trainHistory, setTrainHistory] = useState<TrainEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem(TRAIN_KEY) ?? "[]"); } catch { return []; }
+  });
+  const [showHistory, setShowHistory] = useState(false);
+  const [autoRetrain, setAutoRetrain] = useState(false);
+  const [autoRetrainBusy, setAutoRetrainBusy] = useState(false);
 
   const [krakenOk,  setKrakenOk]  = useState<boolean | null>(null);
   const [krakenMsg, setKrakenMsg] = useState("");
@@ -178,6 +195,9 @@ export default function TradingBot() {
       if (s.logs?.length) setLogs(s.logs.slice(-40).reverse());
       if (s.sessionStats?.tradeHistory?.length) {
         setTradeHistory(mergeLocalTrades(s.sessionStats.tradeHistory));
+      }
+      if ((s as any).autoRetrain?.enabled !== undefined) {
+        setAutoRetrain((s as any).autoRetrain.enabled);
       }
     } catch { /* ignore */ }
   }, []);
@@ -260,6 +280,16 @@ export default function TradingBot() {
       if (!r.ok || d.error) throw new Error(d.error ?? "Błąd optymalizacji");
       setOptResult(d);
       try { localStorage.setItem("bot_opt_result", JSON.stringify(d)); } catch { /* ignore */ }
+      // save to training history
+      const entry: TrainEntry = {
+        ts: new Date().toISOString(), rsiMin: d.rsiMin, rsiMax: d.rsiMax,
+        trailPct: d.trailPct, stopLoss: d.stopLoss ?? 0, takeProfit: d.takeProfit ?? 0,
+        trainWinRate: d.trainWinRate ?? d.winRate ?? 0,
+        validWinRate: d.validWinRate ?? 0, confidence: d.confidence ?? 0, applied: false,
+      };
+      const hist = [entry, ...trainHistory].slice(0, 10);
+      setTrainHistory(hist);
+      try { localStorage.setItem(TRAIN_KEY, JSON.stringify(hist)); } catch { /* ignore */ }
     } catch (e: any) {
       setSimError(e.message);
     } finally {
@@ -273,10 +303,35 @@ export default function TradingBot() {
     const r = await fetch("/api/bot/params", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rsiMin: optResult.rsiMin, rsiMax: optResult.rsiMax, trailPct: optResult.trailPct }),
+      body: JSON.stringify({
+        rsiMin: optResult.rsiMin, rsiMax: optResult.rsiMax, trailPct: optResult.trailPct,
+        stopLoss: optResult.stopLoss, takeProfit: optResult.takeProfit,
+      }),
     });
-    if (r.ok) { setOptApplied(true); setTimeout(() => setOptApplied(false), 4000); }
-    else { const e = await r.json(); alert(e.error ?? "Błąd zastosowania"); }
+    if (r.ok) {
+      setOptApplied(true);
+      setTimeout(() => setOptApplied(false), 4000);
+      // mark latest history entry as applied
+      const hist = trainHistory.map((e, i) => i === 0 ? { ...e, applied: true } : e);
+      setTrainHistory(hist);
+      try { localStorage.setItem(TRAIN_KEY, JSON.stringify(hist)); } catch { /* ignore */ }
+    } else {
+      const e = await r.json(); alert(e.error ?? "Błąd zastosowania");
+    }
+  };
+
+  const toggleAutoRetrain = async () => {
+    setAutoRetrainBusy(true);
+    const newVal = !autoRetrain;
+    try {
+      const r = await fetch("/api/bot/autotrain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newVal, intervalH: 24 }),
+      });
+      if (r.ok) setAutoRetrain(newVal);
+    } catch { /* ignore */ }
+    setAutoRetrainBusy(false);
   };
 
   const testKraken = async () => {
@@ -550,32 +605,93 @@ export default function TradingBot() {
           )}
 
           {optResult && (
-            <div className="bg-[#111f16] border border-[#2a4a30] rounded-lg p-3 space-y-1.5">
-              <div className="text-yellow-400 text-xs font-semibold">⚡ Optymalne parametry</div>
-              <div className="text-sm text-white">RSI [{optResult.rsiMin}–{optResult.rsiMax}] · Trail {optResult.trailPct}%</div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {[
-                  { lbl: "WIN RATE",   val: optResult.winRate.toFixed(1) + "%",  ok: optResult.winRate >= 50 },
-                  { lbl: "ZWROT",      val: fmtPct(optResult.totalReturn),        ok: optResult.totalReturn >= 0 },
-                  { lbl: "TRANSAKCJI", val: String(optResult.numTrades),           ok: optResult.numTrades >= 8 },
-                ].map(m => (
-                  <div key={m.lbl}>
-                    <div className="text-[9px] text-gray-500 uppercase">{m.lbl}</div>
-                    <div className={`text-sm font-bold ${m.ok ? "text-green-400" : "text-red-400"}`}>{m.val}</div>
-                  </div>
-                ))}
+            <div className="bg-[#111f16] border border-[#2a4a30] rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-yellow-400 text-xs font-semibold">⚡ Wynik treningu</span>
+                <span className="text-xs text-gray-500">{optResult.days ?? "?"}d · {optResult.combosTested ?? 20} kombinacji</span>
               </div>
-              <div className="text-xs text-gray-500">Sharpe: {optResult.sharpe.toFixed(2)}</div>
-              {optResult.winRate >= 45 && optResult.totalReturn >= 0 ? (
+              <div className="text-sm text-white font-medium">
+                RSI [{optResult.rsiMin}–{optResult.rsiMax}] · Trail {optResult.trailPct}% · SL {optResult.stopLoss}% · TP {optResult.takeProfit}%
+              </div>
+
+              {/* Confidence bar */}
+              <div>
+                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                  <span>PEWNOŚĆ MODELU</span>
+                  <span className={optResult.confidence >= 60 ? "text-green-400" : optResult.confidence >= 40 ? "text-yellow-400" : "text-red-400"}>
+                    {optResult.confidence}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-[#1a2e1f] rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${optResult.confidence >= 60 ? "bg-green-500" : optResult.confidence >= 40 ? "bg-yellow-500" : "bg-red-500"}`}
+                    style={{ width: `${optResult.confidence}%` }} />
+                </div>
+              </div>
+
+              {/* Train vs Validate */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-[#0d1b12] rounded p-2">
+                  <div className="text-[9px] text-gray-500 mb-1">TRENING (70%)</div>
+                  <div className="text-xs space-y-0.5">
+                    <div>Win <span className={optResult.trainWinRate >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{optResult.trainWinRate.toFixed(1)}%</span></div>
+                    <div>Zwrot <span className={optResult.trainReturn >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(optResult.trainReturn)}</span></div>
+                    <div className="text-gray-500">{optResult.trainTrades} transakcji</div>
+                  </div>
+                </div>
+                <div className="bg-[#0d1b12] rounded p-2">
+                  <div className="text-[9px] text-gray-500 mb-1">WALIDACJA (30%)</div>
+                  <div className="text-xs space-y-0.5">
+                    <div>Win <span className={optResult.validWinRate >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{optResult.validWinRate.toFixed(1)}%</span></div>
+                    <div>Zwrot <span className={optResult.validReturn >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(optResult.validReturn)}</span></div>
+                    <div className="text-gray-500">{optResult.validTrades} transakcji</div>
+                  </div>
+                </div>
+              </div>
+
+              {optResult.trainWinRate >= 45 && optResult.trainReturn >= 0 && optResult.confidence >= 40 ? (
                 <button onClick={applyOpt}
-                  className="w-full mt-1 bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded-lg font-medium">
+                  className="w-full bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded-lg font-medium">
                   {optApplied ? "✓ Zastosowano do bota!" : "Zastosuj do bota →"}
                 </button>
               ) : (
-                <div className="mt-1 text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
-                  ⚠ Wynik zbyt słaby — nie stosuj. Rynek nie sprzyja tej strategii teraz.
+                <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+                  ⚠ Wynik zbyt słaby — rynek nie sprzyja tej strategii teraz.
                 </div>
               )}
+
+              {/* Auto-retrain toggle */}
+              <label className="flex items-center justify-between cursor-pointer select-none pt-1 border-t border-[#1e3a28]">
+                <span className="text-xs text-gray-400">🧠 Auto-retrain co 24h (serwer)</span>
+                <div onClick={autoRetrainBusy ? undefined : toggleAutoRetrain}
+                  className={`w-8 h-4 rounded-full transition-colors cursor-pointer ${autoRetrain ? "bg-green-500" : "bg-gray-600"} ${autoRetrainBusy ? "opacity-50" : ""}`}>
+                  <span className={`block w-3.5 h-3.5 bg-white rounded-full m-0.5 shadow transition-transform ${autoRetrain ? "translate-x-4" : ""}`} />
+                </div>
+              </label>
+
+              {/* History toggle */}
+              {trainHistory.length > 0 && (
+                <button onClick={() => setShowHistory(x => !x)}
+                  className="w-full text-xs text-gray-500 hover:text-gray-300 text-left">
+                  {showHistory ? "▲ Ukryj historię treningów" : `▼ Historia treningów (${trainHistory.length})`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Training history */}
+          {showHistory && trainHistory.length > 0 && (
+            <div className="bg-[#111f16] border border-[#2a4a30] rounded-lg p-3 space-y-1.5">
+              <div className="text-xs font-semibold text-gray-400 mb-2">Historia treningów</div>
+              {trainHistory.map((e, i) => (
+                <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-[#1a2e1f]">
+                  <span className="text-gray-500 font-mono">{fmtDate(e.ts)}</span>
+                  <span className="text-gray-300">RSI [{e.rsiMin}–{e.rsiMax}]</span>
+                  <span className={e.confidence >= 60 ? "text-green-400" : e.confidence >= 40 ? "text-yellow-400" : "text-red-400"}>
+                    {e.confidence}%
+                  </span>
+                  {e.applied && <span className="text-green-400 text-[10px]">✓</span>}
+                </div>
+              ))}
             </div>
           )}
         </div>
