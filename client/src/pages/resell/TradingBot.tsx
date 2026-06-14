@@ -2581,16 +2581,16 @@ export default function TradingBot() {
                         icon:"🚀", label:"Agresywny",
                         color:"#f87171", bg:"rgba(248,113,113,0.08)", border:"rgba(248,113,113,0.3)",
                         desc:"Dużo transakcji,\nwyższe ryzyko",
-                        trades:"10–30 / dzień",
-                        cfg:{ rsiMin:48, rsiMax:58, adxMin:10, confluenceMin:1, volMultMin:1.0, cooldownMin:20, stopLoss:0.5, takeProfit:1.0, trailPct:0.1 },
+                        trades:"5–15 / dzień",
+                        cfg:{ rsiMin:42, rsiMax:62, adxMin:10, confluenceMin:1, volMultMin:1.0, cooldownMin:15, stopLoss:0.5, takeProfit:1.3, trailPct:0.12 },
                       },
                       {
                         key:"superaggressive" as const,
                         icon:"⚡", label:"Super Agresywny",
                         color:"#f59e0b", bg:"rgba(245,158,11,0.08)", border:"rgba(245,158,11,0.4)",
                         desc:"Maksymalna ilość\ntransakcji — scalping",
-                        trades:"50–100+ / dzień",
-                        cfg:{ rsiMin:58, rsiMax:48, adxMin:5, confluenceMin:1, volMultMin:1.0, cooldownMin:5, stopLoss:0.6, takeProfit:0.4, trailPct:0.08 },
+                        trades:"15–40 / dzień",
+                        cfg:{ rsiMin:45, rsiMax:55, adxMin:5, confluenceMin:1, volMultMin:1.0, cooldownMin:5, stopLoss:0.55, takeProfit:1.1, trailPct:0.1 },
                       },
                     ] as const).map(lvl => {
                       const active = config.riskLevel === lvl.key;
