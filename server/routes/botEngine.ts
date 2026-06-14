@@ -588,7 +588,7 @@ async function engineTick() {
 
     // Bear market filter: skip RSI dip signals in clear downtrend (EMA + price slope)
     // EMA crossover signals still allowed — they mark trend reversal
-    const rsiBuyFiltered = rsiBuy && !bearMkt && macdBull && fourHourTrend !== "bear";
+    const rsiBuyFiltered = rsiBuy && !bearMkt && fourHourTrend !== "bear";
     const trendQuality = adx >= 15;
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
@@ -968,9 +968,11 @@ async function runOptimize(params: {
   let best: OptCombo | null = null;
 
   for (const [rsiMin, rsiMax, trailPct, stopLoss, takeProfit] of grid) {
-    const p = { rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin, stopLoss, takeProfit, trailPct, leverage, allowShorts };
+    // Optimizer uses permissive confluence/cooldown to find signals across all combos.
+    // Strict preset settings are applied by the live bot, not the signal search.
+    const p = { rsiMin, rsiMax, adxMin, confluenceMin: 1, volMultMin: 1.0, cooldownMin: 30, stopLoss, takeProfit, trailPct, leverage, allowShorts };
     const tr = simulate(trainRaw, raw4, p);
-    if (tr.numTrades < 4) continue;
+    if (tr.numTrades < 3) continue;
     const vr = simulate(validRaw, raw4, p);
 
     // Confidence: 60% win-rate consistency + 40% validation return positive
