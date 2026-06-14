@@ -5,6 +5,7 @@
  */
 import express from "express";
 import crypto from "crypto";
+import { nextKrakenNonce, krakenSerialize } from "../lib/krakenNonce";
 
 const router = express.Router();
 
@@ -16,8 +17,8 @@ const KRAKEN_PAIRS: Record<string, string> = {
 function krakenSign(
   apiSecret: string, path: string, params: Record<string, any>,
 ): { sign: string; body: string } {
-  const nonce = Date.now() * 1000;
-  const allParams = { ...params, nonce: nonce.toString() };
+  const nonce = nextKrakenNonce();
+  const allParams = { ...params, nonce };
   const body = new URLSearchParams(allParams as Record<string, string>).toString();
   const sha256 = crypto.createHash("sha256").update(nonce + body).digest();
   const hmacInput = Buffer.concat([Buffer.from(path), sha256]);
@@ -31,24 +32,28 @@ function krakenSign(
 async function krakenPrivate(
   apiKey: string, apiSecret: string, path: string, params: Record<string, any> = {},
 ) {
-  const { sign, body } = krakenSign(apiSecret, path, params);
-  const r = await fetch(`https://api.kraken.com${path}`, {
-    method: "POST",
-    headers: {
-      "API-Key": apiKey.trim(),
-      "API-Sign": sign,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-    signal: AbortSignal.timeout(10000),
+  // Serialize: sign (assign nonce) and send inside one queued block so nonces
+  // are both monotonic and delivered to Kraken in order.
+  return krakenSerialize(async () => {
+    const { sign, body } = krakenSign(apiSecret, path, params);
+    const r = await fetch(`https://api.kraken.com${path}`, {
+      method: "POST",
+      headers: {
+        "API-Key": apiKey.trim(),
+        "API-Sign": sign,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) {
+      let txt = ""; try { txt = await r.text(); } catch { /* ignore */ }
+      throw new Error(`Kraken HTTP ${r.status}: ${txt.slice(0, 200)}`);
+    }
+    const d = await r.json() as any;
+    if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
+    return d.result;
   });
-  if (!r.ok) {
-    let txt = ""; try { txt = await r.text(); } catch { /* ignore */ }
-    throw new Error(`Kraken HTTP ${r.status}: ${txt.slice(0, 200)}`);
-  }
-  const d = await r.json() as any;
-  if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
-  return d.result;
 }
 
 // POST /api/kraken/balance

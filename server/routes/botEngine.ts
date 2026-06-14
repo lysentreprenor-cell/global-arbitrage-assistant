@@ -9,6 +9,7 @@ import fs from "fs";
 import path from "path";
 import { bybitFetch as proxyFetch } from "../proxyDispatcher";
 import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult } from "../lib/indicators";
+import { nextKrakenNonce, krakenSerialize } from "../lib/krakenNonce";
 
 const router = express.Router();
 const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
@@ -182,29 +183,34 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
 
 async function krakenPrivate(path: string, params: Record<string, any> = {}) {
   if (!config) throw new Error("No config");
-  const nonce = Date.now() * 1000;
-  const allParams = { ...params, nonce: nonce.toString() };
-  const body = new URLSearchParams(allParams as Record<string, string>).toString();
-  const sha256 = crypto.createHash("sha256").update(allParams.nonce + body).digest();
-  const hmacInput = Buffer.concat([Buffer.from(path), sha256]);
-  const sign = crypto
-    .createHmac("sha512", Buffer.from(config.secret, "base64"))
-    .update(hmacInput)
-    .digest("base64");
-  const r = await fetch(`https://api.kraken.com${path}`, {
-    method: "POST",
-    headers: {
-      "API-Key": config.apiKey.trim(),
-      "API-Sign": sign,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-    signal: AbortSignal.timeout(10000),
+  const cfg = config;
+  // Serialize + monotonic nonce shared with the frontend Kraken routes so
+  // concurrent calls never collide or arrive out of order ("Invalid nonce").
+  return krakenSerialize(async () => {
+    const nonce = nextKrakenNonce();
+    const allParams = { ...params, nonce };
+    const body = new URLSearchParams(allParams as Record<string, string>).toString();
+    const sha256 = crypto.createHash("sha256").update(nonce + body).digest();
+    const hmacInput = Buffer.concat([Buffer.from(path), sha256]);
+    const sign = crypto
+      .createHmac("sha512", Buffer.from(cfg.secret, "base64"))
+      .update(hmacInput)
+      .digest("base64");
+    const r = await fetch(`https://api.kraken.com${path}`, {
+      method: "POST",
+      headers: {
+        "API-Key": cfg.apiKey.trim(),
+        "API-Sign": sign,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
+    const d = await r.json() as any;
+    if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
+    return d.result;
   });
-  if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
-  const d = await r.json() as any;
-  if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
-  return d.result;
 }
 
 // Returns orderId/txid on success, throws on failure
