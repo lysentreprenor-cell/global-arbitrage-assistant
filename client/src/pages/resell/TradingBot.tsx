@@ -128,8 +128,11 @@ export default function TradingBot() {
   const [simResult,  setSimResult]  = useState<SimResult | null>(null);
   const [simError,   setSimError]   = useState<string | null>(null);
   const [simRunning, setSimRunning] = useState(false);
-  const [optResult,  setOptResult]  = useState<OptResult | null>(null);
+  const [optResult,  setOptResult]  = useState<OptResult | null>(() => {
+    try { return JSON.parse(localStorage.getItem("bot_opt_result") ?? "null"); } catch { return null; }
+  });
   const [optRunning, setOptRunning] = useState(false);
+  const [optApplied, setOptApplied] = useState(false);
 
   const [krakenOk,  setKrakenOk]  = useState<boolean | null>(null);
   const [krakenMsg, setKrakenMsg] = useState("");
@@ -256,11 +259,24 @@ export default function TradingBot() {
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error ?? "Błąd optymalizacji");
       setOptResult(d);
+      try { localStorage.setItem("bot_opt_result", JSON.stringify(d)); } catch { /* ignore */ }
     } catch (e: any) {
       setSimError(e.message);
     } finally {
       setOptRunning(false);
     }
+  };
+
+  const applyOpt = async () => {
+    if (!optResult) return;
+    setOptApplied(false);
+    const r = await fetch("/api/bot/params", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rsiMin: optResult.rsiMin, rsiMax: optResult.rsiMax, trailPct: optResult.trailPct }),
+    });
+    if (r.ok) { setOptApplied(true); setTimeout(() => setOptApplied(false), 4000); }
+    else { const e = await r.json(); alert(e.error ?? "Błąd zastosowania"); }
   };
 
   const testKraken = async () => {
@@ -398,6 +414,12 @@ export default function TradingBot() {
               {dipStats && (
                 <span>4H: <span className={dipStats.fourHourTrend === "bull" ? "text-green-400" : dipStats.fourHourTrend === "bear" ? "text-red-400" : "text-gray-400"}>{dipStats.fourHourTrend}</span></span>
               )}
+            </div>
+          )}
+
+          {optResult && (
+            <div className="text-xs text-green-400 font-medium">
+              ✓ Wytrenowany — RSI [{optResult.rsiMin}–{optResult.rsiMax}] Trail {optResult.trailPct}%
             </div>
           )}
 
@@ -539,6 +561,10 @@ export default function TradingBot() {
                 ))}
               </div>
               <div className="text-xs text-gray-500">Sharpe: {optResult.sharpe.toFixed(2)}</div>
+              <button onClick={applyOpt}
+                className="w-full mt-1 bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded-lg font-medium">
+                {optApplied ? "✓ Zastosowano do bota!" : "Zastosuj do bota →"}
+              </button>
             </div>
           )}
         </div>
