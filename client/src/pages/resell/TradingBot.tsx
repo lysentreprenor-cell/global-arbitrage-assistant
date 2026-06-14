@@ -107,8 +107,9 @@ function mergeLocalTrades(incoming: TradeRecord[]): TradeRecord[] {
   } catch { return incoming; }
 }
 
-const fmtP   = (p: number) => p >= 1000 ? p.toLocaleString("en-US", { maximumFractionDigits: 0 }) : p.toFixed(2);
-const fmtPct = (p: number) => (p >= 0 ? "+" : "") + p.toFixed(2) + "%";
+const fmtP   = (p: number | undefined | null) => { const n = p ?? 0; return n >= 1000 ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : n.toFixed(2); };
+const fmtPct = (p: number | undefined | null) => { const n = p ?? 0; return (n >= 0 ? "+" : "") + n.toFixed(2) + "%"; };
+const safe   = (p: number | undefined | null, dec = 2) => (p ?? 0).toFixed(dec);
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
   return `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")} `
@@ -147,8 +148,9 @@ export default function TradingBot() {
       return cached;
     } catch { return null; }
   });
-  const [optRunning, setOptRunning] = useState(false);
-  const [optApplied, setOptApplied] = useState(false);
+  const [optRunning,    setOptRunning]    = useState(false);
+  const [optApplied,    setOptApplied]    = useState(false);
+  const [trainAndSim,   setTrainAndSim]   = useState(false);
   const [trainHistory, setTrainHistory] = useState<TrainEntry[]>(() => {
     try { return JSON.parse(localStorage.getItem(TRAIN_KEY) ?? "[]"); } catch { return []; }
   });
@@ -299,6 +301,50 @@ export default function TradingBot() {
       setSimError(e.message);
     } finally {
       setOptRunning(false);
+    }
+  };
+
+  const runTrainAndSim = async () => {
+    setTrainAndSim(true);
+    setSimError(null); setSimResult(null); setOptResult(null);
+    try {
+      // 1. Optimize
+      const ro = await fetch("/api/bot/optimize", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol, leverage, allowShorts,
+          adxMin: p.adxMin, confluenceMin: p.confluenceMin,
+          volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
+          stopLoss: p.stopLoss, takeProfit: p.takeProfit,
+        }),
+      });
+      const opt = await ro.json();
+      if (!ro.ok || opt.error) throw new Error(opt.error ?? "Błąd optymalizacji");
+      setOptResult(opt);
+      try { localStorage.setItem("bot_opt_result", JSON.stringify(opt)); } catch { /* ignore */ }
+
+      // 2. Simulate with optimized RSI/trail (if result is good, use those; otherwise preset)
+      const useOpt = (opt.confidence ?? 0) >= 40 && (opt.trainWinRate ?? 0) >= 45;
+      const rs = await fetch("/api/bot/backtest", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol, leverage, allowShorts,
+          rsiMin:   useOpt ? opt.rsiMin   : p.rsiMin,
+          rsiMax:   useOpt ? opt.rsiMax   : p.rsiMax,
+          trailPct: useOpt ? opt.trailPct : p.trailPct,
+          stopLoss: useOpt ? opt.stopLoss : p.stopLoss,
+          takeProfit: useOpt ? opt.takeProfit : p.takeProfit,
+          adxMin: p.adxMin, confluenceMin: p.confluenceMin,
+          volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
+        }),
+      });
+      const sim = await rs.json();
+      if (!rs.ok || sim.error) throw new Error(sim.error ?? "Błąd symulacji");
+      setSimResult(sim);
+    } catch (e: any) {
+      setSimError(e.message);
+    } finally {
+      setTrainAndSim(false);
     }
   };
 
@@ -460,7 +506,7 @@ export default function TradingBot() {
                 <span className="text-sm text-white">@ ${fmtP(position.entryPrice)}</span>
                 <span className="text-xs text-gray-400">qty {position.qty}</span>
               </div>
-              <div className="text-xs text-gray-500 mt-0.5">SL {position.slPct.toFixed(2)}% · TP {position.tpPct.toFixed(2)}%</div>
+              <div className="text-xs text-gray-500 mt-0.5">SL {safe(position.slPct)}% · TP {safe(position.tpPct)}%</div>
             </div>
           )}
 
@@ -469,7 +515,7 @@ export default function TradingBot() {
             <div className="flex gap-4 text-xs text-gray-400 flex-wrap">
               <span>P&L: <span className={botStatus!.sessionPnl >= 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{fmtPct(botStatus!.sessionPnl)}</span></span>
               {sess && sess.wins + sess.losses > 0 && (
-                <span>Win {sess.winRate.toFixed(0)}% · {sess.wins}W/{sess.losses}L</span>
+                <span>Win {safe(sess.winRate, 0)}% · {sess.wins ?? 0}W/{sess.losses ?? 0}L</span>
               )}
               {dipStats && (
                 <span>4H: <span className={dipStats.fourHourTrend === "bull" ? "text-green-400" : dipStats.fourHourTrend === "bear" ? "text-red-400" : "text-gray-400"}>{dipStats.fourHourTrend}</span></span>
@@ -559,15 +605,21 @@ export default function TradingBot() {
 
         {/* ── Simulation & Optimization ─────────────────────────────────────── */}
         <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+          {/* Main: Train + Simulate together */}
+          <button onClick={runTrainAndSim} disabled={simRunning || optRunning || trainAndSim}
+            className="w-full flex items-center justify-center gap-2 bg-green-800/40 hover:bg-green-800/60 border border-green-600/60 text-green-300 py-3 rounded-lg text-sm font-semibold disabled:opacity-50">
+            <Zap className="w-4 h-4" />
+            {trainAndSim ? "Trenuje i symuluje…" : "🧠 Trenuj i Symuluj"}
+          </button>
           <div className="flex gap-2">
-            <button onClick={runSim} disabled={simRunning || optRunning}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a2e1f] hover:bg-[#243d28] border border-green-800/60 text-green-400 py-2.5 rounded-lg text-sm disabled:opacity-50">
-              <FlaskConical className="w-4 h-4" />
+            <button onClick={runSim} disabled={simRunning || optRunning || trainAndSim}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a2e1f] hover:bg-[#243d28] border border-green-800/60 text-green-400 py-2 rounded-lg text-xs disabled:opacity-50">
+              <FlaskConical className="w-3 h-3" />
               {simRunning ? "Symulacja…" : "🔬 Symulacja"}
             </button>
-            <button onClick={runOpt} disabled={simRunning || optRunning}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a2e1f] hover:bg-[#243d28] border border-yellow-800/60 text-yellow-400 py-2.5 rounded-lg text-sm disabled:opacity-50">
-              <Zap className="w-4 h-4" />
+            <button onClick={runOpt} disabled={simRunning || optRunning || trainAndSim}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a2e1f] hover:bg-[#243d28] border border-yellow-800/60 text-yellow-400 py-2 rounded-lg text-xs disabled:opacity-50">
+              <Zap className="w-3 h-3" />
               {optRunning ? "Optymalizuję…" : "⚡ Optymalizacja"}
             </button>
           </div>
@@ -583,10 +635,10 @@ export default function TradingBot() {
               <div className="text-xs text-gray-400">SYMULACJA — {simResult.symbol} · {simResult.days}d · {simResult.numTrades} transakcji</div>
               <div className="grid grid-cols-4 gap-1 text-center">
                 {[
-                  { lbl: "WIN RATE",  val: simResult.winRate.toFixed(1) + "%",       ok: simResult.winRate >= 50 },
-                  { lbl: "ZWROT",     val: fmtPct(simResult.totalReturn),              ok: simResult.totalReturn >= 0 },
-                  { lbl: "DRAWDOWN",  val: "-" + simResult.maxDrawdown.toFixed(1) + "%", ok: false },
-                  { lbl: "KAPITAŁ",   val: simResult.finalEquity.toFixed(1),           ok: simResult.finalEquity >= 100 },
+                  { lbl: "WIN RATE",  val: safe(simResult.winRate, 1) + "%",              ok: (simResult.winRate ?? 0) >= 50 },
+                  { lbl: "ZWROT",     val: fmtPct(simResult.totalReturn),               ok: (simResult.totalReturn ?? 0) >= 0 },
+                  { lbl: "DRAWDOWN",  val: "-" + safe(simResult.maxDrawdown, 1) + "%",  ok: false },
+                  { lbl: "KAPITAŁ",   val: safe(simResult.finalEquity, 1),              ok: (simResult.finalEquity ?? 0) >= 100 },
                 ].map(m => (
                   <div key={m.lbl}>
                     <div className="text-[9px] text-gray-500 uppercase">{m.lbl}</div>
@@ -594,7 +646,7 @@ export default function TradingBot() {
                   </div>
                 ))}
               </div>
-              <div className="text-xs text-gray-500">Avg Win: {fmtPct(simResult.avgWin)} · Avg Loss: {fmtPct(simResult.avgLoss)}</div>
+              <div className="text-xs text-gray-500">Avg Win: {fmtPct(simResult.avgWin ?? 0)} · Avg Loss: {fmtPct(simResult.avgLoss ?? 0)}</div>
               {simResult.trades.length > 0 && (
                 <div className="space-y-0.5 max-h-36 overflow-y-auto">
                   {simResult.trades.slice(-8).reverse().map((t, i) => (
@@ -638,17 +690,17 @@ export default function TradingBot() {
                 <div className="bg-[#0d1b12] rounded p-2">
                   <div className="text-[9px] text-gray-500 mb-1">TRENING (70%)</div>
                   <div className="text-xs space-y-0.5">
-                    <div>Win <span className={optResult.trainWinRate >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{optResult.trainWinRate.toFixed(1)}%</span></div>
-                    <div>Zwrot <span className={optResult.trainReturn >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(optResult.trainReturn)}</span></div>
-                    <div className="text-gray-500">{optResult.trainTrades} transakcji</div>
+                    <div>Win <span className={(optResult.trainWinRate ?? 0) >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{safe(optResult.trainWinRate, 1)}%</span></div>
+                    <div>Zwrot <span className={(optResult.trainReturn ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(optResult.trainReturn)}</span></div>
+                    <div className="text-gray-500">{optResult.trainTrades ?? 0} transakcji</div>
                   </div>
                 </div>
                 <div className="bg-[#0d1b12] rounded p-2">
                   <div className="text-[9px] text-gray-500 mb-1">WALIDACJA (30%)</div>
                   <div className="text-xs space-y-0.5">
-                    <div>Win <span className={optResult.validWinRate >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{optResult.validWinRate.toFixed(1)}%</span></div>
-                    <div>Zwrot <span className={optResult.validReturn >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(optResult.validReturn)}</span></div>
-                    <div className="text-gray-500">{optResult.validTrades} transakcji</div>
+                    <div>Win <span className={(optResult.validWinRate ?? 0) >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{safe(optResult.validWinRate, 1)}%</span></div>
+                    <div>Zwrot <span className={(optResult.validReturn ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(optResult.validReturn)}</span></div>
+                    <div className="text-gray-500">{optResult.validTrades ?? 0} transakcji</div>
                   </div>
                 </div>
               </div>
