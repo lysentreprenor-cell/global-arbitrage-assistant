@@ -588,9 +588,10 @@ async function engineTick() {
 
     // Bear market filter: skip RSI dip signals in clear downtrend (EMA + price slope)
     // EMA crossover signals still allowed — they mark trend reversal
-    const rsiBuyFiltered = rsiBuy && !bearMkt;
+    const rsiBuyFiltered = rsiBuy && !bearMkt && macdBull && fourHourTrend !== "bear";
+    const trendQuality = adx >= 15;
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash;
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
     // Kraken spot (lev=1): no shorting; Kraken margin (lev>1): shorts allowed
     const krakenSpot = config.platform === "kraken" && effLev === 1;
     const isShort = !krakenSpot && config.allowShorts && (crossSell || rsiSell) && shortConf;

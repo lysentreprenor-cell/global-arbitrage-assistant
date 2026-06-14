@@ -12,8 +12,8 @@ export type SimParams = {
 };
 
 export type SimTrade = {
-  dir: string; entryPrice: number; exitPrice: number; pnlPct: number;
-  reason: string; signal: string; date: string;
+  dir: string; entry: number; exit: number; pnlPct: number;
+  reason: string; signal: string; time: string;
 };
 
 export type SimResult = {
@@ -121,8 +121,9 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
     const trendFollow = !rangeMode && rsi >= 50 && rsi <= 63 && macdBull && ema9 > ema21 && adx >= 25 && fourH !== "bear";
-    const rsiBuyFiltered = rsiBuy && !bearMkt;
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash;
+    const rsiBuyFiltered = rsiBuy && !bearMkt && macdBull && fourH !== "bear";
+    const trendQuality = adx >= 15;
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
     const isShort = !krakenSpot && allowShorts && (crossSell || rsiSell) && shortConf;
     if (!isLong && !isShort) continue;
 
@@ -164,7 +165,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const rawPct = long ? (exit - price) / price * 100 : (price - exit) / price * 100;
     const netPct = rawPct - FEE_RT * 100; // subtract round-trip fee (matches live pnl accounting)
     dayPnlPct += netPct;
-    trades.push({ dir, entryPrice: parseFloat(price.toFixed(2)), exitPrice: parseFloat(exit.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, date: new Date(tMs).toISOString() });
+    trades.push({ dir, entry: parseFloat(price.toFixed(2)), exit: parseFloat(exit.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, time: new Date(tMs).toISOString() });
     lastEntry = tMs;
     skipUntil = exitIdx;
   }
