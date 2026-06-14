@@ -67,13 +67,13 @@ type TrainEntry = {
 
 const PRESETS: Preset[] = [
   { id: "cautious",        label: "Ostrożny",       icon: "🐢", desc: "Mało transakcji, wysoka pewność",          freq: "1–3 / tydzień",
-    rsiMin: 34, rsiMax: 68, adxMin: 20, confluenceMin: 3, volMultMin: 1.5, cooldownMin: 90, stopLoss: 0.40, takeProfit: 1.2, trailPct: 0.20 },
+    rsiMin: 33, rsiMax: 70, adxMin: 22, confluenceMin: 3, volMultMin: 1.5, cooldownMin: 720, stopLoss: 1.50, takeProfit: 3.50, trailPct: 0.60 },
   { id: "normal",          label: "Normalny",        icon: "⚖️", desc: "Balans między ilością a jakością",         freq: "3–7 / tydzień",
-    rsiMin: 37, rsiMax: 65, adxMin: 15, confluenceMin: 2, volMultMin: 1.2, cooldownMin: 45, stopLoss: 0.35, takeProfit: 0.9, trailPct: 0.15 },
+    rsiMin: 36, rsiMax: 67, adxMin: 16, confluenceMin: 2, volMultMin: 1.2, cooldownMin: 120, stopLoss: 1.20, takeProfit: 2.50, trailPct: 0.45 },
   { id: "aggressive",      label: "Agresywny",       icon: "🚀", desc: "Dużo transakcji, wyższe ryzyko",          freq: "5–15 / dzień",
-    rsiMin: 42, rsiMax: 62, adxMin: 10, confluenceMin: 1, volMultMin: 1.0, cooldownMin: 15, stopLoss: 0.50, takeProfit: 1.3, trailPct: 0.12 },
-  { id: "superaggressive", label: "Super Agresywny", icon: "⚡", desc: "Maksymalna ilość transakcji — scalping", freq: "15–40 / dzień",
-    rsiMin: 45, rsiMax: 55, adxMin: 5,  confluenceMin: 1, volMultMin: 1.0, cooldownMin: 5,  stopLoss: 0.55, takeProfit: 1.1, trailPct: 0.10 },
+    rsiMin: 40, rsiMax: 65, adxMin: 12, confluenceMin: 1, volMultMin: 1.0, cooldownMin: 30,  stopLoss: 1.00, takeProfit: 2.00, trailPct: 0.35 },
+  { id: "superaggressive", label: "Super Agresywny", icon: "⚡", desc: "Częstsze wejścia, min. TP po opłatach",  freq: "10–25 / tydzień",
+    rsiMin: 38, rsiMax: 65, adxMin: 8,  confluenceMin: 1, volMultMin: 1.0, cooldownMin: 15,  stopLoss: 0.80, takeProfit: 1.60, trailPct: 0.25 },
 ];
 
 const SYMBOLS:    Symbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];

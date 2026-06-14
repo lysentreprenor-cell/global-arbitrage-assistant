@@ -710,11 +710,11 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    rsiMin:     rsiMin     ?? 35,   // buy dip when RSI < 35 (5m — częstsze sygnały)
-    rsiMax:     rsiMax     ?? 68,   // sell pump when RSI > 68
-    trailPct:   trailPct   ?? 0.12, // 0.12% trailing stop (ciaśniejszy dla 5m)
-    stopLoss:   stopLoss   ?? 0.3,  // 0.3% stop loss
-    takeProfit: takeProfit ?? 0.6,  // 0.6% take profit
+    rsiMin:     rsiMin     ?? 36,   // buy dip when RSI < 36
+    rsiMax:     rsiMax     ?? 67,   // sell pump when RSI > 67
+    trailPct:   trailPct   ?? 0.45, // 0.45% trailing stop
+    stopLoss:   stopLoss   ?? 1.20, // 1.2% SL — must survive Kraken 0.52% RT fee
+    takeProfit: takeProfit ?? 2.50, // 2.5% TP — net 1.98% profit after 0.52% fees
     leverage:   leverage   ?? 10,
     allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
@@ -953,15 +953,16 @@ async function runOptimize(params: {
   const trainRaw = raw.slice(0, splitIdx);
   const validRaw = raw.slice(splitIdx);
 
-  // Extended grid: [rsiMin, rsiMax, trailPct, stopLoss, takeProfit]
+  // Grid designed for Kraken 0.52% round-trip fee — minimum TP 1.5% to profit after fees
+  // [rsiMin, rsiMax, trailPct, stopLoss, takeProfit]
   const grid: [number, number, number, number, number][] = [
-    [40, 60, 0.10, 0.30, 0.80], [40, 60, 0.15, 0.40, 1.00], [40, 60, 0.25, 0.50, 1.30],
-    [45, 65, 0.10, 0.30, 0.80], [45, 65, 0.15, 0.40, 1.00], [45, 65, 0.25, 0.50, 1.30],
-    [50, 70, 0.10, 0.30, 0.80], [50, 70, 0.15, 0.40, 1.00], [50, 70, 0.25, 0.50, 1.30],
-    [42, 62, 0.15, 0.40, 1.00], [48, 68, 0.15, 0.40, 1.00], [35, 68, 0.12, 0.30, 0.70],
-    [48, 58, 0.08, 0.25, 0.60], [45, 55, 0.10, 0.30, 0.70], [50, 60, 0.10, 0.30, 0.70],
-    [52, 62, 0.12, 0.35, 0.80], [38, 62, 0.18, 0.45, 1.10], [43, 63, 0.20, 0.45, 1.20],
-    [46, 66, 0.12, 0.35, 0.90], [40, 65, 0.15, 0.40, 1.00],
+    [35, 65, 0.30, 1.00, 2.00], [35, 65, 0.50, 1.20, 2.50], [35, 65, 0.60, 1.50, 3.00],
+    [30, 70, 0.40, 1.20, 2.50], [30, 70, 0.60, 1.50, 3.00], [30, 70, 0.80, 2.00, 4.00],
+    [40, 65, 0.30, 0.80, 1.80], [40, 65, 0.40, 1.00, 2.00], [40, 65, 0.50, 1.20, 2.50],
+    [38, 62, 0.35, 0.90, 1.80], [38, 62, 0.45, 1.10, 2.20], [42, 68, 0.40, 1.00, 2.20],
+    [33, 67, 0.30, 1.00, 2.00], [36, 64, 0.35, 0.90, 1.90], [32, 68, 0.50, 1.50, 3.00],
+    [28, 72, 0.50, 1.50, 3.00], [30, 65, 0.40, 1.00, 2.20], [35, 70, 0.45, 1.20, 2.50],
+    [40, 70, 0.60, 1.50, 3.00], [45, 65, 0.35, 0.90, 1.80],
   ];
 
   let best: OptCombo | null = null;
