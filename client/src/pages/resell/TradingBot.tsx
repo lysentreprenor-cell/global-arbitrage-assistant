@@ -417,9 +417,14 @@ export default function TradingBot() {
             </div>
           )}
 
-          {optResult && (
+          {optResult && optResult.winRate >= 45 && optResult.totalReturn >= 0 && (
             <div className="text-xs text-green-400 font-medium">
               ✓ Wytrenowany — RSI [{optResult.rsiMin}–{optResult.rsiMax}] Trail {optResult.trailPct}%
+            </div>
+          )}
+          {optResult && (optResult.winRate < 45 || optResult.totalReturn < 0) && (
+            <div className="text-xs text-yellow-500">
+              ⚠ Trening bez dobrego wyniku — rynek niekorzystny
             </div>
           )}
 
@@ -561,10 +566,16 @@ export default function TradingBot() {
                 ))}
               </div>
               <div className="text-xs text-gray-500">Sharpe: {optResult.sharpe.toFixed(2)}</div>
-              <button onClick={applyOpt}
-                className="w-full mt-1 bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded-lg font-medium">
-                {optApplied ? "✓ Zastosowano do bota!" : "Zastosuj do bota →"}
-              </button>
+              {optResult.winRate >= 45 && optResult.totalReturn >= 0 ? (
+                <button onClick={applyOpt}
+                  className="w-full mt-1 bg-green-700 hover:bg-green-600 text-white text-xs py-2 rounded-lg font-medium">
+                  {optApplied ? "✓ Zastosowano do bota!" : "Zastosuj do bota →"}
+                </button>
+              ) : (
+                <div className="mt-1 text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+                  ⚠ Wynik zbyt słaby — nie stosuj. Rynek nie sprzyja tej strategii teraz.
+                </div>
+              )}
             </div>
           )}
         </div>
