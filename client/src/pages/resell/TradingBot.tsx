@@ -3112,32 +3112,18 @@ export default function TradingBot() {
               <button
                 onClick={async()=>{
                   setDeepLoading(true); setDeepProgress(0); setDeepResult(null);
-                  addLog(`🧠 Deep Train start — pobieranie 30 dni historii ${config.symbol} (świece 5m)…`,"info");
+                  addLog(`🧠 Deep Train start — serwerowa optymalizacja ${config.symbol} (świece 5m, ~14 dni)…`,"info");
                   try {
-                    let candles: CandleData[];
-                    if (fullHistoryRef.current?.symbol === config.symbol) {
-                      candles = fullHistoryRef.current.candles;
-                      addLog(`🧠 Używam historii z cache (${candles.length} świec)`, "info");
-                      setDeepProgress(50);
-                    } else {
-                      candles = await fetchFullHistory(config.symbol, p => setDeepProgress(p * 0.6));
-                      const entry = { symbol: config.symbol, candles, ts: Date.now() };
-                      fullHistoryRef.current = entry;
-                      try { localStorage.setItem("bot_history_cache_5m", JSON.stringify(entry)); } catch { /* quota exceeded */ }
-                    }
-                    addLog(`🧠 Pobrano ${candles.length} świec 5m (${Math.round(candles.length*5/60/24)} dni). Optymalizacja 16 kombinacji×${Math.min(config.deepTrainWindows,30)} okien…`,"info");
-                    setDeepProgress(65);
-                    // async — yields 4ms between each combo, UI stays responsive + real progress
-                    // onBestSoFar saves partial result immediately so closing browser mid-run preserves learning
-                    const r = await runDeepOptimizeAsync(candles, {...config}, p => setDeepProgress(p), (partial) => {
-                      // save partial best immediately to localStorage — survives page close
-                      const mem = { ...learningRef.current, deepResult: partial };
-                      learningRef.current = mem;
-                      saveLearning(mem);
-                      setDeepResult(partial);
-                      update({rsiMin:partial.rsiMin, rsiMax:partial.rsiMax, trailPct:partial.trailPct});
-                      setTmpRsiMin(String(partial.rsiMin)); setTmpRsiMax(String(partial.rsiMax)); setTmpTrailPct(String(partial.trailPct));
-                    });
+                    // Server-side optimizer mirrors the live engine exactly (one source of truth).
+                    setDeepProgress(40);
+                    const resp = await fetch("/api/bot/optimize", { method:"POST", headers:{"Content-Type":"application/json"},
+                      body: JSON.stringify({ symbol: config.symbol, stopLoss: config.stopLoss, takeProfit: config.takeProfit, adxMin: config.adxMin,
+                        confluenceMin: config.confluenceMin ?? 1, volMultMin: config.volMultMin ?? 1.0, cooldownMin: config.cooldownMin ?? 20,
+                        leverage: config.leverageAuto ? calcAutoLeverage(learningRef.current.deepHistory) : config.leverage, allowShorts: config.allowShorts }) });
+                    const d = await resp.json();
+                    if (d.error) throw new Error(d.error);
+                    const r: OptResult = { rsiMin: d.rsiMin, rsiMax: d.rsiMax, trailPct: d.trailPct, sharpe: d.sharpe, winRate: d.winRate, totalReturn: d.totalReturn, windows: d.numTrades };
+                    if (d.lowConfidence) addLog(`⚠️ Deep Train: mało transakcji (${d.numTrades}) — wynik niskiej pewności`,"warn");
                     setDeepProgress(100);
                     // add to history (keep last 5), recompute ensemble
                     const newHistory = [...learningRef.current.deepHistory.slice(-4), r];
@@ -3172,13 +3158,42 @@ export default function TradingBot() {
                   : <><BarChart2 size={12}/> Deep Train</>}
               </button>
               <button
-                onClick={async()=>{ setOptLoading(true); setOptResult(null); try { const r=await runOptimize({...config}); const newOptHist=[...learningRef.current.optHistory.slice(-4), r]; const optEns=calcEnsemble(newOptHist); const applyOpt=newOptHist.length>=2&&optEns?optEns:r; setOptResult(r); update({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct}); setTmpRsiMin(String(applyOpt.rsiMin)); setTmpRsiMax(String(applyOpt.rsiMax)); setTmpTrailPct(String(applyOpt.trailPct)); const optNote=newOptHist.length>=2?` · konsensus ${newOptHist.length}×: RSI[${applyOpt.rsiMin}-${applyOpt.rsiMax}]`:""; addLog(`🧠 Auto-opt #${newOptHist.length}: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${optNote}`,"info"); learningRef.current={...learningRef.current,optResult:r,optHistory:newOptHist}; saveLearning(learningRef.current); if(serverBotRunning){fetch("/api/bot/params",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct})}).then(()=>addLog("🔄 Parametry Auto-Opt zastosowane do serwer-bota","info")).catch(()=>{});} } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
+                onClick={async()=>{ setOptLoading(true); setOptResult(null); try {
+                  const resp=await fetch("/api/bot/optimize",{method:"POST",headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({ symbol: config.symbol, stopLoss: config.stopLoss, takeProfit: config.takeProfit, adxMin: config.adxMin,
+                      confluenceMin: config.confluenceMin ?? 1, volMultMin: config.volMultMin ?? 1.0, cooldownMin: config.cooldownMin ?? 20,
+                      leverage: config.leverageAuto ? calcAutoLeverage(learningRef.current.deepHistory) : config.leverage, allowShorts: config.allowShorts })});
+                  const d=await resp.json(); if(d.error) throw new Error(d.error);
+                  const r:OptResult={ rsiMin:d.rsiMin, rsiMax:d.rsiMax, trailPct:d.trailPct, sharpe:d.sharpe, winRate:d.winRate, totalReturn:d.totalReturn, windows:d.numTrades };
+                  const newOptHist=[...learningRef.current.optHistory.slice(-4), r]; const optEns=calcEnsemble(newOptHist); const applyOpt=newOptHist.length>=2&&optEns?optEns:r; setOptResult(r); update({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct}); setTmpRsiMin(String(applyOpt.rsiMin)); setTmpRsiMax(String(applyOpt.rsiMax)); setTmpTrailPct(String(applyOpt.trailPct)); const optNote=newOptHist.length>=2?` · konsensus ${newOptHist.length}×: RSI[${applyOpt.rsiMin}-${applyOpt.rsiMax}]`:""; addLog(`🧠 Auto-opt #${newOptHist.length}: RSI[${r.rsiMin}-${r.rsiMax}] Trail${r.trailPct}% Sharpe ${r.sharpe.toFixed(2)} WR ${r.winRate.toFixed(0)}%${optNote}`,"info"); learningRef.current={...learningRef.current,optResult:r,optHistory:newOptHist}; saveLearning(learningRef.current); if(serverBotRunning){fetch("/api/bot/params",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rsiMin:applyOpt.rsiMin,rsiMax:applyOpt.rsiMax,trailPct:applyOpt.trailPct})}).then(()=>addLog("🔄 Parametry Auto-Opt zastosowane do serwer-bota","info")).catch(()=>{});} } catch(e:any){ addLog("Auto-opt błąd: "+e.message,"warn"); } finally{ setOptLoading(false); } }}
                 disabled={optLoading||btLoading||deepLoading}
                 style={{ background:optLoading?"rgba(251,191,36,0.05)":"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:8, padding:"8px 14px", color:optLoading?M:"#fbbf24", cursor:optLoading?"default":"pointer", fontWeight:700, fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
                 {optLoading?<><RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/> Optymalizuję…</>:<><BarChart2 size={12}/> Auto-Opt</>}
               </button>
               <button
-                onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try { const effLev=config.leverageAuto?calcAutoLeverage(learningRef.current.deepHistory):config.leverage; setBtResult(await runBacktest({...config,leverage:effLev,leverageAuto:config.leverageAuto})); } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
+                onClick={async()=>{ setBtLoading(true); setBtError(null); setBtResult(null); try {
+                  const effLev=config.leverageAuto?calcAutoLeverage(learningRef.current.deepHistory):config.leverage;
+                  const resp = await fetch("/api/bot/backtest", { method:"POST", headers:{"Content-Type":"application/json"},
+                    body: JSON.stringify({ symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, adxMin: config.adxMin,
+                      confluenceMin: config.confluenceMin ?? 2, volMultMin: config.volMultMin ?? 1.2, cooldownMin: config.cooldownMin ?? 60,
+                      stopLoss: config.stopLoss, takeProfit: config.takeProfit, trailPct: config.trailPct,
+                      leverage: effLev, allowShorts: config.allowShorts }) });
+                  const d = await resp.json();
+                  if (d.error) throw new Error(d.error);
+                  // Map server /backtest response → BtResult shape the display expects.
+                  const btTrades: BtTrade[] = (d.trades ?? []).map((t:any)=>({
+                    date: (t.date ?? "").slice(0,10), direction: (t.dir as Direction) ?? "long",
+                    entryPrice: t.entryPrice, exitPrice: t.exitPrice, pnlPct: t.pnlPct, reason: (t.reason as TradeReason) ?? "session_end",
+                  }));
+                  // Synthesize an equity curve (% from 100 base) from the returned trades.
+                  let eq = 100; const equity:number[] = btTrades.map(t=>{ eq*=(1+t.pnlPct/100); return eq-100; });
+                  const startDate = btTrades[0]?.date ?? "", endDate = btTrades[btTrades.length-1]?.date ?? "";
+                  setBtResult({
+                    symbol: d.symbol, days: d.days, periodLabel: `${startDate} – ${endDate}`,
+                    trades: btTrades, winRate: d.winRate, totalReturn: d.totalReturn, maxDrawdown: d.maxDrawdown,
+                    avgWin: d.avgWin, avgLoss: d.avgLoss, sharpe: d.sharpe ?? 0, equity, longs: d.longs, shorts: d.shorts,
+                  });
+                } catch(e:any){ setBtError(e.message); } finally{ setBtLoading(false); } }}
                 disabled={btLoading||deepLoading}
                 style={{ background:btLoading?"rgba(34,197,94,0.05)":"rgba(34,197,94,0.15)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:8, padding:"8px 18px", color:btLoading?M:G, cursor:btLoading?"default":"pointer", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
                 {btLoading?<><RefreshCw size={13} style={{animation:"spin 1s linear infinite"}}/> Pobieranie…</>:<><FlaskConical size={13}/> Uruchom</>}
