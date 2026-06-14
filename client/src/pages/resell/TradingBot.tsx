@@ -140,7 +140,12 @@ export default function TradingBot() {
   const [simError,   setSimError]   = useState<string | null>(null);
   const [simRunning, setSimRunning] = useState(false);
   const [optResult,  setOptResult]  = useState<OptResult | null>(() => {
-    try { return JSON.parse(localStorage.getItem("bot_opt_result") ?? "null"); } catch { return null; }
+    try {
+      const cached = JSON.parse(localStorage.getItem("bot_opt_result") ?? "null");
+      // Discard old format (pre-walk-forward) — missing trainWinRate field
+      if (cached && cached.trainWinRate === undefined) return null;
+      return cached;
+    } catch { return null; }
   });
   const [optRunning, setOptRunning] = useState(false);
   const [optApplied, setOptApplied] = useState(false);
