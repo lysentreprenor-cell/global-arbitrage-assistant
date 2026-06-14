@@ -421,9 +421,9 @@ function runBacktestSync(candles: CandleData[], cfg: BtCfg): BtResult {
 async function fetchCandleData(symbol: Symbol): Promise<CandleData[]> {
   const res = await fetch(`/api/trading/klines?symbol=${symbol}&interval=5m&limit=720`);
   if (!res.ok) throw new Error(`Klines ${res.status}`);
-  const raw: any[] = await res.json();
+  const raw: any = await res.json();
   if (raw.error) throw new Error(raw.error);
-  return raw.map(k=>({ time: k.time as number, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, utcH: new Date(k.time as number).getUTCHours() }));
+  return raw.map((k:any)=>({ time: k.time as number, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume, utcH: new Date(k.time as number).getUTCHours() }));
 }
 
 // Fetch paginated 5m history (~30 days = 8640 candles, 12 pages)
@@ -2832,7 +2832,8 @@ export default function TradingBot() {
                       const r = await fetch("/api/bot/backtest", { method:"POST", headers:{"Content-Type":"application/json"},
                         body: JSON.stringify({ symbol: config.symbol, rsiMin: config.rsiMin, rsiMax: config.rsiMax, adxMin: config.adxMin,
                           confluenceMin: config.confluenceMin ?? 2, volMultMin: config.volMultMin ?? 1.2, cooldownMin: config.cooldownMin ?? 60,
-                          stopLoss: config.stopLoss, takeProfit: config.takeProfit, trailPct: config.trailPct }) });
+                          stopLoss: config.stopLoss, takeProfit: config.takeProfit, trailPct: config.trailPct,
+                          leverage: config.leverageAuto ? calcAutoLeverage(learningRef.current.deepHistory) : config.leverage, allowShorts: config.allowShorts }) });
                       const d = await r.json();
                       if (d.error) throw new Error(d.error);
                       setSimResult(d);

@@ -820,85 +820,184 @@ router.post("/backtest", async (req, res) => {
   try {
     const {
       symbol = "BTCUSDT",
-      rsiMin = 40, rsiMax = 65, adxMin = 15,
-      confluenceMin = 2, volMultMin = 1.2, cooldownMin = 60,
-      stopLoss = 0.4, takeProfit = 0.6, trailPct = 0.15,
+      rsiMin = 35, rsiMax = 68, adxMin = 12,
+      confluenceMin = 1, volMultMin = 1.0, cooldownMin = 20,
+      stopLoss = 0.3, takeProfit = 0.6, trailPct = 0.12,
+      leverage = 1, allowShorts = false,
     } = req.body ?? {};
 
-    // Map Bybit symbol to Kraken pair (USD)
     const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
     const pair = PAIR_MAP[symbol] ?? "XBTUSD";
-    const since = Math.floor(Date.now() / 1000) - 720 * 3600; // 30 days
-    const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=60&since=${since}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
-    const d = await r.json() as any;
-    if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
-    const key = Object.keys(d.result).find(k => k !== "last")!;
-    const raw: any[] = d.result[key] ?? [];
-    if (raw.length < 60) throw new Error("Za mało danych historycznych");
+    const FIVE = 5 * 60; // 5m in seconds
+    const FEE_RT = 0.0052; // Kraken 0.26% × 2 (open+close) — same as live engine
+
+    // ── Fetch 5m candles, paginated (~7 days = 2016 candles, 3 pages) ──────────
+    const wantPages = 3;
+    let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
+    let raw: any[] = [];
+    for (let p = 0; p < wantPages; p++) {
+      const rr = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${sinceP}`, { signal: AbortSignal.timeout(15000) });
+      if (!rr.ok) break;
+      const dd = await rr.json() as any;
+      if (dd.error?.length) break;
+      const k = Object.keys(dd.result).find(x => x !== "last")!;
+      const page: any[] = dd.result[k] ?? [];
+      if (!page.length) break;
+      raw.push(...page);
+      sinceP = page[page.length - 1][0] + FIVE;
+      if (p < wantPages - 1) await new Promise(r2 => setTimeout(r2, 200));
+    }
+    // dedup + sort by time
+    const seen = new Set<number>();
+    raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
+    if (raw.length < 200) throw new Error("Za mało danych historycznych 5m");
+
+    // ── Fetch 4H candles for trend lookup (mirrors live fetch4HCandles) ────────
+    let raw4: any[] = [];
+    try {
+      const h4since = Math.floor(Date.now() / 1000) - 200 * 4 * 3600;
+      const r4 = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${h4since}`, { signal: AbortSignal.timeout(10000) });
+      if (r4.ok) {
+        const d4 = await r4.json() as any;
+        if (!d4.error?.length) {
+          const k4 = Object.keys(d4.result).find(x => x !== "last")!;
+          raw4 = d4.result[k4] ?? [];
+        }
+      }
+    } catch { /* 4h optional — falls back to neutral */ }
+    const c4closes = raw4.map((c: any) => parseFloat(c[4]));
+    const c4times  = raw4.map((c: any) => c[0] * 1000);
+    const trend4hAt = (tMs: number): "bull" | "bear" | "neutral" => {
+      let idx = -1;
+      for (let q = c4times.length - 1; q >= 0; q--) { if (c4times[q] <= tMs) { idx = q; break; } }
+      if (idx < 21) return "neutral";
+      const slice = c4closes.slice(0, idx + 1);
+      const e9 = calcEma(slice, 9), e21 = calcEma(slice, 21);
+      return e9 > e21 * 1.001 ? "bull" : e9 < e21 * 0.999 ? "bear" : "neutral";
+    };
 
     const closes  = raw.map((c: any) => parseFloat(c[4]));
     const highs   = raw.map((c: any) => parseFloat(c[2]));
     const lows    = raw.map((c: any) => parseFloat(c[3]));
     const volumes = raw.map((c: any) => parseFloat(c[6]));
 
-    type SimTrade = { dir: string; entryPrice: number; exitPrice: number; pnlPct: number; reason: string; date: string };
+    type SimTrade = { dir: string; entryPrice: number; exitPrice: number; pnlPct: number; reason: string; signal: string; date: string };
     const trades: SimTrade[] = [];
-    const cooldownMs = (cooldownMin as number) * 60 * 1000;
+    const cooldownMs = cooldownMin * 60 * 1000;
+    const effLev = Math.max(1, leverage);
+    const krakenSpot = effLev === 1; // spot = no shorts (matches live)
+    const MAX_HOLD = 576; // 48h / 5min — same as live
     let lastEntry = 0;
+    let prevRsiSim = 50;     // RSI recovery tracking across candles (mirrors prevRsi)
+    let adxLowCnt = 0;       // range-mode counter (mirrors adxLowCount)
+    let skipUntil = -1;      // skip candles inside an open simulated trade
+    let dayKey = "";         // daily-loss reset key
+    let dayPnlPct = 0;       // cumulative net pnl% for current day
 
-    for (let i = 50; i < raw.length - 2; i++) {
+    for (let i = 150; i < raw.length - 2; i++) {
       const tMs = raw[i][0] * 1000;
-      if (tMs - lastEntry <= cooldownMs) continue;
+      // closed-candle window (drop in-progress) — identical to live closedCloses
+      const sc = closes.slice(0, i);     // up to candle i-1 closed
+      const sh = highs.slice(0, i);
+      const sl = lows.slice(0, i);
+      const sv = volumes.slice(0, i);
+      const win = Math.max(0, sc.length - 150);
+      const wc = sc.slice(win), wh = sh.slice(win), wl = sl.slice(win), wv = sv.slice(win);
 
-      const sc = closes.slice(Math.max(0, i - 149), i + 1);
-      const sh = highs.slice(Math.max(0, i - 149), i + 1);
-      const sl = lows.slice(Math.max(0, i - 149), i + 1);
-      const sv = volumes.slice(Math.max(0, i - 149), i + 1);
+      const rsi     = calcRsi(wc);
+      const ema9    = calcEma(wc, 9);
+      const ema21   = calcEma(wc, 21);
+      const prevE9  = calcEma(wc.slice(0, -1), 9);
+      const prevE21 = calcEma(wc.slice(0, -1), 21);
+      const { macd: macdLine, signal: macdSig } = calcMacd(wc);
+      const adx     = calcAdx(wh, wl, wc);
+      const volMult = calcVolumeMult(wv);
+      const atr     = calcAtr(wh, wl, wc);
+      const price   = closes[i]; // enter at this candle's close (≈ live current price)
+      const atrPct  = price > 0 ? (atr / price) * 100 : 0;
 
-      const rsi     = calcRsi(sc);
-      const ema9    = calcEma(sc, 9);
-      const ema21   = calcEma(sc, 21);
-      const prevSc  = closes.slice(Math.max(0, i - 150), i);
-      const prevE9  = calcEma(prevSc, 9);
-      const prevE21 = calcEma(prevSc, 21);
-      const { macd: macdLine, signal: macdSig } = calcMacd(sc);
-      const adx     = calcAdx(sh, sl, sc);
-      const volMult = calcVolumeMult(sv);
-      const atr     = calcAtr(sh, sl, sc);
-      const price   = parseFloat(raw[i][4]);
+      // range mode + prevRsi MUST advance every candle (state machine like live)
+      if (adx < 20) adxLowCnt++; else adxLowCnt = 0;
+      const rangeMode = adxLowCnt >= 6;
+      const rsiRecovering = prevRsiSim < rsiMin && rsi > prevRsiSim + 1.0;
+      prevRsiSim = rsi;
+
+      // daily loss reset
+      const dStr = new Date(tMs).toISOString().slice(0, 10);
+      if (dayKey !== dStr) { dayKey = dStr; dayPnlPct = 0; }
+
+      if (i <= skipUntil) continue;                 // inside an open trade
+      if (tMs - lastEntry <= cooldownMs) continue;  // cooldown
+      if (dayPnlPct <= -3.0) continue;              // daily -3% circuit breaker
+      const utcH = new Date(tMs).getUTCHours();
+      if (utcH >= 2 && utcH < 6) continue;          // low-liquidity hours
+
+      // ── signals (identical to engineTick) ──
+      const slope5 = wc.length >= 6 ? (wc[wc.length-1] - wc[wc.length-6]) / wc[wc.length-6] * 100 : 0;
+      const bearMkt = ema9 < ema21 && slope5 < -1.5;
+      const recent24 = wc.slice(-24);
+      const recent24High = recent24.length > 0 ? Math.max(...recent24) : price;
+      const dipFromHigh = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
+      const inCrash = dipFromHigh > 5.0;
+      const fourH = trend4hAt(tMs);
 
       const crossBuy  = ema9 > ema21 && prevE9 <= prevE21;
-      const rsiBuy    = rsi < (rsiMin as number);
+      const crossSell = ema9 < ema21 && prevE9 >= prevE21;
+      const rsiBuy    = rsi < rsiMin || rsiRecovering;
+      const rsiSell   = rsi > rsiMax;
       const macdBull  = macdLine > macdSig;
-      const trendOk   = adx >= (adxMin as number);
-      const volOk     = volMult >= (volMultMin as number);
-      const confScore = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0);
-      if (confScore < (confluenceMin as number)) continue;
-      if (!crossBuy && !rsiBuy) continue;
+      const macdBear  = macdLine < macdSig;
+      const trendOk   = adx >= adxMin;
+      const volOk     = volMult >= volMultMin;
+      const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
+      const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
+      const trendFollow = !rangeMode && rsi >= 50 && rsi <= 63 && macdBull && ema9 > ema21 && adx >= 25 && fourH !== "bear";
+      const rsiBuyFiltered = rsiBuy && !bearMkt;
+      const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash;
+      const isShort = !krakenSpot && allowShorts && (crossSell || rsiSell) && shortConf;
+      if (!isLong && !isShort) continue;
 
-      const atrPct  = price > 0 ? (atr / price) * 100 : 0;
-      const effSL   = Math.max(stopLoss as number, atrPct * 1.5);
-      const effTP   = Math.max(takeProfit as number, atrPct * 2.5);
-      const effTrl  = Math.max(trailPct as number, atrPct * 0.8);
+      const dir: "long" | "short" = isLong ? "long" : "short";
+      const sig = crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : isShort ? (crossSell ? "EMA_cross" : "RSI_pump") : "RSI_dip";
+      const effSL   = Math.max(stopLoss,   atrPct * 1.5);
+      const effTP   = Math.max(takeProfit, atrPct * 2.5);
+      let   trlPct  = Math.max(trailPct,   atrPct * 0.8);
+      const long = dir === "long";
 
-      let exit = price, reason = "session_end", trailRef = price;
-      for (let j = i + 1; j < Math.min(i + 48, raw.length); j++) {
-        const hi = parseFloat(raw[j][2]);
-        const lo = parseFloat(raw[j][3]);
-        const cl = parseFloat(raw[j][4]);
-        trailRef = Math.max(trailRef, hi);
-        if (lo <= price * (1 - effSL / 100))  { exit = price * (1 - effSL / 100); reason = "stop_loss";   break; }
-        if (hi >= price * (1 + effTP / 100))  { exit = price * (1 + effTP / 100); reason = "take_profit"; break; }
-        const tSL = trailRef * (1 - effTrl / 100);
-        if (cl <= tSL && j > i + 2)           { exit = tSL;                       reason = "trail_stop";  break; }
-        if (j === i + 47) exit = cl;
+      // ── exit scan (mirrors priceCheck + engineTick exits) ──
+      let exit = price, reason = "max_hold";
+      let trailRef = price, breakEvenSet = false;
+      let exitIdx = Math.min(i + MAX_HOLD, raw.length - 1);
+      for (let j = i + 1; j < Math.min(i + MAX_HOLD, raw.length); j++) {
+        const hi = highs[j], lo = lows[j], cl = closes[j];
+        exitIdx = j;
+        trailRef = long ? Math.max(trailRef, hi) : Math.min(trailRef, lo);
+        const favPct = long ? (trailRef - price) / price * 100 : (price - trailRef) / price * 100;
+        // break-even at 50% of TP → tighten trail + lock to entry (matches live)
+        if (!breakEvenSet && favPct >= effTP * 0.5) {
+          breakEvenSet = true;
+          trlPct = Math.max(trlPct * 0.5, 0.08);
+          const needed = long ? price / (1 - trlPct / 100) : price / (1 + trlPct / 100);
+          trailRef = long ? Math.max(trailRef, needed) : Math.min(trailRef, needed);
+        }
+        const trailSL = long ? trailRef * (1 - trlPct / 100) : trailRef * (1 + trlPct / 100);
+        const initSL  = long ? price * (1 - effSL / 100)     : price * (1 + effSL / 100);
+        const effSLp  = long ? Math.max(trailSL, initSL)     : Math.min(trailSL, initSL);
+        // SL/trail first (pessimistic), then TP, then RSI-extreme at close
+        if (long ? lo <= effSLp : hi >= effSLp) { exit = effSLp; reason = (long ? effSLp > price : effSLp < price) ? "trail_stop" : "stop_loss"; break; }
+        if (long ? hi >= price * (1 + effTP / 100) : lo <= price * (1 - effTP / 100)) { exit = long ? price * (1 + effTP / 100) : price * (1 - effTP / 100); reason = "take_profit"; break; }
+        const rsiJ = calcRsi(closes.slice(Math.max(0, j - 149), j + 1));
+        if (long && rsiJ > Math.max(rsiMax + 8, 78)) { exit = cl; reason = "rsi_extreme"; break; }
+        if (!long && rsiJ < Math.min(rsiMin - 8, 22)) { exit = cl; reason = "rsi_extreme"; break; }
+        exit = cl;
       }
 
-      const pnlPct = (exit - price) / price * 100;
-      trades.push({ dir: "long", entryPrice: parseFloat(price.toFixed(2)), exitPrice: parseFloat(exit.toFixed(2)), pnlPct: parseFloat(pnlPct.toFixed(3)), reason, date: new Date(tMs).toISOString() });
+      const rawPct = long ? (exit - price) / price * 100 : (price - exit) / price * 100;
+      const netPct = rawPct - FEE_RT * 100; // subtract round-trip fee (matches live pnl accounting)
+      dayPnlPct += netPct;
+      trades.push({ dir, entryPrice: parseFloat(price.toFixed(2)), exitPrice: parseFloat(exit.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, date: new Date(tMs).toISOString() });
       lastEntry = tMs;
+      skipUntil = exitIdx;
     }
 
     const wins = trades.filter(t => t.pnlPct > 0).length;
@@ -917,9 +1016,11 @@ router.post("/backtest", async (req, res) => {
 
     res.json({
       ok: true,
-      days: Math.round(raw.length / 24),
+      days: Math.round(raw.length * 5 / 60 / 24),
       symbol,
       numTrades: trades.length,
+      longs: trades.filter(t => t.dir === "long").length,
+      shorts: trades.filter(t => t.dir === "short").length,
       winRate: parseFloat(winRate.toFixed(1)),
       totalReturn: parseFloat(totalReturn.toFixed(2)),
       maxDrawdown: parseFloat(maxDD.toFixed(2)),
