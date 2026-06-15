@@ -95,12 +95,16 @@ async function main() {
       p: { rsiMin: 36, rsiMax: 67, adxMin: 12, confluenceMin: 1, volMultMin: 1.0, cooldownMin: 20, stopLoss: 1.20, takeProfit: 2.50, trailPct: 0.45, leverage: 1, allowShorts: false },
     },
     {
-      label: "Super agresywny (1×)",
-      p: { rsiMin: 50, rsiMax: 58, adxMin: 5,  confluenceMin: 0, volMultMin: 0.5, cooldownMin: 5,  stopLoss: 0.80, takeProfit: 1.50, trailPct: 0.25, leverage: 1, allowShorts: false },
+      label: "Naprawiony (AKTUALNY — SL 1%, TP 2%, agresywne wejścia)",
+      p: { rsiMin: 55, rsiMax: 60, adxMin: 5,  confluenceMin: 0, volMultMin: 0.2, cooldownMin: 2,  stopLoss: 1.00, takeProfit: 2.00, trailPct: 0.40, leverage: 1, allowShorts: false },
     },
     {
-      label: "2× agresywny (OBECNY)",
-      p: { rsiMin: 62, rsiMax: 52, adxMin: 2,  confluenceMin: 0, volMultMin: 0.2, cooldownMin: 2,  stopLoss: 0.40, takeProfit: 0.75, trailPct: 0.10, leverage: 1, allowShorts: false },
+      label: "Szeroki SL/TP (SL 2%, TP 5%, trail 0.8%)",
+      p: { rsiMin: 55, rsiMax: 60, adxMin: 5,  confluenceMin: 0, volMultMin: 0.2, cooldownMin: 5,  stopLoss: 2.00, takeProfit: 5.00, trailPct: 0.80, leverage: 1, allowShorts: false },
+    },
+    {
+      label: "Ostrożny (SL 1.5%, TP 4%, trail 0.6%, cooldown 15min)",
+      p: { rsiMin: 40, rsiMax: 65, adxMin: 15, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 15, stopLoss: 1.50, takeProfit: 4.00, trailPct: 0.60, leverage: 1, allowShorts: false },
     },
   ];
 
