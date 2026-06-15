@@ -347,6 +347,32 @@ async function fetchCurrentPrice(symbol: string): Promise<number | null> {
   } catch { return null; }
 }
 
+// ── Shared Kraken public OHLC helper (retry + rate-limit backoff) ────────────
+
+async function krakenOhlcFetch(pair: string, interval: number, since: number): Promise<any[] | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await fetch(
+        `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}&since=${since}`,
+        { signal: AbortSignal.timeout(15000) },
+      );
+      if (r.status === 429 || r.status === 520) {
+        await new Promise(res => setTimeout(res, 2000 * (attempt + 1)));
+        continue;
+      }
+      if (!r.ok) return null;
+      const d = await r.json() as any;
+      if (d.error?.length) return null;
+      const key = Object.keys(d.result).find(k => k !== "last");
+      if (!key) return [];
+      return d.result[key] ?? [];
+    } catch {
+      if (attempt < 2) await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
 // ── Indicator snapshot (2-min cache) ─────────────────────────────────────────
 let indSnapCache: { ts: number; symbol: string; snap: Record<string, number> } | null = null;
 
@@ -357,13 +383,9 @@ async function getIndSnap(symbol: string): Promise<Record<string, number>> {
   const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
   const pair = PAIR_MAP[symbol] ?? "XBTUSD";
   const since = Math.floor(Date.now() / 1000) - 100 * 5 * 60;
-  const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${since}`, { signal: AbortSignal.timeout(10000) });
-  if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
-  const d = await r.json() as any;
-  if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
-  const key = Object.keys(d.result).find(k => k !== "last")!;
-  const list: any[] = (d.result[key] ?? []).slice(-100);
-  if (list.length < 50) throw new Error("Not enough candles");
+  const rawList = await krakenOhlcFetch(pair, 5, since);
+  if (!rawList || rawList.length < 50) throw new Error("Not enough candles");
+  const list = rawList.slice(-100);
 
   const closes  = list.map((c: any) => parseFloat(c[4]));
   const opens   = list.map((c: any) => parseFloat(c[1]));
@@ -921,35 +943,24 @@ router.post("/backtest", async (req, res) => {
     const wantPages = 3;
     let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
     let raw: any[] = [];
-    for (let p = 0; p < wantPages; p++) {
-      const rr = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${sinceP}`, { signal: AbortSignal.timeout(15000) });
-      if (!rr.ok) break;
-      const dd = await rr.json() as any;
-      if (dd.error?.length) break;
-      const k = Object.keys(dd.result).find(x => x !== "last")!;
-      const page: any[] = dd.result[k] ?? [];
-      if (!page.length) break;
+    for (let pg = 0; pg < wantPages; pg++) {
+      const page = await krakenOhlcFetch(pair, 5, sinceP);
+      if (!page || !page.length) break;
       raw.push(...page);
       sinceP = page[page.length - 1][0] + FIVE;
-      if (p < wantPages - 1) await new Promise(r2 => setTimeout(r2, 200));
+      if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 800));
     }
     // dedup + sort by time
     const seen = new Set<number>();
     raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
-    if (raw.length < 200) throw new Error("Za mało danych historycznych 5m");
+    if (raw.length < 100) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 100)`);
 
     // ── Fetch 4H candles for trend lookup (mirrors live fetch4HCandles) ────────
     let raw4: any[] = [];
     try {
       const h4since = Math.floor(Date.now() / 1000) - 200 * 4 * 3600;
-      const r4 = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${h4since}`, { signal: AbortSignal.timeout(10000) });
-      if (r4.ok) {
-        const d4 = await r4.json() as any;
-        if (!d4.error?.length) {
-          const k4 = Object.keys(d4.result).find(x => x !== "last")!;
-          raw4 = d4.result[k4] ?? [];
-        }
-      }
+      const r4list = await krakenOhlcFetch(pair, 240, h4since);
+      if (r4list) raw4 = r4list;
     } catch { /* 4h optional — falls back to neutral */ }
     // ── Run shared sim engine (mirrors live engineTick exactly) ────────────────
     const r = simulate(raw, raw4, {
@@ -996,35 +1007,27 @@ async function runOptimize(params: {
   const pair = PAIR_MAP[symbol] ?? "XBTUSD";
   const FIVE = 5 * 60;
 
-  // Fetch ~18 days (8 pages × 720 candles)
+  // Fetch ~18 days (8 pages × 720 candles = 5760 candles × 5min = 20 days)
   const wantPages = 8;
   let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
   let raw: any[] = [];
   for (let pg = 0; pg < wantPages; pg++) {
-    const rr = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${sinceP}`, { signal: AbortSignal.timeout(15000) });
-    if (!rr.ok) break;
-    const dd = await rr.json() as any;
-    if (dd.error?.length) break;
-    const k = Object.keys(dd.result).find(x => x !== "last")!;
-    const page: any[] = dd.result[k] ?? [];
-    if (!page.length) break;
+    const page = await krakenOhlcFetch(pair, 5, sinceP);
+    if (!page || !page.length) break;
     raw.push(...page);
     sinceP = page[page.length - 1][0] + FIVE;
-    if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 200));
+    if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 800));
   }
   const seen = new Set<number>();
   raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
-  if (raw.length < 300) throw new Error("Za mało danych historycznych 5m");
+  if (raw.length < 200) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 200)`);
 
   // 4H candles (optional)
   let raw4: any[] = [];
   try {
     const h4since = Math.floor(Date.now() / 1000) - 200 * 4 * 3600;
-    const r4 = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${h4since}`, { signal: AbortSignal.timeout(10000) });
-    if (r4.ok) {
-      const d4 = await r4.json() as any;
-      if (!d4.error?.length) { const k4 = Object.keys(d4.result).find(x => x !== "last")!; raw4 = d4.result[k4] ?? []; }
-    }
+    const r4list = await krakenOhlcFetch(pair, 240, h4since);
+    if (r4list) raw4 = r4list;
   } catch { /* neutral fallback */ }
 
   // Walk-forward split: 70% train → 30% validate
@@ -1147,29 +1150,21 @@ router.post("/auto-indicators", async (req, res) => {
     let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
     let raw: any[] = [];
     for (let pg = 0; pg < wantPages; pg++) {
-      const rr = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${sinceP}`, { signal: AbortSignal.timeout(15000) });
-      if (!rr.ok) break;
-      const dd = await rr.json() as any;
-      if (dd.error?.length) break;
-      const k = Object.keys(dd.result).find(x => x !== "last")!;
-      const page: any[] = dd.result[k] ?? [];
-      if (!page.length) break;
+      const page = await krakenOhlcFetch(pair, 5, sinceP);
+      if (!page || !page.length) break;
       raw.push(...page);
       sinceP = page[page.length - 1][0] + FIVE;
-      if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 200));
+      if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 800));
     }
     const seen = new Set<number>();
     raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
-    if (raw.length < 300) throw new Error("Za mało danych historycznych 5m");
+    if (raw.length < 200) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 200)`);
 
     let raw4: any[] = [];
     try {
       const h4since = Math.floor(Date.now() / 1000) - 200 * 4 * 3600;
-      const r4 = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${h4since}`, { signal: AbortSignal.timeout(10000) });
-      if (r4.ok) {
-        const d4 = await r4.json() as any;
-        if (!d4.error?.length) { const k4 = Object.keys(d4.result).find(x => x !== "last")!; raw4 = d4.result[k4] ?? []; }
-      }
+      const r4list = await krakenOhlcFetch(pair, 240, h4since);
+      if (r4list) raw4 = r4list;
     } catch { /* neutral */ }
 
     const baseP = { rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin, stopLoss, takeProfit, trailPct, leverage, allowShorts };
