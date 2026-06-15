@@ -105,3 +105,41 @@ export function calcVolumeMult(volumes: number[]): number {
   const avg = volumes.slice(-20, -1).reduce((a, b) => a + b, 0) / 19;
   return avg === 0 ? 1 : volumes[volumes.length - 1] / avg;
 }
+
+/** Stochastic RSI: K value (0-100). smoothK=3 applies SMA smoothing */
+export function calcStochRsi(closes: number[], rsiPeriod = 14, stochPeriod = 14, smoothK = 3): number {
+  const minLen = rsiPeriod + stochPeriod + smoothK;
+  if (closes.length < minLen) return 50;
+  // Build full RSI series (one value per bar from rsiPeriod onward)
+  const rsiSeries: number[] = [];
+  for (let i = rsiPeriod; i <= closes.length; i++) {
+    rsiSeries.push(calcRsi(closes.slice(0, i), rsiPeriod));
+  }
+  // Stochastic of RSI
+  const rawK: number[] = [];
+  for (let i = stochPeriod - 1; i < rsiSeries.length; i++) {
+    const sl = rsiSeries.slice(i - stochPeriod + 1, i + 1);
+    const mn = Math.min(...sl), mx = Math.max(...sl);
+    rawK.push(mx === mn ? 50 : (rsiSeries[i] - mn) / (mx - mn) * 100);
+  }
+  if (rawK.length < smoothK) return rawK[rawK.length - 1] ?? 50;
+  return rawK.slice(-smoothK).reduce((s, v) => s + v, 0) / smoothK;
+}
+
+/** Bollinger Band %B: 0=lower band, 50=middle, 100=upper band, >100=above upper */
+export function calcBBPercB(closes: number[], period = 20, mult = 2): number {
+  if (closes.length < period) return 50;
+  const sl = closes.slice(-period);
+  const sma = sl.reduce((s, v) => s + v, 0) / period;
+  const std = Math.sqrt(sl.reduce((s, v) => s + (v - sma) ** 2, 0) / period);
+  const upper = sma + mult * std, lower = sma - mult * std;
+  if (upper === lower) return 50;
+  return ((closes[closes.length - 1] - lower) / (upper - lower)) * 100;
+}
+
+/** Rate of Change over `period` bars (%) */
+export function calcRoc(closes: number[], period = 14): number {
+  if (closes.length < period + 1) return 0;
+  const prev = closes[closes.length - 1 - period];
+  return prev === 0 ? 0 : (closes[closes.length - 1] - prev) / prev * 100;
+}

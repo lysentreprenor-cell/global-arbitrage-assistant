@@ -8,7 +8,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { bybitFetch as proxyFetch } from "../proxyDispatcher";
-import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult } from "../lib/indicators";
+import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc } from "../lib/indicators";
 import { simulate } from "../lib/strategySim";
 import { nextKrakenNonce, krakenSerialize } from "../lib/krakenNonce";
 
@@ -345,6 +345,83 @@ async function fetchCurrentPrice(symbol: string): Promise<number | null> {
     if (!key) return null;
     return parseFloat(d.result[key].c[0]); // last trade price
   } catch { return null; }
+}
+
+// ── Indicator snapshot (2-min cache) ─────────────────────────────────────────
+let indSnapCache: { ts: number; symbol: string; snap: Record<string, number> } | null = null;
+
+async function getIndSnap(symbol: string): Promise<Record<string, number>> {
+  if (indSnapCache && indSnapCache.symbol === symbol && Date.now() - indSnapCache.ts < 120_000) {
+    return indSnapCache.snap;
+  }
+  const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
+  const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+  const since = Math.floor(Date.now() / 1000) - 100 * 5 * 60;
+  const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${since}`, { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
+  const d = await r.json() as any;
+  if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
+  const key = Object.keys(d.result).find(k => k !== "last")!;
+  const list: any[] = (d.result[key] ?? []).slice(-100);
+  if (list.length < 50) throw new Error("Not enough candles");
+
+  const closes  = list.map((c: any) => parseFloat(c[4]));
+  const opens   = list.map((c: any) => parseFloat(c[1]));
+  const highs   = list.map((c: any) => parseFloat(c[2]));
+  const lows    = list.map((c: any) => parseFloat(c[3]));
+  const volumes = list.map((c: any) => parseFloat(c[6]));
+
+  const price = closes[closes.length - 1];
+  const openC = opens[opens.length - 1] ?? price;
+
+  const stochRsi = calcStochRsi(closes);
+  const bbPercB  = calcBBPercB(closes);
+  const roc14    = calcRoc(closes, 14);
+  const adxNow   = calcAdx(highs, lows, closes);
+  const adxPrev  = calcAdx(highs.slice(0, -3), lows.slice(0, -3), closes.slice(0, -3));
+  const ema21    = calcEma(closes, 21);
+  const ema21p   = calcEma(closes.slice(0, -1), 21);
+
+  const body   = Math.abs(price - openC);
+  const range  = (highs[highs.length - 1] - lows[lows.length - 1]) || 1;
+  const upWick = highs[highs.length - 1] - Math.max(price, openC);
+
+  const tenH = Math.max(...highs.slice(-9)), tenL = Math.min(...lows.slice(-9));
+  const kijH = highs.length >= 26 ? Math.max(...highs.slice(-26)) : tenH;
+  const kijL = lows.length  >= 26 ? Math.min(...lows.slice(-26))  : tenL;
+  const tenkan = (tenH + tenL) / 2, kijun = (kijH + kijL) / 2;
+
+  const haC = (openC + highs[highs.length-1] + lows[lows.length-1] + price) / 4;
+  const haO = opens.length >= 2 ? (opens[opens.length-2] + closes[closes.length-2]) / 2 : openC;
+
+  const calcBBW = (arr: number[]) => {
+    const sma = arr.reduce((s, v) => s + v, 0) / arr.length;
+    const std  = Math.sqrt(arr.reduce((s, v) => s + (v - sma) ** 2, 0) / arr.length);
+    return sma > 0 ? (4 * std) / sma * 100 : 0;
+  };
+  const currW = calcBBW(closes.slice(-20));
+  const avgW  = [1,2,3,4,5].reduce((s, k) => {
+    const sl2 = closes.slice(-20-k, -k); return s + (sl2.length >= 10 ? calcBBW(sl2) : currW);
+  }, 0) / 5;
+
+  const snap: Record<string, number> = {
+    stochRsi:      parseFloat(stochRsi.toFixed(1)),
+    bbPercB:       parseFloat(bbPercB.toFixed(1)),
+    roc14:         parseFloat(roc14.toFixed(2)),
+    adx:           parseFloat(adxNow.toFixed(1)),
+    adxRising:     adxNow > adxPrev ? 1 : 0,
+    bodyQuality:   parseFloat((body / range).toFixed(2)),
+    emaSlope:      ema21 > ema21p ? 1 : 0,
+    candleConfirm: [closes[closes.length-1], closes[closes.length-2]].filter(v => v > ema21).length,
+    volTrend:      (volumes[volumes.length-1] > volumes[volumes.length-2] && volumes[volumes.length-2] > volumes[volumes.length-3]) ? 1 : 0,
+    wickRej:       parseFloat((body > 0 ? upWick / body : 0).toFixed(2)),
+    ichimokuOk:    tenkan > kijun ? 1 : 0,
+    heikinAshi:    haC > haO ? 1 : 0,
+    bbSqueeze:     currW < avgW * 0.8 ? 1 : 0,
+  };
+
+  indSnapCache = { ts: Date.now(), symbol, snap };
+  return snap;
 }
 
 async function fetch4HCandles(symbol: string): Promise<{ema9:number;ema21:number}|null> {
@@ -833,6 +910,7 @@ router.post("/backtest", async (req, res) => {
       confluenceMin = 1, volMultMin = 1.0, cooldownMin = 20,
       stopLoss = 0.3, takeProfit = 0.6, trailPct = 0.12,
       leverage = 1, allowShorts = false,
+      filters,
     } = req.body ?? {};
 
     const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
@@ -877,6 +955,7 @@ router.post("/backtest", async (req, res) => {
     const r = simulate(raw, raw4, {
       rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin,
       stopLoss, takeProfit, trailPct, leverage, allowShorts,
+      filters,
     });
 
     res.json({
@@ -1037,6 +1116,83 @@ router.post("/autotrain", (req, res) => {
   } else {
     addLog("🧠 Auto-retrain wyłączony", "info");
     res.json({ ok: true, enabled: false });
+  }
+});
+
+// GET /api/bot/indicators — live indicator snapshot (2-min cache)
+router.get("/indicators", async (req, res) => {
+  try {
+    const symbol = (req.query.symbol as string) || config?.symbol || "BTCUSDT";
+    const snap = await getIndSnap(symbol);
+    res.json({ ok: true, ...snap });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/bot/auto-indicators — test which filters improve performance
+router.post("/auto-indicators", async (req, res) => {
+  try {
+    const {
+      symbol = "BTCUSDT", leverage = 1, allowShorts = false,
+      rsiMin = 36, rsiMax = 67, adxMin = 16,
+      confluenceMin = 1, volMultMin = 1.0, cooldownMin = 30,
+      stopLoss = 1.20, takeProfit = 2.50, trailPct = 0.45,
+    } = req.body ?? {};
+
+    const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
+    const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+    const FIVE = 5 * 60;
+    const wantPages = 8;
+    let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
+    let raw: any[] = [];
+    for (let pg = 0; pg < wantPages; pg++) {
+      const rr = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${sinceP}`, { signal: AbortSignal.timeout(15000) });
+      if (!rr.ok) break;
+      const dd = await rr.json() as any;
+      if (dd.error?.length) break;
+      const k = Object.keys(dd.result).find(x => x !== "last")!;
+      const page: any[] = dd.result[k] ?? [];
+      if (!page.length) break;
+      raw.push(...page);
+      sinceP = page[page.length - 1][0] + FIVE;
+      if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 200));
+    }
+    const seen = new Set<number>();
+    raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
+    if (raw.length < 300) throw new Error("Za mało danych historycznych 5m");
+
+    let raw4: any[] = [];
+    try {
+      const h4since = Math.floor(Date.now() / 1000) - 200 * 4 * 3600;
+      const r4 = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${h4since}`, { signal: AbortSignal.timeout(10000) });
+      if (r4.ok) {
+        const d4 = await r4.json() as any;
+        if (!d4.error?.length) { const k4 = Object.keys(d4.result).find(x => x !== "last")!; raw4 = d4.result[k4] ?? []; }
+      }
+    } catch { /* neutral */ }
+
+    const baseP = { rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin, stopLoss, takeProfit, trailPct, leverage, allowShorts };
+    const baseline = simulate(raw, raw4, baseP);
+
+    const filterKeys = ['stochRsi80','bbPercB80','bodyQuality','emaSlope','candleConfirm','adxRising','volTrend','wickRej','roc14','ichimoku','heikinAshi','bbSqueeze'] as const;
+    const scores: Record<string, { winRate: number; totalReturn: number; numTrades: number; delta: number }> = {};
+
+    for (const fKey of filterKeys) {
+      const result = simulate(raw, raw4, { ...baseP, filters: { [fKey]: true } });
+      const delta = (result.winRate - baseline.winRate) + (result.totalReturn - baseline.totalReturn) * 0.3;
+      scores[fKey] = { winRate: result.winRate, totalReturn: result.totalReturn, numTrades: result.numTrades, delta: parseFloat(delta.toFixed(2)) };
+    }
+
+    const recommended = filterKeys.filter(k => scores[k].delta > 0.5 && scores[k].numTrades >= 3);
+    res.json({
+      ok: true,
+      baseline: { winRate: baseline.winRate, totalReturn: baseline.totalReturn, numTrades: baseline.numTrades },
+      scores,
+      recommended,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 

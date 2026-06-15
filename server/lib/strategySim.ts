@@ -3,12 +3,18 @@
  * Extracted VERBATIM from the /backtest handler so that simulation, optimizer and
  * the live bot all behave identically. No side-effects, no network, no secrets.
  */
-import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult } from "./indicators";
+import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc } from "./indicators";
 
 export type SimParams = {
   rsiMin: number; rsiMax: number; adxMin: number; confluenceMin: number;
   volMultMin: number; cooldownMin: number; stopLoss: number; takeProfit: number;
   trailPct: number; leverage: number; allowShorts: boolean;
+  filters?: {
+    stochRsi80?: boolean;  bbPercB80?: boolean;  bodyQuality?: boolean;
+    emaSlope?: boolean;    candleConfirm?: boolean; adxRising?: boolean;
+    volTrend?: boolean;    wickRej?: boolean;    roc14?: boolean;
+    ichimoku?: boolean;    heikinAshi?: boolean; bbSqueeze?: boolean;
+  };
 };
 
 export type SimTrade = {
@@ -126,6 +132,60 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
     const isShort = !krakenSpot && allowShorts && (crossSell || rsiSell) && shortConf;
     if (!isLong && !isShort) continue;
+
+    // ── Indicator filter gates (applied when toggles are ON) ──
+    const flt = p.filters;
+    if (flt && isLong) {
+      const opens_i = raw[i][1] ? parseFloat(raw[i][1]) : price;
+      const body   = Math.abs(price - opens_i);
+      const range  = (highs[i] ?? price) - (lows[i] ?? price);
+      const upWick = (highs[i] ?? price) - Math.max(price, opens_i);
+      if (flt.stochRsi80   && calcStochRsi(wc)   > 80)          { continue; }
+      if (flt.bbPercB80    && calcBBPercB(wc)     > 80)          { continue; }
+      if (flt.roc14        && calcRoc(wc, 14)     <= 0)          { continue; }
+      if (flt.bodyQuality  && range > 0 && body / range < 0.30)  { continue; }
+      if (flt.wickRej      && body > 0  && upWick / body > 1.5)  { continue; }
+      if (flt.emaSlope) {
+        const ema21p = calcEma(wc.slice(0, -1), 21);
+        if (calcEma(wc, 21) <= ema21p)                            { continue; }
+      }
+      if (flt.candleConfirm) {
+        const e21 = calcEma(wc, 21);
+        const abv = [wc[wc.length-1], wc[wc.length-2]].filter(v => v > e21).length;
+        if (abv < 2)                                              { continue; }
+      }
+      if (flt.adxRising) {
+        const adxPrev = calcAdx(sh.slice(0,-3), sl.slice(0,-3), sc.slice(0,-3));
+        if (adx <= adxPrev)                                       { continue; }
+      }
+      if (flt.volTrend) {
+        const vv = sv;
+        if (!(vv[vv.length-1] > vv[vv.length-2] && vv[vv.length-2] > vv[vv.length-3])) { continue; }
+      }
+      if (flt.ichimoku) {
+        const tenH = Math.max(...sh.slice(-9)), tenL = Math.min(...sl.slice(-9));
+        const kijH = sh.length >= 26 ? Math.max(...sh.slice(-26)) : tenH;
+        const kijL = sl.length >= 26 ? Math.min(...sl.slice(-26)) : tenL;
+        if ((tenH + tenL) / 2 <= (kijH + kijL) / 2)             { continue; }
+      }
+      if (flt.heikinAshi && i > 0) {
+        const haC = (opens_i + (highs[i]??price) + (lows[i]??price) + price) / 4;
+        const haO = (parseFloat(raw[i-1][1]) + parseFloat(raw[i-1][4])) / 2;
+        if (haC <= haO)                                           { continue; }
+      }
+      if (flt.bbSqueeze) {
+        const calcBBW = (arr: number[]) => {
+          const sma = arr.reduce((s, v) => s + v, 0) / arr.length;
+          const std = Math.sqrt(arr.reduce((s, v) => s + (v-sma)**2, 0) / arr.length);
+          return sma > 0 ? (4 * std) / sma * 100 : 0;
+        };
+        const currW = calcBBW(wc.slice(-20));
+        const avgW  = [1,2,3,4,5].reduce((s, k) => {
+          const sl2 = wc.slice(-20-k, -k); return s + (sl2.length >= 10 ? calcBBW(sl2) : currW);
+        }, 0) / 5;
+        if (currW >= avgW * 0.8)                                  { continue; }
+      }
+    }
 
     const dir: "long" | "short" = isLong ? "long" : "short";
     const sig = crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : isShort ? (crossSell ? "EMA_cross" : "RSI_pump") : "RSI_dip";
