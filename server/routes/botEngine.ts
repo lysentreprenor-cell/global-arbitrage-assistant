@@ -314,14 +314,10 @@ let lastEntrySignal = "";
 async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
   const pair = krakenPair(symbol);
   try {
-    const since = Math.floor(Date.now() / 1000) - 150 * 5 * 60; // last 150 × 5min candles
-    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=5&since=${since}`, { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) throw new Error(`Kraken HTTP ${r.status}`);
-    const d = await r.json() as any;
-    if (d.error?.length) throw new Error(`Kraken: ${d.error[0]}`);
-    const key = Object.keys(d.result).find(k => k !== "last")!;
-    const list: any[] = (d.result[key] ?? []).slice(-150);
-    if (list.length < 50) throw new Error("Not enough candles");
+    const since = Math.floor(Date.now() / 1000) - 150 * 5 * 60;
+    const raw = await krakenOhlcFetch(pair, 5, since);
+    if (!raw || raw.length < 50) throw new Error("Not enough candles");
+    const list = raw.slice(-150);
     return {
       closes:  list.map((k: any) => parseFloat(k[4])),
       highs:   list.map((k: any) => parseFloat(k[2])),
@@ -347,30 +343,79 @@ async function fetchCurrentPrice(symbol: string): Promise<number | null> {
   } catch { return null; }
 }
 
-// ── Shared Kraken public OHLC helper (retry + rate-limit backoff) ────────────
+// ── Kraken public OHLC: serialized queue + rate-limit backoff + timeline cache ─
+
+// One OHLC request at a time — prevents 429 collisions between bot tick + simulation
+let _krakenOhlcQ: Promise<void> = Promise.resolve();
+let _krakenOhlcLast = 0; // timestamp of last completed OHLC request
+
+// Timeline cache per (pair, interval): stores all candles seen, merged + deduped.
+// TTL 5 min — fresh enough for backtest, prevents re-fetching on repeated clicks.
+interface OhlcCacheEntry { candles: any[]; fetchedAt: number }
+const _ohlcCache = new Map<string, OhlcCacheEntry>();
+
+function _ohlcCacheKey(pair: string, interval: number) { return `${pair}_${interval}`; }
+
+function _ohlcCacheMerge(pair: string, interval: number, newCandles: any[]) {
+  const key = _ohlcCacheKey(pair, interval);
+  const ex = _ohlcCache.get(key);
+  let merged: any[];
+  if (!ex) {
+    merged = [...newCandles];
+  } else {
+    const seen = new Set<number>(ex.candles.map((c: any) => c[0] as number));
+    const added = newCandles.filter((c: any) => !seen.has(c[0]));
+    merged = [...ex.candles, ...added].sort((a: any, b: any) => a[0] - b[0]);
+    if (merged.length > 12000) merged = merged.slice(-12000); // keep ≤42 days at 5m
+  }
+  _ohlcCache.set(key, { candles: merged, fetchedAt: Date.now() });
+}
+
+function _ohlcCacheGet(pair: string, interval: number, since: number): any[] | null {
+  const entry = _ohlcCache.get(_ohlcCacheKey(pair, interval));
+  if (!entry || Date.now() - entry.fetchedAt > 5 * 60 * 1000) return null;
+  const slice = entry.candles.filter((c: any) => c[0] >= since);
+  return slice.length >= 20 ? slice : null; // only return if enough candles from that point
+}
 
 async function krakenOhlcFetch(pair: string, interval: number, since: number): Promise<any[] | null> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const r = await fetch(
-        `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}&since=${since}`,
-        { signal: AbortSignal.timeout(15000) },
-      );
-      if (r.status === 429 || r.status === 520) {
-        await new Promise(res => setTimeout(res, 2000 * (attempt + 1)));
-        continue;
+  // Check timeline cache first — avoids a Kraken call if we have fresh data
+  const cached = _ohlcCacheGet(pair, interval, since);
+  if (cached) return cached;
+
+  return new Promise<any[] | null>((resolve) => {
+    _krakenOhlcQ = _krakenOhlcQ.then(async () => {
+      // Enforce ≥500ms gap between consecutive OHLC requests (Kraken public limit ~2/sec)
+      const gap = 500 - (Date.now() - _krakenOhlcLast);
+      if (gap > 0) await new Promise(r => setTimeout(r, gap));
+      _krakenOhlcLast = Date.now();
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const r = await fetch(
+            `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}&since=${since}`,
+            { signal: AbortSignal.timeout(15000) },
+          );
+          if (r.status === 429 || r.status === 520) {
+            await new Promise(r2 => setTimeout(r2, 2000 * (attempt + 1)));
+            continue;
+          }
+          if (!r.ok) { resolve(null); return; }
+          const d = await r.json() as any;
+          if (d.error?.length) { resolve(null); return; }
+          const key = Object.keys(d.result).find(k => k !== "last");
+          if (!key) { resolve([]); return; }
+          const candles: any[] = d.result[key] ?? [];
+          if (candles.length > 0) _ohlcCacheMerge(pair, interval, candles);
+          resolve(candles);
+          return;
+        } catch {
+          if (attempt < 4) await new Promise(r2 => setTimeout(r2, 1000 * (attempt + 1)));
+        }
       }
-      if (!r.ok) return null;
-      const d = await r.json() as any;
-      if (d.error?.length) return null;
-      const key = Object.keys(d.result).find(k => k !== "last");
-      if (!key) return [];
-      return d.result[key] ?? [];
-    } catch {
-      if (attempt < 2) await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
-    }
-  }
-  return null;
+      resolve(null);
+    }).catch(() => { resolve(null); });
+  });
 }
 
 // ── Indicator snapshot (2-min cache) ─────────────────────────────────────────
@@ -450,13 +495,9 @@ async function fetch4HCandles(symbol: string): Promise<{ema9:number;ema21:number
   const pair = krakenPair(symbol);
   try {
     const since = Math.floor(Date.now() / 1000) - 50 * 4 * 3600;
-    const r = await fetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=240&since=${since}`, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) return null;
-    const d = await r.json() as any;
-    if (d.error?.length) return null;
-    const key = Object.keys(d.result).find(k => k !== "last")!;
-    const list: any[] = (d.result[key] ?? []).slice(-30);
-    if (list.length < 22) return null;
+    const raw = await krakenOhlcFetch(pair, 240, since);
+    if (!raw || raw.length < 22) return null;
+    const list = raw.slice(-30);
     const c4h = list.map((k: any) => parseFloat(k[4]));
     return { ema9: calcEma(c4h, 9), ema21: calcEma(c4h, 21) };
   } catch { return null; }
@@ -948,7 +989,6 @@ router.post("/backtest", async (req, res) => {
       if (!page || !page.length) break;
       raw.push(...page);
       sinceP = page[page.length - 1][0] + FIVE;
-      if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 800));
     }
     // dedup + sort by time
     const seen = new Set<number>();
@@ -1016,7 +1056,6 @@ async function runOptimize(params: {
     if (!page || !page.length) break;
     raw.push(...page);
     sinceP = page[page.length - 1][0] + FIVE;
-    if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 800));
   }
   const seen = new Set<number>();
   raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
@@ -1154,7 +1193,6 @@ router.post("/auto-indicators", async (req, res) => {
       if (!page || !page.length) break;
       raw.push(...page);
       sinceP = page[page.length - 1][0] + FIVE;
-      if (pg < wantPages - 1) await new Promise(r2 => setTimeout(r2, 800));
     }
     const seen = new Set<number>();
     raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
