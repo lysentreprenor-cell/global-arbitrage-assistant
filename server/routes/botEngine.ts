@@ -858,18 +858,18 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    rsiMin:     rsiMin     ?? 62,   // 2× agresywny: kup przy RSI < 62 (bardzo szeroka strefa)
-    rsiMax:     rsiMax     ?? 52,   // 2× agresywny: sprzedaj przy RSI > 52
-    trailPct:   trailPct   ?? 0.10, // 2× węższy trail
-    stopLoss:   stopLoss   ?? 0.40, // 2× węższy SL
-    takeProfit: takeProfit ?? 0.75, // 2× niższy TP — szybkie realizowanie zysku
+    rsiMin:     rsiMin     ?? 55,   // agresywne: kup przy RSI < 55
+    rsiMax:     rsiMax     ?? 60,   // agresywne: sprzedaj przy RSI > 60
+    trailPct:   trailPct   ?? 0.40, // rozsądny trail — przeżyje szum 5m
+    stopLoss:   stopLoss   ?? 1.00, // SL > opłata Kraken 0.52% RT
+    takeProfit: takeProfit ?? 2.00, // TP/SL = 2.0 — pozytywne R/R po opłatach
     leverage:   leverage   ?? 10,
     allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
-    adxMin:        adxMin        ?? 2,   // 2× niższy: prawie zawsze true
-    confluenceMin: confluenceMin ?? 0,   // brak wymogu confluence
-    volMultMin:    volMultMin    ?? 0.2, // 2× niższy: nawet bardzo niski wolumen OK
-    cooldownMin:   cooldownMin   ?? 2,   // 2× krótszy: 2 min między wejściami
+    adxMin:        adxMin        ?? 5,   // minimalny wymóg trendu
+    confluenceMin: confluenceMin ?? 0,   // brak wymogu confluence — agresywne wejścia
+    volMultMin:    volMultMin    ?? 0.2, // niski wolumen też OK
+    cooldownMin:   cooldownMin   ?? 2,   // 2 min między wejściami
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
