@@ -896,16 +896,27 @@ export default function TradingBot() {
                 <span className="text-sm font-semibold text-white">Activity Log</span>
                 {running && <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />}
               </div>
-              <button onClick={() => setShowLogs(x => !x)} className="text-xs text-gray-500 hover:text-gray-300">
-                {showLogs ? "Zwiń" : "Rozwiń"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const text = logs.map(l => `[${l.time}] ${l.msg}`).join("\n");
+                    navigator.clipboard.writeText(text).then(() => alert("Skopiowano " + logs.length + " linii logu!"));
+                  }}
+                  className="text-xs text-green-500 hover:text-green-300 border border-green-800 rounded px-2 py-0.5"
+                >
+                  📋 Kopiuj
+                </button>
+                <button onClick={() => setShowLogs(x => !x)} className="text-xs text-gray-500 hover:text-gray-300">
+                  {showLogs ? "Zwiń" : "Rozwiń"}
+                </button>
+              </div>
             </div>
             {showLogs && (
               <div ref={logsRef} className="space-y-1 max-h-52 overflow-y-auto">
                 {!logs.length
                   ? <div className="text-xs text-gray-600">Brak logów — uruchom bota</div>
                   : logs.map((l, i) => (
-                    <div key={i} className="text-xs flex gap-2">
+                    <div key={i} className="text-xs flex gap-2 select-text">
                       <span className="text-gray-600 shrink-0 font-mono">{l.time}</span>
                       <span className={l.type === "buy" ? "text-green-400" : l.type === "sell" ? "text-red-400" : l.type === "warn" ? "text-yellow-400" : "text-gray-300"}>{l.msg}</span>
                     </div>
