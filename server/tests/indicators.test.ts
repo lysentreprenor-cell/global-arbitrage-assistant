@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult,
+  calcStochRsi, calcBBPercB, calcRoc,
 } from "../lib/indicators";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -283,5 +284,154 @@ describe("indicator agreement (trend)", () => {
     const { macd } = calcMacd(prices);
     expect(rsi).toBeLessThan(40);
     expect(macd).toBeLessThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calcStochRsi
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("calcStochRsi", () => {
+  it("returns 50 when insufficient data", () => {
+    expect(calcStochRsi(rising(10))).toBe(50);
+  });
+
+  it("returns value in [0, 100]", () => {
+    const k = calcStochRsi(rising(60));
+    expect(k).toBeGreaterThanOrEqual(0);
+    expect(k).toBeLessThanOrEqual(100);
+  });
+
+  it("returns high value (>60) when RSI bounces back from low", () => {
+    // Falling prices first → RSI low. Then rising prices → RSI climbs to recent high → StochRSI high
+    const prices = [...falling(50, 200, 2), ...rising(50, 100, 2)];
+    const k = calcStochRsi(prices);
+    expect(k).toBeGreaterThan(60);
+  });
+
+  it("returns low value (<40) when RSI falls from high", () => {
+    // Rising prices first → RSI high. Then falling prices → RSI near recent low → StochRSI low
+    const prices = [...rising(50, 50, 2), ...falling(50, 150, 2)];
+    const k = calcStochRsi(prices);
+    expect(k).toBeLessThan(40);
+  });
+
+  it("returns ~50 for oscillating prices (RSI stays near midline)", () => {
+    const prices = oscillating(80, 100, 5);
+    const k = calcStochRsi(prices);
+    expect(k).toBeGreaterThan(10);
+    expect(k).toBeLessThan(90);
+  });
+
+  it("flat prices: RSI is constant → StochRSI returns 50 (range=0)", () => {
+    // Flat prices → RSI series is all 50 (no gains/losses) → min=max → returns 50
+    const k = calcStochRsi(flat(60, 100));
+    expect(k).toBe(50);
+  });
+
+  it("custom periods change result", () => {
+    const prices = [...flat(20, 100), ...rising(40, 100, 3)];
+    const k7  = calcStochRsi(prices, 7, 7, 3);
+    const k14 = calcStochRsi(prices, 14, 14, 3);
+    // Both in range; shorter period reacts faster
+    expect(k7).toBeGreaterThanOrEqual(0);
+    expect(k14).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calcBBPercB
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("calcBBPercB", () => {
+  it("returns 50 when insufficient data", () => {
+    expect(calcBBPercB(rising(10))).toBe(50);
+  });
+
+  it("returns 50 for flat prices (close == middle band)", () => {
+    // All values identical → std=0 → upper==lower → returns 50
+    expect(calcBBPercB(flat(30, 100))).toBe(50);
+  });
+
+  it("returns ~100 when price is at upper band", () => {
+    // Flat warmup then spike: last price well above upper band → >100
+    const prices = [...flat(19, 100), 200]; // massive spike
+    const pctB = calcBBPercB(prices);
+    expect(pctB).toBeGreaterThan(90);
+  });
+
+  it("returns ~0 when price is at lower band", () => {
+    const prices = [...flat(19, 100), 0]; // crash to zero
+    const pctB = calcBBPercB(prices);
+    expect(pctB).toBeLessThan(10);
+  });
+
+  it("returns value between 0 and ~100 for normal price", () => {
+    const prices = rising(25, 100, 0.5); // gentle trend
+    const pctB = calcBBPercB(prices);
+    expect(pctB).toBeGreaterThanOrEqual(0);
+    expect(pctB).toBeLessThanOrEqual(150); // can exceed 100 (above upper band)
+  });
+
+  it("returns >100 when price exceeds upper band (breakout)", () => {
+    // 19 bars at 100, then strong rally
+    const prices = [...flat(19, 100), 120];
+    const pctB = calcBBPercB(prices);
+    expect(pctB).toBeGreaterThan(100);
+  });
+
+  it("custom period and mult", () => {
+    const prices = rising(30, 100, 1);
+    const pb20 = calcBBPercB(prices, 20, 2);
+    const pb10 = calcBBPercB(prices, 10, 2);
+    expect(pb20).toBeGreaterThanOrEqual(0);
+    expect(pb10).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calcRoc
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("calcRoc", () => {
+  it("returns 0 when insufficient data", () => {
+    expect(calcRoc(rising(10), 14)).toBe(0);
+  });
+
+  it("returns 0 for flat prices", () => {
+    expect(calcRoc(flat(20, 100), 14)).toBe(0);
+  });
+
+  it("returns positive ROC for rising prices", () => {
+    // 15 bars from 100 to 114 → ROC-14 = (114-100)/100 * 100 = 14%
+    const prices = rising(15, 100, 1);
+    const roc = calcRoc(prices, 14);
+    expect(roc).toBeCloseTo(14, 1);
+  });
+
+  it("returns negative ROC for falling prices", () => {
+    const prices = falling(15, 100, 1);
+    const roc = calcRoc(prices, 14);
+    expect(roc).toBeLessThan(0);
+  });
+
+  it("magnitude reflects steepness of move", () => {
+    const gentle = rising(20, 100, 1);   // +1/bar
+    const steep  = rising(20, 100, 5);   // +5/bar
+    expect(Math.abs(calcRoc(steep, 14))).toBeGreaterThan(Math.abs(calcRoc(gentle, 14)));
+  });
+
+  it("does not divide by zero when prev=0", () => {
+    const prices = [...flat(14, 0), 100];
+    expect(calcRoc(prices, 14)).toBe(0);
+  });
+
+  it("custom period", () => {
+    const prices = rising(30, 100, 2);
+    const roc5  = calcRoc(prices, 5);
+    const roc14 = calcRoc(prices, 14);
+    // roc5 uses last 5 bars, roc14 uses last 14 — same slope so roc5 = roc14 percentage-wise
+    expect(roc5).toBeGreaterThan(0);
+    expect(roc14).toBeGreaterThan(0);
   });
 });

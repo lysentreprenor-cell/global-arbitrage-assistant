@@ -396,14 +396,24 @@ async function krakenOhlcFetch(pair: string, interval: number, since: number): P
             `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}&since=${since}`,
             { signal: AbortSignal.timeout(15000) },
           );
-          if (r.status === 429 || r.status === 520) {
+          // HTTP rate-limit or server errors → retry with backoff
+          if (r.status === 429 || r.status === 520 || r.status >= 500) {
             await new Promise(r2 => setTimeout(r2, 2000 * (attempt + 1)));
             continue;
           }
           if (!r.ok) { resolve(null); return; }
           const d = await r.json() as any;
-          if (d.error?.length) { resolve(null); return; }
-          const key = Object.keys(d.result).find(k => k !== "last");
+          // Kraken can return HTTP 200 but with rate-limit error in JSON body — must retry
+          if (d.error?.length) {
+            const isRateLimit = d.error.some((e: string) =>
+              typeof e === "string" && (e.includes("Rate limit") || e.includes("EGeneral:Temporary")));
+            if (isRateLimit) {
+              await new Promise(r2 => setTimeout(r2, 2000 * (attempt + 1)));
+              continue;
+            }
+            resolve(null); return;
+          }
+          const key = Object.keys(d.result ?? {}).find(k => k !== "last");
           if (!key) { resolve([]); return; }
           const candles: any[] = d.result[key] ?? [];
           if (candles.length > 0) _ohlcCacheMerge(pair, interval, candles);
