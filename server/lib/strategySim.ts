@@ -126,7 +126,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const volOk     = volMult >= volMultMin;
     const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
-    const trendFollow = rsi >= 20 && rsi <= 80 && macdBull && ema9 > ema21;
+    const trendFollow = rsi >= 20 && rsi <= 80 && macdBull && (ema9 > ema21 || fourH === "bull");
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true;
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;

@@ -732,8 +732,9 @@ async function engineTick() {
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
-    // Trend-following: RSI 20-80 + MACD↑ + EMA9>EMA21 — 2× agresywny: maksymalne okno RSI
-    const trendFollow = rsi >= 20 && rsi <= 80 && macdBull && ema9 > ema21;
+    // Trend-following: RSI 20-80 + MACD↑ + (EMA9>EMA21 na 5m LUB 4H byczo)
+    // fourHourTrend="bull" jako alternatywa — bot handluje przy bull 4H nawet gdy 5m w konsolidacji
+    const trendFollow = rsi >= 20 && rsi <= 80 && macdBull && (ema9 > ema21 || fourHourTrend === "bull");
 
     // Bear market filter: EMA cross zawsze dozwolony, RSI dip blokowany TYLKO przy crash
     const rsiBuyFiltered = rsiBuy && !inCrash;
