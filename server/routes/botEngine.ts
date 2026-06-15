@@ -732,14 +732,12 @@ async function engineTick() {
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
-    // Trend-following: RSI 50-63 + MACD↑ + EMA9>EMA21 + ADX≥25 (not just dip-buying)
-    // Disabled in range mode (ADX<20 for 6+ ticks) — momentum entries fail in consolidation
-    const trendFollow = !rangeMode && rsi >= 50 && rsi <= 63 && macdBull && ema9 > ema21 && adx >= 25 && fourHourTrend !== "bear";
+    // Trend-following: RSI 35-72 + MACD↑ + EMA9>EMA21 — super agresywny: szersze okno RSI, adxMin z config
+    const trendFollow = rsi >= 35 && rsi <= 72 && macdBull && ema9 > ema21 && adx >= adxMin;
 
-    // Bear market filter: skip RSI dip signals in clear downtrend (EMA + price slope)
-    // EMA crossover signals still allowed — they mark trend reversal
-    const rsiBuyFiltered = rsiBuy && !bearMkt && fourHourTrend !== "bear";
-    const trendQuality = adx >= 15;
+    // Bear market filter: tylko blokuj RSI dip przy strong bearMkt i 4H bear (EMA cross zawsze dozwolony)
+    const rsiBuyFiltered = rsiBuy && (!bearMkt || crossBuy) && fourHourTrend !== "bear";
+    const trendQuality = adx >= 1; // super agresywny: prawie zawsze true
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
     // Kraken spot (lev=1): no shorting; Kraken margin (lev>1): shorts allowed
@@ -860,18 +858,18 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    rsiMin:     rsiMin     ?? 36,   // buy dip when RSI < 36
-    rsiMax:     rsiMax     ?? 67,   // sell pump when RSI > 67
-    trailPct:   trailPct   ?? 0.45, // 0.45% trailing stop
-    stopLoss:   stopLoss   ?? 1.20, // 1.2% SL — must survive Kraken 0.52% RT fee
-    takeProfit: takeProfit ?? 2.50, // 2.5% TP — net 1.98% profit after 0.52% fees
+    rsiMin:     rsiMin     ?? 50,   // super agresywny: kup przy RSI < 50 (każde osłabienie)
+    rsiMax:     rsiMax     ?? 58,   // super agresywny: sprzedaj przy RSI > 58
+    trailPct:   trailPct   ?? 0.25, // wąski trail — szybkie zamknięcie zysku
+    stopLoss:   stopLoss   ?? 0.80, // węższy SL — mniejsze straty per trade
+    takeProfit: takeProfit ?? 1.50, // niższy TP — łatwiej osiągnąć
     leverage:   leverage   ?? 10,
     allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
-    adxMin:        adxMin        ?? 12,  // niższy próg — 5m mają słabszy ADX
-    confluenceMin: confluenceMin ?? 1,   // 1 z 3 potwierdzeń (mniej restrykcyjne)
-    volMultMin:    volMultMin    ?? 1.0, // brak filtra wolumenu
-    cooldownMin:   cooldownMin   ?? 20,  // 20min między wejściami (zamiast 60)
+    adxMin:        adxMin        ?? 5,   // super agresywny: prawie brak wymogu trendu
+    confluenceMin: confluenceMin ?? 0,   // super agresywny: brak wymogu confluence
+    volMultMin:    volMultMin    ?? 0.5, // super agresywny: niski wolumen też OK
+    cooldownMin:   cooldownMin   ?? 5,   // super agresywny: 5 min między wejściami
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
