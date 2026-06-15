@@ -858,18 +858,18 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    rsiMin:     rsiMin     ?? 38,   // kup przy RSI < 38 (wyprzedanie) — top wynik grid-search
-    rsiMax:     rsiMax     ?? 70,   // trzymaj do RSI > 70, exit przy RSI > 78 (overbought)
-    trailPct:   trailPct   ?? 2.00, // 2% trail — przeżyje szum 5m, potwierdzone w 1152 testach
-    stopLoss:   stopLoss   ?? 2.00, // SL 2% — wystarczy na prawdziwy ruch bez nadmiernych strat
-    takeProfit: takeProfit ?? 6.00, // TP 6% — R/R=3:1, prawie zawsze exit przez rsi_extreme
+    rsiMin:     rsiMin     ?? 40,   // kup przy RSI < 40 — wyprzedanie na 5m
+    rsiMax:     rsiMax     ?? 70,   // trzymaj do RSI > 70
+    trailPct:   trailPct   ?? 1.50, // 1.5% trail — sprawdzony w grid-search
+    stopLoss:   stopLoss   ?? 1.50, // SL 1.5% — powyżej opłaty 0.52%
+    takeProfit: takeProfit ?? 5.00, // TP 5% — R/R > 3:1
     leverage:   leverage   ?? 10,
     allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
-    adxMin:        adxMin        ?? 28,  // ADX > 28 = silny trend (grid-search wybrał 28)
-    confluenceMin: confluenceMin ?? 2,   // 2 z 3 wskaźników musi potwierdzić wejście
-    volMultMin:    volMultMin    ?? 1.0, // wolumen 1× powyżej średniej (grid wybrał 1.0)
-    cooldownMin:   cooldownMin   ?? 90,  // 90 min między wejściami — top we wszystkich 15 konfig
+    adxMin:        adxMin        ?? 18,  // ADX > 18 — działa w obecnym rynku (BTC ADX ~18-22)
+    confluenceMin: confluenceMin ?? 1,   // 1 z 3 wskaźników — MACD lub wolumen lub trend
+    volMultMin:    volMultMin    ?? 0.8, // wolumen 0.8× — prawie zawsze spełniony
+    cooldownMin:   cooldownMin   ?? 20,  // 20 min między wejściami — ~3-6 transakcji/dzień
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
