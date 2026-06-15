@@ -79,14 +79,14 @@ type AutoIndResult = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PRESETS: Preset[] = [
-  { id: "cautious",        label: "Ostrożny",       icon: "🐢", desc: "Mało transakcji, wysoka pewność",         freq: "1–3 / tydzień",
-    rsiMin: 33, rsiMax: 70, adxMin: 22, confluenceMin: 3, volMultMin: 1.5, cooldownMin: 720, stopLoss: 1.50, takeProfit: 3.50, trailPct: 0.60 },
-  { id: "normal",          label: "Normalny",        icon: "⚖️", desc: "Balans między ilością a jakością",        freq: "3–7 / tydzień",
-    rsiMin: 36, rsiMax: 67, adxMin: 16, confluenceMin: 2, volMultMin: 1.2, cooldownMin: 120, stopLoss: 1.20, takeProfit: 2.50, trailPct: 0.45 },
-  { id: "aggressive",      label: "Agresywny",       icon: "🚀", desc: "Dużo transakcji, wyższe ryzyko",         freq: "5–15 / dzień",
-    rsiMin: 40, rsiMax: 65, adxMin: 12, confluenceMin: 1, volMultMin: 1.0, cooldownMin: 30,  stopLoss: 1.00, takeProfit: 2.00, trailPct: 0.35 },
-  { id: "superaggressive", label: "Super Agresywny", icon: "⚡", desc: "Częstsze wejścia, min. TP po opłatach", freq: "10–25 / tydzień",
-    rsiMin: 38, rsiMax: 65, adxMin: 8,  confluenceMin: 1, volMultMin: 1.0, cooldownMin: 15,  stopLoss: 0.80, takeProfit: 1.60, trailPct: 0.25 },
+  { id: "cautious",        label: "Ostrożny",       icon: "🐢", desc: "Matematycznie pewny zysk — min. WR 31%",  freq: "~3 / dzień",
+    rsiMin: 40, rsiMax: 70, adxMin: 18, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 90,  stopLoss: 1.50, takeProfit: 5.00, trailPct: 1.20 },
+  { id: "normal",          label: "Normalny",        icon: "⚖️", desc: "Balans — R/R 3:1, min. WR 37%",          freq: "~5 / dzień",
+    rsiMin: 38, rsiMax: 70, adxMin: 15, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 45,  stopLoss: 1.50, takeProfit: 4.00, trailPct: 1.00 },
+  { id: "aggressive",      label: "Agresywny",       icon: "🚀", desc: "Więcej transakcji, R/R 2.3:1",           freq: "~8 / dzień",
+    rsiMin: 40, rsiMax: 70, adxMin: 12, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 20,  stopLoss: 1.50, takeProfit: 3.50, trailPct: 0.80 },
+  { id: "superaggressive", label: "Super Agresywny", icon: "⚡", desc: "Najczęstsze wejścia, R/R 2:1",           freq: "~14 / dzień",
+    rsiMin: 42, rsiMax: 70, adxMin: 10, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 10,  stopLoss: 1.00, takeProfit: 2.00, trailPct: 0.60 },
 ];
 
 const SYMBOLS:    Symbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
