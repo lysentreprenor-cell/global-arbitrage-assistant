@@ -428,13 +428,15 @@ function _ohlcCacheGet(pair: string, interval: number, since: number): any[] | n
   const entry = _ohlcCache.get(_ohlcCacheKey(pair, interval));
   if (!entry || Date.now() - entry.fetchedAt > 5 * 60 * 1000) return null;
   if (!entry.candles.length) return null;
-  // Only serve from cache if it actually reaches back to the requested start.
-  // Otherwise (e.g. simulation asking for 20 days but cache only holds ~150
-  // recent candles) force a fresh Kraken fetch instead of returning a short
-  // slice that fails the "enough history" check downstream.
+  const slice = entry.candles.filter((c: any) => c[0] >= since);
+  // Plenty of data → serve from cache regardless of how far back it reaches.
+  // Kraken returns the same recent candles regardless of 'since' anyway, so
+  // a re-fetch would not give older data.
+  if (slice.length >= 200) return slice;
+  // Small cache: only serve if it actually reaches back to the requested start,
+  // otherwise force a Kraken re-fetch (may return more candles).
   const earliest = entry.candles[0][0] as number;
   if (earliest > since + interval * 60) return null;
-  const slice = entry.candles.filter((c: any) => c[0] >= since);
   return slice.length >= 20 ? slice : null;
 }
 
@@ -476,7 +478,16 @@ async function krakenOhlcFetch(pair: string, interval: number, since: number): P
           const key = Object.keys(d.result ?? {}).find(k => k !== "last");
           if (!key) { resolve([]); return; }
           const candles: any[] = d.result[key] ?? [];
-          if (candles.length > 0) _ohlcCacheMerge(pair, interval, candles);
+          if (candles.length > 0) {
+            _ohlcCacheMerge(pair, interval, candles);
+            // Return the full merged slice (includes disk history loaded at startup)
+            // when it is larger than what Kraken just returned.
+            const merged = _ohlcCache.get(_ohlcCacheKey(pair, interval));
+            if (merged && merged.candles.length > candles.length) {
+              const full = merged.candles.filter((c: any) => c[0] >= since);
+              if (full.length > candles.length) { resolve(full); return; }
+            }
+          }
           resolve(candles);
           return;
         } catch {
@@ -1050,19 +1061,11 @@ router.post("/backtest", async (req, res) => {
     } = req.body ?? {};
 
     const pair = krakenPair(symbol);
-    const FIVE = 5 * 60; // 5m in seconds
 
-    // ── Fetch 5m candles, paginated (~7 days = 2016 candles, 3 pages) ──────────
-    const wantPages = 3;
-    let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
-    let raw: any[] = [];
-    for (let pg = 0; pg < wantPages; pg++) {
-      const page = await krakenOhlcFetch(pair, 5, sinceP);
-      if (!page || !page.length) break;
-      raw.push(...page);
-      sinceP = page[page.length - 1][0] + FIVE;
-    }
-    // dedup + sort by time
+    // Single fetch — Kraken returns up to 720 recent candles regardless of 'since'.
+    // With disk history loaded at startup the merged result may be much larger.
+    const since5 = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+    let raw: any[] = (await krakenOhlcFetch(pair, 5, since5)) ?? [];
     const seen = new Set<number>();
     raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
     if (raw.length < 100) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 100)`);
@@ -1116,18 +1119,11 @@ async function runOptimize(params: {
 }): Promise<{ result: OptCombo; days: number; combosTested: number }> {
   const { symbol, adxMin, confluenceMin, volMultMin, cooldownMin, leverage, allowShorts } = params;
   const pair = krakenPair(symbol);
-  const FIVE = 5 * 60;
 
-  // Fetch ~18 days (8 pages × 720 candles = 5760 candles × 5min = 20 days)
-  const wantPages = 8;
-  let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
-  let raw: any[] = [];
-  for (let pg = 0; pg < wantPages; pg++) {
-    const page = await krakenOhlcFetch(pair, 5, sinceP);
-    if (!page || !page.length) break;
-    raw.push(...page);
-    sinceP = page[page.length - 1][0] + FIVE;
-  }
+  // Single fetch — Kraken returns up to 720 recent candles regardless of 'since'.
+  // With disk history (data/ohlc_cache.json) the merged result grows over time.
+  const since5 = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+  let raw: any[] = (await krakenOhlcFetch(pair, 5, since5)) ?? [];
   const seen = new Set<number>();
   raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
   if (raw.length < 200) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 200)`);
@@ -1254,16 +1250,8 @@ router.post("/auto-indicators", async (req, res) => {
     } = req.body ?? {};
 
     const pair = krakenPair(symbol);
-    const FIVE = 5 * 60;
-    const wantPages = 8;
-    let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;
-    let raw: any[] = [];
-    for (let pg = 0; pg < wantPages; pg++) {
-      const page = await krakenOhlcFetch(pair, 5, sinceP);
-      if (!page || !page.length) break;
-      raw.push(...page);
-      sinceP = page[page.length - 1][0] + FIVE;
-    }
+    const since5 = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+    let raw: any[] = (await krakenOhlcFetch(pair, 5, since5)) ?? [];
     const seen = new Set<number>();
     raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
     if (raw.length < 200) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 200)`);
