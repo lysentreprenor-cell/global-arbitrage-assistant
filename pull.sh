@@ -9,8 +9,8 @@ git fetch "$REPO" "$BRANCH"
 git checkout -B "$BRANCH" FETCH_HEAD
 
 echo ""
-echo "==> Instalowanie zależności (jeśli nowe)..."
-npm install --prefer-offline 2>&1 | tail -3
+echo "==> Instalowanie zależności..."
+npm install 2>&1 | tail -5
 
 echo ""
 echo "==> Budowanie aplikacji (dist/)..."
