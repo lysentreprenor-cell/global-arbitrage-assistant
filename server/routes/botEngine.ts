@@ -476,16 +476,8 @@ async function krakenOhlcFetch(pair: string, interval: number, since: number): P
           const key = Object.keys(d.result ?? {}).find(k => k !== "last");
           if (!key) { resolve([]); return; }
           const candles: any[] = d.result[key] ?? [];
-          if (candles.length > 0) {
-            _ohlcCacheMerge(pair, interval, candles);
-            // Return the full merged slice from cache (includes disk history),
-            // not just the freshly-fetched candles from Kraken.
-            const merged = _ohlcCache.get(_ohlcCacheKey(pair, interval));
-            const slice = merged ? merged.candles.filter((c: any) => c[0] >= since) : candles;
-            resolve(slice.length >= candles.length ? slice : candles);
-          } else {
-            resolve(candles);
-          }
+          if (candles.length > 0) _ohlcCacheMerge(pair, interval, candles);
+          resolve(candles);
           return;
         } catch {
           if (attempt < 4) await new Promise(r2 => setTimeout(r2, 1000 * (attempt + 1)));
