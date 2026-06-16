@@ -354,6 +354,58 @@ let _krakenOhlcLast = 0; // timestamp of last completed OHLC request
 interface OhlcCacheEntry { candles: any[]; fetchedAt: number }
 const _ohlcCache = new Map<string, OhlcCacheEntry>();
 
+// ── Persistent candle storage ─────────────────────────────────────────────────
+// Candles are saved to data/ohlc_cache.json so they survive app restarts.
+// Up to 30 days of history — enough for meaningful backtests/simulation.
+const CANDLE_FILE = path.resolve(process.cwd(), "data", "ohlc_cache.json");
+let _candlesSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function _candlesDiskLoad() {
+  try {
+    if (!fs.existsSync(CANDLE_FILE)) return;
+    const raw: Record<string, any[]> = JSON.parse(fs.readFileSync(CANDLE_FILE, "utf8"));
+    const cutoff = Math.floor(Date.now() / 1000) - 30 * 24 * 3600; // 30-day trim
+    let count = 0;
+    for (const [key, candles] of Object.entries(raw)) {
+      if (!Array.isArray(candles) || !candles.length) continue;
+      const fresh = candles.filter((c: any) => c[0] >= cutoff);
+      if (fresh.length >= 10) {
+        // fetchedAt=0 → TTL check fails → first request always fetches fresh
+        // data from Kraken and merges it with this history
+        _ohlcCache.set(key, { candles: fresh, fetchedAt: 0 });
+        count += fresh.length;
+      }
+    }
+    if (count > 0) {
+      const summary = [..._ohlcCache.keys()].map(k => `${k}:${_ohlcCache.get(k)!.candles.length}`).join(", ");
+      console.log(`[candles] Loaded ${count} candles from disk (${summary})`);
+    }
+  } catch (e) {
+    console.warn("[candles] Failed to load from disk:", e);
+  }
+}
+
+// Debounced 30 s — avoids hammering storage on every bot tick.
+function _candlesDiskSave() {
+  if (_candlesSaveTimer) clearTimeout(_candlesSaveTimer);
+  _candlesSaveTimer = setTimeout(() => {
+    try {
+      const dir = path.dirname(CANDLE_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const obj: Record<string, any[]> = {};
+      for (const [key, entry] of _ohlcCache.entries()) {
+        obj[key] = entry.candles;
+      }
+      fs.writeFileSync(CANDLE_FILE, JSON.stringify(obj));
+    } catch (e) {
+      console.warn("[candles] Failed to save to disk:", e);
+    }
+    _candlesSaveTimer = null;
+  }, 30_000);
+}
+
+_candlesDiskLoad();
+
 function _ohlcCacheKey(pair: string, interval: number) { return `${pair}_${interval}`; }
 
 function _ohlcCacheMerge(pair: string, interval: number, newCandles: any[]) {
@@ -369,6 +421,7 @@ function _ohlcCacheMerge(pair: string, interval: number, newCandles: any[]) {
     if (merged.length > 12000) merged = merged.slice(-12000); // keep ≤42 days at 5m
   }
   _ohlcCache.set(key, { candles: merged, fetchedAt: Date.now() });
+  _candlesDiskSave();
 }
 
 function _ohlcCacheGet(pair: string, interval: number, since: number): any[] | null {
@@ -423,8 +476,16 @@ async function krakenOhlcFetch(pair: string, interval: number, since: number): P
           const key = Object.keys(d.result ?? {}).find(k => k !== "last");
           if (!key) { resolve([]); return; }
           const candles: any[] = d.result[key] ?? [];
-          if (candles.length > 0) _ohlcCacheMerge(pair, interval, candles);
-          resolve(candles);
+          if (candles.length > 0) {
+            _ohlcCacheMerge(pair, interval, candles);
+            // Return the full merged slice from cache (includes disk history),
+            // not just the freshly-fetched candles from Kraken.
+            const merged = _ohlcCache.get(_ohlcCacheKey(pair, interval));
+            const slice = merged ? merged.candles.filter((c: any) => c[0] >= since) : candles;
+            resolve(slice.length >= candles.length ? slice : candles);
+          } else {
+            resolve(candles);
+          }
           return;
         } catch {
           if (attempt < 4) await new Promise(r2 => setTimeout(r2, 1000 * (attempt + 1)));
