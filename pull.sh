@@ -9,9 +9,9 @@ git fetch "$REPO" "$BRANCH"
 git stash --include-untracked 2>/dev/null || true
 git checkout -f -B "$BRANCH" FETCH_HEAD
 
-echo ""
-echo "==> Instalowanie zależności..."
-npm install 2>&1 | tail -5
+# NIE uruchamiamy 'npm install' — firewall Replit blokuje niektóre pakiety
+# (es5-ext), a node_modules jest już zainstalowany przy starcie środowiska.
+# 'npm install' tylko psuje node_modules. Budujemy z istniejących zależności.
 
 echo ""
 echo "==> Budowanie aplikacji (dist/)..."
