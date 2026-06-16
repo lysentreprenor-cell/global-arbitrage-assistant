@@ -6,7 +6,8 @@ BRANCH="claude/teraz-YKMDA"
 
 echo "==> Pobieranie zmian z GitHub ($BRANCH)..."
 git fetch "$REPO" "$BRANCH"
-git checkout -B "$BRANCH" FETCH_HEAD
+git stash --include-untracked 2>/dev/null || true
+git checkout -f -B "$BRANCH" FETCH_HEAD
 
 echo ""
 echo "==> Instalowanie zależności..."
