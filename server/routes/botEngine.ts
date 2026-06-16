@@ -435,8 +435,7 @@ async function getIndSnap(symbol: string): Promise<Record<string, number>> {
   if (indSnapCache && indSnapCache.symbol === symbol && Date.now() - indSnapCache.ts < 120_000) {
     return indSnapCache.snap;
   }
-  const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
-  const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+  const pair = krakenPair(symbol);
   const since = Math.floor(Date.now() / 1000) - 100 * 5 * 60;
   const rawList = await krakenOhlcFetch(pair, 5, since);
   if (!rawList || rawList.length < 50) throw new Error("Not enough candles");
@@ -990,8 +989,7 @@ router.post("/backtest", async (req, res) => {
       filters,
     } = req.body ?? {};
 
-    const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
-    const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+    const pair = krakenPair(symbol);
     const FIVE = 5 * 60; // 5m in seconds
 
     // ── Fetch 5m candles, paginated (~7 days = 2016 candles, 3 pages) ──────────
@@ -1057,8 +1055,7 @@ async function runOptimize(params: {
   volMultMin: number; cooldownMin: number; leverage: number; allowShorts: boolean;
 }): Promise<{ result: OptCombo; days: number; combosTested: number }> {
   const { symbol, adxMin, confluenceMin, volMultMin, cooldownMin, leverage, allowShorts } = params;
-  const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
-  const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+  const pair = krakenPair(symbol);
   const FIVE = 5 * 60;
 
   // Fetch ~18 days (8 pages × 720 candles = 5760 candles × 5min = 20 days)
@@ -1196,8 +1193,7 @@ router.post("/auto-indicators", async (req, res) => {
       stopLoss = 1.20, takeProfit = 2.50, trailPct = 0.45,
     } = req.body ?? {};
 
-    const PAIR_MAP: Record<string, string> = { BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD" };
-    const pair = PAIR_MAP[symbol] ?? "XBTUSD";
+    const pair = krakenPair(symbol);
     const FIVE = 5 * 60;
     const wantPages = 8;
     let sinceP = Math.floor(Date.now() / 1000) - wantPages * 720 * FIVE;

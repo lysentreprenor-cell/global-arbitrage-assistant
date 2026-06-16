@@ -9,6 +9,14 @@ git fetch "$REPO" "$BRANCH"
 git checkout -B "$BRANCH" FETCH_HEAD
 
 echo ""
+echo "==> Instalowanie zależności (jeśli nowe)..."
+npm install --prefer-offline 2>&1 | tail -3
+
+echo ""
+echo "==> Budowanie aplikacji (dist/)..."
+npm run build
+
+echo ""
 echo "==> Zainstalowane wersje plików:"
 node --version
 ls -lh dist/index.cjs 2>/dev/null || echo "BRAK dist/index.cjs !"
