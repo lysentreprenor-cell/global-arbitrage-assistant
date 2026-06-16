@@ -604,9 +604,13 @@ function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: 
 // ── Fast exit check (every 5s) ────────────────────────────────────────────────
 async function priceCheck() {
   if (!config || !running || !position) return;
-  const price = await fetchCurrentPrice(config.symbol);
-  if (!price) return;
-  lastPrice = price;
+  const live = await fetchCurrentPrice(config.symbol);
+  if (live) {
+    lastPrice = live;
+  } else if (lastPrice <= 0) {
+    return; // no price at all — skip
+  }
+  const price = live ?? lastPrice; // fall back to last known price for SL/TP
 
   const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
   const pct    = position.direction === "short" ? -rawPct : rawPct;
