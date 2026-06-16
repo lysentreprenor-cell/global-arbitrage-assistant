@@ -463,7 +463,7 @@ async function krakenOhlcFetch(pair: string, interval: number, since: number): P
             await new Promise(r2 => setTimeout(r2, 2000 * (attempt + 1)));
             continue;
           }
-          if (!r.ok) { resolve(null); return; }
+          if (!r.ok) { console.warn(`[ohlc] HTTP ${r.status} pair=${pair} int=${interval}`); resolve(null); return; }
           const d = await r.json() as any;
           // Kraken can return HTTP 200 but with rate-limit error in JSON body — must retry
           if (d.error?.length) {
@@ -473,10 +473,11 @@ async function krakenOhlcFetch(pair: string, interval: number, since: number): P
               await new Promise(r2 => setTimeout(r2, 2000 * (attempt + 1)));
               continue;
             }
+            console.warn(`[ohlc] Kraken error pair=${pair} int=${interval}:`, d.error);
             resolve(null); return;
           }
           const key = Object.keys(d.result ?? {}).find(k => k !== "last");
-          if (!key) { resolve([]); return; }
+          if (!key) { console.warn(`[ohlc] No result key pair=${pair} int=${interval} keys=`, Object.keys(d.result ?? {})); resolve([]); return; }
           const candles: any[] = d.result[key] ?? [];
           if (candles.length > 0) {
             _ohlcCacheMerge(pair, interval, candles);
@@ -490,12 +491,14 @@ async function krakenOhlcFetch(pair: string, interval: number, since: number): P
           }
           resolve(candles);
           return;
-        } catch {
+        } catch (err: any) {
+          console.warn(`[ohlc] attempt ${attempt} failed pair=${pair} int=${interval}:`, err?.message ?? err);
           if (attempt < 4) await new Promise(r2 => setTimeout(r2, 1000 * (attempt + 1)));
         }
       }
+      console.warn(`[ohlc] all retries failed pair=${pair} int=${interval}`);
       resolve(null);
-    }).catch(() => { resolve(null); });
+    }).catch((err: any) => { console.warn(`[ohlc] queue error:`, err?.message ?? err); resolve(null); });
   });
 }
 
@@ -1126,7 +1129,7 @@ async function runOptimize(params: {
   let raw: any[] = (await krakenOhlcFetch(pair, 5, since5)) ?? [];
   const seen = new Set<number>();
   raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
-  if (raw.length < 200) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 200)`);
+  if (raw.length < 200) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 200) [${pair}]`);
 
   // 4H candles (optional)
   let raw4: any[] = [];
