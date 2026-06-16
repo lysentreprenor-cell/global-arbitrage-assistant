@@ -372,10 +372,15 @@ function _ohlcCacheMerge(pair: string, interval: number, newCandles: any[]) {
 }
 
 function _ohlcCacheGet(pair: string, interval: number, since: number): any[] | null {
+  // Bypass cache for historical requests (>1h ago) — cache only has ~150 recent candles
+  // so it would return wrong data for simulation/optimize which need days of history
+  const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
+  if (since < oneHourAgo) return null;
+
   const entry = _ohlcCache.get(_ohlcCacheKey(pair, interval));
   if (!entry || Date.now() - entry.fetchedAt > 5 * 60 * 1000) return null;
   const slice = entry.candles.filter((c: any) => c[0] >= since);
-  return slice.length >= 20 ? slice : null; // only return if enough candles from that point
+  return slice.length >= 20 ? slice : null;
 }
 
 async function krakenOhlcFetch(pair: string, interval: number, since: number): Promise<any[] | null> {
