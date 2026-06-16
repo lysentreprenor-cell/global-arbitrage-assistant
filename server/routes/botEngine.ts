@@ -732,9 +732,11 @@ async function engineTick() {
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
-    // Trend-following: RSI 20-80 + MACD↑ + (EMA9>EMA21 na 5m LUB 4H byczo)
-    // fourHourTrend="bull" jako alternatywa — bot handluje przy bull 4H nawet gdy 5m w konsolidacji
-    const trendFollow = rsi >= 20 && rsi <= 80 && macdBull && (ema9 > ema21 || fourHourTrend === "bull");
+    // Trend-following: RSI neutral zone + price direction on at least one timeframe
+    // Removed MACD requirement from here — MACD is filtered through longConf confluence
+    // Added bearMkt guard + 4H bear guard to avoid entries in downtrends
+    const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt && fourHourTrend !== "bear" &&
+      (ema9 > ema21 || fourHourTrend === "bull");
 
     // Bear market filter: EMA cross zawsze dozwolony, RSI dip blokowany TYLKO przy crash
     const rsiBuyFiltered = rsiBuy && !inCrash;
@@ -751,8 +753,11 @@ async function engineTick() {
     const doShort = isShort && cooldownOk;
 
     if (!doLong && !doShort) {
-      const blockReason = inCrash ? `Crash(-${dipFromHigh.toFixed(1)}%)` : bearMkt ? `Bear` : rangeMode ? `Range(ADX${adx.toFixed(0)})` : `brak`;
-      addLog(`Brak sygnału — RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} 4H:${fourHourTrend} Reżim:${marketRegime} [blok:${blockReason}]`);
+      // Detailed diagnostics: show exactly which condition blocked the signal
+      const tf = ema9 > ema21 ? "ema↑" : fourHourTrend === "bull" ? "4H↑" : slope5 > 0.15 ? `sl↑${slope5.toFixed(2)}` : `no(sl=${slope5.toFixed(2)})`;
+      const confDetail = `${macdBull?"M":"-"}${trendOk?"A":"-"}${volOk?"V":"-"}`;
+      const coolLeft = cooldownOk ? "✓" : `${Math.ceil((cooldownMs - (Date.now() - lastEntryTime)) / 60000)}m`;
+      addLog(`Brak sygnału — RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} TF:${tf} conf=${confDetail}(min=${confMin}) cool=${coolLeft} 4H:${fourHourTrend} crash=${inCrash}`);
       return;
     }
     // Determine which signal triggered
