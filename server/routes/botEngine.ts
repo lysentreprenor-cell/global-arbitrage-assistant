@@ -306,6 +306,8 @@ let dailyStartPnl = 0;         // sessionPnl at start of current day
 let tradeHistory: TradeRecord[] = [];
 let sessionWins = 0;
 let sessionLosses = 0;
+let consecutiveLosses = 0;  // streak counter for circuit breaker
+let lossPauseUntil = 0;     // epoch ms — block new entries until this time
 let sessionPeakPnl = 0;
 let sessionMaxDrawdown = 0;
 let fourHourTrend: "bull" | "bear" | "neutral" = "neutral";
@@ -590,8 +592,19 @@ async function fetch4HCandles(symbol: string): Promise<{ema9:number;ema21:number
 
 function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: number, reason: string) {
   const durationH = (Date.now() - new Date(pos.entryTime).getTime()) / 3_600_000;
-  if (pnlPct > 0) sessionWins++;
-  else sessionLosses++;
+  if (pnlPct > 0) {
+    sessionWins++;
+    consecutiveLosses = 0;
+    lossPauseUntil = 0;
+  } else {
+    sessionLosses++;
+    consecutiveLosses++;
+    // Circuit breaker: 3 losses in a row → 2h cooldown to avoid bleeding in a bad regime
+    if (consecutiveLosses >= 3) {
+      lossPauseUntil = Date.now() + 2 * 3600 * 1000;
+      addLog(`🛑 ${consecutiveLosses} strat z rzędu — pauza 2h (circuit breaker)`, "warn");
+    }
+  }
   if (sessionPnl > sessionPeakPnl) sessionPeakPnl = sessionPnl;
   const dd = sessionPeakPnl > sessionPnl ? sessionPeakPnl - sessionPnl : 0;
   if (dd > sessionMaxDrawdown) sessionMaxDrawdown = dd;
@@ -811,6 +824,11 @@ async function engineTick() {
       addLog(`⛔ Dzienny limit straty -3%: ${dailyLossPct.toFixed(1)}% — blokuję nowe wejścia`, "warn");
       return;
     }
+    if (Date.now() < lossPauseUntil) {
+      const minsLeft = Math.ceil((lossPauseUntil - Date.now()) / 60000);
+      addLog(`⛔ Circuit breaker (${consecutiveLosses} strat z rzędu) — pauza jeszcze ${minsLeft}min`, "warn");
+      return;
+    }
     if (lowLiqHour) {
       addLog(`⏸ Niska płynność UTC ${utcHour}:xx (02-06) — pomijam sygnał`, "info");
       return;
@@ -1010,6 +1028,8 @@ router.post("/start", (req, res) => {
   tradeHistory = [];
   sessionWins = 0;
   sessionLosses = 0;
+  consecutiveLosses = 0;
+  lossPauseUntil = 0;
   sessionPeakPnl = 0;
   sessionMaxDrawdown = 0;
   fourHourTrend = "neutral";
@@ -1206,7 +1226,9 @@ async function runOptimize(params: {
     // Confidence: 60% win-rate consistency + 40% validation return positive
     const wrRatio = tr.winRate > 0 ? Math.min(1, vr.winRate / tr.winRate) : 0;
     const confidence = Math.round(wrRatio * 60 + (vr.totalReturn >= 0 ? 40 : vr.totalReturn >= -1 ? 20 : 0));
-    const score = tr.sharpe * (confidence / 100);
+    // Score weights out-of-sample (validation) Sharpe 70% over training 30% to resist overfitting.
+    // Combos that only look good on training data score low; robust combos that hold up score high.
+    const score = (tr.sharpe * 0.3 + vr.sharpe * 0.7) * (confidence / 100);
 
     const cand: OptCombo = {
       rsiMin, rsiMax, trailPct, stopLoss, takeProfit,
