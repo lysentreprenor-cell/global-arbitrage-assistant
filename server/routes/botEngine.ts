@@ -311,7 +311,7 @@ let sessionMaxDrawdown = 0;
 let fourHourTrend: "bull" | "bear" | "neutral" = "neutral";
 let lastEntrySignal = "";
 
-async function fetchCandles(symbol: string): Promise<{closes:number[];highs:number[];lows:number[];volumes:number[];price:number}|null> {
+async function fetchCandles(symbol: string): Promise<{closes:number[];opens:number[];highs:number[];lows:number[];volumes:number[];vwaps:number[];price:number}|null> {
   const pair = krakenPair(symbol);
   try {
     const since = Math.floor(Date.now() / 1000) - 150 * 5 * 60;
@@ -320,9 +320,11 @@ async function fetchCandles(symbol: string): Promise<{closes:number[];highs:numb
     const list = raw.slice(-150);
     return {
       closes:  list.map((k: any) => parseFloat(k[4])),
+      opens:   list.map((k: any) => parseFloat(k[1])),
       highs:   list.map((k: any) => parseFloat(k[2])),
       lows:    list.map((k: any) => parseFloat(k[3])),
       volumes: list.map((k: any) => parseFloat(k[6])),
+      vwaps:   list.map((k: any) => parseFloat(k[5])),
       price:   parseFloat(list[list.length - 1][4]),
     };
   } catch (e: any) {
@@ -677,7 +679,7 @@ async function engineTick() {
   try {
     const candles = await fetchCandles(config.symbol);
     if (!candles) return;
-    const { closes, highs, lows, volumes } = candles;
+    const { closes, opens, highs, lows, volumes, vwaps } = candles;
     // Always fetch live price for accurate entry — don't rely on priceCheck interval
     const livePrice = await fetchCurrentPrice(config.symbol);
     const price = livePrice ?? (lastPrice > 0 ? lastPrice : candles.price);
@@ -696,6 +698,33 @@ async function engineTick() {
     const volMult = calcVolumeMult(volumes.slice(0, -1));
     const atr     = calcAtr(highs.slice(0, -1), lows.slice(0, -1), closedCloses);
     const atrPct  = price > 0 ? (atr / price) * 100 : 0;
+
+    // ── Extra quality indicators ──────────────────────────────────────────────
+    const stochRsi = calcStochRsi(closedCloses);
+    const bbPercB  = calcBBPercB(closedCloses);
+
+    // RSI divergence: price moved one direction but RSI moved opposite (5-bar lookback)
+    const rsi5ago   = closedCloses.length >= 20 ? calcRsi(closedCloses.slice(0, -5)) : rsi;
+    const price5ago = closedCloses.length >= 6  ? closedCloses[closedCloses.length - 6] : 0;
+    const curPrice  = closedCloses[closedCloses.length - 1];
+    const rsiDivBull = price5ago > 0 && curPrice < price5ago * 0.997 && rsi > rsi5ago + 2;
+    const rsiDivBear = price5ago > 0 && curPrice > price5ago * 1.003 && rsi < rsi5ago - 2;
+
+    // Rolling 4h VWAP from Kraken's per-candle VWAP × volume
+    const closedVwaps = vwaps.slice(0, -1);
+    const closedVols  = volumes.slice(0, -1);
+    const vwapN = Math.min(48, closedVwaps.length);
+    const vwapNumer = closedVwaps.slice(-vwapN).reduce((s, v, i) => s + v * closedVols.slice(-vwapN)[i], 0);
+    const vwapDenom = closedVols.slice(-vwapN).reduce((s, v) => s + v, 0);
+    const vwap      = vwapDenom > 0 ? vwapNumer / vwapDenom : price;
+    const belowVwap = price < vwap * 0.999;
+    const aboveVwap = price > vwap * 1.001;
+
+    // Candle body confirmation: last closed candle must close in signal direction
+    const lastOpen  = opens[opens.length - 2] ?? closedCloses[closedCloses.length - 2];
+    const lastClose = closedCloses[closedCloses.length - 1];
+    const bullCandle = lastClose > lastOpen;
+    const bearCandle = lastClose < lastOpen;
 
     // ── Warmup & auxiliary indicators ────────────────────────────────────────
     tickCount++;
@@ -733,7 +762,7 @@ async function engineTick() {
     // Update prevRsi for next tick
     prevRsi = rsi;
 
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
 
     // ── Open position management ─────────────────────────────────────────────
     if (position) {
@@ -794,18 +823,22 @@ async function engineTick() {
 
     const crossBuy  = ema9 > ema21 && prevEma9 <= prevEma21;
     const crossSell = ema9 < ema21 && prevEma9 >= prevEma21;
-    // RSI buy: either RSI < threshold OR recovering from oversold (bounce confirmation)
-    const rsiBuy    = rsi < rsiMin || rsiRecovering;
-    const rsiSell   = rsi > rsiMax;
+    // RSI signals: oversold/overbought OR RSI divergence (price moves one way, RSI the other)
+    const rsiBuy    = rsi < rsiMin || rsiRecovering || rsiDivBull;
+    const rsiSell   = rsi > rsiMax || rsiDivBear;
 
-    // Confluence: require 2 of 3 (MACD direction, ADX strength, volume spike)
+    // Confluence: 5 signals (MACD, ADX, volume, StochRSI, BB%B) — confMin applies to all 5
     const macdBull  = macdLine > macdSignal;
     const macdBear  = macdLine < macdSignal;
     const confMin   = config.confluenceMin ?? 2;
     const trendOk   = adx >= adxMin;
     const volOk     = volMult >= (config.volMultMin ?? 1.2);
-    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confMin;
-    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confMin;
+    const stochLow  = stochRsi < 25;   // StochRSI oversold
+    const stochHigh = stochRsi > 75;   // StochRSI overbought
+    const bbLow     = bbPercB < 20;    // price near lower Bollinger Band
+    const bbHigh    = bbPercB > 80;    // price near upper Bollinger Band
+    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochLow  ? 1 : 0) + (bbLow  ? 1 : 0) >= confMin;
+    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochHigh ? 1 : 0) + (bbHigh ? 1 : 0) >= confMin;
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
@@ -819,8 +852,10 @@ async function engineTick() {
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true; // 2× agresywny: brak wymogu ADX quality
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
-    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf;
+    // VWAP filter: long preferowany gdy cena poniżej 4h VWAP (wartość), short gdy powyżej
+    // Candle body: ostatnia świeca musi zamknąć się w kierunku sygnału
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy);
+    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && aboveVwap;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -830,9 +865,9 @@ async function engineTick() {
     if (!doLong && !doShort) {
       // Detailed diagnostics: show exactly which condition blocked the signal
       const tf = ema9 > ema21 ? "ema↑" : fourHourTrend === "bull" ? "4H↑" : slope5 > 0.15 ? `sl↑${slope5.toFixed(2)}` : `no(sl=${slope5.toFixed(2)})`;
-      const confDetail = `${macdBull?"M":"-"}${trendOk?"A":"-"}${volOk?"V":"-"}`;
+      const confDetail = `${macdBull?"M":"-"}${trendOk?"A":"-"}${volOk?"V":"-"}${stochLow?"S":"-"}${bbLow?"B":"-"}`;
       const coolLeft = cooldownOk ? "✓" : `${Math.ceil((cooldownMs - (Date.now() - lastEntryTime)) / 60000)}m`;
-      addLog(`Brak sygnału — RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} TF:${tf} conf=${confDetail}(min=${confMin}) cool=${coolLeft} 4H:${fourHourTrend} crash=${inCrash}`);
+      addLog(`Brak sygnału — RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} TF:${tf} conf=${confDetail}(min=${confMin}) cool=${coolLeft} vwap=${belowVwap?"↓":aboveVwap?"↑":"="} candle=${bullCandle?"bull":bearCandle?"bear":"doji"} divBull=${rsiDivBull} crash=${inCrash}`);
       return;
     }
     // Determine which signal triggered
