@@ -820,9 +820,7 @@ async function engineTick() {
     const trendQuality = true; // 2× agresywny: brak wymogu ADX quality
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
-    // Kraken spot (lev=1): no shorting; Kraken margin (lev>1): shorts allowed
-    const krakenSpot = config.platform === "kraken" && effLev === 1;
-    const isShort = !krakenSpot && config.allowShorts && (crossSell || rsiSell) && shortConf;
+    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
