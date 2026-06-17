@@ -53,14 +53,15 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
   };
 
   const closes  = raw.map((c: any) => parseFloat(c[4]));
+  const opens   = raw.map((c: any) => parseFloat(c[1]));
   const highs   = raw.map((c: any) => parseFloat(c[2]));
   const lows    = raw.map((c: any) => parseFloat(c[3]));
+  const vwapsAll= raw.map((c: any) => parseFloat(c[5]));
   const volumes = raw.map((c: any) => parseFloat(c[6]));
 
   const trades: SimTrade[] = [];
   const cooldownMs = cooldownMin * 60 * 1000;
   const effLev = Math.max(1, leverage);
-  const krakenSpot = effLev === 1; // spot = no shorts (matches live)
   const MAX_HOLD = 576; // 48h / 5min — same as live
   let lastEntry = 0;
   let prevRsiSim = 50;     // RSI recovery tracking across candles (mirrors prevRsi)
@@ -116,22 +117,48 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const inCrash = dipFromHigh > 5.0;
     const fourH = trend4hAt(tMs);
 
+    // ── Extra quality indicators (mirror live engineTick) ──
+    const stochRsi = calcStochRsi(wc);
+    const bbPercB  = calcBBPercB(wc);
+    const rsi5ago   = wc.length >= 20 ? calcRsi(wc.slice(0, -5)) : rsi;
+    const price5ago = wc.length >= 6  ? wc[wc.length - 6] : 0;
+    const curClose  = wc[wc.length - 1];
+    const rsiDivBull = price5ago > 0 && curClose < price5ago * 0.997 && rsi > rsi5ago + 2;
+    const rsiDivBear = price5ago > 0 && curClose > price5ago * 1.003 && rsi < rsi5ago - 2;
+    // Rolling 4h VWAP (Kraken per-candle vwap × vol) over closed candles up to i-1
+    const cVwaps = vwapsAll.slice(0, i);
+    const cVols  = volumes.slice(0, i);
+    const vwapN  = Math.min(48, cVwaps.length);
+    const vNum   = cVwaps.slice(-vwapN).reduce((s, v, q) => s + v * cVols.slice(-vwapN)[q], 0);
+    const vDen   = cVols.slice(-vwapN).reduce((s, v) => s + v, 0);
+    const vwap   = vDen > 0 ? vNum / vDen : price;
+    const belowVwap = price < vwap * 0.999;
+    const aboveVwap = price > vwap * 1.001;
+    // Candle body confirmation on last closed candle (i-1)
+    const lastOpen  = opens[i - 1] ?? curClose;
+    const bullCandle = curClose > lastOpen;
+    const bearCandle = curClose < lastOpen;
+
     const crossBuy  = ema9 > ema21 && prevE9 <= prevE21;
     const crossSell = ema9 < ema21 && prevE9 >= prevE21;
-    const rsiBuy    = rsi < rsiMin || rsiRecovering;
-    const rsiSell   = rsi > rsiMax;
+    const rsiBuy    = rsi < rsiMin || rsiRecovering || rsiDivBull;
+    const rsiSell   = rsi > rsiMax || rsiDivBear;
     const macdBull  = macdLine > macdSig;
     const macdBear  = macdLine < macdSig;
     const trendOk   = adx >= adxMin;
     const volOk     = volMult >= volMultMin;
-    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
-    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) >= confluenceMin;
+    const stochLow  = stochRsi < 25;
+    const stochHigh = stochRsi > 75;
+    const bbLow     = bbPercB < 20;
+    const bbHigh    = bbPercB > 80;
+    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochLow  ? 1 : 0) + (bbLow  ? 1 : 0) >= confluenceMin;
+    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochHigh ? 1 : 0) + (bbHigh ? 1 : 0) >= confluenceMin;
     const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt && fourH !== "bear" &&
       (ema9 > ema21 || fourH === "bull");
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true;
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality;
-    const isShort = !krakenSpot && allowShorts && (crossSell || rsiSell) && shortConf;
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy);
+    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && aboveVwap;
     if (!isLong && !isShort) continue;
 
     // ── Indicator filter gates (applied when toggles are ON) ──
