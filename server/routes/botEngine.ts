@@ -855,7 +855,7 @@ async function engineTick() {
     // VWAP filter: long preferowany gdy cena poniżej 4h VWAP (wartość), short gdy powyżej
     // Candle body: ostatnia świeca musi zamknąć się w kierunku sygnału
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy);
-    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && aboveVwap;
+    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell);
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;

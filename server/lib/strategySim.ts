@@ -158,7 +158,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true;
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy);
-    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && aboveVwap;
+    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell);
     if (!isLong && !isShort) continue;
 
     // ── Indicator filter gates (applied when toggles are ON) ──
