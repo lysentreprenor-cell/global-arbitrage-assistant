@@ -301,6 +301,9 @@ let closeFailCount = 0;
 let prevRsi = 50;          // RSI recovery detection: was oversold, now bouncing
 let dipFromHigh = 0;       // current % dip from 24h close high
 let marketRegime: "bull" | "bear" | "neutral" = "neutral";
+// Regime hysteresis: only switch regime after N consecutive matching ticks
+let regimeCandidate: "bull" | "bear" | "neutral" = "neutral";
+let regimeCandidateCount = 0;
 let tickCount = 0;             // warmup: skip rsiRecovering first 3 ticks
 let adxLowCount = 0;           // consecutive ticks with ADX < 20
 let rangeMode = false;         // true when ADX<20 for 6+ consecutive ticks
@@ -314,6 +317,7 @@ let lossPauseUntil = 0;     // epoch ms — block new entries until this time
 let sessionPeakPnl = 0;
 let sessionMaxDrawdown = 0;
 let fourHourTrend: "bull" | "bear" | "neutral" = "neutral";
+let m15Trend: { ema9: number; ema21: number } | null = null;  // 15m intermediate timeframe
 let lastEntrySignal = "";
 
 // ── Live indicator snapshot (updated every engineTick) ─────────────────────────
@@ -371,6 +375,17 @@ async function fetchCurrentPrice(symbol: string): Promise<number | null> {
     const key = Object.keys(d.result ?? {})[0];
     if (!key) return null;
     return parseFloat(d.result[key].c[0]); // last trade price
+  } catch { return null; }
+}
+
+async function fetch15mCandles(symbol: string): Promise<{ ema9: number; ema21: number } | null> {
+  const pair = krakenPair(symbol);
+  try {
+    const since = Math.floor(Date.now() / 1000) - 80 * 15 * 60;
+    const raw = await krakenOhlcFetch(pair, 15, since);
+    if (!raw || raw.length < 25) return null;
+    const closes = raw.slice(-60).map((k: any) => parseFloat(k[4]));
+    return { ema9: calcEma(closes, 9), ema21: calcEma(closes, 21) };
   } catch { return null; }
 }
 
@@ -721,17 +736,19 @@ async function engineTick() {
   if (isTickRunning) { addLog("⏭ Tick pominięty — poprzedni jeszcze trwa", "warn"); return; }
   isTickRunning = true;
   try {
-    // Fetch candles, live price and 4H trend in parallel — saves ~4s per tick
-    const [candles, livePrice, h4] = await Promise.all([
+    // Fetch candles, live price, 4H and 15m in parallel — saves ~4s per tick
+    const [candles, livePrice, h4, m15] = await Promise.all([
       fetchCandles(config.symbol),
       fetchCurrentPrice(config.symbol),
       fetch4HCandles(config.symbol),
+      fetch15mCandles(config.symbol),
     ]);
     if (!candles) return;
     const { closes, opens, highs, lows, volumes, vwaps } = candles;
     const price = livePrice ?? (lastPrice > 0 ? lastPrice : candles.price);
     if (livePrice) lastPrice = livePrice;
     if (h4) fourHourTrend = calc4HTrend(h4.ema9, h4.ema21);
+    if (m15) m15Trend = m15;
 
     // Use closed candles only (drop last which may be in-progress) for cross detection
     const closedCloses = closes.slice(0, -1);
@@ -792,13 +809,28 @@ async function engineTick() {
     // 1. RSI Recovery: RSI was oversold (< rsiMin) and is now rising — catches the bounce
     //    warmedUp guard: skip first 3 ticks when prevRsi starts at 50 (cold start false positives)
     const rsiRecovering = warmedUp && prevRsi < (config.rsiMin ?? 40) && rsi > prevRsi + 1.0;
-    // 2. Bear market regime: EMA9 < EMA21 AND 5-candle price slope < -1.5% — downtrend
+    // 2. Bear market regime — 4 layers of confirmation:
+    //    a) ATR-adaptive slope: threshold scales with volatility (not a fixed -1.5%)
+    //    b) 15m intermediate timeframe: 5m bear must agree with 15m EMA direction
+    //    c) Volume confirmation: real selling has above-average volume
+    //    d) Hysteresis: require REGIME_HYSTERESIS consecutive ticks before switching
     const slope5 = closedCloses.length >= 6
       ? (closedCloses[closedCloses.length-1] - closedCloses[closedCloses.length-6]) / closedCloses[closedCloses.length-6] * 100
       : 0;
-    marketRegime = calcRegime(slope5, ema9, ema21);
-    const bearMkt = marketRegime === "bear";
-    const bullMkt = marketRegime === "bull";
+    const rawRegime = calcRegime(slope5, ema9, ema21, atrPct);
+    // Hysteresis: hold current regime until new one persists for REGIME_HYSTERESIS ticks
+    if (rawRegime === regimeCandidate) {
+      regimeCandidateCount = Math.min(regimeCandidateCount + 1, TREND.REGIME_HYSTERESIS + 1);
+    } else {
+      regimeCandidate = rawRegime;
+      regimeCandidateCount = 1;
+    }
+    if (regimeCandidateCount >= TREND.REGIME_HYSTERESIS) marketRegime = regimeCandidate;
+    // 15m alignment: if 15m candles available, use them as extra filter
+    const m15bear = m15Trend ? m15Trend.ema9 < m15Trend.ema21 : true; // true = don't block if unavailable
+    const m15bull = m15Trend ? m15Trend.ema9 > m15Trend.ema21 : true;
+    const bearMkt = marketRegime === "bear" && m15bear && volMult > TREND.BEAR_MKT_VOL_MULT;
+    const bullMkt = marketRegime === "bull" && m15bull;
     // 3. Crash protection: price >5% below 24h high — avoid catching falling knives in crashes
     const recent24Closes = closedCloses.slice(-24);
     const recent24High = recent24Closes.length > 0 ? Math.max(...recent24Closes) : price;
@@ -811,7 +843,8 @@ async function engineTick() {
     // Fear & Greed — non-blocking, cached 1h
     fetchFearGreed().catch(() => {});
 
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
+    const m15Label = m15Trend ? (m15Trend.ema9 > m15Trend.ema21 ? "↑" : m15Trend.ema9 < m15Trend.ema21 ? "↓" : "=") : "?";
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} 15m:${m15Label} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})`);
     prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
     // ── Open position management ─────────────────────────────────────────────
@@ -1074,6 +1107,9 @@ router.post("/start", (req, res) => {
   prevRsi = 50;
   dipFromHigh = 0;
   marketRegime = "neutral";
+  regimeCandidate = "neutral";
+  regimeCandidateCount = 0;
+  m15Trend = null;
   tickCount = 0;
   adxLowCount = 0;
   rangeMode = false;
@@ -1087,6 +1123,9 @@ router.post("/start", (req, res) => {
   sessionPeakPnl = 0;
   sessionMaxDrawdown = 0;
   fourHourTrend = "neutral";
+  regimeCandidate = "neutral";
+  regimeCandidateCount = 0;
+  m15Trend = null;
   lastEntrySignal = "";
   logs = [];
   const krakenLev = Math.max(1, config.leverage ?? 1);

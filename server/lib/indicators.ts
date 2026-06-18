@@ -158,9 +158,19 @@ export const TREND = {
   H4_BULL_BUFFER: 1.001,   // ema9 > ema21 * 1.001 → bull
   H4_BEAR_BUFFER: 0.999,   // ema9 < ema21 * 0.999 → bear
 
-  // Short-term regime (5m closes)
-  BEAR_SLOPE_THRESH: -1.5, // slope5 < -1.5% = bearMkt
-  BULL_SLOPE_THRESH:  0.3, // slope5 > 0.3%  = bullMkt
+  // Short-term regime (5m closes) — ATR-adaptive multipliers
+  // bearThresh = -max(BEAR_SLOPE_ATR_MULT × atrPct, 0.5)  → scales with volatility
+  // bullThresh = +max(BULL_SLOPE_ATR_MULT × atrPct, 0.15) → scales with volatility
+  BEAR_SLOPE_ATR_MULT: 1.0,  // e.g. ATR=0.8% → bear threshold = -0.8%
+  BULL_SLOPE_ATR_MULT: 0.4,  // e.g. ATR=0.8% → bull threshold = +0.32%
+  BEAR_SLOPE_FLOOR:   -0.5,  // never looser than -0.5% even in calm markets
+  BULL_SLOPE_FLOOR:    0.15, // never stricter than +0.15%
+
+  // Regime hysteresis: require this many consecutive matching ticks to switch
+  REGIME_HYSTERESIS: 2,
+
+  // Volume confirmation for bear regime (real selling pressure)
+  BEAR_MKT_VOL_MULT: 1.1,
 
   // Range mode: ADX below this for N consecutive ticks → mean-reversion only
   ADX_RANGE_THRESH: 20,
@@ -185,9 +195,19 @@ export function calc4HTrend(ema9: number, ema21: number): "bull" | "bear" | "neu
   return "neutral";
 }
 
-/** Determine short-term market regime from 5m slope and EMAs */
-export function calcRegime(slope5: number, ema9: number, ema21: number): "bull" | "bear" | "neutral" {
-  if (ema9 < ema21 && slope5 < TREND.BEAR_SLOPE_THRESH) return "bear";
-  if (ema9 > ema21 && slope5 > TREND.BULL_SLOPE_THRESH)  return "bull";
+/**
+ * Determine short-term market regime from 5m slope and EMAs.
+ * atrPct: current ATR as % of price — makes thresholds scale with volatility.
+ * When atrPct=0 (not provided) falls back to fixed floor values.
+ */
+export function calcRegime(slope5: number, ema9: number, ema21: number, atrPct = 0): "bull" | "bear" | "neutral" {
+  const bearThresh = atrPct > 0
+    ? -Math.max(TREND.BEAR_SLOPE_ATR_MULT * atrPct, -TREND.BEAR_SLOPE_FLOOR)
+    : TREND.BEAR_SLOPE_FLOOR;
+  const bullThresh = atrPct > 0
+    ? Math.max(TREND.BULL_SLOPE_ATR_MULT * atrPct, TREND.BULL_SLOPE_FLOOR)
+    : TREND.BULL_SLOPE_FLOOR;
+  if (ema9 < ema21 && slope5 < bearThresh) return "bear";
+  if (ema9 > ema21 && slope5 > bullThresh)  return "bull";
   return "neutral";
 }

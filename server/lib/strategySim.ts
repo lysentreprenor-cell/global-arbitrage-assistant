@@ -72,6 +72,10 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
   let consecLosses = 0;          // circuit breaker: consecutive loss streak
   let lossPauseUntilMs = 0;      // circuit breaker: block entries until this ms
   const warmupTick = 3;          // mirrors live warmedUp guard
+  // Regime hysteresis (mirrors live engine)
+  let simRegime: "bull" | "bear" | "neutral" = "neutral";
+  let simRegimeCandidate: "bull" | "bear" | "neutral" = "neutral";
+  let simRegimeCandidateCount = 0;
 
   for (let i = 150; i < raw.length - 2; i++) {
     const tMs = raw[i][0] * 1000;
@@ -116,8 +120,16 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
 
     // ── signals (identical to engineTick) ──
     const slope5 = wc.length >= 6 ? (wc[wc.length-1] - wc[wc.length-6]) / wc[wc.length-6] * 100 : 0;
-    const regime  = calcRegime(slope5, ema9, ema21);
-    const bearMkt = regime === "bear";
+    // ATR-adaptive regime + hysteresis (mirrors live engine)
+    const rawRegime = calcRegime(slope5, ema9, ema21, atrPct);
+    if (rawRegime === simRegimeCandidate) {
+      simRegimeCandidateCount = Math.min(simRegimeCandidateCount + 1, TREND.REGIME_HYSTERESIS + 1);
+    } else {
+      simRegimeCandidate = rawRegime;
+      simRegimeCandidateCount = 1;
+    }
+    if (simRegimeCandidateCount >= TREND.REGIME_HYSTERESIS) simRegime = simRegimeCandidate;
+    const bearMkt = simRegime === "bear" && volMult > TREND.BEAR_MKT_VOL_MULT;
     const recent24 = wc.slice(-24);
     const recent24High = recent24.length > 0 ? Math.max(...recent24) : price;
     const dipFromHigh = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
