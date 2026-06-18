@@ -898,10 +898,11 @@ async function engineTick() {
     const effLev = Math.max(1, config.leverage ?? 1);
 
     // Trend-following: RSI neutral zone + price direction on at least one timeframe
-    // Removed MACD requirement from here — MACD is filtered through longConf confluence
-    // Added bearMkt guard + 4H bear guard to avoid entries in downtrends
-    const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt && fourHourTrend !== "bear" &&
-      (ema9 > ema21 || fourHourTrend === "bull");
+    // 4H bear blocks trendFollow — EXCEPT during capitulation (Fear&Greed < 20 or RSI < 33)
+    const capitulation = (fngCache && fngCache.value < 20) || rsi < 33;
+    const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt &&
+      (fourHourTrend !== "bear" || capitulation) &&
+      (ema9 > ema21 || fourHourTrend === "bull" || capitulation);
 
     // Bear market filter: EMA cross zawsze dozwolony, RSI dip blokowany TYLKO przy crash
     const rsiBuyFiltered = rsiBuy && !inCrash;

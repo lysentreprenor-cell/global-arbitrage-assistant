@@ -159,8 +159,10 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const bbHigh    = bbPercB > 80;
     const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochLow  ? 1 : 0) + (bbLow  ? 1 : 0) >= confluenceMin;
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochHigh ? 1 : 0) + (bbHigh ? 1 : 0) >= confluenceMin;
-    const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt && fourH !== "bear" &&
-      (ema9 > ema21 || fourH === "bull");
+    const capitulation = rsi < 33; // sim has no F&G feed — use RSI extreme as proxy
+    const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt &&
+      (fourH !== "bear" || capitulation) &&
+      (ema9 > ema21 || fourH === "bull" || capitulation);
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true;
     const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy);
