@@ -37,6 +37,7 @@ type BotStatus = {
   fearGreed?: { value: number; label: string } | null;
   liveIndicators?: { rsi: number; stochRsi: number; bbPercB: number; vwap: number; adx: number };
   circuitBreaker?: { active: boolean; consecutiveLosses: number; pauseUntil: string | null };
+  riskPct?: number;
 };
 
 type TradeRecord = {
@@ -83,9 +84,9 @@ type AutoIndResult = {
 
 const PRESETS: Preset[] = [
   { id: "cautious",        label: "Ostrożny",       icon: "🐢", desc: "Matematycznie pewny zysk — min. WR 31%",  freq: "~3 / dzień",
-    rsiMin: 40, rsiMax: 70, adxMin: 18, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 90,  stopLoss: 1.50, takeProfit: 5.00, trailPct: 1.20 },
+    rsiMin: 40, rsiMax: 70, adxMin: 18, confluenceMin: 2, volMultMin: 1.1, cooldownMin: 90,  stopLoss: 1.50, takeProfit: 5.00, trailPct: 1.20 },
   { id: "normal",          label: "Normalny",        icon: "⚖️", desc: "Balans — R/R 3:1, min. WR 37%",          freq: "~5 / dzień",
-    rsiMin: 38, rsiMax: 70, adxMin: 15, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 45,  stopLoss: 1.50, takeProfit: 4.00, trailPct: 1.00 },
+    rsiMin: 38, rsiMax: 70, adxMin: 15, confluenceMin: 2, volMultMin: 1.0, cooldownMin: 45,  stopLoss: 1.50, takeProfit: 4.00, trailPct: 1.00 },
   { id: "aggressive",      label: "Agresywny",       icon: "🚀", desc: "Więcej transakcji, R/R 2.3:1",           freq: "~8 / dzień",
     rsiMin: 40, rsiMax: 70, adxMin: 12, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 20,  stopLoss: 1.50, takeProfit: 3.50, trailPct: 0.80 },
   { id: "superaggressive", label: "Super Agresywny", icon: "⚡", desc: "Najczęstsze wejścia, R/R 2:1",           freq: "~14 / dzień",
@@ -186,6 +187,7 @@ export default function TradingBot() {
 
   const [preset,      setPreset]      = useState<RiskLevel>(saved.preset      ?? "aggressive");
   const [capital,     setCapital]     = useState<number>   (saved.capital     ?? 18);
+  const [riskPct,     setRiskPct]     = useState<number>   (saved.riskPct     ?? 20);
   const [leverage,    setLeverage]    = useState<number>   (saved.leverage    ?? 1);
   const [allowShorts, setAllowShorts] = useState<boolean>  (saved.allowShorts ?? false);
   const [symbol,      setSymbol]      = useState<Symbol>   (saved.symbol      ?? "BTCUSDT");
@@ -243,9 +245,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, leverage, allowShorts, symbol })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol })); }
     catch { /* ignore */ }
-  }, [preset, capital, leverage, allowShorts, symbol]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -324,7 +326,7 @@ export default function TradingBot() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey, secret, platform: "kraken",
-          symbol, capital, leverage, allowShorts,
+          symbol, capital, riskPct, leverage, allowShorts,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin, stopLoss: p.stopLoss,
@@ -626,6 +628,22 @@ export default function TradingBot() {
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* risk per trade */}
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-xs text-gray-400">Ryzyko / transakcję</label>
+                <span className="text-xs font-bold text-green-400">{riskPct}%
+                  <span className="text-gray-500 font-normal ml-1">≈ ${(capital * riskPct / 100).toFixed(2)} USDT</span>
+                </span>
+              </div>
+              <input type="range" min={5} max={100} step={5} value={riskPct}
+                onChange={e => setRiskPct(Number(e.target.value))}
+                className="w-full accent-green-500 cursor-pointer" />
+              <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+                <span>5% (bezpieczny)</span><span>50% (normalny)</span><span>100% (all-in)</span>
               </div>
             </div>
 

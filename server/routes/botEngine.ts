@@ -66,6 +66,7 @@ type BotConfig = {
   leverage: number;
   allowShorts: boolean;
   capital: number;
+  riskPct: number;    // % of capital per trade (e.g. 20 = risk only 20% per position)
   adxMin: number;
   confluenceMin: number;  // 1=aggressive, 2=normal, 3=cautious
   volMultMin: number;     // volume spike threshold (1.0 = disabled)
@@ -940,7 +941,18 @@ async function engineTick() {
       : config.platform === "eu"
       ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
       : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
-    const qty = Math.max(parseFloat(((config.capital * effLev) / price).toFixed(spec.dec)), spec.min);
+
+    // Risk-based position sizing: invest only riskPct% of capital per trade.
+    // Further scaled down when ATR-based SL is larger than the fixed SL setting
+    // so that dollar risk stays constant regardless of volatility.
+    const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
+    const slForSizing  = Math.max(config.stopLoss, atrPct * 1.5) / 100;  // as decimal
+    const baseRisk     = config.capital * riskFraction;                   // USDT at risk
+    // ATR scaling: if actual SL is 2× the configured SL, halve the size
+    const atrScale     = slForSizing > 0 ? Math.min(1, (config.stopLoss / 100) / slForSizing) : 1;
+    const positionUsdt = baseRisk * atrScale * effLev;
+    const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
+    addLog(`📐 Rozmiar: ${(riskFraction * 100).toFixed(0)}% × ATR-scale ${atrScale.toFixed(2)} = $${positionUsdt.toFixed(2)} → qty=${qty}`);
 
     // Balance check
     try {
@@ -1013,7 +1025,7 @@ router.post("/keys", (req, res) => {
 
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
-  const { symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, adxMin,
+  const { symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
           confluenceMin, volMultMin, cooldownMin } = req.body;
 
   // If keys not provided, try to load saved encrypted keys
@@ -1037,6 +1049,7 @@ router.post("/start", (req, res) => {
     leverage:   leverage   ?? 10,
     allowShorts: allowShorts ?? true,
     capital: capital ?? 9,
+    riskPct: riskPct ?? 100,  // default 100% for backward compat; UI sends 20%
     adxMin:        adxMin        ?? 18,  // ADX > 18 — działa w obecnym rynku (BTC ADX ~18-22)
     confluenceMin: confluenceMin ?? 1,   // 1 z 3 wskaźników — MACD lub wolumen lub trend
     volMultMin:    volMultMin    ?? 0.8, // wolumen 0.8× — prawie zawsze spełniony
@@ -1141,6 +1154,7 @@ router.get("/status", (_req, res) => {
       tradeHistory: tradeHistory.slice(-10),
     },
     autoRetrain: { enabled: !!autoRetrainId, intervalH: autoRetrainIntervalH },
+    riskPct: config?.riskPct ?? 100,
     fearGreed: fngCache ? { value: fngCache.value, label: fngCache.label } : null,
     liveIndicators: {
       rsi: liveRsi, stochRsi: liveStochRsi, bbPercB: liveBbPercB,
