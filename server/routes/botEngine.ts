@@ -960,21 +960,24 @@ async function engineTick() {
         const balResult = await krakenPrivate("/0/private/Balance");
         const usd = parseFloat(balResult.ZUSD ?? "0");
         const eur = parseFloat(balResult.ZEUR ?? "0");
-        // Auto-detect fiat: prefer whichever is larger
         config.krakenFiat = eur > usd ? "EUR" : "USD";
         const avail = config.krakenFiat === "EUR" ? eur : usd;
-        if (avail < config.capital) {
-          addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} ${config.krakenFiat} < ${config.capital} — pomijam`, "warn");
+        // Check against actual position cost (riskPct% of capital), not full capital
+        const needed = positionUsdt / Math.max(1, config.leverage ?? 1); // margin needed
+        if (avail < needed * 1.1) { // 10% buffer for fees
+          addLog(`❌ Saldo ${avail.toFixed(2)} ${config.krakenFiat} — potrzeba min. ${(needed * 1.1).toFixed(2)} na tę pozycję`, "warn");
           return;
         }
+        addLog(`💰 Saldo: ${avail.toFixed(2)} ${config.krakenFiat} (pozycja: $${positionUsdt.toFixed(2)})`);
       } else {
         const balData = await bybitFetch("GET", "/v5/account/wallet-balance",
           { accountType: config.platform === "eu" ? "SPOT" : "UNIFIED" });
         const coins: any[] = balData.result?.list?.[0]?.coin ?? [];
         const usdtCoin = coins.find((c: any) => c.coin === "USDT");
         const avail = parseFloat(usdtCoin?.availableToWithdraw ?? usdtCoin?.availableBalance ?? usdtCoin?.walletBalance ?? "0");
-        if (avail < config.capital) {
-          addLog(`❌ Niewystarczające saldo: ${avail.toFixed(2)} USDT < ${config.capital} USDT — pomijam`, "warn");
+        const needed = positionUsdt / Math.max(1, config.leverage ?? 1);
+        if (avail < needed * 1.1) {
+          addLog(`❌ Saldo ${avail.toFixed(2)} USDT — potrzeba min. ${(needed * 1.1).toFixed(2)} na tę pozycję`, "warn");
           return;
         }
       }
