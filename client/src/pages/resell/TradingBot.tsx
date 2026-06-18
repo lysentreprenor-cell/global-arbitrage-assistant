@@ -34,6 +34,9 @@ type BotStatus = {
     avgWin: number; avgLoss: number; maxDrawdown: number;
     tradeHistory: TradeRecord[];
   };
+  fearGreed?: { value: number; label: string } | null;
+  liveIndicators?: { rsi: number; stochRsi: number; bbPercB: number; vwap: number; adx: number };
+  circuitBreaker?: { active: boolean; consecutiveLosses: number; pauseUntil: string | null };
 };
 
 type TradeRecord = {
@@ -662,6 +665,77 @@ export default function TradingBot() {
                 )}
               </div>
             )}
+
+            {/* ── Market vision panel ── */}
+            {running && (botStatus?.fearGreed || botStatus?.liveIndicators) && (() => {
+              const fg  = botStatus?.fearGreed;
+              const ind = botStatus?.liveIndicators;
+              const cb  = botStatus?.circuitBreaker;
+              const fgColor = !fg ? "text-gray-400"
+                : fg.value <= 24 ? "text-red-500"
+                : fg.value <= 44 ? "text-orange-400"
+                : fg.value <= 55 ? "text-yellow-300"
+                : fg.value <= 74 ? "text-green-400"
+                : "text-emerald-300";
+              const fgBar = !fg ? 0 : Math.round(fg.value);
+              return (
+                <div className="border border-[#2a4a30] rounded-lg p-2.5 space-y-2 bg-[#0d1a0f]">
+                  <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Obraz rynku</div>
+                  {/* Fear & Greed */}
+                  {fg && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Fear &amp; Greed</span>
+                        <span className={`text-xs font-bold ${fgColor}`}>{fg.value} — {fg.label}</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded bg-[#1a2e1f] overflow-hidden">
+                        <div
+                          className="h-full rounded transition-all"
+                          style={{
+                            width: `${fgBar}%`,
+                            background: fgBar <= 24 ? "#ef4444" : fgBar <= 44 ? "#f97316" : fgBar <= 55 ? "#eab308" : fgBar <= 74 ? "#22c55e" : "#10b981",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {/* Live indicators grid */}
+                  {ind && ind.rsi > 0 && (
+                    <div className="grid grid-cols-3 gap-1 text-xs">
+                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                        <div className="text-gray-500 text-[10px]">RSI</div>
+                        <div className={`font-bold ${ind.rsi < 35 ? "text-orange-400" : ind.rsi > 65 ? "text-red-400" : "text-white"}`}>{ind.rsi.toFixed(1)}</div>
+                      </div>
+                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                        <div className="text-gray-500 text-[10px]">StochRSI</div>
+                        <div className={`font-bold ${ind.stochRsi < 25 ? "text-orange-400" : ind.stochRsi > 75 ? "text-red-400" : "text-white"}`}>{ind.stochRsi.toFixed(0)}</div>
+                      </div>
+                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                        <div className="text-gray-500 text-[10px]">BB %B</div>
+                        <div className={`font-bold ${ind.bbPercB < 20 ? "text-green-400" : ind.bbPercB > 80 ? "text-red-400" : "text-white"}`}>{ind.bbPercB.toFixed(0)}</div>
+                      </div>
+                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                        <div className="text-gray-500 text-[10px]">ADX</div>
+                        <div className={`font-bold ${ind.adx >= 25 ? "text-green-400" : "text-gray-400"}`}>{ind.adx.toFixed(0)}</div>
+                      </div>
+                      <div className="bg-[#111f10] rounded p-1.5 text-center col-span-2">
+                        <div className="text-gray-500 text-[10px]">VWAP 4h</div>
+                        <div className="font-bold text-white">${ind.vwap > 0 ? ind.vwap.toFixed(0) : "—"}</div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Circuit breaker */}
+                  {cb?.active && (
+                    <div className="text-xs text-red-400 font-medium">
+                      🛑 Circuit breaker — {cb.consecutiveLosses} straty z rzędu · pauza do {cb.pauseUntil ? new Date(cb.pauseUntil).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </div>
+                  )}
+                  {!cb?.active && cb && cb.consecutiveLosses > 0 && (
+                    <div className="text-xs text-yellow-500">{cb.consecutiveLosses} stra{cb.consecutiveLosses === 1 ? "ta" : "ty"} z rzędu</div>
+                  )}
+                </div>
+              );
+            })()}
 
             {activeFilters > 0 && (
               <div className="text-xs text-purple-400">

@@ -313,6 +313,30 @@ let sessionMaxDrawdown = 0;
 let fourHourTrend: "bull" | "bear" | "neutral" = "neutral";
 let lastEntrySignal = "";
 
+// ── Live indicator snapshot (updated every engineTick) ─────────────────────────
+let liveRsi = 0;
+let liveStochRsi = 50;
+let liveBbPercB = 50;
+let liveVwap = 0;
+let liveAdx = 0;
+
+// ── Fear & Greed Index cache (alternative.me, updates daily) ─────────────────────
+let fngCache: { value: number; label: string; fetchedAt: number } | null = null;
+async function fetchFearGreed(): Promise<{ value: number; label: string } | null> {
+  if (fngCache && Date.now() - fngCache.fetchedAt < 3_600_000) return fngCache;
+  try {
+    const r = await fetch("https://api.alternative.me/fng/?limit=1", { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return fngCache ?? null;
+    const d = await r.json() as any;
+    const item = d?.data?.[0];
+    if (!item) return fngCache ?? null;
+    fngCache = { value: Number(item.value), label: item.value_classification, fetchedAt: Date.now() };
+    return fngCache;
+  } catch {
+    return fngCache ?? null;
+  }
+}
+
 async function fetchCandles(symbol: string): Promise<{closes:number[];opens:number[];highs:number[];lows:number[];volumes:number[];vwaps:number[];price:number}|null> {
   const pair = krakenPair(symbol);
   try {
@@ -775,6 +799,12 @@ async function engineTick() {
     // Update prevRsi for next tick
     prevRsi = rsi;
 
+    // Persist for /status endpoint
+    liveRsi = rsi; liveStochRsi = stochRsi; liveBbPercB = bbPercB; liveVwap = vwap; liveAdx = adx;
+
+    // Fear & Greed — non-blocking, cached 1h
+    fetchFearGreed().catch(() => {});
+
     addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
 
     // ── Open position management ─────────────────────────────────────────────
@@ -1104,6 +1134,16 @@ router.get("/status", (_req, res) => {
       tradeHistory: tradeHistory.slice(-10),
     },
     autoRetrain: { enabled: !!autoRetrainId, intervalH: autoRetrainIntervalH },
+    fearGreed: fngCache ? { value: fngCache.value, label: fngCache.label } : null,
+    liveIndicators: {
+      rsi: liveRsi, stochRsi: liveStochRsi, bbPercB: liveBbPercB,
+      vwap: liveVwap, adx: liveAdx,
+    },
+    circuitBreaker: {
+      active: Date.now() < lossPauseUntil,
+      consecutiveLosses,
+      pauseUntil: lossPauseUntil > 0 ? new Date(lossPauseUntil).toISOString() : null,
+    },
   });
 });
 
