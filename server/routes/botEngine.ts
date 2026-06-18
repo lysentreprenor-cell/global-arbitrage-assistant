@@ -99,6 +99,7 @@ let priceIntervalId: ReturnType<typeof setInterval> | null = null;
 let config: BotConfig | null = null;
 let position: Position | null = null;
 let isClosing = false; // mutex: prevents priceCheck + engineTick from both closing at once
+let isTickRunning = false; // guard: prevents concurrent engineTick if one tick takes >60s
 let logs: LogEntry[] = [];
 let sessionPnl = 0;
 
@@ -716,7 +717,8 @@ async function priceCheck() {
 // ── Full indicator tick (every 5 min — 1h candles) ───────────────────────────
 async function engineTick() {
   if (!config || !running) return;
-
+  if (isTickRunning) { addLog("⏭ Tick pominięty — poprzedni jeszcze trwa", "warn"); return; }
+  isTickRunning = true;
   try {
     // Fetch candles, live price and 4H trend in parallel — saves ~4s per tick
     const [candles, livePrice, h4] = await Promise.all([
@@ -989,6 +991,7 @@ async function engineTick() {
     }
 
   } catch (e: any) { addLog(`Tick error: ${e.message}`, "warn"); }
+  finally { isTickRunning = false; }
 }
 
 // ── HTTP endpoints ────────────────────────────────────────────────────────────
