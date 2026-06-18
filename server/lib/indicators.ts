@@ -88,7 +88,7 @@ export function calcAdx(highs: number[], lows: number[], closes: number[], perio
   return adx;
 }
 
-/** Average True Range as absolute price value */
+/** Average True Range — Wilder's smoothed (matches TradingView default) */
 export function calcAtr(highs: number[], lows: number[], closes: number[], period = 14): number {
   if (closes.length < period + 1) return 0;
   const trs: number[] = [];
@@ -96,7 +96,12 @@ export function calcAtr(highs: number[], lows: number[], closes: number[], perio
     const h = highs[i], l = lows[i], pc = closes[i - 1];
     trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
   }
-  return trs.slice(-period).reduce((a, b) => a + b, 0) / period;
+  // Seed with SMA of first `period` TRs, then apply Wilder's smoothing
+  let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trs.length; i++) {
+    atr = (atr * (period - 1) + trs[i]) / period;
+  }
+  return atr;
 }
 
 /** Returns current bar volume relative to 19-bar average (prior bars only — no look-ahead) */

@@ -98,6 +98,7 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 let priceIntervalId: ReturnType<typeof setInterval> | null = null;
 let config: BotConfig | null = null;
 let position: Position | null = null;
+let isClosing = false; // mutex: prevents priceCheck + engineTick from both closing at once
 let logs: LogEntry[] = [];
 let sessionPnl = 0;
 
@@ -642,7 +643,7 @@ function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: 
 
 // ── Fast exit check (every 5s) ────────────────────────────────────────────────
 async function priceCheck() {
-  if (!config || !running || !position) return;
+  if (!config || !running || !position || isClosing) return;
   const live = await fetchCurrentPrice(config.symbol);
   if (live) {
     lastPrice = live;
@@ -682,10 +683,12 @@ async function priceCheck() {
 
   let reason: string | null = null;
   if (pct >= position.tpPct) reason = `TP +${pct.toFixed(2)}%`;
+  // Long SL: tighter = higher price = Math.max; Short SL: tighter = lower price = Math.min
   else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-  else if (position.direction === "short" && price >= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+  else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
 
   if (reason) {
+    isClosing = true;
     const KRAKEN_FEE_RT = 0.0052; // 0.26% taker × 2 (open + close)
     const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
     const pnlUsdt = pct / 100 * config.capital - feeCost;
@@ -706,6 +709,7 @@ async function priceCheck() {
         saveState();
       }
     }
+    isClosing = false;
   }
 }
 
@@ -797,8 +801,6 @@ async function engineTick() {
     const recent24High = recent24Closes.length > 0 ? Math.max(...recent24Closes) : price;
     dipFromHigh = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
     const inCrash = dipFromHigh > 5.0;
-    // Update prevRsi for next tick
-    prevRsi = rsi;
 
     // Persist for /status endpoint
     liveRsi = rsi; liveStochRsi = stochRsi; liveBbPercB = bbPercB; liveVwap = vwap; liveAdx = adx;
@@ -807,9 +809,10 @@ async function engineTick() {
     fetchFearGreed().catch(() => {});
 
     addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}`);
+    prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
     // ── Open position management ─────────────────────────────────────────────
-    if (position) {
+    if (position && !isClosing) {
       const holdHours = (Date.now() - new Date(position.entryTime).getTime()) / 3_600_000;
 
       // Max hold: 48h time-based exit to prevent stuck positions

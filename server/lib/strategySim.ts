@@ -64,11 +64,14 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
   const effLev = Math.max(1, leverage);
   const MAX_HOLD = 576; // 48h / 5min — same as live
   let lastEntry = 0;
-  let prevRsiSim = 50;     // RSI recovery tracking across candles (mirrors prevRsi)
-  let adxLowCnt = 0;       // range-mode counter (mirrors adxLowCount)
-  let skipUntil = -1;      // skip candles inside an open simulated trade
-  let dayKey = "";         // daily-loss reset key
-  let dayPnlPct = 0;       // cumulative net pnl% for current day
+  let prevRsiSim = 50;           // RSI recovery tracking across candles (mirrors prevRsi)
+  let adxLowCnt = 0;             // range-mode counter (mirrors adxLowCount)
+  let skipUntil = -1;            // skip candles inside an open simulated trade
+  let dayKey = "";               // daily-loss reset key
+  let dayPnlPct = 0;             // cumulative net pnl% for current day
+  let consecLosses = 0;          // circuit breaker: consecutive loss streak
+  let lossPauseUntilMs = 0;      // circuit breaker: block entries until this ms
+  const warmupTick = 3;          // mirrors live warmedUp guard
 
   for (let i = 150; i < raw.length - 2; i++) {
     const tMs = raw[i][0] * 1000;
@@ -95,18 +98,21 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     // range mode + prevRsi MUST advance every candle (state machine like live)
     if (adx < 20) adxLowCnt++; else adxLowCnt = 0;
     const rangeMode = adxLowCnt >= 6;
-    const rsiRecovering = prevRsiSim < rsiMin && rsi > prevRsiSim + 1.0;
+    const tickIdx = i - 150; // candle index since start (mirrors tickCount)
+    const warmedUp = tickIdx > warmupTick;
+    const rsiRecovering = warmedUp && prevRsiSim < rsiMin && rsi > prevRsiSim + 1.0;
     prevRsiSim = rsi;
 
     // daily loss reset
     const dStr = new Date(tMs).toISOString().slice(0, 10);
     if (dayKey !== dStr) { dayKey = dStr; dayPnlPct = 0; }
 
-    if (i <= skipUntil) continue;                 // inside an open trade
-    if (tMs - lastEntry <= cooldownMs) continue;  // cooldown
-    if (dayPnlPct <= -3.0) continue;              // daily -3% circuit breaker
+    if (i <= skipUntil) continue;                       // inside an open trade
+    if (tMs - lastEntry <= cooldownMs) continue;        // cooldown
+    if (dayPnlPct <= -3.0) continue;                    // daily -3% circuit breaker
+    if (tMs < lossPauseUntilMs) continue;               // circuit breaker: 3 losses in a row
     const utcH = new Date(tMs).getUTCHours();
-    if (utcH >= 2 && utcH < 6) continue;          // low-liquidity hours
+    if (utcH >= 2 && utcH < 6) continue;               // low-liquidity hours
 
     // ── signals (identical to engineTick) ──
     const slope5 = wc.length >= 6 ? (wc[wc.length-1] - wc[wc.length-6]) / wc[wc.length-6] * 100 : 0;
@@ -253,6 +259,9 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const rawPct = long ? (exitPx - price) / price * 100 : (price - exitPx) / price * 100;
     const netPct = rawPct - FEE_RT * 100; // subtract round-trip fee (matches live pnl accounting)
     dayPnlPct += netPct;
+    // Circuit breaker: mirror live engine (3 consecutive losses → 2h pause)
+    if (netPct > 0) { consecLosses = 0; }
+    else { consecLosses++; if (consecLosses >= 3) lossPauseUntilMs = raw[exitIdx][0] * 1000 + 2 * 3600 * 1000; }
     trades.push({ dir, entry: parseFloat(price.toFixed(2)), exit: parseFloat(exitPx.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, time: new Date(tMs).toISOString() });
     lastEntry = tMs;
     skipUntil = exitIdx;
