@@ -83,14 +83,14 @@ type AutoIndResult = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PRESETS: Preset[] = [
-  { id: "cautious",        label: "Ostrożny",       icon: "🐢", desc: "Matematycznie pewny zysk — min. WR 31%",  freq: "~3 / dzień",
-    rsiMin: 40, rsiMax: 70, adxMin: 18, confluenceMin: 2, volMultMin: 1.1, cooldownMin: 90,  stopLoss: 1.50, takeProfit: 5.00, trailPct: 1.20 },
-  { id: "normal",          label: "Normalny",        icon: "⚖️", desc: "Balans — R/R 3:1, min. WR 37%",          freq: "~5 / dzień",
-    rsiMin: 38, rsiMax: 70, adxMin: 15, confluenceMin: 2, volMultMin: 1.0, cooldownMin: 45,  stopLoss: 1.50, takeProfit: 4.00, trailPct: 1.00 },
-  { id: "aggressive",      label: "Agresywny",       icon: "🚀", desc: "Więcej transakcji, R/R 2.3:1",           freq: "~8 / dzień",
-    rsiMin: 40, rsiMax: 70, adxMin: 12, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 20,  stopLoss: 1.50, takeProfit: 3.50, trailPct: 0.80 },
+  { id: "cautious",        label: "Ostrożny",       icon: "🐢", desc: "Bardzo wysoki R/R 4:1 — min. WR 20%",     freq: "~2 / dzień",
+    rsiMin: 40, rsiMax: 68, adxMin: 18, confluenceMin: 2, volMultMin: 1.1, cooldownMin: 90,  stopLoss: 2.00, takeProfit: 8.00, trailPct: 1.50 },
+  { id: "normal",          label: "Normalny",        icon: "⚖️", desc: "Optymalny backtest — R/R 3:1, WR≥25%",   freq: "~4 / dzień",
+    rsiMin: 38, rsiMax: 70, adxMin: 15, confluenceMin: 2, volMultMin: 1.0, cooldownMin: 45,  stopLoss: 2.00, takeProfit: 6.00, trailPct: 1.20 },
+  { id: "aggressive",      label: "Agresywny",       icon: "🚀", desc: "Więcej transakcji, R/R 2.25:1",          freq: "~7 / dzień",
+    rsiMin: 38, rsiMax: 70, adxMin: 12, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 20,  stopLoss: 2.00, takeProfit: 4.50, trailPct: 1.00 },
   { id: "superaggressive", label: "Super Agresywny", icon: "⚡", desc: "Najczęstsze wejścia, R/R 2:1",           freq: "~14 / dzień",
-    rsiMin: 42, rsiMax: 70, adxMin: 10, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 10,  stopLoss: 1.00, takeProfit: 2.00, trailPct: 0.60 },
+    rsiMin: 42, rsiMax: 70, adxMin: 10, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 10,  stopLoss: 1.50, takeProfit: 3.00, trailPct: 0.70 },
 ];
 
 const SYMBOLS:    Symbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
