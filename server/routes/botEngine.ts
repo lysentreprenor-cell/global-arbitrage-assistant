@@ -8,7 +8,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { bybitFetch as proxyFetch } from "../proxyDispatcher";
-import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc } from "../lib/indicators";
+import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc, TREND, calc4HTrend, calcRegime } from "../lib/indicators";
 import { simulate } from "../lib/strategySim";
 import { nextKrakenNonce, krakenSerialize } from "../lib/krakenNonce";
 
@@ -731,7 +731,7 @@ async function engineTick() {
     const { closes, opens, highs, lows, volumes, vwaps } = candles;
     const price = livePrice ?? (lastPrice > 0 ? lastPrice : candles.price);
     if (livePrice) lastPrice = livePrice;
-    if (h4) fourHourTrend = h4.ema9 > h4.ema21 * 1.001 ? "bull" : h4.ema9 < h4.ema21 * 0.999 ? "bear" : "neutral";
+    if (h4) fourHourTrend = calc4HTrend(h4.ema9, h4.ema21);
 
     // Use closed candles only (drop last which may be in-progress) for cross detection
     const closedCloses = closes.slice(0, -1);
@@ -778,15 +778,15 @@ async function engineTick() {
     tickCount++;
     const warmedUp = tickCount > 3;
     const utcHour = new Date().getUTCHours();
-    const lowLiqHour = utcHour >= 2 && utcHour < 6;
+    const lowLiqHour = utcHour >= TREND.LOW_LIQ_START && utcHour < TREND.LOW_LIQ_END;
     // Daily loss tracking
     const todayStr = new Date().toISOString().slice(0, 10);
     if (dailyDate !== todayStr) { dailyDate = todayStr; dailyStartPnl = sessionPnl; }
     const dailyLossPct = config.capital > 0 ? (sessionPnl - dailyStartPnl) / config.capital * 100 : 0;
     // Range detection: ADX < 20 for 6+ consecutive ticks → mean-reversion only mode
-    if (adx < 20) adxLowCount++;
+    if (adx < TREND.ADX_RANGE_THRESH) adxLowCount++;
     else adxLowCount = 0;
-    rangeMode = adxLowCount >= 6;
+    rangeMode = adxLowCount >= TREND.ADX_RANGE_TICKS;
 
     // ── Dip statistics (BTC mean reversion context) ──────────────────────────
     // 1. RSI Recovery: RSI was oversold (< rsiMin) and is now rising — catches the bounce
@@ -796,14 +796,14 @@ async function engineTick() {
     const slope5 = closedCloses.length >= 6
       ? (closedCloses[closedCloses.length-1] - closedCloses[closedCloses.length-6]) / closedCloses[closedCloses.length-6] * 100
       : 0;
-    const bearMkt = ema9 < ema21 && slope5 < -1.5;
-    const bullMkt = ema9 > ema21 && slope5 > 0.3;
-    marketRegime = bearMkt ? "bear" : bullMkt ? "bull" : "neutral";
+    marketRegime = calcRegime(slope5, ema9, ema21);
+    const bearMkt = marketRegime === "bear";
+    const bullMkt = marketRegime === "bull";
     // 3. Crash protection: price >5% below 24h high — avoid catching falling knives in crashes
     const recent24Closes = closedCloses.slice(-24);
     const recent24High = recent24Closes.length > 0 ? Math.max(...recent24Closes) : price;
     dipFromHigh = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
-    const inCrash = dipFromHigh > 5.0;
+    const inCrash = dipFromHigh > TREND.CRASH_DIP_PCT;
 
     // Persist for /status endpoint
     liveRsi = rsi; liveStochRsi = stochRsi; liveBbPercB = bbPercB; liveVwap = vwap; liveAdx = adx;
@@ -899,7 +899,7 @@ async function engineTick() {
 
     // Trend-following: RSI neutral zone + price direction on at least one timeframe
     // 4H bear blocks trendFollow — EXCEPT during capitulation (Fear&Greed < 20 or RSI < 33)
-    const capitulation = (fngCache && fngCache.value < 20) || rsi < 33;
+    const capitulation = (fngCache && fngCache.value < TREND.CAPITULAION_FNG) || rsi < TREND.CAPITULATION_RSI;
     const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt &&
       (fourHourTrend !== "bear" || capitulation) &&
       (ema9 > ema21 || fourHourTrend === "bull" || capitulation);

@@ -148,3 +148,46 @@ export function calcRoc(closes: number[], period = 14): number {
   const prev = closes[closes.length - 1 - period];
   return prev === 0 ? 0 : (closes[closes.length - 1] - prev) / prev * 100;
 }
+
+// ── Universal trend detection constants ───────────────────────────────────────
+// These are FIXED — never change based on preset or aggressiveness.
+// Trend is a market fact, not a strategy opinion.
+
+export const TREND = {
+  // 4H: EMA9 vs EMA21 with ±0.1% buffer to avoid choppy flipping
+  H4_BULL_BUFFER: 1.001,   // ema9 > ema21 * 1.001 → bull
+  H4_BEAR_BUFFER: 0.999,   // ema9 < ema21 * 0.999 → bear
+
+  // Short-term regime (5m closes)
+  BEAR_SLOPE_THRESH: -1.5, // slope5 < -1.5% = bearMkt
+  BULL_SLOPE_THRESH:  0.3, // slope5 > 0.3%  = bullMkt
+
+  // Range mode: ADX below this for N consecutive ticks → mean-reversion only
+  ADX_RANGE_THRESH: 20,
+  ADX_RANGE_TICKS:   6,
+
+  // Crash protection: dip from 24h high above this → no new longs
+  CRASH_DIP_PCT: 5.0,
+
+  // Capitulation: override 4H bear if market is in extreme fear
+  CAPITULAION_FNG:  20,   // Fear & Greed < 20
+  CAPITULATION_RSI: 33,   // RSI < 33
+
+  // Low-liquidity hours (UTC) — no new entries
+  LOW_LIQ_START: 2,
+  LOW_LIQ_END:   6,
+} as const;
+
+/** Determine 4H trend from a closes array and EMA buffers */
+export function calc4HTrend(ema9: number, ema21: number): "bull" | "bear" | "neutral" {
+  if (ema9 > ema21 * TREND.H4_BULL_BUFFER) return "bull";
+  if (ema9 < ema21 * TREND.H4_BEAR_BUFFER) return "bear";
+  return "neutral";
+}
+
+/** Determine short-term market regime from 5m slope and EMAs */
+export function calcRegime(slope5: number, ema9: number, ema21: number): "bull" | "bear" | "neutral" {
+  if (ema9 < ema21 && slope5 < TREND.BEAR_SLOPE_THRESH) return "bear";
+  if (ema9 > ema21 && slope5 > TREND.BULL_SLOPE_THRESH)  return "bull";
+  return "neutral";
+}

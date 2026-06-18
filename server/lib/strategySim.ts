@@ -3,7 +3,7 @@
  * Extracted VERBATIM from the /backtest handler so that simulation, optimizer and
  * the live bot all behave identically. No side-effects, no network, no secrets.
  */
-import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc } from "./indicators";
+import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc, TREND, calc4HTrend, calcRegime } from "./indicators";
 
 export type SimParams = {
   rsiMin: number; rsiMax: number; adxMin: number; confluenceMin: number;
@@ -49,7 +49,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     if (idx < 21) return "neutral";
     const slice = c4closes.slice(0, idx + 1);
     const e9 = calcEma(slice, 9), e21 = calcEma(slice, 21);
-    return e9 > e21 * 1.001 ? "bull" : e9 < e21 * 0.999 ? "bear" : "neutral";
+    return calc4HTrend(e9, e21);
   };
 
   const closes  = raw.map((c: any) => parseFloat(c[4]));
@@ -96,8 +96,8 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const atrPct  = price > 0 ? (atr / price) * 100 : 0;
 
     // range mode + prevRsi MUST advance every candle (state machine like live)
-    if (adx < 20) adxLowCnt++; else adxLowCnt = 0;
-    const rangeMode = adxLowCnt >= 6;
+    if (adx < TREND.ADX_RANGE_THRESH) adxLowCnt++; else adxLowCnt = 0;
+    const rangeMode = adxLowCnt >= TREND.ADX_RANGE_TICKS;
     const tickIdx = i - 150; // candle index since start (mirrors tickCount)
     const warmedUp = tickIdx > warmupTick;
     const rsiRecovering = warmedUp && prevRsiSim < rsiMin && rsi > prevRsiSim + 1.0;
@@ -112,15 +112,16 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     if (dayPnlPct <= -3.0) continue;                    // daily -3% circuit breaker
     if (tMs < lossPauseUntilMs) continue;               // circuit breaker: 3 losses in a row
     const utcH = new Date(tMs).getUTCHours();
-    if (utcH >= 2 && utcH < 6) continue;               // low-liquidity hours
+    if (utcH >= TREND.LOW_LIQ_START && utcH < TREND.LOW_LIQ_END) continue; // low-liquidity hours
 
     // ── signals (identical to engineTick) ──
     const slope5 = wc.length >= 6 ? (wc[wc.length-1] - wc[wc.length-6]) / wc[wc.length-6] * 100 : 0;
-    const bearMkt = ema9 < ema21 && slope5 < -1.5;
+    const regime  = calcRegime(slope5, ema9, ema21);
+    const bearMkt = regime === "bear";
     const recent24 = wc.slice(-24);
     const recent24High = recent24.length > 0 ? Math.max(...recent24) : price;
     const dipFromHigh = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
-    const inCrash = dipFromHigh > 5.0;
+    const inCrash = dipFromHigh > TREND.CRASH_DIP_PCT;
     const fourH = trend4hAt(tMs);
 
     // ── Extra quality indicators (mirror live engineTick) ──
@@ -159,7 +160,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const bbHigh    = bbPercB > 80;
     const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochLow  ? 1 : 0) + (bbLow  ? 1 : 0) >= confluenceMin;
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochHigh ? 1 : 0) + (bbHigh ? 1 : 0) >= confluenceMin;
-    const capitulation = rsi < 33; // sim has no F&G feed — use RSI extreme as proxy
+    const capitulation = rsi < TREND.CAPITULATION_RSI; // sim has no F&G — RSI extreme as proxy
     const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt &&
       (fourH !== "bear" || capitulation) &&
       (ema9 > ema21 || fourH === "bull" || capitulation);
