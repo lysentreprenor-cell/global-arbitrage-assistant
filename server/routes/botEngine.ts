@@ -714,13 +714,17 @@ async function engineTick() {
   if (!config || !running) return;
 
   try {
-    const candles = await fetchCandles(config.symbol);
+    // Fetch candles, live price and 4H trend in parallel — saves ~4s per tick
+    const [candles, livePrice, h4] = await Promise.all([
+      fetchCandles(config.symbol),
+      fetchCurrentPrice(config.symbol),
+      fetch4HCandles(config.symbol),
+    ]);
     if (!candles) return;
     const { closes, opens, highs, lows, volumes, vwaps } = candles;
-    // Always fetch live price for accurate entry — don't rely on priceCheck interval
-    const livePrice = await fetchCurrentPrice(config.symbol);
     const price = livePrice ?? (lastPrice > 0 ? lastPrice : candles.price);
     if (livePrice) lastPrice = livePrice;
+    if (h4) fourHourTrend = h4.ema9 > h4.ema21 * 1.001 ? "bull" : h4.ema9 < h4.ema21 * 0.999 ? "bear" : "neutral";
 
     // Use closed candles only (drop last which may be in-progress) for cross detection
     const closedCloses = closes.slice(0, -1);
@@ -772,9 +776,6 @@ async function engineTick() {
     const todayStr = new Date().toISOString().slice(0, 10);
     if (dailyDate !== todayStr) { dailyDate = todayStr; dailyStartPnl = sessionPnl; }
     const dailyLossPct = config.capital > 0 ? (sessionPnl - dailyStartPnl) / config.capital * 100 : 0;
-    // 4H trend
-    const h4 = await fetch4HCandles(config.symbol);
-    if (h4) fourHourTrend = h4.ema9 > h4.ema21 * 1.001 ? "bull" : h4.ema9 < h4.ema21 * 0.999 ? "bear" : "neutral";
     // Range detection: ADX < 20 for 6+ consecutive ticks → mean-reversion only mode
     if (adx < 20) adxLowCount++;
     else adxLowCount = 0;
