@@ -28,6 +28,8 @@ type BotStatus = {
   dipStats?: {
     fourHourTrend: string; rangeMode: boolean;
     prevRsi: number; marketRegime: string; crashActive: boolean;
+    trendScore?: number;
+    trendStack?: Record<string, "bull" | "bear" | "neutral">;
   };
   sessionStats?: {
     wins: number; losses: number; winRate: number;
@@ -717,6 +719,33 @@ export default function TradingBot() {
                       </div>
                     </div>
                   )}
+                  {/* Layer 1 — multi-timeframe trend stack */}
+                  {dipStats?.trendStack && Object.keys(dipStats.trendStack).length > 0 && (() => {
+                    const score = dipStats.trendScore ?? 0;
+                    const order: { k: string; label: string }[] = [
+                      { k: "1", label: "1m" }, { k: "5", label: "5m" }, { k: "15", label: "15m" },
+                      { k: "30", label: "30m" }, { k: "60", label: "1h" }, { k: "240", label: "4h" },
+                    ];
+                    const arrow = (t?: string) => t === "bull" ? "↑" : t === "bear" ? "↓" : "=";
+                    const col = (t?: string) => t === "bull" ? "text-green-400" : t === "bear" ? "text-red-400" : "text-gray-500";
+                    const scoreCol = score > 0.3 ? "text-green-400" : score < -0.3 ? "text-red-400" : "text-gray-400";
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-400">Trend (multi-TF)</span>
+                          <span className={`text-xs font-bold ${scoreCol}`}>{score >= 0 ? "+" : ""}{score.toFixed(2)}</span>
+                        </div>
+                        <div className="grid grid-cols-6 gap-1 text-center">
+                          {order.map(({ k, label }) => (
+                            <div key={k} className="bg-[#111f10] rounded p-1">
+                              <div className="text-gray-500 text-[9px]">{label}</div>
+                              <div className={`font-bold text-sm leading-none ${col(dipStats.trendStack?.[k])}`}>{arrow(dipStats.trendStack?.[k])}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {/* Live indicators grid */}
                   {ind && ind.rsi > 0 && (
                     <div className="grid grid-cols-3 gap-1 text-xs">

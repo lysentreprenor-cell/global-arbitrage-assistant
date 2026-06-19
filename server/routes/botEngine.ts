@@ -8,7 +8,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { bybitFetch as proxyFetch } from "../proxyDispatcher";
-import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc, TREND, calc4HTrend, calcRegime } from "../lib/indicators";
+import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc, TREND, calc4HTrend, calcRegime, MTF_WEIGHTS, MTF_STRONG_BEAR, trendStackScore, trendStackLabel } from "../lib/indicators";
 import { simulate } from "../lib/strategySim";
 import { nextKrakenNonce, krakenSerialize } from "../lib/krakenNonce";
 
@@ -317,7 +317,9 @@ let lossPauseUntil = 0;     // epoch ms — block new entries until this time
 let sessionPeakPnl = 0;
 let sessionMaxDrawdown = 0;
 let fourHourTrend: "bull" | "bear" | "neutral" = "neutral";
-let m15Trend: { ema9: number; ema21: number } | null = null;  // 15m intermediate timeframe
+// Layer 1 — multi-timeframe trend stack
+let trendScore = 0;                                                  // weighted aggregate ∈ [-1,+1]
+let trendStack: Record<number, "bull" | "bear" | "neutral"> = {};    // per-TF breakdown
 let lastEntrySignal = "";
 
 // ── Live indicator snapshot (updated every engineTick) ─────────────────────────
@@ -378,15 +380,35 @@ async function fetchCurrentPrice(symbol: string): Promise<number | null> {
   } catch { return null; }
 }
 
-async function fetch15mCandles(symbol: string): Promise<{ ema9: number; ema21: number } | null> {
+/** Trend on a single Kraken interval (minutes) via EMA9 vs EMA21. Cached/queued by krakenOhlcFetch. */
+async function fetchTfTrend(symbol: string, interval: number): Promise<"bull" | "bear" | "neutral"> {
   const pair = krakenPair(symbol);
   try {
-    const since = Math.floor(Date.now() / 1000) - 80 * 15 * 60;
-    const raw = await krakenOhlcFetch(pair, 15, since);
-    if (!raw || raw.length < 25) return null;
+    const since = Math.floor(Date.now() / 1000) - 70 * interval * 60;
+    const raw = await krakenOhlcFetch(pair, interval, since);
+    if (!raw || raw.length < 25) return "neutral";
     const closes = raw.slice(-60).map((k: any) => parseFloat(k[4]));
-    return { ema9: calcEma(closes, 9), ema21: calcEma(closes, 21) };
-  } catch { return null; }
+    return calc4HTrend(calcEma(closes, 9), calcEma(closes, 21));
+  } catch { return "neutral"; }
+}
+
+/**
+ * Layer 1 — multi-timeframe trend stack. Fetches 1m/5m/15m/30m/1h/4h in parallel,
+ * each votes bull/bear/neutral, returns the weighted aggregate score ∈ [-1,+1]
+ * plus the per-timeframe breakdown for logging and the UI.
+ */
+async function fetchTrendStack(symbol: string): Promise<{
+  score: number;
+  trends: Record<number, "bull" | "bear" | "neutral">;
+}> {
+  const intervals = Object.keys(MTF_WEIGHTS).map(Number); // [1,5,15,30,60,240]
+  const results = await Promise.all(intervals.map(iv => fetchTfTrend(symbol, iv)));
+  const trends: Record<number, "bull" | "bear" | "neutral"> = {};
+  const votes = intervals.map((iv, i) => {
+    trends[iv] = results[i];
+    return { w: MTF_WEIGHTS[iv as keyof typeof MTF_WEIGHTS], trend: results[i] };
+  });
+  return { score: trendStackScore(votes), trends };
 }
 
 // ── Kraken public OHLC: serialized queue + rate-limit backoff + timeline cache ─
@@ -620,18 +642,6 @@ async function getIndSnap(symbol: string): Promise<Record<string, number>> {
   return snap;
 }
 
-async function fetch4HCandles(symbol: string): Promise<{ema9:number;ema21:number}|null> {
-  const pair = krakenPair(symbol);
-  try {
-    const since = Math.floor(Date.now() / 1000) - 50 * 4 * 3600;
-    const raw = await krakenOhlcFetch(pair, 240, since);
-    if (!raw || raw.length < 22) return null;
-    const list = raw.slice(-30);
-    const c4h = list.map((k: any) => parseFloat(k[4]));
-    return { ema9: calcEma(c4h, 9), ema21: calcEma(c4h, 21) };
-  } catch { return null; }
-}
-
 function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: number, reason: string) {
   const durationH = (Date.now() - new Date(pos.entryTime).getTime()) / 3_600_000;
   if (pnlPct > 0) {
@@ -736,19 +746,20 @@ async function engineTick() {
   if (isTickRunning) { addLog("⏭ Tick pominięty — poprzedni jeszcze trwa", "warn"); return; }
   isTickRunning = true;
   try {
-    // Fetch candles, live price, 4H and 15m in parallel — saves ~4s per tick
-    const [candles, livePrice, h4, m15] = await Promise.all([
+    // Fetch candles, live price and the multi-TF trend stack (1m→4h) in parallel
+    const [candles, livePrice, stack] = await Promise.all([
       fetchCandles(config.symbol),
       fetchCurrentPrice(config.symbol),
-      fetch4HCandles(config.symbol),
-      fetch15mCandles(config.symbol),
+      fetchTrendStack(config.symbol),
     ]);
     if (!candles) return;
     const { closes, opens, highs, lows, volumes, vwaps } = candles;
     const price = livePrice ?? (lastPrice > 0 ? lastPrice : candles.price);
     if (livePrice) lastPrice = livePrice;
-    if (h4) fourHourTrend = calc4HTrend(h4.ema9, h4.ema21);
-    if (m15) m15Trend = m15;
+    // Layer 1: aggregate trend across all timeframes
+    trendScore = stack.score;
+    trendStack = stack.trends;
+    fourHourTrend = stack.trends[240] ?? "neutral";  // 4H component drives capitulation logic
 
     // Use closed candles only (drop last which may be in-progress) for cross detection
     const closedCloses = closes.slice(0, -1);
@@ -826,9 +837,10 @@ async function engineTick() {
       regimeCandidateCount = 1;
     }
     if (regimeCandidateCount >= TREND.REGIME_HYSTERESIS) marketRegime = regimeCandidate;
-    // 15m alignment: if 15m candles available, use them as extra filter
-    const m15bear = m15Trend ? m15Trend.ema9 < m15Trend.ema21 : true; // true = don't block if unavailable
-    const m15bull = m15Trend ? m15Trend.ema9 > m15Trend.ema21 : true;
+    // 15m alignment (from the trend stack): 5m bear must agree with 15m direction
+    const m15Tr   = trendStack[15] ?? "neutral";
+    const m15bear = m15Tr !== "bull";   // bear or neutral → allow bearMkt
+    const m15bull = m15Tr !== "bear";   // bull or neutral → allow bullMkt
     const bearMkt = marketRegime === "bear" && m15bear && volMult > TREND.BEAR_MKT_VOL_MULT;
     const bullMkt = marketRegime === "bull" && m15bull;
     // 3. Crash protection: price >5% below 24h high — avoid catching falling knives in crashes
@@ -843,8 +855,10 @@ async function engineTick() {
     // Fear & Greed — non-blocking, cached 1h
     fetchFearGreed().catch(() => {});
 
-    const m15Label = m15Trend ? (m15Trend.ema9 > m15Trend.ema21 ? "↑" : m15Trend.ema9 < m15Trend.ema21 ? "↓" : "=") : "?";
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} 4H:${fourHourTrend} 15m:${m15Label} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})`);
+    // Compact per-TF arrow stack, e.g. "1m↓5m↑15m↑30m↑1h↑4h↑"
+    const arrow = (t: "bull" | "bear" | "neutral") => t === "bull" ? "↑" : t === "bear" ? "↓" : "=";
+    const stackLog = `1m${arrow(trendStack[1] ?? "neutral")}5m${arrow(trendStack[5] ?? "neutral")}15m${arrow(trendStack[15] ?? "neutral")}30m${arrow(trendStack[30] ?? "neutral")}1h${arrow(trendStack[60] ?? "neutral")}4h${arrow(trendStack[240] ?? "neutral")}`;
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})`);
     prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
     // ── Open position management ─────────────────────────────────────────────
@@ -930,12 +944,18 @@ async function engineTick() {
 
     const effLev = Math.max(1, config.leverage ?? 1);
 
-    // Trend-following: RSI neutral zone + price direction on at least one timeframe
-    // 4H bear blocks trendFollow — EXCEPT during capitulation (Fear&Greed < 20 or RSI < 33)
+    // Layer 1 — multi-timeframe stack labels drive the trend gate (1m→4h aggregate)
+    const stackLabel      = trendStackLabel(trendScore);
+    const stackBull       = stackLabel === "bull";
+    const stackBear       = stackLabel === "bear";
+    const stackStrongBear = trendScore < MTF_STRONG_BEAR; // fully-aligned downtrend
+
+    // Trend-following: RSI neutral zone + multi-TF trend not bearish
+    // Stack bear blocks trendFollow — EXCEPT during capitulation (Fear&Greed < 20 or RSI < 33)
     const capitulation = (fngCache && fngCache.value < TREND.CAPITULAION_FNG) || rsi < TREND.CAPITULATION_RSI;
     const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt &&
-      (fourHourTrend !== "bear" || capitulation) &&
-      (ema9 > ema21 || fourHourTrend === "bull" || capitulation);
+      (!stackBear || capitulation) &&
+      (ema9 > ema21 || stackBull || capitulation);
 
     // Bear market filter: EMA cross zawsze dozwolony, RSI dip blokowany TYLKO przy crash
     const rsiBuyFiltered = rsiBuy && !inCrash;
@@ -943,8 +963,12 @@ async function engineTick() {
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
     // VWAP filter: long preferowany gdy cena poniżej 4h VWAP (wartość), short gdy powyżej
     // Candle body: ostatnia świeca musi zamknąć się w kierunku sygnału
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy);
-    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell);
+    // Layer 1: don't long a fully-aligned downtrend (unless capitulation bounce),
+    //          don't short a fully-aligned uptrend (unless a fresh EMA cross-down)
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy)
+      && (!stackStrongBear || capitulation);
+    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell)
+      && (!stackBull || crossSell);
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -1109,7 +1133,8 @@ router.post("/start", (req, res) => {
   marketRegime = "neutral";
   regimeCandidate = "neutral";
   regimeCandidateCount = 0;
-  m15Trend = null;
+  trendScore = 0;
+  trendStack = {};
   tickCount = 0;
   adxLowCount = 0;
   rangeMode = false;
@@ -1125,7 +1150,8 @@ router.post("/start", (req, res) => {
   fourHourTrend = "neutral";
   regimeCandidate = "neutral";
   regimeCandidateCount = 0;
-  m15Trend = null;
+  trendScore = 0;
+  trendStack = {};
   lastEntrySignal = "";
   logs = [];
   const krakenLev = Math.max(1, config.leverage ?? 1);
@@ -1186,6 +1212,8 @@ router.get("/status", (_req, res) => {
       crashActive: dipFromHigh > 5.0,
       fourHourTrend,
       rangeMode,
+      trendScore: parseFloat(trendScore.toFixed(2)),
+      trendStack,
     },
     sessionStats: {
       wins: sessionWins,

@@ -188,6 +188,38 @@ export const TREND = {
   LOW_LIQ_END:   6,
 } as const;
 
+// ── Multi-timeframe trend stack (Layer 1) ─────────────────────────────────────
+// Each timeframe votes bull/bear/neutral via EMA9 vs EMA21. Higher timeframes
+// carry more weight (a 4H trend matters more than a 1m wobble). The weighted
+// score ∈ [-1,+1] is the aggregate market direction across all timeframes.
+// FIXED weights — universal between live engine and backtest.
+export const MTF_WEIGHTS = {
+  1: 0.5, 5: 1.0, 15: 1.5, 30: 2.0, 60: 2.5, 240: 3.0,
+} as const;
+
+// Score thresholds for aggregate trend label
+export const MTF_BULL_SCORE =  0.30; // score >  +0.30 → aligned bull
+export const MTF_BEAR_SCORE = -0.30; // score <  -0.30 → aligned bear
+export const MTF_STRONG_BEAR = -0.60; // score < -0.60 → hard-block new longs
+
+/** Weighted multi-timeframe trend score ∈ [-1,+1]. Missing TFs are simply omitted (score renormalises). */
+export function trendStackScore(votes: { w: number; trend: "bull" | "bear" | "neutral" }[]): number {
+  let sum = 0, total = 0;
+  for (const v of votes) {
+    total += v.w;
+    if (v.trend === "bull") sum += v.w;
+    else if (v.trend === "bear") sum -= v.w;
+  }
+  return total > 0 ? sum / total : 0;
+}
+
+/** Aggregate label from a stack score */
+export function trendStackLabel(score: number): "bull" | "bear" | "neutral" {
+  if (score > MTF_BULL_SCORE) return "bull";
+  if (score < MTF_BEAR_SCORE) return "bear";
+  return "neutral";
+}
+
 /** Determine 4H trend from a closes array and EMA buffers */
 export function calc4HTrend(ema9: number, ema21: number): "bull" | "bear" | "neutral" {
   if (ema9 > ema21 * TREND.H4_BULL_BUFFER) return "bull";

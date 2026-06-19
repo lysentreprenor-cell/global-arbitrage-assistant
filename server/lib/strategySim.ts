@@ -3,7 +3,7 @@
  * Extracted VERBATIM from the /backtest handler so that simulation, optimizer and
  * the live bot all behave identically. No side-effects, no network, no secrets.
  */
-import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc, TREND, calc4HTrend, calcRegime } from "./indicators";
+import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc, TREND, calc4HTrend, calcRegime, MTF_WEIGHTS, MTF_STRONG_BEAR, trendStackScore, trendStackLabel } from "./indicators";
 
 export type SimParams = {
   rsiMin: number; rsiMax: number; adxMin: number; confluenceMin: number;
@@ -58,6 +58,24 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
   const lows    = raw.map((c: any) => parseFloat(c[3]));
   const vwapsAll= raw.map((c: any) => parseFloat(c[5]));
   const volumes = raw.map((c: any) => parseFloat(c[6]));
+  const c5times = raw.map((c: any) => c[0] * 1000);
+
+  // ── Multi-timeframe stack (Layer 1) — resample 5m into 15m/30m/1h ─────────────
+  // Live also reads 1m, which cannot be reconstructed from 5m data; the score
+  // renormalises over the present weights so backtest ≈ live (1m has lowest weight).
+  const _resample = (factor: number) => {
+    const rc: number[] = [], rt: number[] = [];
+    for (let q = factor - 1; q < closes.length; q += factor) { rc.push(closes[q]); rt.push(c5times[q]); }
+    return { rc, rt };
+  };
+  const _tf15 = _resample(3), _tf30 = _resample(6), _tf60 = _resample(12);
+  const trendTfAt = (tMs: number, tf: { rc: number[]; rt: number[] }): "bull" | "bear" | "neutral" => {
+    let idx = -1;
+    for (let q = tf.rt.length - 1; q >= 0; q--) { if (tf.rt[q] <= tMs) { idx = q; break; } }
+    if (idx < 21) return "neutral";
+    const slice = tf.rc.slice(0, idx + 1);
+    return calc4HTrend(calcEma(slice, 9), calcEma(slice, 21));
+  };
 
   const trades: SimTrade[] = [];
   const cooldownMs = cooldownMin * 60 * 1000;
@@ -129,12 +147,29 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
       simRegimeCandidateCount = 1;
     }
     if (simRegimeCandidateCount >= TREND.REGIME_HYSTERESIS) simRegime = simRegimeCandidate;
-    const bearMkt = simRegime === "bear" && volMult > TREND.BEAR_MKT_VOL_MULT;
+    // Layer 1 — multi-timeframe trend stack (5m/15m/30m/1h/4h; 1m not available in sim)
+    const fourH    = trend4hAt(tMs);
+    const tr5      = calc4HTrend(ema9, ema21);
+    const tr15     = trendTfAt(tMs, _tf15);
+    const tr30     = trendTfAt(tMs, _tf30);
+    const tr60     = trendTfAt(tMs, _tf60);
+    const stackScore = trendStackScore([
+      { w: MTF_WEIGHTS[5],   trend: tr5 },
+      { w: MTF_WEIGHTS[15],  trend: tr15 },
+      { w: MTF_WEIGHTS[30],  trend: tr30 },
+      { w: MTF_WEIGHTS[60],  trend: tr60 },
+      { w: MTF_WEIGHTS[240], trend: fourH },
+    ]);
+    const stackLabel      = trendStackLabel(stackScore);
+    const stackBull       = stackLabel === "bull";
+    const stackBear       = stackLabel === "bear";
+    const stackStrongBear = stackScore < MTF_STRONG_BEAR;
+    const m15bear = tr15 !== "bull";   // 15m alignment for bear regime (mirrors live)
+    const bearMkt = simRegime === "bear" && m15bear && volMult > TREND.BEAR_MKT_VOL_MULT;
     const recent24 = wc.slice(-24);
     const recent24High = recent24.length > 0 ? Math.max(...recent24) : price;
     const dipFromHigh = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
     const inCrash = dipFromHigh > TREND.CRASH_DIP_PCT;
-    const fourH = trend4hAt(tMs);
 
     // ── Extra quality indicators (mirror live engineTick) ──
     const stochRsi = calcStochRsi(wc);
@@ -174,12 +209,14 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochHigh ? 1 : 0) + (bbHigh ? 1 : 0) >= confluenceMin;
     const capitulation = rsi < TREND.CAPITULATION_RSI; // sim has no F&G — RSI extreme as proxy
     const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt &&
-      (fourH !== "bear" || capitulation) &&
-      (ema9 > ema21 || fourH === "bull" || capitulation);
+      (!stackBear || capitulation) &&
+      (ema9 > ema21 || stackBull || capitulation);
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true;
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy);
-    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell);
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy)
+      && (!stackStrongBear || capitulation);
+    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell)
+      && (!stackBull || crossSell);
     if (!isLong && !isShort) continue;
 
     // ── Indicator filter gates (applied when toggles are ON) ──
