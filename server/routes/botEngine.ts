@@ -961,13 +961,18 @@ async function engineTick() {
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true; // 2× agresywny: brak wymogu ADX quality
     // Crash protection: >5% dip from 24h high = crash risk, skip new entries
-    // VWAP filter: long preferowany gdy cena poniżej 4h VWAP (wartość), short gdy powyżej
+    // VWAP filter — direction-aware:
+    //   • dip/mean-reversion longs (rsiBuy): require price BELOW VWAP (buy the dip)
+    //   • trend/cross longs: NO below-VWAP requirement — let the bot RIDE uptrends
+    //     (price is normally above VWAP in an uptrend; the old gate blocked all of them)
+    const longVwapOk  = belowVwap || crossBuy || trendFollow || stackBull;
+    const shortVwapOk = aboveVwap || crossSell || stackBear;
     // Candle body: ostatnia świeca musi zamknąć się w kierunku sygnału
     // Layer 1: don't long a fully-aligned downtrend (unless capitulation bounce),
     //          don't short a fully-aligned uptrend (unless a fresh EMA cross-down)
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy)
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && longVwapOk
       && (!stackStrongBear || capitulation);
-    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell)
+    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
       && (!stackBull || crossSell);
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;

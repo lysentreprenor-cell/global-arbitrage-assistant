@@ -213,9 +213,13 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
       (ema9 > ema21 || stackBull || capitulation);
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true;
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && (belowVwap || crossBuy)
+    // VWAP filter — direction-aware (mirror live): dip longs need below-VWAP,
+    // trend/cross longs ride uptrends without the below-VWAP requirement.
+    const longVwapOk  = belowVwap || crossBuy || trendFollow || stackBull;
+    const shortVwapOk = aboveVwap || crossSell || stackBear;
+    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && longVwapOk
       && (!stackStrongBear || capitulation);
-    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && (aboveVwap || crossSell)
+    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
       && (!stackBull || crossSell);
     if (!isLong && !isShort) continue;
 
