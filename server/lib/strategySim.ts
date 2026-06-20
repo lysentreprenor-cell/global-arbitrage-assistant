@@ -38,7 +38,10 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     stopLoss, takeProfit, trailPct, leverage, allowShorts,
   } = p;
 
-  const FEE_RT = 0.0052; // Kraken 0.26% × 2 (open+close) — same as live engine
+  // Realistic fee model: maker entry (limit order) + taker exit (market at SL/TP)
+  // Kraken: maker 0.16%, taker 0.26% → mixed round-trip ≈ 0.42% (better than pure taker 0.52%)
+  // + slippage: avg 0.05% per fill on BTC at $60K+ (1-2 ticks spread)
+  const FEE_RT = 0.0042 + 0.001; // 0.42% fees + 0.10% slippage = 0.52% total cost
 
   // ── 4H trend lookup (mirrors live fetch4HCandles) ────────
   const c4closes = raw4.map((c: any) => parseFloat(c[4]));
@@ -283,42 +286,45 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const effTP   = Math.max(takeProfit, atrPct * 2.5);
     let   trlPct  = Math.max(trailPct,   atrPct * 0.8);
     const long = dir === "long";
+    // Slippage on entry: limit order fills 0.05% worse than close price
+    const SLIP = 0.0005;
+    const entryPx = long ? price * (1 + SLIP) : price * (1 - SLIP);
 
     // ── exit scan (mirrors priceCheck + engineTick exits) ──
-    let exitPx = price, reason = "max_hold";
-    let trailRef = price, breakEvenSet = false;
+    let exitPx = entryPx, reason = "max_hold";
+    let trailRef = entryPx, breakEvenSet = false;
     let exitIdx = Math.min(i + MAX_HOLD, raw.length - 1);
     for (let j = i + 1; j < Math.min(i + MAX_HOLD, raw.length); j++) {
       const hi = highs[j], lo = lows[j], cl = closes[j];
       exitIdx = j;
       trailRef = long ? Math.max(trailRef, hi) : Math.min(trailRef, lo);
-      const favPct = long ? (trailRef - price) / price * 100 : (price - trailRef) / price * 100;
+      const favPct = long ? (trailRef - entryPx) / entryPx * 100 : (entryPx - trailRef) / entryPx * 100;
       // break-even at 50% of TP → tighten trail + lock to entry (matches live)
       if (!breakEvenSet && favPct >= effTP * 0.5) {
         breakEvenSet = true;
         trlPct = Math.max(trlPct * 0.5, 0.08);
-        const needed = long ? price / (1 - trlPct / 100) : price / (1 + trlPct / 100);
+        const needed = long ? entryPx / (1 - trlPct / 100) : entryPx / (1 + trlPct / 100);
         trailRef = long ? Math.max(trailRef, needed) : Math.min(trailRef, needed);
       }
       const trailSL = long ? trailRef * (1 - trlPct / 100) : trailRef * (1 + trlPct / 100);
-      const initSL  = long ? price * (1 - effSL / 100)     : price * (1 + effSL / 100);
+      const initSL  = long ? entryPx * (1 - effSL / 100)   : entryPx * (1 + effSL / 100);
       const effSLp  = long ? Math.max(trailSL, initSL)     : Math.min(trailSL, initSL);
       // SL/trail first (pessimistic), then TP, then RSI-extreme at close
-      if (long ? lo <= effSLp : hi >= effSLp) { exitPx = effSLp; reason = (long ? effSLp > price : effSLp < price) ? "trail_stop" : "stop_loss"; break; }
-      if (long ? hi >= price * (1 + effTP / 100) : lo <= price * (1 - effTP / 100)) { exitPx = long ? price * (1 + effTP / 100) : price * (1 - effTP / 100); reason = "take_profit"; break; }
+      if (long ? lo <= effSLp : hi >= effSLp) { exitPx = effSLp; reason = (long ? effSLp > entryPx : effSLp < entryPx) ? "trail_stop" : "stop_loss"; break; }
+      if (long ? hi >= entryPx * (1 + effTP / 100) : lo <= entryPx * (1 - effTP / 100)) { exitPx = long ? entryPx * (1 + effTP / 100) : entryPx * (1 - effTP / 100); reason = "take_profit"; break; }
       const rsiJ = calcRsi(closes.slice(Math.max(0, j - 149), j + 1));
       if (long && rsiJ > Math.max(rsiMax + 8, 78)) { exitPx = cl; reason = "rsi_extreme"; break; }
       if (!long && rsiJ < Math.min(rsiMin - 8, 22)) { exitPx = cl; reason = "rsi_extreme"; break; }
       exitPx = cl;
     }
 
-    const rawPct = long ? (exitPx - price) / price * 100 : (price - exitPx) / price * 100;
+    const rawPct = long ? (exitPx - entryPx) / entryPx * 100 : (entryPx - exitPx) / entryPx * 100;
     const netPct = rawPct - FEE_RT * 100; // subtract round-trip fee (matches live pnl accounting)
     dayPnlPct += netPct;
     // Circuit breaker: mirror live engine (3 consecutive losses → 2h pause)
     if (netPct > 0) { consecLosses = 0; }
     else { consecLosses++; if (consecLosses >= 3) lossPauseUntilMs = raw[exitIdx][0] * 1000 + 2 * 3600 * 1000; }
-    trades.push({ dir, entry: parseFloat(price.toFixed(2)), exit: parseFloat(exitPx.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, time: new Date(tMs).toISOString() });
+    trades.push({ dir, entry: parseFloat(entryPx.toFixed(2)), exit: parseFloat(exitPx.toFixed(2)), pnlPct: parseFloat(netPct.toFixed(3)), reason, signal: sig, time: new Date(tMs).toISOString() });
     lastEntry = tMs;
     skipUntil = exitIdx;
   }
