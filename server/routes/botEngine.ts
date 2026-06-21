@@ -959,21 +959,31 @@ async function engineTick() {
 
     // Bear market filter: EMA cross zawsze dozwolony, RSI dip blokowany TYLKO przy crash
     const rsiBuyFiltered = rsiBuy && !inCrash;
-    const trendQuality = true; // 2× agresywny: brak wymogu ADX quality
-    // Crash protection: >5% dip from 24h high = crash risk, skip new entries
-    // VWAP filter — direction-aware:
-    //   • dip/mean-reversion longs (rsiBuy): require price BELOW VWAP (buy the dip)
-    //   • trend/cross longs: NO below-VWAP requirement — let the bot RIDE uptrends
-    //     (price is normally above VWAP in an uptrend; the old gate blocked all of them)
+    const trendQuality = true;
+    // VWAP filter — direction-aware
     const longVwapOk  = belowVwap || crossBuy || trendFollow || stackBull;
     const shortVwapOk = aboveVwap || crossSell || stackBear;
-    // Candle body: ostatnia świeca musi zamknąć się w kierunku sygnału
-    // Layer 1: don't long a fully-aligned downtrend (unless capitulation bounce),
-    //          don't short a fully-aligned uptrend (unless a fresh EMA cross-down)
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && longVwapOk
+
+    // ── Range mean-reversion (osobna ścieżka dla konsolidacji) ──────────────────
+    // W rangeMode (ADX<20 przez 6+ ticków) rynek się boczuje.
+    // Wtedy sygnałem wejścia jest cena przy EKSTREMALNYM końcu Bollingera:
+    //   Long:  BB%B < 15 + poniżej VWAP = kupno przy dolnej bandzie
+    //   Short: BB%B > 85 + powyżej VWAP = sprzedaż przy górnej bandzie
+    // Świeca w PRZECIWNYM kierunku to DOBRY znak (kupujesz na dole czerwonej świecy).
+    // Nie wymaga MACD/ADX/wolumenu — BB%B przy ekstremalnym poziomie IS sygnałem.
+    // Range MR nie wymaga stack alignment — rangeMode (6+ ticków ADX<20) JUŻ potwierdza range.
+    // EMA stack jest opóźniony od poprzedniego trendu i nie powinien blokować mean-reversion.
+    const rangeMrLong  = rangeMode && bbPercB < 15 && belowVwap && !inCrash;
+    const rangeMrShort = rangeMode && bbPercB > 85 && aboveVwap && config.allowShorts;
+
+    // Trend entries (oryginalna logika, wymaga bull candle + confluence)
+    const trendLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && longVwapOk
       && (!stackStrongBear || capitulation);
-    const isShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
+    const trendShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
       && (!stackBull || crossSell);
+
+    const isLong  = trendLong  || rangeMrLong;
+    const isShort = trendShort || rangeMrShort;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -981,15 +991,15 @@ async function engineTick() {
     const doShort = isShort && cooldownOk;
 
     if (!doLong && !doShort) {
-      // Detailed diagnostics: show exactly which condition blocked the signal
       const tf = ema9 > ema21 ? "ema↑" : fourHourTrend === "bull" ? "4H↑" : slope5 > 0.15 ? `sl↑${slope5.toFixed(2)}` : `no(sl=${slope5.toFixed(2)})`;
       const confDetail = `${macdBull?"M":"-"}${trendOk?"A":"-"}${volOk?"V":"-"}${stochLow?"S":"-"}${bbLow?"B":"-"}`;
       const coolLeft = cooldownOk ? "✓" : `${Math.ceil((cooldownMs - (Date.now() - lastEntryTime)) / 60000)}m`;
-      addLog(`Brak sygnału — RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} TF:${tf} conf=${confDetail}(min=${confMin}) cool=${coolLeft} vwap=${belowVwap?"↓":aboveVwap?"↑":"="} candle=${bullCandle?"bull":bearCandle?"bear":"doji"} divBull=${rsiDivBull} crash=${inCrash}`);
+      addLog(`Brak sygnału — RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} TF:${tf} conf=${confDetail}(min=${confMin}) cool=${coolLeft} vwap=${belowVwap?"↓":aboveVwap?"↑":"="} candle=${bullCandle?"bull":bearCandle?"bear":"doji"} BB%B=${bbPercB.toFixed(0)} range=${rangeMode} divBull=${rsiDivBull} crash=${inCrash}`);
       return;
     }
     // Determine which signal triggered
-    lastEntrySignal = crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : "RSI_dip";
+    lastEntrySignal = rangeMrLong ? "Range_MR_Long" : rangeMrShort ? "Range_MR_Short"
+      : crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : "RSI_dip";
 
     const direction: Direction = doLong ? "long" : "short";
 

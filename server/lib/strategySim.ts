@@ -216,14 +216,19 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
       (ema9 > ema21 || stackBull || capitulation);
     const rsiBuyFiltered = rsiBuy && !inCrash;
     const trendQuality = true;
-    // VWAP filter — direction-aware (mirror live): dip longs need below-VWAP,
-    // trend/cross longs ride uptrends without the below-VWAP requirement.
     const longVwapOk  = belowVwap || crossBuy || trendFollow || stackBull;
     const shortVwapOk = aboveVwap || crossSell || stackBear;
-    const isLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && longVwapOk
+    // Range mean-reversion (mirrors live engine)
+    const rangeMrLong  = rangeMode && bbPercB < 15 && belowVwap && !inCrash;
+    const rangeMrShort = rangeMode && bbPercB > 85 && aboveVwap && allowShorts;
+    const trendLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && longVwapOk
       && (!stackStrongBear || capitulation);
-    const isShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
+    const trendShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
       && (!stackBull || crossSell);
+    const isLong  = trendLong  || rangeMrLong;
+    const isShort = trendShort || rangeMrShort;
+    const sig = rangeMrLong ? "Range_MR_Long" : rangeMrShort ? "Range_MR_Short"
+      : crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : "RSI_dip";
     if (!isLong && !isShort) continue;
 
     // ── Indicator filter gates (applied when toggles are ON) ──
@@ -281,7 +286,6 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     }
 
     const dir: "long" | "short" = isLong ? "long" : "short";
-    const sig = crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : isShort ? (crossSell ? "EMA_cross" : "RSI_pump") : "RSI_dip";
     const effSL   = Math.max(stopLoss,   atrPct * 1.5);
     const effTP   = Math.max(takeProfit, atrPct * 2.5);
     let   trlPct  = Math.max(trailPct,   atrPct * 0.8);
