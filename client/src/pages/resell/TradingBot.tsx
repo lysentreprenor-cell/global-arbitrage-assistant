@@ -773,23 +773,11 @@ export default function TradingBot() {
                     </div>
                   )}
                   {/* Market opinion */}
-                  {dipStats?.marketOpinion && (() => {
-                    const op = dipStats.marketOpinion!;
-                    const borderCol = op.color === "green" ? "border-green-700 bg-green-950/40"
-                      : op.color === "red"  ? "border-red-700 bg-red-950/40"
-                      : op.color === "yellow" ? "border-yellow-700 bg-yellow-950/30"
-                      : "border-gray-700 bg-[#111f10]";
-                    const textCol = op.color === "green" ? "text-green-300"
-                      : op.color === "red"  ? "text-red-300"
-                      : op.color === "yellow" ? "text-yellow-300"
-                      : "text-gray-400";
-                    return (
-                      <div className={`rounded-lg border px-3 py-2 ${borderCol}`}>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Opinia rynku</div>
-                        <div className={`text-xs font-semibold ${textCol}`}>{op.emoji} {op.text}</div>
-                      </div>
-                    );
-                  })()}
+                  {dipStats?.marketOpinion && (
+                    <div className="text-xs text-gray-400">
+                      <span className="text-gray-500">Opinia: </span>{dipStats.marketOpinion.emoji} {dipStats.marketOpinion.text}
+                    </div>
+                  )}
                   {/* Circuit breaker */}
                   {cb?.active && (
                     <div className="text-xs text-red-400 font-medium">
