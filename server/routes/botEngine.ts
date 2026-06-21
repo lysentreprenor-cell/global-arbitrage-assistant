@@ -1217,6 +1217,39 @@ router.get("/status", (_req, res) => {
   const histLosses = tradeHistory.filter(t => t.pnlPct <= 0);
   const avgWin  = histWins.length  > 0 ? histWins.reduce((s, t) => s + t.pnlPct, 0)  / histWins.length  : 0;
   const avgLoss = histLosses.length > 0 ? histLosses.reduce((s, t) => s + t.pnlPct, 0) / histLosses.length : 0;
+  // ── Market opinion ─────────────────────────────────────────────────────────
+  const _fng = fngCache?.value ?? 50;
+  const _capitul = liveRsi < TREND.CAPITULATION_RSI || _fng < TREND.CAPITULAION_FNG;
+  const _extremeCap = _capitul && liveRsi < 30 && liveBbPercB < 0;
+  const _oversold   = liveRsi < 35 && liveBbPercB < 20 && liveStochRsi < 25;
+  const _overbought = liveRsi > 70 && liveBbPercB > 80;
+  const _stackLabel = trendScore > 0.30 ? "bull" : trendScore < -0.30 ? "bear" : "neutral";
+  const _strongBear = trendScore < -0.60;
+  const _strongBull = trendScore > 0.60;
+
+  let marketOpinion: { text: string; color: "green" | "red" | "yellow" | "gray"; emoji: string };
+  if (_extremeCap) {
+    marketOpinion = { text: "Ekstremalne wyprzedanie — czas na LONG (kapitulacja rynku)", color: "green", emoji: "🚨" };
+  } else if (_oversold && marketRegime !== "bear") {
+    marketOpinion = { text: "RSI wyprzedany, cena przy dolnej BB — możliwy LONG na odbiciu", color: "green", emoji: "📈" };
+  } else if (_oversold && marketRegime === "bear") {
+    marketOpinion = { text: "Wyprzedany w trendzie niedźwiedzim — czekaj na potwierdzenie odbicia", color: "yellow", emoji: "⚠️" };
+  } else if (_overbought && _stackLabel !== "bull") {
+    marketOpinion = { text: "RSI wykupiony, cena przy górnej BB — czas na sprzedaż lub SHORT", color: "red", emoji: "📉" };
+  } else if (rangeMode && liveBbPercB < 20) {
+    marketOpinion = { text: "Konsolidacja, cena przy dole zakresu — kup przy dolnej wstędze BB", color: "green", emoji: "↔️" };
+  } else if (rangeMode && liveBbPercB > 80) {
+    marketOpinion = { text: "Konsolidacja, cena przy górze zakresu — sprzedaj przy górnej wstędze BB", color: "red", emoji: "↔️" };
+  } else if (_strongBull && marketRegime !== "bear") {
+    marketOpinion = { text: "Silny trend wzrostowy — utrzymaj pozycję LONG lub czekaj na korektę", color: "green", emoji: "🚀" };
+  } else if (_strongBear || marketRegime === "bear") {
+    marketOpinion = { text: "Trend spadkowy — unikaj longów, rozważ SHORT lub czekaj na dno", color: "red", emoji: "🐻" };
+  } else if (rangeMode) {
+    marketOpinion = { text: "Rynek w konsolidacji — handluj wstęgi BB lub czekaj na wybicie", color: "yellow", emoji: "↔️" };
+  } else {
+    marketOpinion = { text: "Brak wyraźnego sygnału — obserwuj wskaźniki i czekaj na setup", color: "gray", emoji: "👀" };
+  }
+
   res.json({
     running, position, sessionPnl,
     logs: logs.slice(-50),
@@ -1233,6 +1266,7 @@ router.get("/status", (_req, res) => {
       rangeMode,
       trendScore: parseFloat(trendScore.toFixed(2)),
       trendStack,
+      marketOpinion,
     },
     sessionStats: {
       wins: sessionWins,
