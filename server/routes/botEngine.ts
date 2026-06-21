@@ -976,8 +976,11 @@ async function engineTick() {
     const rangeMrLong  = rangeMode && bbPercB < 15 && belowVwap && !inCrash;
     const rangeMrShort = rangeMode && bbPercB > 85 && aboveVwap && config.allowShorts;
 
+    // Extreme capitulation: RSI<30 + price below lower BB → skip bullCandle requirement
+    const extremeCap = capitulation && rsi < 30 && bbPercB < 0;
+
     // Trend entries (oryginalna logika, wymaga bull candle + confluence)
-    const trendLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && bullCandle && longVwapOk
+    const trendLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && (bullCandle || extremeCap) && longVwapOk
       && (!stackStrongBear || capitulation);
     const trendShort = config.allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
       && (!stackBull || crossSell);
@@ -999,6 +1002,7 @@ async function engineTick() {
     }
     // Determine which signal triggered
     lastEntrySignal = rangeMrLong ? "Range_MR_Long" : rangeMrShort ? "Range_MR_Short"
+      : extremeCap ? "Capitulation_Dip"
       : crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : "RSI_dip";
 
     const direction: Direction = doLong ? "long" : "short";
