@@ -223,7 +223,8 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const rangeMrShort = rangeMode && bbPercB > 85 && aboveVwap && allowShorts;
     // Extreme capitulation: RSI<30 + price below lower BB → skip bullCandle requirement
     const extremeCap = capitulation && rsi < 30 && bbPercB < 0;
-    const trendLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && (bullCandle || extremeCap) && longVwapOk
+    const candleOk = bullCandle || extremeCap || (trendFollow && !bearMkt && !stackBear);
+    const trendLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && candleOk && longVwapOk
       && (!stackStrongBear || capitulation);
     const trendShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
       && (!stackBull || crossSell);
