@@ -196,42 +196,10 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const bullCandle = curClose > lastOpen;
     const bearCandle = curClose < lastOpen;
 
-    const crossBuy  = ema9 > ema21 && prevE9 <= prevE21;
-    const crossSell = ema9 < ema21 && prevE9 >= prevE21;
-    const rsiBuy    = rsi < rsiMin || rsiRecovering || rsiDivBull;
-    const rsiSell   = rsi > rsiMax || rsiDivBear;
-    const macdBull  = macdLine > macdSig;
-    const macdBear  = macdLine < macdSig;
-    const trendOk   = adx >= adxMin;
-    const volOk     = volMult >= volMultMin;
-    const stochLow  = stochRsi < 25;
-    const stochHigh = stochRsi > 75;
-    const bbLow     = bbPercB < 20;
-    const bbHigh    = bbPercB > 80;
-    const longConf  = (macdBull ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochLow  ? 1 : 0) + (bbLow  ? 1 : 0) >= confluenceMin;
-    const shortConf = (macdBear ? 1 : 0) + (trendOk ? 1 : 0) + (volOk ? 1 : 0) + (stochHigh ? 1 : 0) + (bbHigh ? 1 : 0) >= confluenceMin;
-    const capitulation = rsi < TREND.CAPITULATION_RSI; // sim has no F&G — RSI extreme as proxy
-    const trendFollow = rsi >= 35 && rsi <= 70 && !bearMkt &&
-      (!stackBear || capitulation) &&
-      (ema9 > ema21 || stackBull || capitulation);
-    const rsiBuyFiltered = rsiBuy && !inCrash;
-    const trendQuality = true;
-    const longVwapOk  = belowVwap || crossBuy || trendFollow || stackBull;
-    const shortVwapOk = aboveVwap || crossSell || stackBear;
-    // Range mean-reversion (mirrors live engine)
-    const rangeMrLong  = rangeMode && bbPercB < 15 && belowVwap && !inCrash;
-    const rangeMrShort = rangeMode && bbPercB > 85 && aboveVwap && allowShorts;
-    // Extreme capitulation: RSI<30 + price below lower BB → skip bullCandle requirement
-    const extremeCap = capitulation && rsi < 30 && bbPercB < 0;
-    const candleOk = bullCandle || extremeCap || (trendFollow && !bearMkt && !stackBear);
-    const trendLong  = (crossBuy || rsiBuyFiltered || trendFollow) && longConf && !inCrash && trendQuality && candleOk && longVwapOk
-      && (!stackStrongBear || capitulation);
-    const trendShort = allowShorts && (crossSell || rsiSell) && shortConf && bearCandle && shortVwapOk
-      && (!stackBull || crossSell);
-    const isLong  = trendLong  || rangeMrLong;
-    const isShort = trendShort || rangeMrShort;
-    const sig = rangeMrLong ? "Range_MR_Long" : rangeMrShort ? "Range_MR_Short"
-      : crossBuy ? "EMA_cross" : trendFollow ? "TrendFollow" : rsiRecovering ? "RSI_bounce" : "RSI_dip";
+    // Simplified single-mode entry: BB%B + VWAP only
+    const isLong  = bbPercB < 30 && belowVwap && !inCrash;
+    const isShort = allowShorts && bbPercB > 70 && aboveVwap;
+    const sig = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
     if (!isLong && !isShort) continue;
 
     // ── Indicator filter gates (applied when toggles are ON) ──
