@@ -132,11 +132,37 @@ function loadState() {
       running = true;
       saveState();
       addLog(`Auto-resume po restarcie${position ? ` — przywrócono pozycję ${position.direction.toUpperCase()} z ${new Date(position.entryTime).toLocaleTimeString()}` : ""}`, "info");
+      // Reconcile restored position against the exchange — drop phantoms that don't exist there
+      if (position) reconcilePosition();
       engineTick();
       intervalId = setInterval(engineTick, 60_000);
       priceIntervalId = setInterval(priceCheck, 5_000);
     }
   } catch { /* ignore */ }
+}
+
+// Verify a restored position actually exists on the exchange; clear it if it's a phantom.
+// Kraken leveraged trades open margin positions queryable via OpenPositions.
+async function reconcilePosition() {
+  if (!config || !position || config.platform !== "kraken") return;
+  try {
+    const open = await krakenPrivate("/0/private/OpenPositions");
+    const positions = open ? Object.values(open) as any[] : [];
+    const hasMatch = positions.some(p => {
+      const t = (p.type ?? "").toLowerCase(); // "buy"/"sell"
+      return position && ((position.direction === "long" && t === "buy") || (position.direction === "short" && t === "sell"));
+    });
+    if (positions.length === 0 || !hasMatch) {
+      addLog(`⚠️ Pozycja ${position.direction.toUpperCase()} nie istnieje na Krakenie — usuwam fantomową pozycję`, "warn");
+      position = null;
+      saveState();
+    } else {
+      addLog(`✅ Pozycja potwierdzona na Krakenie (${positions.length} otwartych)`);
+    }
+  } catch (e: any) {
+    // Don't clear on API error — could be transient; just warn
+    addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message}`, "warn");
+  }
 }
 
 function addLog(msg: string, type: LogEntry["type"] = "info") {
@@ -217,8 +243,8 @@ async function krakenPrivate(path: string, params: Record<string, any> = {}) {
   });
 }
 
-// Returns orderId/txid on success, throws on failure
-async function placeOrder(side: Direction, qty: number): Promise<string> {
+// Returns { txid, fillPrice } on confirmed fill, throws on failure
+async function placeOrder(side: Direction, qty: number): Promise<{ txid: string; fillPrice: number }> {
   if (!config) throw new Error("No config");
   if (config.platform === "kraken") {
     const pair = krakenPair(config.symbol);
@@ -228,9 +254,27 @@ async function placeOrder(side: Direction, qty: number): Promise<string> {
     };
     if (effLev > 1) orderParams.leverage = String(effLev);
     const result = await krakenPrivate("/0/private/AddOrder", orderParams);
-    const txid = result.txid?.[0] ?? "unknown";
+    const txid = result.txid?.[0];
+    // No txid means Kraken did NOT accept the order — never record a phantom position
+    if (!txid) throw new Error("Kraken nie zwrócił txid — zlecenie odrzucone");
     addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty}${effLev > 1 ? ` lev=${effLev}x` : ""} | TxID: ${txid}`, "buy");
-    return txid;
+    // Verify the market order actually filled and capture the real average fill price
+    let fillPrice = 0;
+    try {
+      const q = await krakenPrivate("/0/private/QueryOrders", { txid });
+      const ord = q?.[txid];
+      if (ord) {
+        if (ord.status === "canceled" || ord.status === "expired") {
+          throw new Error(`Zlecenie ${ord.status} na Krakenie`);
+        }
+        fillPrice = parseFloat(ord.price ?? ord.avg_price ?? "0") || 0;
+        addLog(`✅ Wypełniono: status=${ord.status} cena=${fillPrice || "?"} vol=${ord.vol_exec ?? "?"}`);
+      }
+    } catch (e: any) {
+      // QueryOrders failed but AddOrder succeeded — proceed with tick price as entry
+      addLog(`⚠️ Nie zweryfikowano wypełnienia: ${e.message}`, "warn");
+    }
+    return { txid, fillPrice };
   }
   const params: Record<string, any> = config.platform === "eu"
     ? { category: "spot", symbol: config.symbol, side: side === "long" ? "Buy" : "Sell",
@@ -238,9 +282,10 @@ async function placeOrder(side: Direction, qty: number): Promise<string> {
     : { category: "linear", symbol: config.symbol, side: side === "long" ? "Buy" : "Sell",
         orderType: "Market", qty: String(qty), positionIdx: 0 };
   const d = await bybitFetch("POST", "/v5/order/create", params);
-  const orderId = d.result?.orderId ?? "unknown";
+  const orderId = d.result?.orderId;
+  if (!orderId) throw new Error("Brak orderId — zlecenie odrzucone");
   addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty} | OrderID: ${orderId}`, "buy");
-  return orderId;
+  return { txid: orderId, fillPrice: 0 };
 }
 
 // Returns true on success, false on failure
@@ -1004,9 +1049,10 @@ async function engineTick() {
           });
         } catch { /* already set */ }
       }
-      await placeOrder(direction, qty);
+      const { fillPrice } = await placeOrder(direction, qty);
+      const entryPrice = fillPrice > 0 ? fillPrice : price; // real fill price if available
       position = {
-        direction, entryPrice: price, qty, entryTime: new Date().toISOString(), trailRef: price,
+        direction, entryPrice, qty, entryTime: new Date().toISOString(), trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
         signal: lastEntrySignal,
       };
