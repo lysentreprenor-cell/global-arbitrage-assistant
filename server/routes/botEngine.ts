@@ -1018,13 +1018,14 @@ async function engineTick() {
         const eur = parseFloat(balResult.ZEUR ?? "0");
         config.krakenFiat = eur > usd ? "EUR" : "USD";
         const avail = config.krakenFiat === "EUR" ? eur : usd;
-        // Check against actual position cost (riskPct% of capital), not full capital
-        const needed = positionUsdt / Math.max(1, config.leverage ?? 1); // margin needed
-        if (avail < needed * 1.1) { // 10% buffer for fees
-          addLog(`❌ Saldo ${avail.toFixed(2)} ${config.krakenFiat} — potrzeba min. ${(needed * 1.1).toFixed(2)} na tę pozycję`, "warn");
+        // Convert EUR to USD equivalent for comparison (approx 1.08 rate)
+        const availUsd = config.krakenFiat === "EUR" ? avail * 1.08 : avail;
+        const needed = positionUsdt / Math.max(1, config.leverage ?? 1);
+        if (availUsd < needed * 1.05) { // 5% buffer covers Kraken 0.26% fee
+          addLog(`❌ Saldo ${avail.toFixed(2)} ${config.krakenFiat} (~$${availUsd.toFixed(2)}) — potrzeba min. $${(needed * 1.05).toFixed(2)}`, "warn");
           return;
         }
-        addLog(`💰 Saldo: ${avail.toFixed(2)} ${config.krakenFiat} (pozycja: $${positionUsdt.toFixed(2)})`);
+        addLog(`💰 Saldo: ${avail.toFixed(2)} ${config.krakenFiat} (~$${availUsd.toFixed(2)}) pozycja: $${positionUsdt.toFixed(2)}`);
       } else {
         const balData = await bybitFetch("GET", "/v5/account/wallet-balance",
           { accountType: config.platform === "eu" ? "SPOT" : "UNIFIED" });
