@@ -189,8 +189,8 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const vNum   = cVwaps.slice(-vwapN).reduce((s, v, q) => s + v * cVols.slice(-vwapN)[q], 0);
     const vDen   = cVols.slice(-vwapN).reduce((s, v) => s + v, 0);
     const vwap   = vDen > 0 ? vNum / vDen : price;
-    const belowVwap = price < vwap * 0.999;
-    const aboveVwap = price > vwap * 1.001;
+    const belowVwap = price < vwap;
+    const aboveVwap = price > vwap;
     // Candle body confirmation on last closed candle (i-1)
     const lastOpen  = opens[i - 1] ?? curClose;
     const bullCandle = curClose > lastOpen;

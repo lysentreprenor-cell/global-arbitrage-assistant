@@ -838,8 +838,8 @@ async function engineTick() {
     const vwapNumer = closedVwaps.slice(-vwapN).reduce((s, v, i) => s + v * closedVols.slice(-vwapN)[i], 0);
     const vwapDenom = closedVols.slice(-vwapN).reduce((s, v) => s + v, 0);
     const vwap      = vwapDenom > 0 ? vwapNumer / vwapDenom : price;
-    const belowVwap = price < vwap * 0.999;
-    const aboveVwap = price > vwap * 1.001;
+    const belowVwap = price < vwap;
+    const aboveVwap = price > vwap;
 
     // Candle body confirmation: last closed candle must close in signal direction
     const lastOpen  = opens[opens.length - 2] ?? closedCloses[closedCloses.length - 2];
