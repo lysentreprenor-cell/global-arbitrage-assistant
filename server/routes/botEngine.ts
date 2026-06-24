@@ -964,13 +964,13 @@ async function engineTick() {
     }
 
     // ── Entry logic — simplified single mode ─────────────────────────────────
-    // Long:  BB%B < 30 + price below VWAP + no crash
-    // Short: BB%B > 70 + price above VWAP
+    // Long:  BB%B < 40 + price below VWAP + no crash
+    // Short: BB%B > 60 + price above VWAP
     const effLev = Math.max(1, config.leverage ?? 1);
     const macdBull = macdLine > macdSignal; // kept for display/log only
 
-    const isLong  = bbPercB < 30 && belowVwap && !inCrash;
-    const isShort = config.allowShorts && bbPercB > 70 && aboveVwap;
+    const isLong  = bbPercB < 40 && belowVwap && !inCrash;
+    const isShort = config.allowShorts && bbPercB > 60 && aboveVwap;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;

@@ -197,8 +197,8 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const bearCandle = curClose < lastOpen;
 
     // Simplified single-mode entry: BB%B + VWAP only
-    const isLong  = bbPercB < 30 && belowVwap && !inCrash;
-    const isShort = allowShorts && bbPercB > 70 && aboveVwap;
+    const isLong  = bbPercB < 40 && belowVwap && !inCrash;
+    const isShort = allowShorts && bbPercB > 60 && aboveVwap;
     const sig = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
     if (!isLong && !isShort) continue;
 
