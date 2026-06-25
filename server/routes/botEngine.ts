@@ -149,7 +149,34 @@ function loadState() {
 
 // Kraken Balance asset key for the base coin of a symbol (BTCUSDT → XXBT)
 const KRAKEN_BALANCE_ASSET: Record<string, string> = {
-  BTCUSDT: "XXBT", ETHUSDT: "XETH", SOLUSDT: "SOL", DOGEUSDT: "XXDG",
+  BTCUSDT: "XXBT",  ETHUSDT: "XETH",  SOLUSDT: "SOL",   DOGEUSDT: "XXDG",
+  XRPUSDT: "XXRP",  ADAUSDT: "ADA",   AVAXUSDT: "AVAX", LINKUSDT: "LINK",
+  DOTUSDT: "DOT",   LTCUSDT: "XLTC",  BCHUSDT: "BCH",   ATOMUSDT: "ATOM",
+  UNIUSDT: "UNI",   SHIBUSDT: "SHIB", PEPEUSDT: "PEPE", SUIUSDT: "SUI",
+  TONUSDT: "TON",   TRXUSDT: "TRX",   MATICUSDT: "MATIC",
+};
+
+// Kraken order precision per symbol: dec = decimal places for qty, min = minimum order qty
+const KRAKEN_SPEC: Record<string, { dec: number; min: number }> = {
+  BTCUSDT:  { dec: 4, min: 0.0001 },
+  ETHUSDT:  { dec: 3, min: 0.004 },
+  SOLUSDT:  { dec: 2, min: 0.01 },
+  DOGEUSDT: { dec: 0, min: 50 },
+  XRPUSDT:  { dec: 2, min: 10 },
+  ADAUSDT:  { dec: 1, min: 10 },
+  AVAXUSDT: { dec: 3, min: 0.1 },
+  LINKUSDT: { dec: 3, min: 0.1 },
+  DOTUSDT:  { dec: 2, min: 1 },
+  LTCUSDT:  { dec: 3, min: 0.01 },
+  BCHUSDT:  { dec: 4, min: 0.001 },
+  ATOMUSDT: { dec: 2, min: 0.5 },
+  UNIUSDT:  { dec: 2, min: 0.5 },
+  SHIBUSDT: { dec: 0, min: 50000 },
+  PEPEUSDT: { dec: 0, min: 500000 },
+  SUIUSDT:  { dec: 2, min: 1 },
+  TONUSDT:  { dec: 3, min: 0.5 },
+  TRXUSDT:  { dec: 0, min: 100 },
+  MATICUSDT:{ dec: 2, min: 5 },
 };
 
 // Verify a restored position actually exists on the exchange; clear it if it's a phantom.
@@ -239,10 +266,25 @@ async function recoverSingleSymbol(scanSym: string): Promise<void> {
     if (valueUsd < RECOVER_MIN_USD) return; // dust — not a tradeable position
 
     const PAIR_VARIANTS: Record<string, string[]> = {
-      BTCUSDT:  ["XBTEUR", "XBTUSD", "XXBTZEUR", "XXBTZUSD", "XBT/EUR", "XBT/USD"],
-      ETHUSDT:  ["ETHEUR", "ETHUSD", "XETHZEUR", "XETHZUSD", "ETH/EUR", "ETH/USD"],
-      SOLUSDT:  ["SOLEUR", "SOLUSD", "SOL/EUR", "SOL/USD"],
-      DOGEUSDT: ["XDGEUR", "XDGUSD", "XDG/EUR", "XDG/USD"],
+      BTCUSDT:   ["XBTEUR",   "XBTUSD",    "XXBTZEUR",  "XXBTZUSD",  "XBT/EUR",  "XBT/USD"],
+      ETHUSDT:   ["ETHEUR",   "ETHUSD",    "XETHZEUR",  "XETHZUSD",  "ETH/EUR",  "ETH/USD"],
+      SOLUSDT:   ["SOLEUR",   "SOLUSD",    "SOL/EUR",   "SOL/USD"],
+      DOGEUSDT:  ["XDGEUR",   "XDGUSD",    "XDG/EUR",   "XDG/USD"],
+      XRPUSDT:   ["XXRPZEUR", "XXRPZUSD",  "XRPEUR",    "XRPUSD",    "XRP/EUR",  "XRP/USD"],
+      ADAUSDT:   ["ADAEUR",   "ADAUSD",    "ADA/EUR",   "ADA/USD"],
+      AVAXUSDT:  ["AVAXEUR",  "AVAXUSD",   "AVAX/EUR",  "AVAX/USD"],
+      LINKUSDT:  ["LINKEUR",  "LINKUSD",   "LINK/EUR",  "LINK/USD"],
+      DOTUSDT:   ["DOTEUR",   "DOTUSD",    "DOT/EUR",   "DOT/USD"],
+      LTCUSDT:   ["XLTCZEUR", "XLTCZUSD",  "LTCEUR",    "LTCUSD",    "LTC/EUR",  "LTC/USD"],
+      BCHUSDT:   ["BCHEUR",   "BCHUSD",    "BCH/EUR",   "BCH/USD"],
+      ATOMUSDT:  ["ATOMEUR",  "ATOMUSD",   "ATOM/EUR",  "ATOM/USD"],
+      UNIUSDT:   ["UNIEUR",   "UNIUSD",    "UNI/EUR",   "UNI/USD"],
+      SHIBUSDT:  ["SHIBEUR",  "SHIBUSD",   "SHIB/EUR",  "SHIB/USD"],
+      PEPEUSDT:  ["PEPEEUR",  "PEPEUSD",   "PEPE/EUR",  "PEPE/USD"],
+      SUIUSDT:   ["SUIEUR",   "SUIUSD",    "SUI/EUR",   "SUI/USD"],
+      TONUSDT:   ["TONEUR",   "TONUSD",    "TON/EUR",   "TON/USD"],
+      TRXUSDT:   ["TRXEUR",   "TRXUSD",    "TRX/EUR",   "TRX/USD"],
+      MATICUSDT: ["MATICEUR", "MATICUSD",  "MATIC/EUR", "MATIC/USD"],
     };
     const pairVariants = PAIR_VARIANTS[scanSym] ?? [krakenPair(scanSym)];
 
@@ -271,7 +313,7 @@ async function recoverSingleSymbol(scanSym: string): Promise<void> {
       addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${price.toFixed(0)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
     }
 
-    const spec = scanSym === "BTCUSDT" ? { dec: 4 } : scanSym === "ETHUSDT" ? { dec: 3 } : scanSym === "DOGEUSDT" ? { dec: 0 } : { dec: 2 };
+    const spec = KRAKEN_SPEC[scanSym] ?? { dec: 2, min: 0.01 };
     const qty = parseFloat(coinBal.toFixed(spec.dec));
     if (qty <= 0) return;
 
@@ -460,14 +502,26 @@ async function closePosition(reason: string): Promise<boolean> {
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
 const SYMBOL_MAP_USD: Record<string, string> = {
-  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD", DOGEUSDT: "XDGUSD",
+  BTCUSDT: "XBTUSD",  ETHUSDT: "ETHUSD",   SOLUSDT: "SOLUSD",   DOGEUSDT: "XDGUSD",
+  XRPUSDT: "XXRPZUSD",ADAUSDT: "ADAUSD",   AVAXUSDT: "AVAXUSD", LINKUSDT: "LINKUSD",
+  DOTUSDT: "DOTUSD",  LTCUSDT: "XLTCZUSD", BCHUSDT: "BCHUSD",   ATOMUSDT: "ATOMUSD",
+  UNIUSDT: "UNIUSD",  SHIBUSDT: "SHIBUSD", PEPEUSDT: "PEPEUSD", SUIUSDT: "SUIUSD",
+  TONUSDT: "TONUSD",  TRXUSDT: "TRXUSD",   MATICUSDT: "MATICUSD",
 };
 const SYMBOL_MAP_EUR: Record<string, string> = {
-  BTCUSDT: "XBTEUR", ETHUSDT: "ETHEUR", SOLUSDT: "SOLEUR", DOGEUSDT: "XDGEUR",
+  BTCUSDT: "XBTEUR",  ETHUSDT: "ETHEUR",   SOLUSDT: "SOLEUR",   DOGEUSDT: "XDGEUR",
+  XRPUSDT: "XXRPZEUR",ADAUSDT: "ADAEUR",   AVAXUSDT: "AVAXEUR", LINKUSDT: "LINKEUR",
+  DOTUSDT: "DOTEUR",  LTCUSDT: "XLTCZEUR", BCHUSDT: "BCHEUR",   ATOMUSDT: "ATOMEUR",
+  UNIUSDT: "UNIEUR",  SHIBUSDT: "SHIBEUR", PEPEUSDT: "PEPEEUR", SUIUSDT: "SUIEUR",
+  TONUSDT: "TONEUR",  TRXUSDT: "TRXEUR",   MATICUSDT: "MATICEUR",
 };
-// For non-Kraken platforms
+// For non-Kraken platforms (Bybit uses the symbol name directly)
 const SYMBOL_MAP: Record<string, string> = {
-  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD", DOGEUSDT: "XDGUSD",
+  BTCUSDT: "XBTUSD",  ETHUSDT: "ETHUSD",   SOLUSDT: "SOLUSD",   DOGEUSDT: "XDGUSD",
+  XRPUSDT: "XXRPZUSD",ADAUSDT: "ADAUSD",   AVAXUSDT: "AVAXUSD", LINKUSDT: "LINKUSD",
+  DOTUSDT: "DOTUSD",  LTCUSDT: "XLTCZUSD", BCHUSDT: "BCHUSD",   ATOMUSDT: "ATOMUSD",
+  UNIUSDT: "UNIUSD",  SHIBUSDT: "SHIBUSD", PEPEUSDT: "PEPEUSD", SUIUSDT: "SUIUSD",
+  TONUSDT: "TONUSD",  TRXUSDT: "TRXUSD",   MATICUSDT: "MATICUSD",
 };
 
 function krakenPair(symbol: string): string {
@@ -964,9 +1018,7 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
     const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
 
-    const spec = config.platform === "kraken"
-      ? (sym === "BTCUSDT" ? { dec: 4, min: 0.0001 } : sym === "ETHUSDT" ? { dec: 3, min: 0.004 } : sym === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 2, min: 0.01 })
-      : (sym === "BTCUSDT" ? { dec: 3, min: 0.001 }  : sym === "ETHUSDT" ? { dec: 2, min: 0.01 }  : sym === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 1, min: 0.1 });
+    const spec = KRAKEN_SPEC[sym] ?? { dec: 2, min: 0.01 };
 
     const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
     const slForSizing  = effSL / 100;
@@ -1211,11 +1263,7 @@ async function engineTick() {
     const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
     const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
 
-    const spec = config.platform === "kraken"
-      ? (config.symbol === "BTCUSDT" ? { dec: 4, min: 0.0001 } : config.symbol === "ETHUSDT" ? { dec: 3, min: 0.004 } : config.symbol === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 2, min: 0.01 })
-      : config.platform === "eu"
-      ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : config.symbol === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 2, min: 0.01 })
-      : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : config.symbol === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 1, min: 0.1 });
+    const spec = KRAKEN_SPEC[config.symbol] ?? { dec: 2, min: 0.01 };
 
     // Risk-based position sizing: invest only riskPct% of capital per trade.
     // Further scaled down when ATR-based SL is larger than the fixed SL setting

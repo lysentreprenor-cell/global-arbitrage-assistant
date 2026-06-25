@@ -5,7 +5,7 @@ import { hasKrakenKeys, getKrakenKeys } from "@/lib/apiKeys";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Symbol    = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "DOGEUSDT";
+type Symbol    = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "DOGEUSDT" | "XRPUSDT" | "ADAUSDT" | "AVAXUSDT" | "LINKUSDT" | "DOTUSDT" | "LTCUSDT" | "BCHUSDT" | "ATOMUSDT" | "UNIUSDT" | "SHIBUSDT" | "PEPEUSDT" | "SUIUSDT" | "TONUSDT" | "TRXUSDT" | "MATICUSDT";
 type RiskLevel = "cautious" | "normal" | "aggressive" | "superaggressive";
 type Direction = "long" | "short";
 type Tab       = "main" | "advanced";
@@ -96,7 +96,11 @@ const PRESETS: Preset[] = [
     rsiMin: 42, rsiMax: 70, adxMin: 10, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 10,  stopLoss: 1.50, takeProfit: 3.00, trailPct: 0.70 },
 ];
 
-const SYMBOLS:    Symbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT"];
+const SYMBOLS: Symbol[] = [
+  "BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT",
+  "AVAXUSDT", "LINKUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ATOMUSDT",
+  "UNIUSDT", "SHIBUSDT", "PEPEUSDT", "SUIUSDT", "TONUSDT", "TRXUSDT", "MATICUSDT",
+];
 const LEVERAGES:  number[] = [1, 2, 3, 5];
 const TRADES_KEY   = "kraken_trades_v2";
 const SETTINGS_KEY = "bot_settings_v2";
@@ -605,18 +609,20 @@ export default function TradingBot() {
 
             {running && <div className="text-xs text-gray-500">działa nawet po zamknięciu aplikacji</div>}
 
-            {/* symbol — primary + optional extras */}
+            {/* symbol — primary + optional extras, compact grid */}
             <div>
-              <div className="text-xs text-gray-400 mb-1">Monitoruj</div>
-              <div className="flex gap-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Monitoruj</span>
+                <button onClick={() => setExtraSymbols(SYMBOLS.filter(s => s !== symbol))}
+                  className="text-[10px] text-blue-400 hover:text-blue-300">wszystkie +</button>
+              </div>
+              <div className="flex flex-wrap gap-1">
                 {SYMBOLS.map(s => {
                   const isPrimary = s === symbol;
                   const isExtra = extraSymbols.includes(s);
-                  const active = isPrimary || isExtra;
                   return (
                     <button key={s} onClick={() => {
                       if (isPrimary) {
-                        // Rotate primary to next non-extra symbol
                         const others = SYMBOLS.filter(x => x !== s && !extraSymbols.includes(x));
                         if (others.length > 0) setSymbol(others[0]);
                       } else if (isExtra) {
@@ -625,17 +631,17 @@ export default function TradingBot() {
                         setExtraSymbols(prev => [...prev, s]);
                       }
                     }}
-                      className={`flex-1 text-xs py-1.5 rounded font-medium relative ${isPrimary ? "bg-green-700 text-white" : isExtra ? "bg-blue-800 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                      className={`text-[10px] px-1.5 py-1 rounded font-medium relative ${isPrimary ? "bg-green-700 text-white" : isExtra ? "bg-blue-800 text-white" : "bg-[#1a2e1f] text-gray-500"}`}>
                       {s.replace("USDT", "")}
-                      {isPrimary && <span className="absolute -top-1 -right-1 text-[9px] bg-green-500 rounded-full w-3 h-3 flex items-center justify-center">★</span>}
-                      {isExtra && <span className="absolute -top-1 -right-1 text-[9px] bg-blue-500 rounded-full w-3 h-3 flex items-center justify-center">+</span>}
+                      {isPrimary && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-400 rounded-full" />}
+                      {isExtra && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />}
                     </button>
                   );
                 })}
               </div>
-              {extraSymbols.length > 0 && (
-                <div className="text-[10px] text-gray-500 mt-0.5">★ główny · + skanowany równolegle</div>
-              )}
+              <div className="text-[10px] text-gray-600 mt-0.5">
+                {extraSymbols.length > 0 ? `● główny  ● +${extraSymbols.length} skanowanych` : "kliknij aby dodać do skanu"}
+              </div>
             </div>
 
             {/* capital + leverage */}
