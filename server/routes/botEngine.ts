@@ -141,27 +141,60 @@ function loadState() {
   } catch { /* ignore */ }
 }
 
+// Kraken Balance asset key for the base coin of a symbol (BTCUSDT → XXBT)
+const KRAKEN_BALANCE_ASSET: Record<string, string> = {
+  BTCUSDT: "XXBT", ETHUSDT: "XETH", SOLUSDT: "SOL",
+};
+
 // Verify a restored position actually exists on the exchange; clear it if it's a phantom.
-// Kraken leveraged trades open margin positions queryable via OpenPositions.
+// IMPORTANT: spot trades (leverage ≤ 1) do NOT appear in OpenPositions — they are just a
+// coin balance. Only margin/leveraged trades show up as Kraken "positions". So we check the
+// right place depending on how the position was opened.
 async function reconcilePosition() {
   if (!config || !position || config.platform !== "kraken") return;
+  const effLev = Math.max(1, config.leverage ?? 1);
   try {
-    const open = await krakenPrivate("/0/private/OpenPositions");
-    const positions = open ? Object.values(open) as any[] : [];
-    const hasMatch = positions.some(p => {
-      const t = (p.type ?? "").toLowerCase(); // "buy"/"sell"
-      return position && ((position.direction === "long" && t === "buy") || (position.direction === "short" && t === "sell"));
-    });
-    if (positions.length === 0 || !hasMatch) {
-      addLog(`⚠️ Pozycja ${position.direction.toUpperCase()} nie istnieje na Krakenie — usuwam fantomową pozycję`, "warn");
-      position = null;
-      saveState();
+    if (effLev > 1) {
+      // ── Margin/leveraged → check OpenPositions ──────────────────────────────
+      const open = await krakenPrivate("/0/private/OpenPositions");
+      const positions = open ? Object.values(open) as any[] : [];
+      const hasMatch = positions.some(p => {
+        const t = (p.type ?? "").toLowerCase(); // "buy"/"sell"
+        return position && ((position.direction === "long" && t === "buy") || (position.direction === "short" && t === "sell"));
+      });
+      if (positions.length === 0 || !hasMatch) {
+        addLog(`⚠️ Pozycja margin ${position.direction.toUpperCase()} nie istnieje na Krakenie — usuwam fantomową pozycję`, "warn");
+        position = null;
+        saveState();
+      } else {
+        addLog(`✅ Pozycja margin potwierdzona na Krakenie (${positions.length} otwartych)`);
+      }
     } else {
-      addLog(`✅ Pozycja potwierdzona na Krakenie (${positions.length} otwartych)`);
+      // ── Spot (1x) → check the actual coin balance ───────────────────────────
+      // A spot LONG means we hold the base coin; verify the balance roughly matches qty.
+      const asset = KRAKEN_BALANCE_ASSET[config.symbol];
+      if (!asset) {
+        addLog(`ℹ️ Nieznany symbol ${config.symbol} — pomijam reconcile (zachowuję pozycję)`, "info");
+        return;
+      }
+      const bal = await krakenPrivate("/0/private/Balance");
+      const coinBal = parseFloat(bal?.[asset] ?? "0");
+      // Need at least ~70% of recorded qty to consider it still open (allows for fees/rounding)
+      const threshold = position.qty * 0.7;
+      if (position.direction === "long" && coinBal >= threshold) {
+        addLog(`✅ Pozycja spot LONG potwierdzona — saldo ${asset}=${coinBal} (≈qty ${position.qty})`);
+      } else if (position.direction === "long") {
+        addLog(`⚠️ Brak salda ${asset} (${coinBal} < ${threshold.toFixed(6)}) — pozycja spot już zamknięta, usuwam`, "warn");
+        position = null;
+        saveState();
+      } else {
+        // Spot shorts aren't really possible on Kraken consumer accounts — keep as-is, just warn
+        addLog(`ℹ️ Pozycja spot SHORT — nie mogę zweryfikować przez saldo, zachowuję`, "info");
+      }
     }
   } catch (e: any) {
     // Don't clear on API error — could be transient; just warn
-    addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message}`, "warn");
+    addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message} — zachowuję pozycję`, "warn");
   }
 }
 
