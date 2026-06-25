@@ -979,7 +979,7 @@ async function engineTick() {
 
     if (!doLong && !doShort) {
       const coolLeft = cooldownOk ? "✓" : `${Math.ceil((cooldownMs - (Date.now() - lastEntryTime)) / 60000)}m`;
-      addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<30,short>70) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} cool=${coolLeft} crash=${inCrash}`);
+      addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<40,short>60) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} cool=${coolLeft} crash=${inCrash}`);
       return;
     }
     lastEntrySignal = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
