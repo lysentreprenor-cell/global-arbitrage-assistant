@@ -61,6 +61,7 @@ type KrakenFiat = "USD" | "EUR";
 
 type BotConfig = {
   symbol: string;
+  symbols?: string[]; // multi-symbol scan list; if set, bot scans all and picks best signal
   rsiMin: number; rsiMax: number;
   trailPct: number; stopLoss: number; takeProfit: number;
   leverage: number;
@@ -87,6 +88,7 @@ type Position = {
   trailPct: number;     // effective trailing-stop %
   breakEvenSet: boolean; // true once SL has been moved to break-even
   signal?: string;             // which condition triggered entry (optional for restored positions)
+  symbol?: string;             // which asset this position is for (defaults to config.symbol)
 };
 
 type LogEntry = { time: string; msg: string; type: "info" | "buy" | "sell" | "warn" };
@@ -213,33 +215,39 @@ async function recoverPositionFromBalance(): Promise<void> {
   if (!config || position || config.platform !== "kraken") return;
   const effLev = Math.max(1, config.leverage ?? 1);
   if (effLev > 1) return; // margin positions are handled by OpenPositions / reconcile
-  const asset = KRAKEN_BALANCE_ASSET[config.symbol];
+  // Scan all configured symbols (not just primary) — bot may hold ETH or SOL from a prev trade
+  const symbolsToScan = Array.from(new Set([config.symbol, ...(config.symbols ?? [])]));
+  for (const scanSym of symbolsToScan) {
+    await recoverSingleSymbol(scanSym);
+    if (position) return; // found one — stop scanning
+  }
+}
+
+async function recoverSingleSymbol(scanSym: string): Promise<void> {
+  if (!config || position) return;
+  const asset = KRAKEN_BALANCE_ASSET[scanSym];
   if (!asset) return;
   try {
     const bal = await krakenPrivate("/0/private/Balance");
     const coinBal = parseFloat(bal?.[asset] ?? "0");
     if (coinBal <= 0) return;
 
-    const price = await fetchCurrentPrice(config.symbol);
+    const price = await fetchCurrentPrice(scanSym);
     if (!price) { addLog(`ℹ️ Wykryto saldo ${asset}=${coinBal}, ale brak ceny — pomijam odtwarzanie`, "info"); return; }
 
     const valueUsd = coinBal * price;
     if (valueUsd < RECOVER_MIN_USD) return; // dust — not a tradeable position
 
-    // Try to find the entry price from the last buy trade — search all pair variants
-    // because krakenFiat may not be detected yet (first tick hasn't run) and the trade
-    // could be in EUR or USD format, with or without legacy X/Z prefixes.
     const PAIR_VARIANTS: Record<string, string[]> = {
       BTCUSDT: ["XBTEUR", "XBTUSD", "XXBTZEUR", "XXBTZUSD", "XBT/EUR", "XBT/USD"],
       ETHUSDT: ["ETHEUR", "ETHUSD", "XETHZEUR", "XETHZUSD", "ETH/EUR", "ETH/USD"],
       SOLUSDT: ["SOLEUR", "SOLUSD", "SOL/EUR", "SOL/USD"],
     };
-    const pairVariants = PAIR_VARIANTS[config.symbol] ?? [krakenPair(config.symbol)];
+    const pairVariants = PAIR_VARIANTS[scanSym] ?? [krakenPair(scanSym)];
 
-    let entryPrice = 0; // 0 = not found
+    let entryPrice = 0;
     let entryTime = new Date().toISOString();
     try {
-      // Fetch up to 2 pages of trade history (most recent 100 trades)
       for (const offset of [0, 50]) {
         const th = await krakenPrivate("/0/private/TradesHistory", { ofs: String(offset) });
         const trades = th?.trades ? Object.values(th.trades) as any[] : [];
@@ -252,25 +260,20 @@ async function recoverPositionFromBalance(): Promise<void> {
           if (p > 0) { entryPrice = p; if (last.time) entryTime = new Date(last.time * 1000).toISOString(); }
           break;
         }
-        if (trades.length < 50) break; // no more pages
+        if (trades.length < 50) break;
       }
     } catch { /* TradesHistory may be unavailable — proceed with fallback */ }
 
-    // If entry price not found in history (e.g. bought via Kraken Earn conversion or too old),
-    // use current price as entry but widen SL to 8% so a normal dip doesn't close the position.
-    // Log a warning so the user knows the real P&L may differ.
     const entryKnown = entryPrice > 0;
     if (!entryKnown) {
       entryPrice = price;
       addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${price.toFixed(0)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
     }
 
-    // Round qty to the symbol's precision so the close order is valid
-    const spec = config.symbol === "BTCUSDT" ? { dec: 4 } : config.symbol === "ETHUSDT" ? { dec: 3 } : { dec: 2 };
+    const spec = scanSym === "BTCUSDT" ? { dec: 4 } : scanSym === "ETHUSDT" ? { dec: 3 } : { dec: 2 };
     const qty = parseFloat(coinBal.toFixed(spec.dec));
     if (qty <= 0) return;
 
-    // Use wide SL for unknown-entry positions so a 1.5% dip doesn't sell prematurely
     const recoveredSlPct = entryKnown ? config.stopLoss : Math.max(config.stopLoss, 8.0);
 
     position = {
@@ -284,6 +287,7 @@ async function recoverPositionFromBalance(): Promise<void> {
       trailPct: config.trailPct,
       breakEvenSet: false,
       signal: entryKnown ? "recovered_from_balance" : "recovered_unknown_entry",
+      symbol: scanSym,
     };
     lastEntryTime = new Date(entryTime).getTime();
     saveState();
@@ -372,10 +376,11 @@ async function krakenPrivate(path: string, params: Record<string, any> = {}) {
 }
 
 // Returns { txid, fillPrice } on confirmed fill, throws on failure
-async function placeOrder(side: Direction, qty: number): Promise<{ txid: string; fillPrice: number }> {
+async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{ txid: string; fillPrice: number }> {
   if (!config) throw new Error("No config");
+  const tradeSym = sym ?? config.symbol;
   if (config.platform === "kraken") {
-    const pair = krakenPair(config.symbol);
+    const pair = krakenPair(tradeSym);
     const effLev = Math.max(1, config.leverage ?? 1);
     const orderParams: Record<string, string> = {
       pair, type: side === "long" ? "buy" : "sell", ordertype: "market", volume: String(qty),
@@ -419,9 +424,10 @@ async function placeOrder(side: Direction, qty: number): Promise<{ txid: string;
 // Returns true on success, false on failure
 async function closePosition(reason: string): Promise<boolean> {
   if (!config || !position) return false;
+  const closeSym = position.symbol ?? config.symbol;
   try {
     if (config.platform === "kraken") {
-      const pair = krakenPair(config.symbol);
+      const pair = krakenPair(closeSym);
       const closeSide = position.direction === "long" ? "sell" : "buy";
       const effLev = Math.max(1, config.leverage ?? 1);
       const closeParams: Record<string, string> = {
@@ -434,9 +440,9 @@ async function closePosition(reason: string): Promise<boolean> {
     }
     const closeSide = position.direction === "long" ? "Sell" : "Buy";
     const params: Record<string, any> = config.platform === "eu"
-      ? { category: "spot", symbol: config.symbol, side: closeSide,
+      ? { category: "spot", symbol: closeSym, side: closeSide,
           orderType: "Market", qty: String(position.qty), marketUnit: "baseCoin", isLeverage: 1 }
-      : { category: "linear", symbol: config.symbol, side: closeSide,
+      : { category: "linear", symbol: closeSym, side: closeSide,
           orderType: "Market", qty: String(position.qty), positionIdx: 0, reduceOnly: true };
     await bybitFetch("POST", "/v5/order/create", params);
     addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
@@ -844,7 +850,7 @@ function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: 
 // ── Fast exit check (every 5s) ────────────────────────────────────────────────
 async function priceCheck() {
   if (!config || !running || !position || isClosing) return;
-  const live = await fetchCurrentPrice(config.symbol);
+  const live = await fetchCurrentPrice(position.symbol ?? config.symbol);
   if (live) {
     lastPrice = live;
   } else if (lastPrice <= 0) {
@@ -911,6 +917,64 @@ async function priceCheck() {
     }
     isClosing = false;
   }
+}
+
+// ── Lightweight multi-symbol signal scanner ───────────────────────────────────
+// Fetches candles + indicators for a single symbol and returns signal data.
+// Used to scan alternative symbols when the primary has no signal.
+type QuickSignal = {
+  sym: string; bbPercB: number; isLong: boolean; isShort: boolean;
+  score: number; price: number; atrPct: number;
+  effSL: number; effTP: number; effTrail: number; qty: number;
+  spec: { dec: number; min: number };
+};
+
+async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
+  if (!config) return null;
+  try {
+    const candles = await fetchCandles(sym);
+    if (!candles) return null;
+    const { closes, volumes, vwaps, highs, lows } = candles;
+    const price = await fetchCurrentPrice(sym) ?? candles.price;
+    if (!price) return null;
+    const closedCloses = closes.slice(0, -1);
+    const bbPercB = calcBBPercB(closedCloses);
+    const atr = calcAtr(highs.slice(0, -1), lows.slice(0, -1), closedCloses);
+    const atrPct = price > 0 ? (atr / price) * 100 : 0;
+
+    const closedVwaps = vwaps.slice(0, -1);
+    const closedVols = volumes.slice(0, -1);
+    const vwapN = Math.min(48, closedVwaps.length);
+    const vwapNum = closedVwaps.slice(-vwapN).reduce((s, v, i) => s + v * closedVols.slice(-vwapN)[i], 0);
+    const vwapDen = closedVols.slice(-vwapN).reduce((s, v) => s + v, 0);
+    const vwap = vwapDen > 0 ? vwapNum / vwapDen : price;
+
+    const recent24High = closedCloses.length > 0 ? Math.max(...closedCloses.slice(-24)) : price;
+    const dipSym = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
+    const inCrashSym = dipSym > TREND.CRASH_DIP_PCT;
+
+    const effLev = Math.max(1, config.leverage ?? 1);
+    const spotOnly = config.platform === "kraken" && effLev <= 1;
+    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym;
+    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && price > vwap;
+    const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
+
+    const effSL    = Math.max(config.stopLoss,   atrPct * 1.5);
+    const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
+    const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
+
+    const spec = config.platform === "kraken"
+      ? (sym === "BTCUSDT" ? { dec: 4, min: 0.0001 } : sym === "ETHUSDT" ? { dec: 3, min: 0.004 } : { dec: 2, min: 0.01 })
+      : (sym === "BTCUSDT" ? { dec: 3, min: 0.001 }  : sym === "ETHUSDT" ? { dec: 2, min: 0.01 }  : { dec: 1, min: 0.1 });
+
+    const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
+    const slForSizing  = effSL / 100;
+    const atrScale     = slForSizing > 0 ? Math.min(1, (config.stopLoss / 100) / slForSizing) : 1;
+    const positionUsdt = config.capital * riskFraction * atrScale * effLev;
+    const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
+
+    return { sym, bbPercB, isLong, isShort, score, price, atrPct, effSL, effTP, effTrail, qty, spec };
+  } catch { return null; }
 }
 
 // ── Full indicator tick (every 5 min — 1h candles) ───────────────────────────
@@ -1108,6 +1172,31 @@ async function engineTick() {
 
     if (!doLong && !doShort) {
       const coolLeft = cooldownOk ? "✓" : `${Math.ceil((cooldownMs - (Date.now() - lastEntryTime)) / 60000)}m`;
+      // Scan alternative symbols in parallel when primary has no signal and cooldown is OK
+      const altSymbols = (config.symbols ?? []).filter(s => s !== config!.symbol);
+      if (altSymbols.length > 0 && cooldownOk) {
+        const scans = (await Promise.all(altSymbols.map(quickScanSymbol))).filter(Boolean) as QuickSignal[];
+        const best = scans.filter(s => s.isLong || s.isShort).sort((a, b) => b.score - a.score)[0];
+        if (best) {
+          const altDir: Direction = best.isLong ? "long" : "short";
+          addLog(`🎯 SYGNAŁ ${altDir.toUpperCase()} [multi:${best.sym}] BB%B=${best.bbPercB.toFixed(0)} ATR=${best.atrPct.toFixed(2)}% → SL=${best.effSL.toFixed(2)}% TP=${best.effTP.toFixed(2)}% qty=${best.qty}`, "info");
+          try {
+            const { fillPrice } = await placeOrder(altDir, best.qty, best.sym);
+            const entryPrice = fillPrice > 0 ? fillPrice : best.price;
+            position = {
+              direction: altDir, entryPrice, qty: best.qty,
+              entryTime: new Date().toISOString(), trailRef: entryPrice,
+              slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
+              breakEvenSet: false, signal: "multi_scan", symbol: best.sym,
+            };
+            lastEntryTime = Date.now();
+            saveState();
+          } catch (e: any) {
+            addLog(`🔴 ZLECENIE ${best.sym} NIEUDANE: ${e.message}`, "warn");
+          }
+          return;
+        }
+      }
       addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<40,short>60) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} cool=${coolLeft} crash=${inCrash}`);
       return;
     }
@@ -1184,7 +1273,7 @@ async function engineTick() {
       position = {
         direction, entryPrice, qty, entryTime: new Date().toISOString(), trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
-        signal: lastEntrySignal,
+        signal: lastEntrySignal, symbol: config.symbol,
       };
       lastEntryTime = Date.now();
       saveState();
@@ -1215,7 +1304,7 @@ router.post("/keys", (req, res) => {
 
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
-  const { symbol, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
+  const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
           confluenceMin, volMultMin, cooldownMin } = req.body;
 
   // If keys not provided, try to load saved encrypted keys
@@ -1231,6 +1320,7 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
+    symbols: Array.isArray(symbols) && symbols.length > 0 ? symbols : undefined,
     rsiMin:     rsiMin     ?? 40,   // kup przy RSI < 40 — wyprzedanie na 5m
     rsiMax:     rsiMax     ?? 70,   // trzymaj do RSI > 70
     trailPct:   trailPct   ?? 1.50, // 1.5% trail — sprawdzony w grid-search

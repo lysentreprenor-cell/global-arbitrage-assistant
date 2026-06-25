@@ -194,6 +194,7 @@ export default function TradingBot() {
   const [leverage,    setLeverage]    = useState<number>   (saved.leverage    ?? 1);
   const [allowShorts, setAllowShorts] = useState<boolean>  (saved.allowShorts ?? false);
   const [symbol,      setSymbol]      = useState<Symbol>   (saved.symbol      ?? "BTCUSDT");
+  const [extraSymbols, setExtraSymbols] = useState<Symbol[]>(saved.extraSymbols ?? []);
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
@@ -248,9 +249,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -329,7 +330,8 @@ export default function TradingBot() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey, secret, platform: "kraken",
-          symbol, capital, riskPct, leverage, allowShorts,
+          symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
+          capital, riskPct, leverage, allowShorts,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin, stopLoss: p.stopLoss,
@@ -603,14 +605,37 @@ export default function TradingBot() {
 
             {running && <div className="text-xs text-gray-500">działa nawet po zamknięciu aplikacji</div>}
 
-            {/* symbol */}
-            <div className="flex gap-1">
-              {SYMBOLS.map(s => (
-                <button key={s} onClick={() => setSymbol(s)}
-                  className={`flex-1 text-xs py-1.5 rounded font-medium ${symbol === s ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
-                  {s.replace("USDT", "")}
-                </button>
-              ))}
+            {/* symbol — primary + optional extras */}
+            <div>
+              <div className="text-xs text-gray-400 mb-1">Monitoruj</div>
+              <div className="flex gap-1">
+                {SYMBOLS.map(s => {
+                  const isPrimary = s === symbol;
+                  const isExtra = extraSymbols.includes(s);
+                  const active = isPrimary || isExtra;
+                  return (
+                    <button key={s} onClick={() => {
+                      if (isPrimary) {
+                        // Rotate primary to next non-extra symbol
+                        const others = SYMBOLS.filter(x => x !== s && !extraSymbols.includes(x));
+                        if (others.length > 0) setSymbol(others[0]);
+                      } else if (isExtra) {
+                        setExtraSymbols(prev => prev.filter(x => x !== s));
+                      } else {
+                        setExtraSymbols(prev => [...prev, s]);
+                      }
+                    }}
+                      className={`flex-1 text-xs py-1.5 rounded font-medium relative ${isPrimary ? "bg-green-700 text-white" : isExtra ? "bg-blue-800 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                      {s.replace("USDT", "")}
+                      {isPrimary && <span className="absolute -top-1 -right-1 text-[9px] bg-green-500 rounded-full w-3 h-3 flex items-center justify-center">★</span>}
+                      {isExtra && <span className="absolute -top-1 -right-1 text-[9px] bg-blue-500 rounded-full w-3 h-3 flex items-center justify-center">+</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {extraSymbols.length > 0 && (
+                <div className="text-[10px] text-gray-500 mt-0.5">★ główny · + skanowany równolegle</div>
+              )}
             </div>
 
             {/* capital + leverage */}
