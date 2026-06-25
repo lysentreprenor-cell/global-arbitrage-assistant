@@ -132,8 +132,12 @@ function loadState() {
       running = true;
       saveState();
       addLog(`Auto-resume po restarcie${position ? ` — przywrócono pozycję ${position.direction.toUpperCase()} z ${new Date(position.entryTime).toLocaleTimeString()}` : ""}`, "info");
-      // Reconcile restored position against the exchange — drop phantoms that don't exist there
-      if (position) reconcilePosition();
+      // Reconcile restored position against the exchange — drop phantoms that don't exist there,
+      // then (if we have no position) try to rebuild one from the real coin balance.
+      (async () => {
+        if (position) await reconcilePosition();
+        if (!position) await recoverPositionFromBalance();
+      })();
       engineTick();
       intervalId = setInterval(engineTick, 60_000);
       priceIntervalId = setInterval(priceCheck, 5_000);
@@ -195,6 +199,73 @@ async function reconcilePosition() {
   } catch (e: any) {
     // Don't clear on API error — could be transient; just warn
     addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message} — zachowuję pozycję`, "warn");
+  }
+}
+
+// Minimum USD value of a coin balance to count as a real open position (ignore dust).
+const RECOVER_MIN_USD = 5;
+
+// If the bot starts with NO tracked position but the Kraken account already holds the
+// traded coin (e.g. a spot LONG bought before a restart that wiped bot-state.json),
+// rebuild the position from the real balance so SL/TP monitoring resumes. Entry price is
+// pulled from the most recent buy in TradesHistory; falls back to the current price.
+async function recoverPositionFromBalance(): Promise<void> {
+  if (!config || position || config.platform !== "kraken") return;
+  const effLev = Math.max(1, config.leverage ?? 1);
+  if (effLev > 1) return; // margin positions are handled by OpenPositions / reconcile
+  const asset = KRAKEN_BALANCE_ASSET[config.symbol];
+  if (!asset) return;
+  try {
+    const bal = await krakenPrivate("/0/private/Balance");
+    const coinBal = parseFloat(bal?.[asset] ?? "0");
+    if (coinBal <= 0) return;
+
+    const price = await fetchCurrentPrice(config.symbol);
+    if (!price) { addLog(`ℹ️ Wykryto saldo ${asset}=${coinBal}, ale brak ceny — pomijam odtwarzanie`, "info"); return; }
+
+    const valueUsd = coinBal * price;
+    if (valueUsd < RECOVER_MIN_USD) return; // dust — not a tradeable position
+
+    // Try to find the entry price from the last buy trade for this pair
+    const pair = krakenPair(config.symbol);
+    let entryPrice = price;
+    let entryTime = new Date().toISOString();
+    try {
+      const th = await krakenPrivate("/0/private/TradesHistory");
+      const trades = th?.trades ? Object.values(th.trades) as any[] : [];
+      const buys = trades
+        .filter(t => (t.pair === pair) && (t.type ?? "").toLowerCase() === "buy")
+        .sort((a, b) => (b.time ?? 0) - (a.time ?? 0));
+      if (buys.length > 0) {
+        const last = buys[0];
+        const p = parseFloat(last.price ?? "0");
+        if (p > 0) entryPrice = p;
+        if (last.time) entryTime = new Date(last.time * 1000).toISOString();
+      }
+    } catch { /* TradesHistory may be unavailable — use current price as entry */ }
+
+    // Round qty to the symbol's precision so the close order is valid
+    const spec = config.symbol === "BTCUSDT" ? { dec: 4 } : config.symbol === "ETHUSDT" ? { dec: 3 } : { dec: 2 };
+    const qty = parseFloat(coinBal.toFixed(spec.dec));
+    if (qty <= 0) return;
+
+    position = {
+      direction: "long",
+      entryPrice,
+      qty,
+      entryTime,
+      trailRef: Math.max(entryPrice, price),
+      slPct: config.stopLoss,
+      tpPct: config.takeProfit,
+      trailPct: config.trailPct,
+      breakEvenSet: false,
+      signal: "recovered_from_balance",
+    };
+    lastEntryTime = new Date(entryTime).getTime();
+    saveState();
+    addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście≈$${entryPrice.toFixed(0)} → TP=${config.takeProfit}% SL=${config.stopLoss}%`, "buy");
+  } catch (e: any) {
+    addLog(`⚠️ Nie udało się odtworzyć pozycji z salda: ${e.message}`, "warn");
   }
 }
 
@@ -1194,6 +1265,10 @@ router.post("/start", (req, res) => {
   const capitalLabel = config.platform === "kraken" ? (config.krakenFiat ?? "USD") : "USDT";
   addLog(`Bot started — ${config.symbol} ${platformLabel} capital=${config.capital} ${capitalLabel} | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
+
+  // If the account already holds the traded coin (e.g. a spot LONG from a previous
+  // session), adopt it as the current position so SL/TP monitoring covers it.
+  recoverPositionFromBalance().catch(() => {});
 
   engineTick();
   intervalId = setInterval(engineTick, 60_000); // co 1 min — świece 5m
