@@ -96,10 +96,10 @@ const PRESETS: Preset[] = [
     rsiMin: 42, rsiMax: 70, adxMin: 10, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 10,  stopLoss: 1.50, takeProfit: 3.00, trailPct: 0.70 },
 ];
 
-const SYMBOLS: Symbol[] = [
+// Fallback list shown before the server responds with the full dynamic list
+const SYMBOLS_FALLBACK: Symbol[] = [
   "BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT",
-  "AVAXUSDT", "LINKUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ATOMUSDT",
-  "UNIUSDT", "SHIBUSDT", "PEPEUSDT", "SUIUSDT", "TONUSDT", "TRXUSDT", "MATICUSDT",
+  "AVAXUSDT", "LINKUSDT", "DOTUSDT", "LTCUSDT",
 ];
 const LEVERAGES:  number[] = [1, 2, 3, 5];
 const TRADES_KEY   = "kraken_trades_v2";
@@ -197,8 +197,11 @@ export default function TradingBot() {
   const [riskPct,     setRiskPct]     = useState<number>   (saved.riskPct     ?? 20);
   const [leverage,    setLeverage]    = useState<number>   (saved.leverage    ?? 1);
   const [allowShorts, setAllowShorts] = useState<boolean>  (saved.allowShorts ?? false);
-  const [symbol,      setSymbol]      = useState<Symbol>   (saved.symbol      ?? "BTCUSDT");
-  const [extraSymbols, setExtraSymbols] = useState<Symbol[]>(saved.extraSymbols ?? []);
+  const [symbol,       setSymbol]       = useState<Symbol>   (saved.symbol      ?? "BTCUSDT");
+  const [extraSymbols, setExtraSymbols] = useState<Symbol[]> (saved.extraSymbols ?? []);
+  const [availSymbols, setAvailSymbols] = useState<{ symbol: string; name: string }[]>(
+    SYMBOLS_FALLBACK.map(s => ({ symbol: s, name: s.replace("USDT", "") }))
+  );
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
@@ -260,6 +263,12 @@ export default function TradingBot() {
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
   }, [indOpts]);
+
+  useEffect(() => {
+    fetch("/api/bot/symbols").then(r => r.json()).then(data => {
+      if (Array.isArray(data) && data.length > 0) setAvailSymbols(data);
+    }).catch(() => {});
+  }, []);
 
   // ── Ticker ─────────────────────────────────────────────────────────────────
 
@@ -613,26 +622,26 @@ export default function TradingBot() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-gray-400">Monitoruj</span>
-                <button onClick={() => setExtraSymbols(SYMBOLS.filter(s => s !== symbol))}
+                <button onClick={() => setExtraSymbols(availSymbols.map(s => s.symbol as Symbol).filter(s => s !== symbol))}
                   className="text-[10px] text-blue-400 hover:text-blue-300">wszystkie +</button>
               </div>
-              <div className="flex flex-wrap gap-1">
-                {SYMBOLS.map(s => {
+              <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+                {availSymbols.map(({ symbol: s, name }) => {
                   const isPrimary = s === symbol;
-                  const isExtra = extraSymbols.includes(s);
+                  const isExtra = extraSymbols.includes(s as Symbol);
                   return (
                     <button key={s} onClick={() => {
                       if (isPrimary) {
-                        const others = SYMBOLS.filter(x => x !== s && !extraSymbols.includes(x));
+                        const others = availSymbols.map(x => x.symbol as Symbol).filter(x => x !== s && !extraSymbols.includes(x));
                         if (others.length > 0) setSymbol(others[0]);
                       } else if (isExtra) {
                         setExtraSymbols(prev => prev.filter(x => x !== s));
                       } else {
-                        setExtraSymbols(prev => [...prev, s]);
+                        setExtraSymbols(prev => [...prev, s as Symbol]);
                       }
                     }}
                       className={`text-[10px] px-1.5 py-1 rounded font-medium relative ${isPrimary ? "bg-green-700 text-white" : isExtra ? "bg-blue-800 text-white" : "bg-[#1a2e1f] text-gray-500"}`}>
-                      {s.replace("USDT", "")}
+                      {name}
                       {isPrimary && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-400 rounded-full" />}
                       {isExtra && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />}
                     </button>

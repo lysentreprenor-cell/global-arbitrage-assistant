@@ -147,37 +147,117 @@ function loadState() {
   } catch { /* ignore */ }
 }
 
-// Kraken Balance asset key for the base coin of a symbol (BTCUSDT → XXBT)
-const KRAKEN_BALANCE_ASSET: Record<string, string> = {
+// ── Dynamic Kraken symbol discovery ──────────────────────────────────────────
+// Fetches all tradeable pairs from Kraken's public API so we never need to
+// manually add new coins. Cache refreshes every 24h.
+
+type KrakenSymbolInfo = {
+  symbol: string;     // our internal name, e.g. "BTCUSDT"
+  name: string;       // friendly display name, e.g. "BTC"
+  pairUSD: string;    // Kraken pair for USD, e.g. "XBTUSD"
+  pairEUR: string;    // Kraken pair for EUR, e.g. "XBTEUR" (may be "")
+  balanceKey: string; // Kraken balance API key, e.g. "XXBT"
+  dec: number;        // qty decimal places
+  min: number;        // minimum order qty
+};
+
+// XBT → BTC (Kraken uses XBT, the world uses BTC; show BTC in UI)
+const ALTNAME_OVERRIDE: Record<string, string> = { XBT: "BTC", XDG: "DOGE", XLM: "XLM", XMR: "XMR", XRP: "XRP", XTZ: "XTZ", ZEC: "ZEC", LTC: "LTC", ETC: "ETC" };
+
+let krakenSymbolCache: KrakenSymbolInfo[] | null = null;
+let krakenSymbolCacheAt = 0;
+
+async function loadKrakenSymbols(): Promise<KrakenSymbolInfo[]> {
+  if (krakenSymbolCache && Date.now() - krakenSymbolCacheAt < 24 * 3600_000) return krakenSymbolCache;
+  try {
+    const [pairsRes, assetsRes] = await Promise.all([
+      fetch("https://api.kraken.com/0/public/AssetPairs", { signal: AbortSignal.timeout(10000) }),
+      fetch("https://api.kraken.com/0/public/Assets",     { signal: AbortSignal.timeout(10000) }),
+    ]);
+    const pairs  = ((await pairsRes.json())  as any).result ?? {};
+    const assets = ((await assetsRes.json()) as any).result ?? {};
+
+    // asset ID → friendly altname (e.g. XXBT → XBT → BTC)
+    const altname: Record<string, string> = {};
+    for (const [id, a] of Object.entries(assets as Record<string, any>)) {
+      const an = (a.altname as string) ?? id;
+      altname[id] = ALTNAME_OVERRIDE[an] ?? an;
+    }
+
+    // Group USD and EUR pairs by base asset
+    const byBase: Record<string, { usd?: string; eur?: string; dec: number; min: number }> = {};
+    for (const [pairName, p] of Object.entries(pairs as Record<string, any>)) {
+      if (p.status && p.status !== "online") continue; // skip delisted/suspended
+      const base = p.base as string;
+      const quote = p.quote as string;
+      if (!byBase[base]) byBase[base] = { dec: p.lot_decimals ?? 2, min: parseFloat(p.ordermin ?? "0.01") };
+      if (quote === "ZUSD") byBase[base].usd = pairName;
+      if (quote === "ZEUR") byBase[base].eur = pairName;
+    }
+
+    const result: KrakenSymbolInfo[] = [];
+    for (const [base, info] of Object.entries(byBase)) {
+      if (!info.usd) continue; // skip pairs without a USD leg
+      const name = altname[base] ?? base;
+      if (!name || name.length > 10) continue; // skip strangely-named assets
+      result.push({
+        symbol: `${name}USDT`,
+        name,
+        pairUSD: info.usd,
+        pairEUR: info.eur ?? "",
+        balanceKey: base,
+        dec: info.dec,
+        min: info.min,
+      });
+    }
+    result.sort((a, b) => a.name.localeCompare(b.name));
+    krakenSymbolCache = result;
+    krakenSymbolCacheAt = Date.now();
+    return result;
+  } catch {
+    return krakenSymbolCache ?? []; // return stale cache on error
+  }
+}
+
+// Lookup helpers — fall back to static maps if cache not yet loaded
+function krakenSymbolInfo(symbol: string): KrakenSymbolInfo | undefined {
+  return krakenSymbolCache?.find(s => s.symbol === symbol);
+}
+
+// Dynamic equivalents of the old static maps
+function getKrakenPairName(symbol: string, fiat: KrakenFiat): string {
+  const info = krakenSymbolInfo(symbol);
+  if (info) return fiat === "EUR" && info.pairEUR ? info.pairEUR : info.pairUSD;
+  return (fiat === "EUR" ? SYMBOL_MAP_EUR : SYMBOL_MAP_USD)[symbol] ?? "XBTUSD";
+}
+
+function getKrakenBalanceKey(symbol: string): string {
+  return krakenSymbolInfo(symbol)?.balanceKey ?? KRAKEN_BALANCE_ASSET_FALLBACK[symbol] ?? "";
+}
+
+function getKrakenSpec(symbol: string): { dec: number; min: number } {
+  const info = krakenSymbolInfo(symbol);
+  if (info) return { dec: info.dec, min: info.min };
+  return KRAKEN_SPEC_FALLBACK[symbol] ?? { dec: 2, min: 0.01 };
+}
+
+// Fallback static maps (used before first API load completes)
+const KRAKEN_BALANCE_ASSET_FALLBACK: Record<string, string> = {
   BTCUSDT: "XXBT",  ETHUSDT: "XETH",  SOLUSDT: "SOL",   DOGEUSDT: "XXDG",
   XRPUSDT: "XXRP",  ADAUSDT: "ADA",   AVAXUSDT: "AVAX", LINKUSDT: "LINK",
   DOTUSDT: "DOT",   LTCUSDT: "XLTC",  BCHUSDT: "BCH",   ATOMUSDT: "ATOM",
   UNIUSDT: "UNI",   SHIBUSDT: "SHIB", PEPEUSDT: "PEPE", SUIUSDT: "SUI",
   TONUSDT: "TON",   TRXUSDT: "TRX",   MATICUSDT: "MATIC",
 };
-
-// Kraken order precision per symbol: dec = decimal places for qty, min = minimum order qty
-const KRAKEN_SPEC: Record<string, { dec: number; min: number }> = {
-  BTCUSDT:  { dec: 4, min: 0.0001 },
-  ETHUSDT:  { dec: 3, min: 0.004 },
-  SOLUSDT:  { dec: 2, min: 0.01 },
-  DOGEUSDT: { dec: 0, min: 50 },
-  XRPUSDT:  { dec: 2, min: 10 },
-  ADAUSDT:  { dec: 1, min: 10 },
-  AVAXUSDT: { dec: 3, min: 0.1 },
-  LINKUSDT: { dec: 3, min: 0.1 },
-  DOTUSDT:  { dec: 2, min: 1 },
-  LTCUSDT:  { dec: 3, min: 0.01 },
-  BCHUSDT:  { dec: 4, min: 0.001 },
-  ATOMUSDT: { dec: 2, min: 0.5 },
-  UNIUSDT:  { dec: 2, min: 0.5 },
-  SHIBUSDT: { dec: 0, min: 50000 },
-  PEPEUSDT: { dec: 0, min: 500000 },
-  SUIUSDT:  { dec: 2, min: 1 },
-  TONUSDT:  { dec: 3, min: 0.5 },
-  TRXUSDT:  { dec: 0, min: 100 },
-  MATICUSDT:{ dec: 2, min: 5 },
+const KRAKEN_SPEC_FALLBACK: Record<string, { dec: number; min: number }> = {
+  BTCUSDT:  { dec: 4, min: 0.0001 }, ETHUSDT:  { dec: 3, min: 0.004 },
+  SOLUSDT:  { dec: 2, min: 0.01 },   DOGEUSDT: { dec: 0, min: 50 },
+  XRPUSDT:  { dec: 2, min: 10 },     ADAUSDT:  { dec: 1, min: 10 },
 };
+
+// Keep old names as aliases so existing call-sites still compile
+const KRAKEN_BALANCE_ASSET = KRAKEN_BALANCE_ASSET_FALLBACK;
+const KRAKEN_SPEC           = KRAKEN_SPEC_FALLBACK;
 
 // Verify a restored position actually exists on the exchange; clear it if it's a phantom.
 // IMPORTANT: spot trades (leverage ≤ 1) do NOT appear in OpenPositions — they are just a
@@ -205,7 +285,7 @@ async function reconcilePosition() {
     } else {
       // ── Spot (1x) → check the actual coin balance ───────────────────────────
       // A spot LONG means we hold the base coin; verify the balance roughly matches qty.
-      const asset = KRAKEN_BALANCE_ASSET[config.symbol];
+      const asset = getKrakenBalanceKey(config.symbol);
       if (!asset) {
         addLog(`ℹ️ Nieznany symbol ${config.symbol} — pomijam reconcile (zachowuję pozycję)`, "info");
         return;
@@ -252,7 +332,7 @@ async function recoverPositionFromBalance(): Promise<void> {
 
 async function recoverSingleSymbol(scanSym: string): Promise<void> {
   if (!config || position) return;
-  const asset = KRAKEN_BALANCE_ASSET[scanSym];
+  const asset = getKrakenBalanceKey(scanSym);
   if (!asset) return;
   try {
     const bal = await krakenPrivate("/0/private/Balance");
@@ -313,7 +393,7 @@ async function recoverSingleSymbol(scanSym: string): Promise<void> {
       addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${price.toFixed(0)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
     }
 
-    const spec = KRAKEN_SPEC[scanSym] ?? { dec: 2, min: 0.01 };
+    const spec = getKrakenSpec(scanSym);
     const qty = parseFloat(coinBal.toFixed(spec.dec));
     if (qty <= 0) return;
 
@@ -526,7 +606,7 @@ const SYMBOL_MAP: Record<string, string> = {
 
 function krakenPair(symbol: string): string {
   const fiat = config?.krakenFiat ?? "USD";
-  return (fiat === "EUR" ? SYMBOL_MAP_EUR : SYMBOL_MAP_USD)[symbol] ?? "XBTUSD";
+  return getKrakenPairName(symbol, fiat);
 }
 
 let lastPrice = 0;
@@ -1018,7 +1098,7 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
     const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
 
-    const spec = KRAKEN_SPEC[sym] ?? { dec: 2, min: 0.01 };
+    const spec = getKrakenSpec(sym);
 
     const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
     const slForSizing  = effSL / 100;
@@ -1263,7 +1343,7 @@ async function engineTick() {
     const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
     const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
 
-    const spec = KRAKEN_SPEC[config.symbol] ?? { dec: 2, min: 0.01 };
+    const spec = getKrakenSpec(config.symbol);
 
     // Risk-based position sizing: invest only riskPct% of capital per trade.
     // Further scaled down when ATR-based SL is larger than the fixed SL setting
@@ -1334,7 +1414,16 @@ async function engineTick() {
   finally { isTickRunning = false; }
 }
 
+// Pre-load Kraken symbols in background so cache is ready when bot starts
+loadKrakenSymbols().catch(() => {});
+
 // ── HTTP endpoints ────────────────────────────────────────────────────────────
+
+// GET /api/bot/symbols — return all Kraken tradeable symbols for the UI
+router.get("/symbols", async (_req, res) => {
+  const syms = await loadKrakenSymbols();
+  res.json(syms.map(s => ({ symbol: s.symbol, name: s.name })));
+});
 
 // GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)
 router.get("/keys", (_req, res) => {
