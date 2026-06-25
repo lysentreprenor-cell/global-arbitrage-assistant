@@ -226,28 +226,52 @@ async function recoverPositionFromBalance(): Promise<void> {
     const valueUsd = coinBal * price;
     if (valueUsd < RECOVER_MIN_USD) return; // dust — not a tradeable position
 
-    // Try to find the entry price from the last buy trade for this pair
-    const pair = krakenPair(config.symbol);
-    let entryPrice = price;
+    // Try to find the entry price from the last buy trade — search all pair variants
+    // because krakenFiat may not be detected yet (first tick hasn't run) and the trade
+    // could be in EUR or USD format, with or without legacy X/Z prefixes.
+    const PAIR_VARIANTS: Record<string, string[]> = {
+      BTCUSDT: ["XBTEUR", "XBTUSD", "XXBTZEUR", "XXBTZUSD", "XBT/EUR", "XBT/USD"],
+      ETHUSDT: ["ETHEUR", "ETHUSD", "XETHZEUR", "XETHZUSD", "ETH/EUR", "ETH/USD"],
+      SOLUSDT: ["SOLEUR", "SOLUSD", "SOL/EUR", "SOL/USD"],
+    };
+    const pairVariants = PAIR_VARIANTS[config.symbol] ?? [krakenPair(config.symbol)];
+
+    let entryPrice = 0; // 0 = not found
     let entryTime = new Date().toISOString();
     try {
-      const th = await krakenPrivate("/0/private/TradesHistory");
-      const trades = th?.trades ? Object.values(th.trades) as any[] : [];
-      const buys = trades
-        .filter(t => (t.pair === pair) && (t.type ?? "").toLowerCase() === "buy")
-        .sort((a, b) => (b.time ?? 0) - (a.time ?? 0));
-      if (buys.length > 0) {
-        const last = buys[0];
-        const p = parseFloat(last.price ?? "0");
-        if (p > 0) entryPrice = p;
-        if (last.time) entryTime = new Date(last.time * 1000).toISOString();
+      // Fetch up to 2 pages of trade history (most recent 100 trades)
+      for (const offset of [0, 50]) {
+        const th = await krakenPrivate("/0/private/TradesHistory", { ofs: String(offset) });
+        const trades = th?.trades ? Object.values(th.trades) as any[] : [];
+        const buys = trades
+          .filter(t => pairVariants.includes(t.pair) && (t.type ?? "").toLowerCase() === "buy")
+          .sort((a: any, b: any) => (b.time ?? 0) - (a.time ?? 0));
+        if (buys.length > 0) {
+          const last = buys[0];
+          const p = parseFloat(last.price ?? "0");
+          if (p > 0) { entryPrice = p; if (last.time) entryTime = new Date(last.time * 1000).toISOString(); }
+          break;
+        }
+        if (trades.length < 50) break; // no more pages
       }
-    } catch { /* TradesHistory may be unavailable — use current price as entry */ }
+    } catch { /* TradesHistory may be unavailable — proceed with fallback */ }
+
+    // If entry price not found in history (e.g. bought via Kraken Earn conversion or too old),
+    // use current price as entry but widen SL to 8% so a normal dip doesn't close the position.
+    // Log a warning so the user knows the real P&L may differ.
+    const entryKnown = entryPrice > 0;
+    if (!entryKnown) {
+      entryPrice = price;
+      addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${price.toFixed(0)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
+    }
 
     // Round qty to the symbol's precision so the close order is valid
     const spec = config.symbol === "BTCUSDT" ? { dec: 4 } : config.symbol === "ETHUSDT" ? { dec: 3 } : { dec: 2 };
     const qty = parseFloat(coinBal.toFixed(spec.dec));
     if (qty <= 0) return;
+
+    // Use wide SL for unknown-entry positions so a 1.5% dip doesn't sell prematurely
+    const recoveredSlPct = entryKnown ? config.stopLoss : Math.max(config.stopLoss, 8.0);
 
     position = {
       direction: "long",
@@ -255,15 +279,15 @@ async function recoverPositionFromBalance(): Promise<void> {
       qty,
       entryTime,
       trailRef: Math.max(entryPrice, price),
-      slPct: config.stopLoss,
+      slPct: recoveredSlPct,
       tpPct: config.takeProfit,
       trailPct: config.trailPct,
       breakEvenSet: false,
-      signal: "recovered_from_balance",
+      signal: entryKnown ? "recovered_from_balance" : "recovered_unknown_entry",
     };
     lastEntryTime = new Date(entryTime).getTime();
     saveState();
-    addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście≈$${entryPrice.toFixed(0)} → TP=${config.takeProfit}% SL=${config.stopLoss}%`, "buy");
+    addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${entryPrice.toFixed(0)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
   } catch (e: any) {
     addLog(`⚠️ Nie udało się odtworzyć pozycji z salda: ${e.message}`, "warn");
   }
