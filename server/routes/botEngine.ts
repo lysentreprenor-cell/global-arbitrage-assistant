@@ -1097,8 +1097,9 @@ async function engineTick() {
     const effLev = Math.max(1, config.leverage ?? 1);
     const macdBull = macdLine > macdSignal; // kept for display/log only
 
+    const spotOnly = config.platform === "kraken" && effLev <= 1;
     const isLong  = bbPercB < 40 && belowVwap && !inCrash;
-    const isShort = config.allowShorts && bbPercB > 60 && aboveVwap;
+    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
