@@ -5,7 +5,7 @@ import { hasKrakenKeys, getKrakenKeys } from "@/lib/apiKeys";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Symbol    = "BTCUSDT" | "ETHUSDT" | "SOLUSDT";
+type Symbol    = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "DOGEUSDT";
 type RiskLevel = "cautious" | "normal" | "aggressive" | "superaggressive";
 type Direction = "long" | "short";
 type Tab       = "main" | "advanced";
@@ -96,7 +96,7 @@ const PRESETS: Preset[] = [
     rsiMin: 42, rsiMax: 70, adxMin: 10, confluenceMin: 1, volMultMin: 0.8, cooldownMin: 10,  stopLoss: 1.50, takeProfit: 3.00, trailPct: 0.70 },
 ];
 
-const SYMBOLS:    Symbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
+const SYMBOLS:    Symbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT"];
 const LEVERAGES:  number[] = [1, 2, 3, 5];
 const TRADES_KEY   = "kraken_trades_v2";
 const SETTINGS_KEY = "bot_settings_v2";

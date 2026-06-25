@@ -149,7 +149,7 @@ function loadState() {
 
 // Kraken Balance asset key for the base coin of a symbol (BTCUSDT → XXBT)
 const KRAKEN_BALANCE_ASSET: Record<string, string> = {
-  BTCUSDT: "XXBT", ETHUSDT: "XETH", SOLUSDT: "SOL",
+  BTCUSDT: "XXBT", ETHUSDT: "XETH", SOLUSDT: "SOL", DOGEUSDT: "XXDG",
 };
 
 // Verify a restored position actually exists on the exchange; clear it if it's a phantom.
@@ -239,9 +239,10 @@ async function recoverSingleSymbol(scanSym: string): Promise<void> {
     if (valueUsd < RECOVER_MIN_USD) return; // dust — not a tradeable position
 
     const PAIR_VARIANTS: Record<string, string[]> = {
-      BTCUSDT: ["XBTEUR", "XBTUSD", "XXBTZEUR", "XXBTZUSD", "XBT/EUR", "XBT/USD"],
-      ETHUSDT: ["ETHEUR", "ETHUSD", "XETHZEUR", "XETHZUSD", "ETH/EUR", "ETH/USD"],
-      SOLUSDT: ["SOLEUR", "SOLUSD", "SOL/EUR", "SOL/USD"],
+      BTCUSDT:  ["XBTEUR", "XBTUSD", "XXBTZEUR", "XXBTZUSD", "XBT/EUR", "XBT/USD"],
+      ETHUSDT:  ["ETHEUR", "ETHUSD", "XETHZEUR", "XETHZUSD", "ETH/EUR", "ETH/USD"],
+      SOLUSDT:  ["SOLEUR", "SOLUSD", "SOL/EUR", "SOL/USD"],
+      DOGEUSDT: ["XDGEUR", "XDGUSD", "XDG/EUR", "XDG/USD"],
     };
     const pairVariants = PAIR_VARIANTS[scanSym] ?? [krakenPair(scanSym)];
 
@@ -270,7 +271,7 @@ async function recoverSingleSymbol(scanSym: string): Promise<void> {
       addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${price.toFixed(0)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
     }
 
-    const spec = scanSym === "BTCUSDT" ? { dec: 4 } : scanSym === "ETHUSDT" ? { dec: 3 } : { dec: 2 };
+    const spec = scanSym === "BTCUSDT" ? { dec: 4 } : scanSym === "ETHUSDT" ? { dec: 3 } : scanSym === "DOGEUSDT" ? { dec: 0 } : { dec: 2 };
     const qty = parseFloat(coinBal.toFixed(spec.dec));
     if (qty <= 0) return;
 
@@ -459,14 +460,14 @@ async function closePosition(reason: string): Promise<boolean> {
 // ── Main engine tick ──────────────────────────────────────────────────────────
 
 const SYMBOL_MAP_USD: Record<string, string> = {
-  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD",
+  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD", DOGEUSDT: "XDGUSD",
 };
 const SYMBOL_MAP_EUR: Record<string, string> = {
-  BTCUSDT: "XBTEUR", ETHUSDT: "ETHEUR", SOLUSDT: "SOLEUR",
+  BTCUSDT: "XBTEUR", ETHUSDT: "ETHEUR", SOLUSDT: "SOLEUR", DOGEUSDT: "XDGEUR",
 };
 // For non-Kraken platforms
 const SYMBOL_MAP: Record<string, string> = {
-  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD",
+  BTCUSDT: "XBTUSD", ETHUSDT: "ETHUSD", SOLUSDT: "SOLUSD", DOGEUSDT: "XDGUSD",
 };
 
 function krakenPair(symbol: string): string {
@@ -964,8 +965,8 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
 
     const spec = config.platform === "kraken"
-      ? (sym === "BTCUSDT" ? { dec: 4, min: 0.0001 } : sym === "ETHUSDT" ? { dec: 3, min: 0.004 } : { dec: 2, min: 0.01 })
-      : (sym === "BTCUSDT" ? { dec: 3, min: 0.001 }  : sym === "ETHUSDT" ? { dec: 2, min: 0.01 }  : { dec: 1, min: 0.1 });
+      ? (sym === "BTCUSDT" ? { dec: 4, min: 0.0001 } : sym === "ETHUSDT" ? { dec: 3, min: 0.004 } : sym === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 2, min: 0.01 })
+      : (sym === "BTCUSDT" ? { dec: 3, min: 0.001 }  : sym === "ETHUSDT" ? { dec: 2, min: 0.01 }  : sym === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 1, min: 0.1 });
 
     const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
     const slForSizing  = effSL / 100;
@@ -1211,10 +1212,10 @@ async function engineTick() {
     const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
 
     const spec = config.platform === "kraken"
-      ? (config.symbol === "BTCUSDT" ? { dec: 4, min: 0.0001 } : config.symbol === "ETHUSDT" ? { dec: 3, min: 0.004 } : { dec: 2, min: 0.01 })
+      ? (config.symbol === "BTCUSDT" ? { dec: 4, min: 0.0001 } : config.symbol === "ETHUSDT" ? { dec: 3, min: 0.004 } : config.symbol === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 2, min: 0.01 })
       : config.platform === "eu"
-      ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : { dec: 2, min: 0.01 })
-      : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : { dec: 1, min: 0.1 });
+      ? (config.symbol === "BTCUSDT" ? { dec: 5, min: 0.00005 } : config.symbol === "ETHUSDT" ? { dec: 4, min: 0.0001 } : config.symbol === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 2, min: 0.01 })
+      : (config.symbol === "BTCUSDT" ? { dec: 3, min: 0.001 }   : config.symbol === "ETHUSDT" ? { dec: 2, min: 0.01 }   : config.symbol === "DOGEUSDT" ? { dec: 0, min: 50 } : { dec: 1, min: 0.1 });
 
     // Risk-based position sizing: invest only riskPct% of capital per trade.
     // Further scaled down when ATR-based SL is larger than the fixed SL setting
