@@ -1057,6 +1057,25 @@ async function priceCheck() {
 // ── Lightweight multi-symbol signal scanner ───────────────────────────────────
 // Fetches candles + indicators for a single symbol and returns signal data.
 // Used to scan alternative symbols when the primary has no signal.
+
+// Kraken public API rate limits hard, so we never scan more than MAX_SCAN_PER_TICK
+// symbols per tick. With a long watch-list we rotate through it across ticks so
+// every coin is checked over time. Concurrency is batched to avoid bursts.
+const MAX_SCAN_PER_TICK = 20;
+const SCAN_BATCH_SIZE = 5;
+let scanCursor = 0;
+
+// Run quickScanSymbol over a list with limited concurrency (batches of SCAN_BATCH_SIZE)
+async function scanInBatches(symbols: string[]): Promise<QuickSignal[]> {
+  const out: QuickSignal[] = [];
+  for (let i = 0; i < symbols.length; i += SCAN_BATCH_SIZE) {
+    const batch = symbols.slice(i, i + SCAN_BATCH_SIZE);
+    const res = (await Promise.all(batch.map(quickScanSymbol))).filter(Boolean) as QuickSignal[];
+    out.push(...res);
+  }
+  return out;
+}
+
 type QuickSignal = {
   sym: string; bbPercB: number; isLong: boolean; isShort: boolean;
   score: number; price: number; atrPct: number;
@@ -1305,10 +1324,23 @@ async function engineTick() {
 
     if (!doLong && !doShort) {
       const coolLeft = cooldownOk ? "✓" : `${Math.ceil((cooldownMs - (Date.now() - lastEntryTime)) / 60000)}m`;
-      // Scan alternative symbols in parallel when primary has no signal and cooldown is OK
-      const altSymbols = (config.symbols ?? []).filter(s => s !== config!.symbol);
-      if (altSymbols.length > 0 && cooldownOk) {
-        const scans = (await Promise.all(altSymbols.map(quickScanSymbol))).filter(Boolean) as QuickSignal[];
+      // Scan alternative symbols when primary has no signal and cooldown is OK.
+      // Rotate through the watch-list in chunks of MAX_SCAN_PER_TICK so a huge list
+      // (e.g. all 650 Kraken coins) gets fully covered over several ticks without
+      // flooding the API in one burst.
+      const allAlts = (config.symbols ?? []).filter(s => s !== config!.symbol);
+      if (allAlts.length > 0 && cooldownOk) {
+        if (scanCursor >= allAlts.length) scanCursor = 0;
+        const altSymbols = allAlts.slice(scanCursor, scanCursor + MAX_SCAN_PER_TICK);
+        // Wrap around to the start if the slice is short
+        if (altSymbols.length < MAX_SCAN_PER_TICK && allAlts.length > MAX_SCAN_PER_TICK) {
+          altSymbols.push(...allAlts.slice(0, MAX_SCAN_PER_TICK - altSymbols.length));
+        }
+        scanCursor += MAX_SCAN_PER_TICK;
+        if (allAlts.length > MAX_SCAN_PER_TICK) {
+          addLog(`🔎 Skan ${altSymbols.length}/${allAlts.length} monet (rotacja ${scanCursor > allAlts.length ? allAlts.length : scanCursor}/${allAlts.length})`);
+        }
+        const scans = await scanInBatches(altSymbols);
         const best = scans.filter(s => s.isLong || s.isShort).sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
