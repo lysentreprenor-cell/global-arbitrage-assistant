@@ -301,13 +301,24 @@ async function reconcilePosition() {
         position = null;
         saveState();
       } else {
-        // Spot shorts aren't really possible on Kraken consumer accounts — keep as-is, just warn
-        addLog(`ℹ️ Pozycja spot SHORT — nie mogę zweryfikować przez saldo, zachowuję`, "info");
+        // A SHORT cannot exist on a spot (1x) account — there is nothing to sell short.
+        // This is a leftover phantom from a previous margin run; clear it.
+        addLog(`🧹 Pozycja SHORT niemożliwa na spocie 1x — usuwam fantomową pozycję`, "warn");
+        position = null;
+        saveState();
       }
     }
   } catch (e: any) {
-    // Don't clear on API error — could be transient; just warn
-    addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message} — zachowuję pozycję`, "warn");
+    // On a spot (1x) config a SHORT can never be real, so clear it even if the API
+    // call failed (e.g. Permission denied). For everything else, keep on transient error.
+    const effLev = Math.max(1, config.leverage ?? 1);
+    if (effLev <= 1 && position?.direction === "short") {
+      addLog(`🧹 Pozycja SHORT niemożliwa na spocie 1x (API: ${e.message}) — usuwam fantom`, "warn");
+      position = null;
+      saveState();
+    } else {
+      addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message} — zachowuję pozycję`, "warn");
+    }
   }
 }
 
@@ -1455,6 +1466,17 @@ loadKrakenSymbols().catch(() => {});
 router.get("/symbols", async (_req, res) => {
   const syms = await loadKrakenSymbols();
   res.json(syms.map(s => ({ symbol: s.symbol, name: s.name })));
+});
+
+// POST /api/bot/clear-position — manually wipe a phantom/stuck position (no order sent)
+router.post("/clear-position", (_req, res) => {
+  if (!position) return res.json({ ok: true, message: "Brak pozycji do wyczyszczenia" });
+  const dir = position.direction;
+  const sym = position.symbol ?? config?.symbol ?? "?";
+  position = null;
+  saveState();
+  addLog(`🧹 Pozycja ${dir.toUpperCase()} ${sym} wyczyszczona ręcznie (bez zlecenia na Krakenie)`, "warn");
+  res.json({ ok: true, message: `Wyczyszczono ${dir} ${sym}` });
 });
 
 // GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)

@@ -359,6 +359,14 @@ export default function TradingBot() {
     await fetchStatus();
   };
 
+  const clearPosition = async () => {
+    if (!confirm("Wyczyścić pozycję z bota? (NIE wysyła zlecenia na Krakena — tylko usuwa lokalny zapis fantomowej pozycji)")) return;
+    try {
+      await fetch("/api/bot/clear-position", { method: "POST" });
+      await fetchStatus();
+    } catch { /* ignore */ }
+  };
+
   const runSim = async () => {
     setSimRunning(true); setSimError(null); setSimResult(null); setOptResult(null);
     try {
@@ -710,7 +718,13 @@ export default function TradingBot() {
                   <span className="text-sm text-white">@ ${fmtP(position.entryPrice)}</span>
                   <span className="text-xs text-gray-400">qty {position.qty}</span>
                 </div>
-                <div className="text-xs text-gray-500 mt-0.5">SL {safe(position.slPct)}% · TP {safe(position.tpPct)}%</div>
+                <div className="flex justify-between items-center mt-0.5">
+                  <span className="text-xs text-gray-500">SL {safe(position.slPct)}% · TP {safe(position.tpPct)}%</span>
+                  <button onClick={clearPosition}
+                    className="text-[10px] px-2 py-0.5 rounded bg-red-900/40 border border-red-700/50 text-red-300 hover:bg-red-900/60">
+                    🧹 wyczyść fantom
+                  </button>
+                </div>
               </div>
             )}
 
