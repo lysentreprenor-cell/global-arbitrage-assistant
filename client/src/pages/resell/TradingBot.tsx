@@ -203,6 +203,8 @@ export default function TradingBot() {
     SYMBOLS_FALLBACK.map(s => ({ symbol: s, name: s.replace("USDT", "") }))
   );
   const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
+  const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
+  const [customSL,   setCustomSL]   = useState<number>(saved.customSL ?? 0); // 0 = użyj presetu
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
@@ -257,9 +259,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -348,8 +350,10 @@ export default function TradingBot() {
           capital, riskPct, leverage, allowShorts, maxHoldMin,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
-          cooldownMin: p.cooldownMin, stopLoss: p.stopLoss,
-          takeProfit: p.takeProfit, trailPct: p.trailPct,
+          cooldownMin: p.cooldownMin,
+          stopLoss:   customSL > 0 ? customSL : p.stopLoss,
+          takeProfit: customTP > 0 ? customTP : p.takeProfit,
+          trailPct: p.trailPct,
           filters: indOpts,
         }),
       });
@@ -729,6 +733,51 @@ export default function TradingBot() {
               </div>
               <div className="text-[10px] text-gray-600 mt-0.5">
                 Po tym czasie bot zamknie pozycję niezależnie od zysku/straty (scalping)
+              </div>
+            </div>
+
+            {/* take profit selector */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Cel zysku (sprzedaj przy +%)</span>
+                <span className="text-xs text-green-400">
+                  {customTP === 0 ? `auto (${p.takeProfit}%)` : `+${customTP}%`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { v: 0, l: "auto" }, { v: 1, l: "1%" }, { v: 2, l: "2%" }, { v: 3, l: "3%" },
+                  { v: 5, l: "5%" }, { v: 8, l: "8%" }, { v: 10, l: "10%" },
+                ].map(({ v, l }) => (
+                  <button key={v} onClick={() => setCustomTP(v)}
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${customTP === v ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* stop loss selector */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Limit straty (sprzedaj przy −%)</span>
+                <span className="text-xs text-red-400">
+                  {customSL === 0 ? `auto (${p.stopLoss}%)` : `−${customSL}%`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { v: 0, l: "auto" }, { v: 1, l: "1%" }, { v: 1.5, l: "1.5%" }, { v: 2, l: "2%" },
+                  { v: 3, l: "3%" }, { v: 5, l: "5%" },
+                ].map(({ v, l }) => (
+                  <button key={v} onClick={() => setCustomSL(v)}
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${customSL === v ? "bg-red-800 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] text-gray-600 mt-0.5">
+                TP musi być &gt; 0.6% żeby pokryć opłaty (0.52% za transakcję)
               </div>
             </div>
 
