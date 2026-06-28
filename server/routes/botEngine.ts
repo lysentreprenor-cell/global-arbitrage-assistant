@@ -73,6 +73,7 @@ type BotConfig = {
   volMultMin: number;     // volume spike threshold (1.0 = disabled)
   cooldownMin: number;    // minutes between entries
   maxHoldMin?: number;    // max minutes to hold a position (0/undefined = 48h default)
+  minVolume?: number;     // min 24h turnover in quote currency to trade a coin (0 = off)
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -1101,6 +1102,15 @@ type QuickSignal = {
   spec: { dec: number; min: number };
 };
 
+// Approximate 24h turnover (in quote currency) from the 5m candle volumes the bot
+// already fetched. 150 candles × 5m = 12.5h of data; scale up to a 24h estimate.
+function estimate24hTurnover(volumes: number[], price: number): number {
+  const baseVol = volumes.reduce((s, v) => s + v, 0);          // base-asset volume over window
+  const windowMin = volumes.length * 5;                         // 5m candles
+  const scaleTo24h = windowMin > 0 ? (24 * 60) / windowMin : 1;
+  return baseVol * scaleTo24h * price;                          // quote-currency turnover
+}
+
 async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
   if (!config) return null;
   try {
@@ -1109,6 +1119,13 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const { closes, volumes, vwaps, highs, lows } = candles;
     const price = await fetchCurrentPrice(sym) ?? candles.price;
     if (!price) return null;
+
+    // Liquidity filter — skip illiquid coins where the chart price isn't really tradeable
+    if (config.minVolume && config.minVolume > 0) {
+      const turnover24h = estimate24hTurnover(volumes.slice(0, -1), price);
+      if (turnover24h < config.minVolume) return null;
+    }
+
     const closedCloses = closes.slice(0, -1);
     const bbPercB = calcBBPercB(closedCloses);
     const atr = calcAtr(highs.slice(0, -1), lows.slice(0, -1), closedCloses);
@@ -1337,8 +1354,12 @@ async function engineTick() {
     const macdBull = macdLine > macdSignal; // kept for display/log only
 
     const spotOnly = config.platform === "kraken" && effLev <= 1;
-    const isLong  = bbPercB < 40 && belowVwap && !inCrash;
-    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap;
+    // Liquidity filter on the primary symbol — if too illiquid, skip its signal
+    // (the alt-scan below will still look for a tradeable, liquid mover).
+    const primaryLiquid = !config.minVolume || config.minVolume <= 0
+      || estimate24hTurnover(volumes.slice(0, -1), price) >= config.minVolume;
+    const isLong  = primaryLiquid && bbPercB < 40 && belowVwap && !inCrash;
+    const isShort = primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -1509,7 +1530,7 @@ router.post("/keys", (req, res) => {
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
-          confluenceMin, volMultMin, cooldownMin, maxHoldMin } = req.body;
+          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume } = req.body;
 
   // If keys not provided, try to load saved encrypted keys
   if (!apiKey || !secret) {
@@ -1539,6 +1560,7 @@ router.post("/start", (req, res) => {
     volMultMin:    volMultMin    ?? 0.8, // wolumen 0.8× — prawie zawsze spełniony
     cooldownMin:   cooldownMin   ?? 20,  // 20 min między wejściami — ~3-6 transakcji/dzień
     maxHoldMin:    maxHoldMin    ?? 0,   // 0 = domyślne 48h; >0 = limit czasu trzymania (scalping)
+    minVolume:     minVolume     ?? 0,   // 0 = filtr płynności wyłączony; >0 = min. obrót 24h
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };

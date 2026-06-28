@@ -205,6 +205,7 @@ export default function TradingBot() {
   const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
   const [customSL,   setCustomSL]   = useState<number>(saved.customSL ?? 0); // 0 = użyj presetu
+  const [minVolume,  setMinVolume]  = useState<number>(saved.minVolume ?? 0); // 0 = filtr wyłączony
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
@@ -259,9 +260,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -347,7 +348,7 @@ export default function TradingBot() {
         body: JSON.stringify({
           apiKey, secret, platform: "kraken",
           symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
-          capital, riskPct, leverage, allowShorts, maxHoldMin,
+          capital, riskPct, leverage, allowShorts, maxHoldMin, minVolume,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin,
@@ -778,6 +779,30 @@ export default function TradingBot() {
               </div>
               <div className="text-[10px] text-gray-600 mt-0.5">
                 TP musi być &gt; 0.6% żeby pokryć opłaty (0.52% za transakcję)
+              </div>
+            </div>
+
+            {/* liquidity filter */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Filtr płynności (min. obrót 24h)</span>
+                <span className="text-xs text-blue-400">
+                  {minVolume === 0 ? "wył." : minVolume >= 1_000_000 ? `$${minVolume / 1_000_000}M` : `$${minVolume / 1000}k`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { v: 0, l: "wył." }, { v: 100_000, l: "$100k" }, { v: 500_000, l: "$500k" },
+                  { v: 1_000_000, l: "$1M" }, { v: 5_000_000, l: "$5M" },
+                ].map(({ v, l }) => (
+                  <button key={v} onClick={() => setMinVolume(v)}
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${minVolume === v ? "bg-blue-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] text-gray-600 mt-0.5">
+                Bot pomija monety o małym obrocie (na nich „3%" z wykresu nie trafia do kieszeni)
               </div>
             </div>
 
