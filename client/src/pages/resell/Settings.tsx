@@ -128,7 +128,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     name: "Kraken Trading",
     logo: "🐙",
     color: "#5741d9",
-    description: "Klucze do prawdziwego tradingu na Kraken (spot, bez dźwigni). Brak ograniczeń IP — działa z każdego serwera. Utwórz klucze API → Security → API. Wymagane uprawnienia: Query Funds + Create & Modify Orders. NIGDY nie włączaj uprawnień do wypłat!",
+    description: "Klucze do prawdziwego tradingu na Kraken (spot lub margin/shorty). Brak ograniczeń IP — działa z każdego serwera. Utwórz klucze API → Security → API. Wymagane uprawnienia: Query Funds + Create & Modify Orders + Query Open Orders & Trades + Query Closed Orders & Trades + Query Open Positions (dla shortów). NIGDY nie włączaj uprawnień do wypłat!",
     docsUrl: "https://www.kraken.com/u/security/api",
     keyLabel: "API Key",
     fields: [
