@@ -202,6 +202,7 @@ export default function TradingBot() {
   const [availSymbols, setAvailSymbols] = useState<{ symbol: string; name: string }[]>(
     SYMBOLS_FALLBACK.map(s => ({ symbol: s, name: s.replace("USDT", "") }))
   );
+  const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
@@ -256,9 +257,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -344,7 +345,7 @@ export default function TradingBot() {
         body: JSON.stringify({
           apiKey, secret, platform: "kraken",
           symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
-          capital, riskPct, leverage, allowShorts,
+          capital, riskPct, leverage, allowShorts, maxHoldMin,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin, stopLoss: p.stopLoss,
@@ -706,6 +707,30 @@ export default function TradingBot() {
               </div>
               <span className="text-sm text-gray-300">Zezwól na shorty</span>
             </label>
+
+            {/* max hold time */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Max czas trzymania pozycji</span>
+                <span className="text-xs text-green-400">
+                  {maxHoldMin === 0 ? "bez limitu (48h)" : maxHoldMin >= 60 ? `${maxHoldMin / 60}h` : `${maxHoldMin}min`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { v: 0, l: "∞" }, { v: 5, l: "5m" }, { v: 10, l: "10m" }, { v: 15, l: "15m" },
+                  { v: 30, l: "30m" }, { v: 60, l: "1h" }, { v: 240, l: "4h" }, { v: 720, l: "12h" },
+                ].map(({ v, l }) => (
+                  <button key={v} onClick={() => setMaxHoldMin(v)}
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${maxHoldMin === v ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] text-gray-600 mt-0.5">
+                Po tym czasie bot zamknie pozycję niezależnie od zysku/straty (scalping)
+              </div>
+            </div>
 
             {/* open position */}
             {position && (

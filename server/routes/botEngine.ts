@@ -72,6 +72,7 @@ type BotConfig = {
   confluenceMin: number;  // 1=aggressive, 2=normal, 3=cautious
   volMultMin: number;     // volume spike threshold (1.0 = disabled)
   cooldownMin: number;    // minutes between entries
+  maxHoldMin?: number;    // max minutes to hold a position (0/undefined = 48h default)
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -1033,11 +1034,17 @@ async function priceCheck() {
     ? position.entryPrice * (1 - position.slPct / 100)
     : position.entryPrice * (1 + position.slPct / 100);
 
+  // Time stop — close when the position has been held longer than maxHoldMin (every 5s check)
+  const holdMin = (Date.now() - new Date(position.entryTime).getTime()) / 60_000;
+  const maxHoldMin = (config.maxHoldMin && config.maxHoldMin > 0) ? config.maxHoldMin : 48 * 60;
+  const timeLabel = maxHoldMin >= 60 ? `${(maxHoldMin / 60).toFixed(0)}h` : `${maxHoldMin}m`;
+
   let reason: string | null = null;
   if (pct >= position.tpPct) reason = `TP +${pct.toFixed(2)}%`;
   // Long SL: tighter = higher price = Math.max; Short SL: tighter = lower price = Math.min
   else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
   else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+  else if (holdMin >= maxHoldMin) reason = `Limit czasu ${timeLabel} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
 
   if (reason) {
     isClosing = true;
@@ -1263,14 +1270,19 @@ async function engineTick() {
 
     // ── Open position management ─────────────────────────────────────────────
     if (position && !isClosing) {
-      const holdHours = (Date.now() - new Date(position.entryTime).getTime()) / 3_600_000;
+      const holdMin   = (Date.now() - new Date(position.entryTime).getTime()) / 60_000;
+      const holdHours = holdMin / 60;
 
-      // Max hold: 48h time-based exit to prevent stuck positions
-      if (holdHours >= 48) {
+      // Max hold: configurable time-based exit (default 48h) to prevent stuck positions.
+      // A short maxHoldMin (e.g. 15m) makes the bot a fast scalper — closes on time
+      // regardless of profit, freeing capital for the next signal.
+      const maxHoldMin = (config.maxHoldMin && config.maxHoldMin > 0) ? config.maxHoldMin : 48 * 60;
+      if (holdMin >= maxHoldMin) {
         const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
         const pct    = position.direction === "short" ? -rawPct : rawPct;
-        addLog(`⏱️ Max hold 48h (${holdHours.toFixed(0)}h) — zamykam pozycję`, "warn");
-        const closed = await closePosition(`Max hold ${holdHours.toFixed(0)}h`);
+        const label  = maxHoldMin >= 60 ? `${(maxHoldMin / 60).toFixed(0)}h` : `${maxHoldMin}m`;
+        addLog(`⏱️ Limit czasu ${label} osiągnięty (${holdMin.toFixed(0)}min) — zamykam pozycję P&L ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`, pct >= 0 ? "sell" : "warn");
+        const closed = await closePosition(`Limit czasu ${label}`);
         if (closed) {
           const KRAKEN_FEE_RT = 0.0052;
           const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
@@ -1497,7 +1509,7 @@ router.post("/keys", (req, res) => {
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
-          confluenceMin, volMultMin, cooldownMin } = req.body;
+          confluenceMin, volMultMin, cooldownMin, maxHoldMin } = req.body;
 
   // If keys not provided, try to load saved encrypted keys
   if (!apiKey || !secret) {
@@ -1526,6 +1538,7 @@ router.post("/start", (req, res) => {
     confluenceMin: confluenceMin ?? 1,   // 1 z 3 wskaźników — MACD lub wolumen lub trend
     volMultMin:    volMultMin    ?? 0.8, // wolumen 0.8× — prawie zawsze spełniony
     cooldownMin:   cooldownMin   ?? 20,  // 20 min między wejściami — ~3-6 transakcji/dzień
+    maxHoldMin:    maxHoldMin    ?? 0,   // 0 = domyślne 48h; >0 = limit czasu trzymania (scalping)
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
