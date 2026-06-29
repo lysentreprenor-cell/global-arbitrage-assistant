@@ -92,6 +92,7 @@ type Position = {
   breakEvenSet: boolean; // true once SL has been moved to break-even
   signal?: string;             // which condition triggered entry (optional for restored positions)
   symbol?: string;             // which asset this position is for (defaults to config.symbol)
+  leverage?: number;           // leverage this position was OPENED with (close with the same)
 };
 
 type LogEntry = { time: string; msg: string; type: "info" | "buy" | "sell" | "warn" };
@@ -114,12 +115,12 @@ let sessionPnl = 0;
 // Keyed by symbol. Survives restarts via bot-state.json so recovery uses the REAL
 // entry price (not the current price) and the correct SL/TP, even when the API key
 // can't read TradesHistory.
-type OwnedEntry = { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number };
+type OwnedEntry = { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number };
 let ownedEntries: Record<string, OwnedEntry> = {};
 
 // Record a buy the bot itself made so it can recover it accurately later.
-function rememberBuy(sym: string, p: { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number }) {
-  ownedEntries[sym] = { entryPrice: p.entryPrice, entryTime: p.entryTime, qty: p.qty, slPct: p.slPct, tpPct: p.tpPct, trailPct: p.trailPct };
+function rememberBuy(sym: string, p: { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number }) {
+  ownedEntries[sym] = { entryPrice: p.entryPrice, entryTime: p.entryTime, qty: p.qty, slPct: p.slPct, tpPct: p.tpPct, trailPct: p.trailPct, leverage: p.leverage };
   saveState();
 }
 
@@ -419,6 +420,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
         breakEvenSet: false,
         signal: "recovered_own_memory",
         symbol: scanSym,
+        leverage: mem.leverage ?? 1,
       });
       lastEntryTime = new Date(mem.entryTime).getTime();
       saveState();
@@ -493,12 +495,13 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
       breakEvenSet: false,
       signal: entryKnown ? "recovered_from_balance" : "recovered_unknown_entry",
       symbol: scanSym,
+      leverage: 1, // adopted spot holding (recover only runs for spot 1x)
     });
     lastEntryTime = new Date(entryTime).getTime();
     // Persist this adoption to memory so the next restart recovers it with the SAME
     // entryTime — otherwise the max-hold clock would reset to "now" on every restart
     // and a frequently-restarting bot would never reach the time limit.
-    rememberBuy(scanSym, { entryPrice, entryTime, qty, slPct: recoveredSlPct, tpPct: config.takeProfit, trailPct: config.trailPct });
+    rememberBuy(scanSym, { entryPrice, entryTime, qty, slPct: recoveredSlPct, tpPct: config.takeProfit, trailPct: config.trailPct, leverage: 1 });
     saveState();
     addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${fmtPrice(entryPrice)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
   } catch (e: any) {
@@ -638,7 +641,8 @@ async function closePosition(reason: string, pos: Position): Promise<boolean> {
     if (config.platform === "kraken") {
       const pair = krakenPair(closeSym);
       const closeSide = pos.direction === "long" ? "sell" : "buy";
-      const effLev = Math.max(1, config.leverage ?? 1);
+      // Close with the SAME leverage the position was opened with (not the current config)
+      const effLev = Math.max(1, pos.leverage ?? config.leverage ?? 1);
       // For a spot LONG, sell the ACTUAL coin balance (floored to precision) — fees
       // and rounding mean the real balance is often a hair below the recorded qty,
       // which would make "sell qty" fail with "Insufficient funds".
@@ -1475,14 +1479,15 @@ async function engineTick() {
             const { fillPrice } = await placeOrder(altDir, best.qty, best.sym);
             const entryPrice = fillPrice > 0 ? fillPrice : best.price;
             const entryTime = new Date().toISOString();
+            const altLev = Math.max(1, config.leverage ?? 1);
             positions.push({
               direction: altDir, entryPrice, qty: best.qty,
               entryTime, trailRef: entryPrice,
               slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
-              breakEvenSet: false, signal: "multi_scan", symbol: best.sym,
+              breakEvenSet: false, signal: "multi_scan", symbol: best.sym, leverage: altLev,
             });
             lastEntryTime = Date.now();
-            rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail });
+            rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, leverage: altLev });
             saveState();
           } catch (e: any) {
             addLog(`🔴 ZLECENIE ${best.sym} NIEUDANE: ${e.message}`, "warn");
@@ -1565,10 +1570,10 @@ async function engineTick() {
       positions.push({
         direction, entryPrice, qty, entryTime, trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
-        signal: lastEntrySignal, symbol: config.symbol,
+        signal: lastEntrySignal, symbol: config.symbol, leverage: effLev,
       });
       lastEntryTime = Date.now();
-      rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail });
+      rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail, leverage: effLev });
       saveState();
     } catch (e: any) {
       addLog(`🔴 ZLECENIE NIEUDANE: ${e.message}`, "warn");
