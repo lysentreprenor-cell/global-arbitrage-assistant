@@ -1622,7 +1622,7 @@ router.post("/start", (req, res) => {
     cooldownMin:   cooldownMin   ?? 20,  // 20 min między wejściami — ~3-6 transakcji/dzień
     maxHoldMin:    maxHoldMin    ?? 0,   // 0 = domyślne 48h; >0 = limit czasu trzymania (scalping)
     minVolume:     minVolume     ?? 0,   // 0 = filtr płynności wyłączony; >0 = min. obrót 24h
-    maxPositions:  Math.max(1, Math.min(5, Number(maxPositions) || 1)), // 1-5 pozycji naraz
+    maxPositions:  Math.max(1, Math.min(5, Number(maxPositions) || 5)), // 1-5 pozycji naraz (domyślnie 5)
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };

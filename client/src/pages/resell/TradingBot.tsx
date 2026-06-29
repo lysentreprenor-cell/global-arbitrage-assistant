@@ -211,7 +211,7 @@ export default function TradingBot() {
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
   const [customSL,   setCustomSL]   = useState<number>(saved.customSL ?? 0); // 0 = użyj presetu
   const [minVolume,  setMinVolume]  = useState<number>(saved.minVolume ?? 0); // 0 = filtr wyłączony
-  const [maxPositions, setMaxPositions] = useState<number>(saved.maxPositions ?? 1);
+  const [maxPositions, setMaxPositions] = useState<number>(saved.maxPositions ?? 5);
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
