@@ -327,6 +327,15 @@ async function reconcilePosition() {
 // Minimum USD value of a coin balance to count as a real open position (ignore dust).
 const RECOVER_MIN_USD = 3;
 
+// Format a price with decimals that suit its magnitude — sub-dollar coins (AIO ~$0.095)
+// need more decimals; toFixed(0) would wrongly show them as "$0".
+function fmtPrice(p: number): string {
+  if (p >= 1000) return p.toFixed(0);
+  if (p >= 1)    return p.toFixed(2);
+  if (p >= 0.01) return p.toFixed(4);
+  return p.toFixed(8);
+}
+
 // If the bot starts with NO tracked position but the Kraken account already holds the
 // traded coin (e.g. a spot LONG bought before a restart that wiped bot-state.json),
 // rebuild the position from the real balance so SL/TP monitoring resumes. Entry price is
@@ -418,7 +427,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
     const entryKnown = entryPrice > 0;
     if (!entryKnown) {
       entryPrice = price;
-      addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${price.toFixed(0)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
+      addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${fmtPrice(price)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
     }
 
     const spec = getKrakenSpec(scanSym);
@@ -442,7 +451,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
     };
     lastEntryTime = new Date(entryTime).getTime();
     saveState();
-    addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${entryPrice.toFixed(0)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
+    addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${fmtPrice(entryPrice)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
   } catch (e: any) {
     addLog(`⚠️ Nie udało się odtworzyć pozycji z salda: ${e.message}`, "warn");
   }
