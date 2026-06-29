@@ -22,8 +22,13 @@ type BotStatus = {
   sessionPnl: number;
   position: {
     direction: Direction; entryPrice: number; qty: number;
-    entryTime: string; slPct: number; tpPct: number;
+    entryTime: string; slPct: number; tpPct: number; symbol?: string;
   } | null;
+  positions?: {
+    direction: Direction; entryPrice: number; qty: number;
+    entryTime: string; slPct: number; tpPct: number; symbol?: string;
+  }[];
+  maxPositions?: number;
   logs: { time: string; msg: string; type: string }[];
   dipStats?: {
     fourHourTrend: string; rangeMode: boolean;
@@ -206,6 +211,7 @@ export default function TradingBot() {
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
   const [customSL,   setCustomSL]   = useState<number>(saved.customSL ?? 0); // 0 = użyj presetu
   const [minVolume,  setMinVolume]  = useState<number>(saved.minVolume ?? 0); // 0 = filtr wyłączony
+  const [maxPositions, setMaxPositions] = useState<number>(saved.maxPositions ?? 1);
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
@@ -260,9 +266,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -348,7 +354,7 @@ export default function TradingBot() {
         body: JSON.stringify({
           apiKey, secret, platform: "kraken",
           symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
-          capital, riskPct, leverage, allowShorts, maxHoldMin, minVolume,
+          capital, riskPct, leverage, allowShorts, maxHoldMin, minVolume, maxPositions,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin,
@@ -572,6 +578,7 @@ export default function TradingBot() {
 
   const running  = botStatus?.running ?? false;
   const position = botStatus?.position ?? null;
+  const openPositions = botStatus?.positions ?? (position ? [position] : []);
   const dipStats = botStatus?.dipStats;
   const sess     = botStatus?.sessionStats;
   const keysOk   = hasKrakenKeys();
@@ -806,24 +813,47 @@ export default function TradingBot() {
               </div>
             </div>
 
-            {/* open position */}
-            {position && (
-              <div className={`rounded-lg p-3 border ${position.direction === "long" ? "bg-green-900/20 border-green-700/50" : "bg-red-900/20 border-red-700/50"}`}>
-                <div className="text-[10px] text-gray-500 mb-1">OTWARTA POZYCJA</div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm font-bold ${position.direction === "long" ? "text-green-400" : "text-red-400"}`}>
-                    {position.direction.toUpperCase()}
-                  </span>
-                  <span className="text-sm text-white">@ ${fmtP(position.entryPrice)}</span>
-                  <span className="text-xs text-gray-400">qty {position.qty}</span>
-                </div>
-                <div className="flex justify-between items-center mt-0.5">
-                  <span className="text-xs text-gray-500">SL {safe(position.slPct)}% · TP {safe(position.tpPct)}%</span>
-                  <button onClick={clearPosition}
+            {/* max simultaneous positions */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Pozycje naraz</span>
+                <span className="text-xs text-green-400">{maxPositions} {maxPositions === 1 ? "pozycja" : "pozycje"}</span>
+              </div>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => setMaxPositions(n)}
+                    className={`flex-1 text-xs py-1.5 rounded font-medium ${maxPositions === n ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] text-gray-600 mt-0.5">
+                Ile różnych monet bot trzyma jednocześnie. Kapitał dzieli się między nie.
+              </div>
+            </div>
+
+            {/* open positions */}
+            {openPositions.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500">OTWARTE POZYCJE ({openPositions.length}{botStatus?.maxPositions ? `/${botStatus.maxPositions}` : ""})</span>
+                  <button onClick={() => clearPosition()}
                     className="text-[10px] px-2 py-0.5 rounded bg-red-900/40 border border-red-700/50 text-red-300 hover:bg-red-900/60">
-                    🧹 wyczyść fantom
+                    🧹 wyczyść wszystkie
                   </button>
                 </div>
+                {openPositions.map((pos, i) => (
+                  <div key={(pos.symbol ?? "") + i} className={`rounded-lg p-2.5 border ${pos.direction === "long" ? "bg-green-900/20 border-green-700/50" : "bg-red-900/20 border-red-700/50"}`}>
+                    <div className="flex justify-between items-center">
+                      <span className={`text-sm font-bold ${pos.direction === "long" ? "text-green-400" : "text-red-400"}`}>
+                        {pos.symbol ? pos.symbol.replace("USDT", "") : "?"} {pos.direction.toUpperCase()}
+                      </span>
+                      <span className="text-sm text-white">@ ${fmtP(pos.entryPrice)}</span>
+                      <span className="text-xs text-gray-400">qty {pos.qty}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">SL {safe(pos.slPct)}% · TP {safe(pos.tpPct)}%</div>
+                  </div>
+                ))}
               </div>
             )}
 

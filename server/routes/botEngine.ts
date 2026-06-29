@@ -74,6 +74,7 @@ type BotConfig = {
   cooldownMin: number;    // minutes between entries
   maxHoldMin?: number;    // max minutes to hold a position (0/undefined = 48h default)
   minVolume?: number;     // min 24h turnover in quote currency to trade a coin (0 = off)
+  maxPositions?: number;  // max simultaneous open positions (default 1)
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -102,8 +103,9 @@ let running = false;
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let priceIntervalId: ReturnType<typeof setInterval> | null = null;
 let config: BotConfig | null = null;
-let position: Position | null = null;
-let isClosing = false; // mutex: prevents priceCheck + engineTick from both closing at once
+let positions: Position[] = [];        // open positions (up to config.maxPositions)
+let closingSymbols = new Set<string>(); // per-symbol close guard (replaces single isClosing)
+let isClosing = false; // legacy global guard, kept for any remaining single-position paths
 let isTickRunning = false; // guard: prevents concurrent engineTick if one tick takes >60s
 let logs: LogEntry[] = [];
 let sessionPnl = 0;
@@ -130,9 +132,13 @@ function saveState() {
   try {
     // Never persist API keys to disk
     const safeCfg = config ? { ...config, apiKey: "", secret: "" } : null;
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, position, sessionPnl, ownedEntries }));
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, positions, sessionPnl, ownedEntries }));
   } catch { /* ignore */ }
 }
+
+// Convenience: max simultaneous positions, and whether we already hold a symbol.
+function maxPos(): number { return Math.max(1, config?.maxPositions ?? 1); }
+function holdsSymbol(sym: string): boolean { return positions.some(p => (p.symbol ?? config?.symbol) === sym); }
 
 function loadState() {
   try {
@@ -142,24 +148,22 @@ function loadState() {
       const savedKeys = decryptApiKeys();
       if (!savedKeys) { addLog("Auto-resume: brak zapisanych kluczy", "warn"); return; }
       config = { ...s.config, apiKey: savedKeys.apiKey, secret: savedKeys.secret, testnet: savedKeys.testnet, platform: savedKeys.platform ?? s.config.platform ?? "global" };
-      // Restore position if it's not stale (< 48h old)
-      if (s.position && s.position.entryTime) {
-        const ageH = (Date.now() - new Date(s.position.entryTime).getTime()) / 3_600_000;
-        position = ageH < 48 ? s.position : null;
-        if (position) lastEntryTime = new Date(position.entryTime).getTime();
-      } else {
-        position = null;
-      }
+      // Restore positions array (back-compat: also accept a legacy single `position`).
+      const restored: Position[] = Array.isArray(s.positions) ? s.positions
+        : (s.position ? [s.position] : []);
+      positions = restored.filter((p: Position) =>
+        p && p.entryTime && (Date.now() - new Date(p.entryTime).getTime()) / 3_600_000 < 48);
+      if (positions.length > 0) lastEntryTime = Math.max(...positions.map(p => new Date(p.entryTime).getTime()));
       sessionPnl = s.sessionPnl ?? 0;
       ownedEntries = s.ownedEntries ?? {};
       running = true;
       saveState();
-      addLog(`Auto-resume po restarcie${position ? ` — przywrócono pozycję ${position.direction.toUpperCase()} z ${new Date(position.entryTime).toLocaleTimeString()}` : ""}`, "info");
-      // Reconcile restored position against the exchange — drop phantoms that don't exist there,
-      // then (if we have no position) try to rebuild one from the real coin balance.
+      addLog(`Auto-resume po restarcie${positions.length ? ` — przywrócono ${positions.length} pozycji` : ""}`, "info");
+      // Reconcile restored positions against the exchange — drop phantoms — then adopt
+      // any other coins the account holds (up to maxPositions) from the real balance.
       (async () => {
-        if (position) await reconcilePosition();
-        if (!position) await recoverPositionFromBalance();
+        await reconcilePosition();
+        await recoverPositionFromBalance();
       })();
       engineTick();
       intervalId = setInterval(engineTick, 60_000);
@@ -285,61 +289,45 @@ const KRAKEN_SPEC           = KRAKEN_SPEC_FALLBACK;
 // coin balance. Only margin/leveraged trades show up as Kraken "positions". So we check the
 // right place depending on how the position was opened.
 async function reconcilePosition() {
-  if (!config || !position || config.platform !== "kraken") return;
+  if (!config || positions.length === 0 || config.platform !== "kraken") return;
   const effLev = Math.max(1, config.leverage ?? 1);
+
+  // Spot SHORT positions are impossible — drop them immediately (leftover phantoms).
+  if (effLev <= 1) {
+    const shorts = positions.filter(p => p.direction === "short");
+    if (shorts.length) {
+      addLog(`🧹 ${shorts.length} pozycji SHORT niemożliwych na spocie 1x — usuwam fantomy`, "warn");
+      positions = positions.filter(p => p.direction !== "short");
+      saveState();
+    }
+  }
+
   try {
     if (effLev > 1) {
-      // ── Margin/leveraged → check OpenPositions ──────────────────────────────
+      // ── Margin → verify against OpenPositions (best-effort; keep on read failure) ──
       const open = await krakenPrivate("/0/private/OpenPositions");
-      const positions = open ? Object.values(open) as any[] : [];
-      const hasMatch = positions.some(p => {
-        const t = (p.type ?? "").toLowerCase(); // "buy"/"sell"
-        return position && ((position.direction === "long" && t === "buy") || (position.direction === "short" && t === "sell"));
-      });
-      if (positions.length === 0 || !hasMatch) {
-        addLog(`⚠️ Pozycja margin ${position.direction.toUpperCase()} nie istnieje na Krakenie — usuwam fantomową pozycję`, "warn");
-        position = null;
-        saveState();
-      } else {
-        addLog(`✅ Pozycja margin potwierdzona na Krakenie (${positions.length} otwartych)`);
+      const krakenPos = open ? Object.values(open) as any[] : [];
+      if (krakenPos.length === 0) {
+        addLog(`⚠️ Brak pozycji margin na Krakenie — usuwam ${positions.length} fantomów`, "warn");
+        positions = []; saveState();
       }
-    } else {
-      // ── Spot (1x) → check the actual coin balance ───────────────────────────
-      // A spot LONG means we hold the base coin; verify the balance roughly matches qty.
-      const asset = getKrakenBalanceKey(config.symbol);
-      if (!asset) {
-        addLog(`ℹ️ Nieznany symbol ${config.symbol} — pomijam reconcile (zachowuję pozycję)`, "info");
-        return;
-      }
-      const bal = await krakenPrivate("/0/private/Balance");
+      return;
+    }
+    // ── Spot (1x) → verify each LONG against the real coin balance ─────────────
+    const bal = await krakenPrivate("/0/private/Balance") as Record<string, string>;
+    const before = positions.length;
+    positions = positions.filter(p => {
+      const sym = p.symbol ?? config!.symbol;
+      const asset = getKrakenBalanceKey(sym);
+      if (!asset) return true; // unknown asset — keep
       const coinBal = parseFloat(bal?.[asset] ?? "0");
-      // Need at least ~70% of recorded qty to consider it still open (allows for fees/rounding)
-      const threshold = position.qty * 0.7;
-      if (position.direction === "long" && coinBal >= threshold) {
-        addLog(`✅ Pozycja spot LONG potwierdzona — saldo ${asset}=${coinBal} (≈qty ${position.qty})`);
-      } else if (position.direction === "long") {
-        addLog(`⚠️ Brak salda ${asset} (${coinBal} < ${threshold.toFixed(6)}) — pozycja spot już zamknięta, usuwam`, "warn");
-        position = null;
-        saveState();
-      } else {
-        // A SHORT cannot exist on a spot (1x) account — there is nothing to sell short.
-        // This is a leftover phantom from a previous margin run; clear it.
-        addLog(`🧹 Pozycja SHORT niemożliwa na spocie 1x — usuwam fantomową pozycję`, "warn");
-        position = null;
-        saveState();
-      }
-    }
+      if (coinBal >= p.qty * 0.7) return true; // still held
+      addLog(`⚠️ Brak salda ${asset} — pozycja ${sym} już zamknięta, usuwam`, "warn");
+      return false;
+    });
+    if (positions.length !== before) saveState();
   } catch (e: any) {
-    // On a spot (1x) config a SHORT can never be real, so clear it even if the API
-    // call failed (e.g. Permission denied). For everything else, keep on transient error.
-    const effLev = Math.max(1, config.leverage ?? 1);
-    if (effLev <= 1 && position?.direction === "short") {
-      addLog(`🧹 Pozycja SHORT niemożliwa na spocie 1x (API: ${e.message}) — usuwam fantom`, "warn");
-      position = null;
-      saveState();
-    } else {
-      addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message} — zachowuję pozycję`, "warn");
-    }
+    addLog(`⚠️ Nie udało się zweryfikować pozycji na Krakenie: ${e.message} — zachowuję`, "warn");
   }
 }
 
@@ -360,7 +348,8 @@ function fmtPrice(p: number): string {
 // rebuild the position from the real balance so SL/TP monitoring resumes. Entry price is
 // pulled from the most recent buy in TradesHistory; falls back to the current price.
 async function recoverPositionFromBalance(): Promise<void> {
-  if (!config || position || config.platform !== "kraken") return;
+  if (!config || config.platform !== "kraken") return;
+  if (positions.length >= maxPos()) return; // already at capacity
   const effLev = Math.max(1, config.leverage ?? 1);
   if (effLev > 1) return; // margin positions are handled by OpenPositions / reconcile
 
@@ -383,21 +372,22 @@ async function recoverPositionFromBalance(): Promise<void> {
   }
   saveState();
 
-  // Only attempt recovery for symbols whose coin balance is actually non-zero —
-  // skip the ~99% with no holdings BEFORE making any price/history API calls.
+  // Adopt every held coin (up to maxPositions) — skip the ~99% with no balance
+  // and any symbol already tracked, BEFORE making price/history API calls.
   const symbolsToScan = Array.from(new Set([config.symbol, ...(config.symbols ?? [])]));
   for (const scanSym of symbolsToScan) {
+    if (positions.length >= maxPos()) return; // filled up
+    if (holdsSymbol(scanSym)) continue;       // already tracked
     const asset = getKrakenBalanceKey(scanSym);
     if (!asset) continue;
     const coinBal = parseFloat(bal[asset] ?? "0");
     if (coinBal <= 0) continue; // no holding — no API call needed
     await recoverSingleSymbol(scanSym, coinBal);
-    if (position) return; // found one — stop scanning
   }
 }
 
 async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<void> {
-  if (!config || position) return;
+  if (!config || positions.length >= maxPos() || holdsSymbol(scanSym)) return;
   const asset = getKrakenBalanceKey(scanSym);
   if (!asset) return;
   try {
@@ -417,7 +407,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
       const spec0 = getKrakenSpec(scanSym);
       const qty0 = parseFloat(coinBal.toFixed(spec0.dec));
       if (qty0 <= 0) return;
-      position = {
+      positions.push({
         direction: "long",
         entryPrice: mem.entryPrice,
         qty: qty0,
@@ -429,7 +419,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
         breakEvenSet: false,
         signal: "recovered_own_memory",
         symbol: scanSym,
-      };
+      });
       lastEntryTime = new Date(mem.entryTime).getTime();
       saveState();
       const pnlPct = ((price - mem.entryPrice) / mem.entryPrice) * 100;
@@ -491,7 +481,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
 
     const recoveredSlPct = entryKnown ? config.stopLoss : Math.max(config.stopLoss, 8.0);
 
-    position = {
+    positions.push({
       direction: "long",
       entryPrice,
       qty,
@@ -503,7 +493,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
       breakEvenSet: false,
       signal: entryKnown ? "recovered_from_balance" : "recovered_unknown_entry",
       symbol: scanSym,
-    };
+    });
     lastEntryTime = new Date(entryTime).getTime();
     saveState();
     addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${fmtPrice(entryPrice)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
@@ -637,35 +627,52 @@ async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{
 }
 
 // Returns true on success, false on failure
-async function closePosition(reason: string): Promise<boolean> {
-  if (!config || !position) return false;
-  const closeSym = position.symbol ?? config.symbol;
+async function closePosition(reason: string, pos: Position): Promise<boolean> {
+  if (!config || !pos) return false;
+  const closeSym = pos.symbol ?? config.symbol;
   try {
     if (config.platform === "kraken") {
       const pair = krakenPair(closeSym);
-      const closeSide = position.direction === "long" ? "sell" : "buy";
+      const closeSide = pos.direction === "long" ? "sell" : "buy";
       const effLev = Math.max(1, config.leverage ?? 1);
       const closeParams: Record<string, string> = {
-        pair, type: closeSide, ordertype: "market", volume: String(position.qty),
+        pair, type: closeSide, ordertype: "market", volume: String(pos.qty),
       };
       if (effLev > 1) closeParams.leverage = String(effLev);
       await krakenPrivate("/0/private/AddOrder", closeParams);
-      addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
+      addLog(`🔴 LIVE CLOSE ${pos.direction.toUpperCase()} ${closeSym} — ${reason}`, "sell");
       return true;
     }
-    const closeSide = position.direction === "long" ? "Sell" : "Buy";
+    const closeSide = pos.direction === "long" ? "Sell" : "Buy";
     const params: Record<string, any> = config.platform === "eu"
       ? { category: "spot", symbol: closeSym, side: closeSide,
-          orderType: "Market", qty: String(position.qty), marketUnit: "baseCoin", isLeverage: 1 }
+          orderType: "Market", qty: String(pos.qty), marketUnit: "baseCoin", isLeverage: 1 }
       : { category: "linear", symbol: closeSym, side: closeSide,
-          orderType: "Market", qty: String(position.qty), positionIdx: 0, reduceOnly: true };
+          orderType: "Market", qty: String(pos.qty), positionIdx: 0, reduceOnly: true };
     await bybitFetch("POST", "/v5/order/create", params);
-    addLog(`🔴 LIVE CLOSE ${position.direction.toUpperCase()} — ${reason}`, "sell");
+    addLog(`🔴 LIVE CLOSE ${pos.direction.toUpperCase()} ${closeSym} — ${reason}`, "sell");
     return true;
   } catch (e: any) {
     addLog(`🔴 Close error: ${e.message}`, "warn");
     return false;
   }
+}
+
+// Finalize a triggered exit: book P&L, record the trade, forget the buy, remove from array.
+async function finalizeClose(pos: Position, exitPrice: number, pct: number, reason: string): Promise<boolean> {
+  if (!config) return false;
+  const closed = await closePosition(reason, pos);
+  if (!closed) return false;
+  const KRAKEN_FEE_RT = 0.0052; // 0.26% taker × 2 (open + close)
+  const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
+  const pnlUsdt = pct / 100 * config.capital - feeCost;
+  sessionPnl += pnlUsdt;
+  recordTrade(pos, exitPrice, pnlUsdt, pct, reason);
+  addLog(`CLOSE ${pos.direction.toUpperCase()} ${pos.symbol ?? config.symbol} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
+  forgetBuy(pos.symbol ?? config.symbol);
+  positions = positions.filter(p => p !== pos);
+  saveState();
+  return true;
 }
 
 // ── Indicators ────────────────────────────────────────────────────────────────
@@ -1074,82 +1081,61 @@ function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: 
   }];
 }
 
-// ── Fast exit check (every 5s) ────────────────────────────────────────────────
+// ── Fast exit check (every 5s) — checks every open position ───────────────────
 async function priceCheck() {
-  if (!config || !running || !position || isClosing) return;
-  const live = await fetchCurrentPrice(position.symbol ?? config.symbol);
-  if (live) {
-    lastPrice = live;
-  } else if (lastPrice <= 0) {
-    return; // no price at all — skip
-  }
-  const price = live ?? lastPrice; // fall back to last known price for SL/TP
+  if (!config || !running || positions.length === 0) return;
+  // Snapshot so closes mid-loop don't disturb iteration
+  for (const position of [...positions]) {
+    if (!positions.includes(position)) continue;          // already closed this pass
+    const sym = position.symbol ?? config.symbol;
+    if (closingSymbols.has(sym)) continue;                 // close already in flight
 
-  const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
-  const pct    = position.direction === "short" ? -rawPct : rawPct;
+    const live = await fetchCurrentPrice(sym);
+    if (!live && lastPrice <= 0) continue;
+    const price = live ?? position.entryPrice;             // fall back to entry if no price
+    if (live) lastPrice = live;
 
-  // Update trailing high/low reference
-  if (position.direction === "long")  position.trailRef = Math.max(position.trailRef, price);
-  if (position.direction === "short") position.trailRef = Math.min(position.trailRef, price);
+    const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
+    const pct    = position.direction === "short" ? -rawPct : rawPct;
 
-  // Break-even: once profit reaches 50% of TP, lock trail at entry price + tighten trail (TP1)
-  if (!position.breakEvenSet && pct >= position.tpPct * 0.5) {
-    position.breakEvenSet = true;
-    position.trailPct = Math.max(position.trailPct * 0.5, 0.08); // tighten trail after TP1
-    // Push trailRef so that trailSL lands exactly at entryPrice
-    if (position.direction === "long") {
-      const neededRef = position.entryPrice / (1 - position.trailPct / 100);
-      position.trailRef = Math.max(position.trailRef, neededRef);
-    } else {
-      const neededRef = position.entryPrice / (1 + position.trailPct / 100);
-      position.trailRef = Math.min(position.trailRef, neededRef);
-    }
-    addLog(`🎯 TP1 +${pct.toFixed(2)}% — break-even + trail zwężony do ${position.trailPct.toFixed(2)}%`, "info");
-  }
+    // Update trailing high/low reference
+    if (position.direction === "long")  position.trailRef = Math.max(position.trailRef, price);
+    if (position.direction === "short") position.trailRef = Math.min(position.trailRef, price);
 
-  const trailSL = position.direction === "long"
-    ? position.trailRef * (1 - position.trailPct / 100)
-    : position.trailRef * (1 + position.trailPct / 100);
-  const initSL = position.direction === "long"
-    ? position.entryPrice * (1 - position.slPct / 100)
-    : position.entryPrice * (1 + position.slPct / 100);
-
-  // Time stop — close when the position has been held longer than maxHoldMin (every 5s check)
-  const holdMin = (Date.now() - new Date(position.entryTime).getTime()) / 60_000;
-  const maxHoldMin = (config.maxHoldMin && config.maxHoldMin > 0) ? config.maxHoldMin : 48 * 60;
-  const timeLabel = maxHoldMin >= 60 ? `${(maxHoldMin / 60).toFixed(0)}h` : `${maxHoldMin}m`;
-
-  let reason: string | null = null;
-  if (pct >= position.tpPct) reason = `TP +${pct.toFixed(2)}%`;
-  // Long SL: tighter = higher price = Math.max; Short SL: tighter = lower price = Math.min
-  else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-  else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-  else if (holdMin >= maxHoldMin) reason = `Limit czasu ${timeLabel} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
-
-  if (reason) {
-    isClosing = true;
-    const KRAKEN_FEE_RT = 0.0052; // 0.26% taker × 2 (open + close)
-    const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
-    const pnlUsdt = pct / 100 * config.capital - feeCost;
-    const closed = await closePosition(reason);
-    if (closed) {
-      sessionPnl += pnlUsdt;
-      recordTrade(position, price, pnlUsdt, pct, reason);
-      addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
-      forgetBuy(position.symbol ?? config.symbol);
-      position = null;
-      closeFailCount = 0;
-      saveState();
-    } else {
-      closeFailCount++;
-      if (closeFailCount >= 5) {
-        addLog(`⚠️ Zamknięcie nieudane ${closeFailCount}x — czyszczę pozycję lokalnie`, "warn");
-        position = null;
-        closeFailCount = 0;
-        saveState();
+    // Break-even: once profit reaches 50% of TP, lock trail at entry + tighten trail (TP1)
+    if (!position.breakEvenSet && pct >= position.tpPct * 0.5) {
+      position.breakEvenSet = true;
+      position.trailPct = Math.max(position.trailPct * 0.5, 0.08);
+      if (position.direction === "long") {
+        position.trailRef = Math.max(position.trailRef, position.entryPrice / (1 - position.trailPct / 100));
+      } else {
+        position.trailRef = Math.min(position.trailRef, position.entryPrice / (1 + position.trailPct / 100));
       }
+      addLog(`🎯 TP1 ${sym} +${pct.toFixed(2)}% — break-even + trail ${position.trailPct.toFixed(2)}%`, "info");
     }
-    isClosing = false;
+
+    const trailSL = position.direction === "long"
+      ? position.trailRef * (1 - position.trailPct / 100)
+      : position.trailRef * (1 + position.trailPct / 100);
+    const initSL = position.direction === "long"
+      ? position.entryPrice * (1 - position.slPct / 100)
+      : position.entryPrice * (1 + position.slPct / 100);
+
+    const holdMin = (Date.now() - new Date(position.entryTime).getTime()) / 60_000;
+    const maxHoldMin = (config.maxHoldMin && config.maxHoldMin > 0) ? config.maxHoldMin : 48 * 60;
+    const timeLabel = maxHoldMin >= 60 ? `${(maxHoldMin / 60).toFixed(0)}h` : `${maxHoldMin}m`;
+
+    let reason: string | null = null;
+    if (pct >= position.tpPct) reason = `TP +${pct.toFixed(2)}%`;
+    else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+    else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+    else if (holdMin >= maxHoldMin) reason = `Limit czasu ${timeLabel} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+
+    if (reason) {
+      closingSymbols.add(sym);
+      try { await finalizeClose(position, price, pct, reason); }
+      finally { closingSymbols.delete(sym); }
+    }
   }
 }
 
@@ -1368,53 +1354,26 @@ async function engineTick() {
     prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
     // ── Open position management ─────────────────────────────────────────────
-    if (position && !isClosing) {
-      const holdMin   = (Date.now() - new Date(position.entryTime).getTime()) / 60_000;
-      const holdHours = holdMin / 60;
-
-      // Max hold: configurable time-based exit (default 48h) to prevent stuck positions.
-      // A short maxHoldMin (e.g. 15m) makes the bot a fast scalper — closes on time
-      // regardless of profit, freeing capital for the next signal.
-      const maxHoldMin = (config.maxHoldMin && config.maxHoldMin > 0) ? config.maxHoldMin : 48 * 60;
-      if (holdMin >= maxHoldMin) {
-        const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
-        const pct    = position.direction === "short" ? -rawPct : rawPct;
-        const label  = maxHoldMin >= 60 ? `${(maxHoldMin / 60).toFixed(0)}h` : `${maxHoldMin}m`;
-        addLog(`⏱️ Limit czasu ${label} osiągnięty (${holdMin.toFixed(0)}min) — zamykam pozycję P&L ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`, pct >= 0 ? "sell" : "warn");
-        const closed = await closePosition(`Limit czasu ${label}`);
-        if (closed) {
-          const KRAKEN_FEE_RT = 0.0052;
-          const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
-          sessionPnl += pct / 100 * config.capital - feeCost;
-          forgetBuy(position.symbol ?? config.symbol);
-          position = null;
-          saveState();
-        }
-        return;
-      }
-
-      // RSI extreme exit: momentum has fully reversed — take whatever we have
-      const rsiOverbought = position.direction === "long"  && rsi > Math.max(config.rsiMax + 8, 78);
-      const rsiOversold   = position.direction === "short" && rsi < Math.min(config.rsiMin - 8, 22);
+    // ── Manage positions ──────────────────────────────────────────────────────
+    // priceCheck() (every 5s) already handles SL/TP/trail/time for EVERY position
+    // using each coin's own price. Here we only add the RSI-extreme exit, and only
+    // for a position on the primary symbol (the one whose RSI we computed this tick).
+    const primaryPos = positions.find(p => (p.symbol ?? config!.symbol) === config!.symbol);
+    if (primaryPos && !closingSymbols.has(config.symbol)) {
+      const rsiOverbought = primaryPos.direction === "long"  && rsi > Math.max(config.rsiMax + 8, 78);
+      const rsiOversold   = primaryPos.direction === "short" && rsi < Math.min(config.rsiMin - 8, 22);
       if (rsiOverbought || rsiOversold) {
-        const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
-        const pct    = position.direction === "short" ? -rawPct : rawPct;
-        const reason = `RSI extreme ${rsi.toFixed(1)}`;
-        addLog(`📊 RSI exit — ${reason} | P&L ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`, pct >= 0 ? "sell" : "warn");
-        const closed = await closePosition(reason);
-        if (closed) {
-          const KRAKEN_FEE_RT = 0.0052;
-          const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
-          sessionPnl += pct / 100 * config.capital - feeCost;
-          forgetBuy(position.symbol ?? config.symbol);
-          position = null;
-          saveState();
-        }
-        return;
+        const rawPct = (price - primaryPos.entryPrice) / primaryPos.entryPrice * 100;
+        const pct    = primaryPos.direction === "short" ? -rawPct : rawPct;
+        addLog(`📊 RSI exit ${config.symbol} — RSI ${rsi.toFixed(1)} | P&L ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`, pct >= 0 ? "sell" : "warn");
+        closingSymbols.add(config.symbol);
+        try { await finalizeClose(primaryPos, price, pct, `RSI extreme ${rsi.toFixed(1)}`); }
+        finally { closingSymbols.delete(config.symbol); }
       }
-
-      return; // normal tick — priceCheck handles SL/TP/trail every 5s
     }
+
+    // Already holding the max number of positions → don't open anything new.
+    if (positions.length >= maxPos()) return;
 
     // ── Entry filters (time, daily loss) ────────────────────────────────────
     if (dailyLossPct <= -3.0) {
@@ -1442,8 +1401,9 @@ async function engineTick() {
     // (the alt-scan below will still look for a tradeable, liquid mover).
     const primaryLiquid = !config.minVolume || config.minVolume <= 0
       || estimate24hTurnover(volumes.slice(0, -1), price) >= config.minVolume;
-    const isLong  = primaryLiquid && bbPercB < 40 && belowVwap && !inCrash;
-    const isShort = primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap;
+    const primaryFree = !holdsSymbol(config.symbol); // don't double up on a coin we already hold
+    const isLong  = primaryFree && primaryLiquid && bbPercB < 40 && belowVwap && !inCrash;
+    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -1456,7 +1416,8 @@ async function engineTick() {
       // Rotate through the watch-list in chunks of MAX_SCAN_PER_TICK so a huge list
       // (e.g. all 650 Kraken coins) gets fully covered over several ticks without
       // flooding the API in one burst.
-      const allAlts = (config.symbols ?? []).filter(s => s !== config!.symbol);
+      // Exclude the primary symbol and any coin we already hold from the scan list.
+      const allAlts = (config.symbols ?? []).filter(s => s !== config!.symbol && !holdsSymbol(s));
       if (allAlts.length > 0 && cooldownOk) {
         if (scanCursor >= allAlts.length) scanCursor = 0;
         const altSymbols = allAlts.slice(scanCursor, scanCursor + MAX_SCAN_PER_TICK);
@@ -1469,20 +1430,21 @@ async function engineTick() {
           addLog(`🔎 Skan ${altSymbols.length}/${allAlts.length} monet (rotacja ${scanCursor > allAlts.length ? allAlts.length : scanCursor}/${allAlts.length})`);
         }
         const scans = await scanInBatches(altSymbols);
-        const best = scans.filter(s => s.isLong || s.isShort).sort((a, b) => b.score - a.score)[0];
+        // Pick the best signal among coins we don't already hold
+        const best = scans.filter(s => (s.isLong || s.isShort) && !holdsSymbol(s.sym)).sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
-          addLog(`🎯 SYGNAŁ ${altDir.toUpperCase()} [multi:${best.sym}] BB%B=${best.bbPercB.toFixed(0)} ATR=${best.atrPct.toFixed(2)}% → SL=${best.effSL.toFixed(2)}% TP=${best.effTP.toFixed(2)}% qty=${best.qty}`, "info");
+          addLog(`🎯 SYGNAŁ ${altDir.toUpperCase()} [multi:${best.sym}] BB%B=${best.bbPercB.toFixed(0)} ATR=${best.atrPct.toFixed(2)}% → SL=${best.effSL.toFixed(2)}% TP=${best.effTP.toFixed(2)}% qty=${best.qty} (${positions.length + 1}/${maxPos()})`, "info");
           try {
             const { fillPrice } = await placeOrder(altDir, best.qty, best.sym);
             const entryPrice = fillPrice > 0 ? fillPrice : best.price;
             const entryTime = new Date().toISOString();
-            position = {
+            positions.push({
               direction: altDir, entryPrice, qty: best.qty,
               entryTime, trailRef: entryPrice,
               slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
               breakEvenSet: false, signal: "multi_scan", symbol: best.sym,
-            };
+            });
             lastEntryTime = Date.now();
             rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail });
             saveState();
@@ -1562,11 +1524,11 @@ async function engineTick() {
       const { fillPrice } = await placeOrder(direction, qty);
       const entryPrice = fillPrice > 0 ? fillPrice : price; // real fill price if available
       const entryTime = new Date().toISOString();
-      position = {
+      positions.push({
         direction, entryPrice, qty, entryTime, trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
         signal: lastEntrySignal, symbol: config.symbol,
-      };
+      });
       lastEntryTime = Date.now();
       rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail });
       saveState();
@@ -1589,16 +1551,26 @@ router.get("/symbols", async (_req, res) => {
   res.json(syms.map(s => ({ symbol: s.symbol, name: s.name })));
 });
 
-// POST /api/bot/clear-position — manually wipe a phantom/stuck position (no order sent)
-router.post("/clear-position", (_req, res) => {
-  if (!position) return res.json({ ok: true, message: "Brak pozycji do wyczyszczenia" });
-  const dir = position.direction;
-  const sym = position.symbol ?? config?.symbol ?? "?";
-  forgetBuy(sym);
-  position = null;
+// POST /api/bot/clear-position — manually wipe phantom/stuck positions (no order sent).
+// Body { symbol } clears just that one; no body clears all.
+router.post("/clear-position", (req, res) => {
+  if (positions.length === 0) return res.json({ ok: true, message: "Brak pozycji do wyczyszczenia" });
+  const sym = req.body?.symbol as string | undefined;
+  if (sym) {
+    const before = positions.length;
+    positions = positions.filter(p => (p.symbol ?? config?.symbol) !== sym);
+    forgetBuy(sym);
+    saveState();
+    const removed = before - positions.length;
+    addLog(`🧹 Wyczyszczono ${removed} pozycji ${sym} (bez zlecenia na Krakenie)`, "warn");
+    return res.json({ ok: true, message: `Wyczyszczono ${sym}` });
+  }
+  const count = positions.length;
+  for (const p of positions) forgetBuy(p.symbol ?? config?.symbol ?? "");
+  positions = [];
   saveState();
-  addLog(`🧹 Pozycja ${dir.toUpperCase()} ${sym} wyczyszczona ręcznie (bez zlecenia na Krakenie)`, "warn");
-  res.json({ ok: true, message: `Wyczyszczono ${dir} ${sym}` });
+  addLog(`🧹 Wyczyszczono wszystkie ${count} pozycji (bez zlecenia na Krakenie)`, "warn");
+  res.json({ ok: true, message: `Wyczyszczono ${count} pozycji` });
 });
 
 // GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)
@@ -1619,7 +1591,7 @@ router.post("/keys", (req, res) => {
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
-          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume } = req.body;
+          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions } = req.body;
 
   // If keys not provided, try to load saved encrypted keys
   if (!apiKey || !secret) {
@@ -1650,6 +1622,7 @@ router.post("/start", (req, res) => {
     cooldownMin:   cooldownMin   ?? 20,  // 20 min między wejściami — ~3-6 transakcji/dzień
     maxHoldMin:    maxHoldMin    ?? 0,   // 0 = domyślne 48h; >0 = limit czasu trzymania (scalping)
     minVolume:     minVolume     ?? 0,   // 0 = filtr płynności wyłączony; >0 = min. obrót 24h
+    maxPositions:  Math.max(1, Math.min(5, Number(maxPositions) || 1)), // 1-5 pozycji naraz
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
@@ -1658,7 +1631,7 @@ router.post("/start", (req, res) => {
   encryptApiKeys(apiKey, secret, testnet === true, config.platform);
 
   running = true;
-  position = null;
+  positions = [];
   sessionPnl = 0;
   closeFailCount = 0;
   lastEntryTime = 0;
@@ -1771,7 +1744,11 @@ router.get("/status", (_req, res) => {
   }
 
   res.json({
-    running, position, sessionPnl,
+    running,
+    position: positions[0] ?? null, // back-compat: first position
+    positions,                       // full list (up to maxPositions)
+    maxPositions: config?.maxPositions ?? 1,
+    sessionPnl,
     logs: logs.slice(-50),
     symbol: config?.symbol,
     capital: config?.capital,
