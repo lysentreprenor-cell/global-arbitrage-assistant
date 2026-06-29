@@ -1238,16 +1238,22 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const dipSym = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
     const inCrashSym = dipSym > TREND.CRASH_DIP_PCT;
 
-    // ── Bounce confirmation (Law 2: don't catch a falling knife) ──────────────
-    // For a LONG, require the last closed candle to be green — a sign the bounce
-    // has actually started, not that we're buying into an ongoing dump.
-    const lastOpen  = opens[opens.length - 2] ?? closedCloses[closedCloses.length - 2];
-    const lastClose = closedCloses[closedCloses.length - 1];
-    const bounceUp  = lastClose > lastOpen;
+    // ── Bounce confirmation + trend filter (Law 2: don't catch a falling knife) ─
+    // For a LONG we need TWO things:
+    //  a) bounce started — last candle green AND its close ≥ the prior close (2-bar up)
+    //  b) NOT in a steep downtrend — EMA9 not far below EMA21 (else oversold keeps
+    //     getting more oversold; that's how ENA was bought into a falling market).
+    const lastOpen   = opens[opens.length - 2] ?? closedCloses[closedCloses.length - 2];
+    const lastClose  = closedCloses[closedCloses.length - 1];
+    const prevClose  = closedCloses[closedCloses.length - 2] ?? lastClose;
+    const ema9s      = calcEma(closedCloses, 9);
+    const ema21s     = calcEma(closedCloses, 21);
+    const notSteepDown = ema9s >= ema21s * 0.985; // ema9 < 1.5% below ema21 = clear downtrend → skip
+    const bounceUp   = lastClose > lastOpen && lastClose >= prevClose;
 
     const effLev = Math.max(1, config.leverage ?? 1);
     const spotOnly = config.platform === "kraken" && effLev <= 1;
-    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym && bounceUp;
+    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym && bounceUp && notSteepDown;
     const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && price > vwap && lastClose < lastOpen;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
 
@@ -1439,8 +1445,9 @@ async function engineTick() {
     const primaryLiquid = !config.minVolume || config.minVolume <= 0
       || estimate24hTurnover(volumes.slice(0, -1), price) >= config.minVolume;
     const primaryFree = !holdsSymbol(config.symbol); // don't double up on a coin we already hold
-    // Bounce confirmation (Law 2: don't catch a falling knife) — last candle green or RSI turning up
-    const bounceUp = bullCandle || rsi >= prevRsi;
+    // Bounce confirmation + trend filter (Law 2: don't catch a falling knife)
+    const notSteepDown = ema9 >= ema21 * 0.985; // ema9 < 1.5% below ema21 = clear downtrend → skip longs
+    const bounceUp = (bullCandle || rsi >= prevRsi) && notSteepDown;
     const isLong  = primaryFree && primaryLiquid && bbPercB < 40 && belowVwap && !inCrash && bounceUp;
     const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap && bearCandle;
 
