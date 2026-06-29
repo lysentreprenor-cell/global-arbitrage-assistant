@@ -474,14 +474,17 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
     const entryKnown = entryPrice > 0;
     if (!entryKnown) {
       entryPrice = price;
-      addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${fmtPrice(price)}, SL poszerzony do 8% (bezpieczeństwo). Prawdziwy zysk: sprawdź Krakena.`, "warn");
+      addLog(`⚠️ Nie znaleziono historii zakupu ${asset} — jako wejście przyjęta cena bieżąca $${fmtPrice(price)}, SL ${Math.max(config.stopLoss, 3.0)}% od tego poziomu. Prawdziwy zysk: sprawdź Krakena.`, "warn");
     }
 
     const spec = getKrakenSpec(scanSym);
     const qty = parseFloat(coinBal.toFixed(spec.dec));
     if (qty <= 0) return;
 
-    const recoveredSlPct = entryKnown ? config.stopLoss : Math.max(config.stopLoss, 8.0);
+    // Unknown-entry SL: a modest 3% floor from the adoption price. Tight enough to cut
+    // real losses fast, loose enough to absorb the uncertainty of the unknown entry
+    // (was 8%, which let losing positions like ALKIMI bleed too far).
+    const recoveredSlPct = entryKnown ? config.stopLoss : Math.max(config.stopLoss, 3.0);
 
     positions.push({
       direction: "long",
