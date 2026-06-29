@@ -335,21 +335,36 @@ async function recoverPositionFromBalance(): Promise<void> {
   if (!config || position || config.platform !== "kraken") return;
   const effLev = Math.max(1, config.leverage ?? 1);
   if (effLev > 1) return; // margin positions are handled by OpenPositions / reconcile
-  // Scan all configured symbols (not just primary) — bot may hold ETH or SOL from a prev trade
+
+  // CRITICAL: fetch the full balance ONCE (one private API call). Never call /Balance
+  // per-symbol — with a 650-coin watch-list that's 650 calls = instant rate limit.
+  let bal: Record<string, string> | null = null;
+  try {
+    bal = await krakenPrivate("/0/private/Balance") as Record<string, string>;
+  } catch (e: any) {
+    addLog(`⚠️ Nie udało się pobrać salda do odtworzenia: ${e.message}`, "warn");
+    return;
+  }
+  if (!bal) return;
+
+  // Only attempt recovery for symbols whose coin balance is actually non-zero —
+  // skip the ~99% with no holdings BEFORE making any price/history API calls.
   const symbolsToScan = Array.from(new Set([config.symbol, ...(config.symbols ?? [])]));
   for (const scanSym of symbolsToScan) {
-    await recoverSingleSymbol(scanSym);
+    const asset = getKrakenBalanceKey(scanSym);
+    if (!asset) continue;
+    const coinBal = parseFloat(bal[asset] ?? "0");
+    if (coinBal <= 0) continue; // no holding — no API call needed
+    await recoverSingleSymbol(scanSym, coinBal);
     if (position) return; // found one — stop scanning
   }
 }
 
-async function recoverSingleSymbol(scanSym: string): Promise<void> {
+async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<void> {
   if (!config || position) return;
   const asset = getKrakenBalanceKey(scanSym);
   if (!asset) return;
   try {
-    const bal = await krakenPrivate("/0/private/Balance");
-    const coinBal = parseFloat(bal?.[asset] ?? "0");
     if (coinBal <= 0) return;
 
     const price = await fetchCurrentPrice(scanSym);
@@ -1117,7 +1132,9 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const candles = await fetchCandles(sym);
     if (!candles) return null;
     const { closes, volumes, vwaps, highs, lows } = candles;
-    const price = await fetchCurrentPrice(sym) ?? candles.price;
+    // Use the last candle close as price — avoids a second API call per symbol
+    // (halves scan traffic; tick-precise price isn't needed just to detect a signal).
+    const price = candles.price;
     if (!price) return null;
 
     // Liquidity filter — skip illiquid coins where the chart price isn't really tradeable
