@@ -196,9 +196,12 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const bullCandle = curClose > lastOpen;
     const bearCandle = curClose < lastOpen;
 
-    // Simplified single-mode entry: BB%B + VWAP only
-    const isLong  = bbPercB < 40 && belowVwap && !inCrash;
-    const isShort = allowShorts && bbPercB > 60 && aboveVwap;
+    // Entry: BB%B + VWAP + bounce confirmation + trend filter (mirrors live engineTick)
+    const prevClose    = wc[wc.length - 2] ?? curClose;
+    const notSteepDown = ema9 >= ema21 * 0.985;        // skip clear downtrends (falling knives)
+    const bounceUp     = bullCandle && curClose >= prevClose; // 2-bar up = bounce started
+    const isLong  = bbPercB < 40 && belowVwap && !inCrash && bounceUp && notSteepDown;
+    const isShort = allowShorts && bbPercB > 60 && aboveVwap && bearCandle;
     const sig = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
     if (!isLong && !isShort) continue;
 
