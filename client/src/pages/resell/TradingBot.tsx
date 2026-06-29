@@ -870,6 +870,53 @@ export default function TradingBot() {
               </div>
             )}
 
+            {/* ── Student scoreboard (master's verdict) ── */}
+            {running && sess && (() => {
+              const n = (sess.wins ?? 0) + (sess.losses ?? 0);
+              const wr = sess.winRate ?? 0;
+              // Master's verdict: needs sample size AND edge to declare the student ready.
+              let verdict: { text: string; color: string; emoji: string };
+              if (n < 10)      verdict = { text: `Nauka trwa — ${n}/10 transakcji do pierwszej oceny`, color: "text-gray-300", emoji: "🥋" };
+              else if (wr >= 55 && sess.avgWin + sess.avgLoss > 0) verdict = { text: "Uczeń ma przewagę — czas myśleć o skali", color: "text-emerald-300", emoji: "🏆" };
+              else if (wr >= 45) verdict = { text: "Obiecująco — trzymaj kurs, zbieraj dane", color: "text-green-400", emoji: "📈" };
+              else               verdict = { text: "Przewaga niepotwierdzona — nie dokładaj kapitału", color: "text-orange-400", emoji: "⚠️" };
+              return (
+                <div className="border border-[#2a4a30] rounded-lg p-2.5 space-y-2 bg-[#0d1a0f]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">🥋 Tablica Ucznia</span>
+                    <span className={`text-xs font-bold ${botStatus!.sessionPnl >= 0 ? "text-green-400" : "text-red-400"}`}>{fmtPct(botStatus!.sessionPnl)} sesja</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 text-center">
+                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                      <div className="text-[9px] text-gray-500">WIN RATE</div>
+                      <div className={`text-sm font-bold ${wr >= 50 ? "text-green-400" : "text-orange-400"}`}>{safe(wr, 0)}%</div>
+                    </div>
+                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                      <div className="text-[9px] text-gray-500">W / L</div>
+                      <div className="text-sm font-bold text-white">{sess.wins ?? 0}/{sess.losses ?? 0}</div>
+                    </div>
+                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                      <div className="text-[9px] text-gray-500">ŚR. ZYSK</div>
+                      <div className="text-sm font-bold text-green-400">+{safe(sess.avgWin, 1)}%</div>
+                    </div>
+                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                      <div className="text-[9px] text-gray-500">ŚR. STRATA</div>
+                      <div className="text-sm font-bold text-red-400">{safe(sess.avgLoss, 1)}%</div>
+                    </div>
+                  </div>
+                  <div className={`text-[11px] ${verdict.color} flex items-start gap-1`}>
+                    <span>{verdict.emoji}</span>
+                    <span>{verdict.text}</span>
+                  </div>
+                  {n >= 10 && (
+                    <div className="text-[10px] text-gray-600">
+                      Max obsunięcie: -{safe(sess.maxDrawdown, 1)}% · próbka: {n} transakcji
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* ── Market vision panel ── */}
             {running && (botStatus?.fearGreed || botStatus?.liveIndicators) && (() => {
               const fg  = botStatus?.fearGreed;

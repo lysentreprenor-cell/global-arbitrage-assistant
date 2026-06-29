@@ -1210,7 +1210,7 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
   try {
     const candles = await fetchCandles(sym);
     if (!candles) return null;
-    const { closes, volumes, vwaps, highs, lows } = candles;
+    const { closes, opens, volumes, vwaps, highs, lows } = candles;
     // Use the last candle close as price — avoids a second API call per symbol
     // (halves scan traffic; tick-precise price isn't needed just to detect a signal).
     const price = candles.price;
@@ -1238,10 +1238,17 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const dipSym = recent24High > 0 ? (recent24High - price) / recent24High * 100 : 0;
     const inCrashSym = dipSym > TREND.CRASH_DIP_PCT;
 
+    // ── Bounce confirmation (Law 2: don't catch a falling knife) ──────────────
+    // For a LONG, require the last closed candle to be green — a sign the bounce
+    // has actually started, not that we're buying into an ongoing dump.
+    const lastOpen  = opens[opens.length - 2] ?? closedCloses[closedCloses.length - 2];
+    const lastClose = closedCloses[closedCloses.length - 1];
+    const bounceUp  = lastClose > lastOpen;
+
     const effLev = Math.max(1, config.leverage ?? 1);
     const spotOnly = config.platform === "kraken" && effLev <= 1;
-    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym;
-    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && price > vwap;
+    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym && bounceUp;
+    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && price > vwap && lastClose < lastOpen;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
 
     const effSL    = Math.max(config.stopLoss,   atrPct * 1.5);
@@ -1432,8 +1439,10 @@ async function engineTick() {
     const primaryLiquid = !config.minVolume || config.minVolume <= 0
       || estimate24hTurnover(volumes.slice(0, -1), price) >= config.minVolume;
     const primaryFree = !holdsSymbol(config.symbol); // don't double up on a coin we already hold
-    const isLong  = primaryFree && primaryLiquid && bbPercB < 40 && belowVwap && !inCrash;
-    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap;
+    // Bounce confirmation (Law 2: don't catch a falling knife) — last candle green or RSI turning up
+    const bounceUp = bullCandle || rsi >= prevRsi;
+    const isLong  = primaryFree && primaryLiquid && bbPercB < 40 && belowVwap && !inCrash && bounceUp;
+    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap && bearCandle;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -1498,7 +1507,7 @@ async function engineTick() {
           return;
         }
       }
-      addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<40,short>60) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} cool=${coolLeft} crash=${inCrash}`);
+      addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<40,short>60) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} odbicie=${bounceUp?"✓":"✗"} cool=${coolLeft} crash=${inCrash}`);
       return;
     }
     lastEntrySignal = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
