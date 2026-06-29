@@ -108,11 +108,29 @@ let isTickRunning = false; // guard: prevents concurrent engineTick if one tick 
 let logs: LogEntry[] = [];
 let sessionPnl = 0;
 
+// Bot's own purchase memory — what it bought, at what price, and the exit rules.
+// Keyed by symbol. Survives restarts via bot-state.json so recovery uses the REAL
+// entry price (not the current price) and the correct SL/TP, even when the API key
+// can't read TradesHistory.
+type OwnedEntry = { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number };
+let ownedEntries: Record<string, OwnedEntry> = {};
+
+// Record a buy the bot itself made so it can recover it accurately later.
+function rememberBuy(sym: string, p: { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number }) {
+  ownedEntries[sym] = { entryPrice: p.entryPrice, entryTime: p.entryTime, qty: p.qty, slPct: p.slPct, tpPct: p.tpPct, trailPct: p.trailPct };
+  saveState();
+}
+
+// Forget a coin once it's been sold.
+function forgetBuy(sym: string) {
+  if (ownedEntries[sym]) { delete ownedEntries[sym]; saveState(); }
+}
+
 function saveState() {
   try {
     // Never persist API keys to disk
     const safeCfg = config ? { ...config, apiKey: "", secret: "" } : null;
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, position, sessionPnl }));
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, position, sessionPnl, ownedEntries }));
   } catch { /* ignore */ }
 }
 
@@ -133,6 +151,7 @@ function loadState() {
         position = null;
       }
       sessionPnl = s.sessionPnl ?? 0;
+      ownedEntries = s.ownedEntries ?? {};
       running = true;
       saveState();
       addLog(`Auto-resume po restarcie${position ? ` — przywrócono pozycję ${position.direction.toUpperCase()} z ${new Date(position.entryTime).toLocaleTimeString()}` : ""}`, "info");
@@ -356,6 +375,14 @@ async function recoverPositionFromBalance(): Promise<void> {
   }
   if (!bal) return;
 
+  // Prune purchase memory for coins we no longer hold (sold elsewhere / dust).
+  for (const sym of Object.keys(ownedEntries)) {
+    const a = getKrakenBalanceKey(sym);
+    const held = a ? parseFloat(bal[a] ?? "0") : 0;
+    if (held <= 0) delete ownedEntries[sym];
+  }
+  saveState();
+
   // Only attempt recovery for symbols whose coin balance is actually non-zero —
   // skip the ~99% with no holdings BEFORE making any price/history API calls.
   const symbolsToScan = Array.from(new Set([config.symbol, ...(config.symbols ?? [])]));
@@ -381,6 +408,34 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
 
     const valueUsd = coinBal * price;
     if (valueUsd < RECOVER_MIN_USD) return; // dust — not a tradeable position
+
+    // ── Bot's own purchase memory — most accurate source ─────────────────────
+    // If the bot itself bought this coin, it knows the real entry price + exit rules,
+    // even when the API key can't read TradesHistory. Use that directly.
+    const mem = ownedEntries[scanSym];
+    if (mem && mem.entryPrice > 0) {
+      const spec0 = getKrakenSpec(scanSym);
+      const qty0 = parseFloat(coinBal.toFixed(spec0.dec));
+      if (qty0 <= 0) return;
+      position = {
+        direction: "long",
+        entryPrice: mem.entryPrice,
+        qty: qty0,
+        entryTime: mem.entryTime,
+        trailRef: Math.max(mem.entryPrice, price),
+        slPct: mem.slPct,
+        tpPct: mem.tpPct,
+        trailPct: mem.trailPct,
+        breakEvenSet: false,
+        signal: "recovered_own_memory",
+        symbol: scanSym,
+      };
+      lastEntryTime = new Date(mem.entryTime).getTime();
+      saveState();
+      const pnlPct = ((price - mem.entryPrice) / mem.entryPrice) * 100;
+      addLog(`♻️ Odtworzono pozycję LONG z własnej pamięci: ${asset}=${coinBal} wejście=$${fmtPrice(mem.entryPrice)} teraz=$${fmtPrice(price)} P&L=${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}% SL=${mem.slPct}% TP=${mem.tpPct}%`, "buy");
+      return;
+    }
 
     const PAIR_VARIANTS: Record<string, string[]> = {
       BTCUSDT:   ["XBTEUR",   "XBTUSD",    "XXBTZEUR",  "XXBTZUSD",  "XBT/EUR",  "XBT/USD"],
@@ -1081,6 +1136,7 @@ async function priceCheck() {
       sessionPnl += pnlUsdt;
       recordTrade(position, price, pnlUsdt, pct, reason);
       addLog(`CLOSE ${position.direction.toUpperCase()} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
+      forgetBuy(position.symbol ?? config.symbol);
       position = null;
       closeFailCount = 0;
       saveState();
@@ -1330,6 +1386,7 @@ async function engineTick() {
           const KRAKEN_FEE_RT = 0.0052;
           const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
           sessionPnl += pct / 100 * config.capital - feeCost;
+          forgetBuy(position.symbol ?? config.symbol);
           position = null;
           saveState();
         }
@@ -1349,6 +1406,7 @@ async function engineTick() {
           const KRAKEN_FEE_RT = 0.0052;
           const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
           sessionPnl += pct / 100 * config.capital - feeCost;
+          forgetBuy(position.symbol ?? config.symbol);
           position = null;
           saveState();
         }
@@ -1418,13 +1476,15 @@ async function engineTick() {
           try {
             const { fillPrice } = await placeOrder(altDir, best.qty, best.sym);
             const entryPrice = fillPrice > 0 ? fillPrice : best.price;
+            const entryTime = new Date().toISOString();
             position = {
               direction: altDir, entryPrice, qty: best.qty,
-              entryTime: new Date().toISOString(), trailRef: entryPrice,
+              entryTime, trailRef: entryPrice,
               slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
               breakEvenSet: false, signal: "multi_scan", symbol: best.sym,
             };
             lastEntryTime = Date.now();
+            rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail });
             saveState();
           } catch (e: any) {
             addLog(`🔴 ZLECENIE ${best.sym} NIEUDANE: ${e.message}`, "warn");
@@ -1501,12 +1561,14 @@ async function engineTick() {
       }
       const { fillPrice } = await placeOrder(direction, qty);
       const entryPrice = fillPrice > 0 ? fillPrice : price; // real fill price if available
+      const entryTime = new Date().toISOString();
       position = {
-        direction, entryPrice, qty, entryTime: new Date().toISOString(), trailRef: entryPrice,
+        direction, entryPrice, qty, entryTime, trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
         signal: lastEntrySignal, symbol: config.symbol,
       };
       lastEntryTime = Date.now();
+      rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail });
       saveState();
     } catch (e: any) {
       addLog(`🔴 ZLECENIE NIEUDANE: ${e.message}`, "warn");
@@ -1532,6 +1594,7 @@ router.post("/clear-position", (_req, res) => {
   if (!position) return res.json({ ok: true, message: "Brak pozycji do wyczyszczenia" });
   const dir = position.direction;
   const sym = position.symbol ?? config?.symbol ?? "?";
+  forgetBuy(sym);
   position = null;
   saveState();
   addLog(`🧹 Pozycja ${dir.toUpperCase()} ${sym} wyczyszczona ręcznie (bez zlecenia na Krakenie)`, "warn");
