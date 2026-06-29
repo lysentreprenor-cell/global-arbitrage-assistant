@@ -6,7 +6,7 @@ import { hasKrakenKeys, getKrakenKeys } from "@/lib/apiKeys";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Symbol    = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "DOGEUSDT" | "XRPUSDT" | "ADAUSDT" | "AVAXUSDT" | "LINKUSDT" | "DOTUSDT" | "LTCUSDT" | "BCHUSDT" | "ATOMUSDT" | "UNIUSDT" | "SHIBUSDT" | "PEPEUSDT" | "SUIUSDT" | "TONUSDT" | "TRXUSDT" | "MATICUSDT";
-type RiskLevel = "cautious" | "normal" | "aggressive" | "superaggressive";
+type RiskLevel = "master" | "cautious" | "normal" | "aggressive" | "superaggressive";
 type Direction = "long" | "short";
 type Tab       = "main" | "advanced";
 
@@ -91,6 +91,8 @@ type AutoIndResult = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PRESETS: Preset[] = [
+  { id: "master",          label: "🥋 Mistrz",      icon: "🥋", desc: "Wzór mistrza — R/R 2.5:1, wybredne wejścia, dodatnia E",  freq: "~3-5 / dzień",
+    rsiMin: 35, rsiMax: 70, adxMin: 15, confluenceMin: 2, volMultMin: 1.0, cooldownMin: 30,  stopLoss: 1.50, takeProfit: 3.75, trailPct: 0.60 },
   { id: "cautious",        label: "Ostrożny",       icon: "🐢", desc: "Bardzo wysoki R/R 4:1 — min. WR 20%",     freq: "~2 / dzień",
     rsiMin: 40, rsiMax: 68, adxMin: 18, confluenceMin: 2, volMultMin: 1.1, cooldownMin: 90,  stopLoss: 2.00, takeProfit: 8.00, trailPct: 1.50 },
   { id: "normal",          label: "Normalny",        icon: "⚖️", desc: "Optymalny backtest — R/R 3:1, WR≥25%",   freq: "~4 / dzień",
@@ -905,6 +907,32 @@ export default function TradingBot() {
                       <div className="text-sm font-bold text-red-400">{safe(sess.avgLoss, 1)}%</div>
                     </div>
                   </div>
+                  {/* ── WZÓR MISTRZA: oczekiwana wartość (expectancy) ── */}
+                  {(() => {
+                    const lossRate = 100 - wr;
+                    // E = Win% × ŚrZysk + Strata% × ŚrStrata (avgLoss już ujemny)
+                    const E = (wr / 100) * (sess.avgWin ?? 0) + (lossRate / 100) * (sess.avgLoss ?? 0);
+                    const Enet = E - 0.52; // po opłatach (0.52% round-trip)
+                    return (
+                      <div className="bg-[#0a140d] border border-[#1e3a28] rounded p-2">
+                        <div className="text-[9px] text-gray-500 mb-0.5">🥋 WZÓR MISTRZA — oczekiwana wartość na transakcję</div>
+                        <div className="text-[10px] text-gray-400 font-mono">
+                          E = {safe(wr,0)}%×{safe(sess.avgWin,1)} {(sess.avgLoss ?? 0) < 0 ? "−" : "+"} {safe(100-wr,0)}%×{safe(Math.abs(sess.avgLoss ?? 0),1)}
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] text-gray-500">E netto (po opłatach):</span>
+                          <span className={`text-sm font-bold ${Enet > 0 ? "text-emerald-300" : "text-red-400"}`}>
+                            {Enet >= 0 ? "+" : ""}{safe(Enet, 2)}% / trans.
+                          </span>
+                        </div>
+                        <div className={`text-[10px] mt-0.5 ${Enet > 0 ? "text-emerald-400" : "text-orange-400"}`}>
+                          {n < 10 ? "⏳ za mało danych — wzór nabiera sensu od 10+ transakcji"
+                            : Enet > 0 ? "✅ Dodatnia E — matematyka pracuje DLA ciebie. Skaluj."
+                            : "⚠️ Ujemna E — każda transakcja traci średnio. Zmień strategię, NIE kapitał."}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className={`text-[11px] ${verdict.color} flex items-start gap-1`}>
                     <span>{verdict.emoji}</span>
                     <span>{verdict.text}</span>
