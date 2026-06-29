@@ -639,12 +639,29 @@ async function closePosition(reason: string, pos: Position): Promise<boolean> {
       const pair = krakenPair(closeSym);
       const closeSide = pos.direction === "long" ? "sell" : "buy";
       const effLev = Math.max(1, config.leverage ?? 1);
+      // For a spot LONG, sell the ACTUAL coin balance (floored to precision) — fees
+      // and rounding mean the real balance is often a hair below the recorded qty,
+      // which would make "sell qty" fail with "Insufficient funds".
+      let volume = pos.qty;
+      if (effLev <= 1 && closeSide === "sell") {
+        try {
+          const bal = await krakenPrivate("/0/private/Balance") as Record<string, string>;
+          const asset = getKrakenBalanceKey(closeSym);
+          const real = asset ? parseFloat(bal?.[asset] ?? "0") : pos.qty;
+          if (real > 0) {
+            const spec = getKrakenSpec(closeSym);
+            const f = Math.pow(10, spec.dec);
+            volume = Math.floor(Math.min(pos.qty, real) * f) / f; // floor → never exceed balance
+          }
+        } catch { /* fall back to recorded qty */ }
+      }
+      if (volume <= 0) { addLog(`ℹ️ ${closeSym}: brak salda do sprzedania — uznaję za zamknięte`, "info"); return true; }
       const closeParams: Record<string, string> = {
-        pair, type: closeSide, ordertype: "market", volume: String(pos.qty),
+        pair, type: closeSide, ordertype: "market", volume: String(volume),
       };
       if (effLev > 1) closeParams.leverage = String(effLev);
       await krakenPrivate("/0/private/AddOrder", closeParams);
-      addLog(`🔴 LIVE CLOSE ${pos.direction.toUpperCase()} ${closeSym} — ${reason}`, "sell");
+      addLog(`🔴 LIVE CLOSE ${pos.direction.toUpperCase()} ${closeSym} vol=${volume} — ${reason}`, "sell");
       return true;
     }
     const closeSide = pos.direction === "long" ? "Sell" : "Buy";
@@ -1227,9 +1244,11 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const spec = getKrakenSpec(sym);
 
     const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
+    // Cap per-position size at capital / maxPositions so N positions all fit the capital.
+    const perPosFraction = Math.min(riskFraction, 1 / maxPos());
     const slForSizing  = effSL / 100;
     const atrScale     = slForSizing > 0 ? Math.min(1, (config.stopLoss / 100) / slForSizing) : 1;
-    const positionUsdt = config.capital * riskFraction * atrScale * effLev;
+    const positionUsdt = config.capital * perPosFraction * atrScale * effLev;
     const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
 
     return { sym, bbPercB, isLong, isShort, score, price, atrPct, effSL, effTP, effTrail, qty, spec };
@@ -1438,6 +1457,19 @@ async function engineTick() {
         const best = scans.filter(s => (s.isLong || s.isShort) && !holdsSymbol(s.sym)).sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
+          // Free-balance check — skip the buy if there isn't enough spare fiat
+          const needUsd = best.qty * best.price;
+          try {
+            const balR = await krakenPrivate("/0/private/Balance") as Record<string, string>;
+            const usd = parseFloat(balR.ZUSD ?? "0");
+            const eur = parseFloat(balR.ZEUR ?? "0");
+            config.krakenFiat = eur > usd ? "EUR" : "USD";
+            const availUsd = config.krakenFiat === "EUR" ? eur * 1.08 : usd;
+            if (availUsd < needUsd * 1.05) {
+              addLog(`⏭ ${best.sym}: za mało wolnego ${config.krakenFiat} ($${availUsd.toFixed(2)} < $${(needUsd * 1.05).toFixed(2)}) — pomijam (kapitał w innych pozycjach)`, "info");
+              return;
+            }
+          } catch { /* proceed — order will fail gracefully if truly short */ }
           addLog(`🎯 SYGNAŁ ${altDir.toUpperCase()} [multi:${best.sym}] BB%B=${best.bbPercB.toFixed(0)} ATR=${best.atrPct.toFixed(2)}% → SL=${best.effSL.toFixed(2)}% TP=${best.effTP.toFixed(2)}% qty=${best.qty} (${positions.length + 1}/${maxPos()})`, "info");
           try {
             const { fillPrice } = await placeOrder(altDir, best.qty, best.sym);
@@ -1477,13 +1509,15 @@ async function engineTick() {
     // Further scaled down when ATR-based SL is larger than the fixed SL setting
     // so that dollar risk stays constant regardless of volatility.
     const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
+    // Cap per-position size at capital / maxPositions so N positions all fit the capital.
+    const perPosFraction = Math.min(riskFraction, 1 / maxPos());
     const slForSizing  = Math.max(config.stopLoss, atrPct * 1.5) / 100;  // as decimal
-    const baseRisk     = config.capital * riskFraction;                   // USDT at risk
+    const baseRisk     = config.capital * perPosFraction;                 // USDT at risk
     // ATR scaling: if actual SL is 2× the configured SL, halve the size
     const atrScale     = slForSizing > 0 ? Math.min(1, (config.stopLoss / 100) / slForSizing) : 1;
     const positionUsdt = baseRisk * atrScale * effLev;
     const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
-    addLog(`📐 Rozmiar: ${(riskFraction * 100).toFixed(0)}% × ATR-scale ${atrScale.toFixed(2)} = $${positionUsdt.toFixed(2)} → qty=${qty}`);
+    addLog(`📐 Rozmiar: ${(perPosFraction * 100).toFixed(0)}% (×1/${maxPos()}) × ATR-scale ${atrScale.toFixed(2)} = $${positionUsdt.toFixed(2)} → qty=${qty}`);
 
     // Balance check
     try {
