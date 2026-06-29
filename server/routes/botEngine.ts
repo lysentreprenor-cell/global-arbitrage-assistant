@@ -1870,6 +1870,15 @@ router.get("/status", (_req, res) => {
 
 // ── Backtest / simulation (public — no auth required) ─────────────────────────
 
+// Pick the candle interval (minutes) that fits a given window into Kraken's ~720-candle
+// fetch limit. 5m covers ~2.5 days; 1h covers 30 days.
+function intervalForDays(days: number): number {
+  if (days <= 4)  return 5;
+  if (days <= 10) return 15;
+  if (days <= 21) return 30;
+  return 60; // 1h → 720 candles ≈ 30 days
+}
+
 router.post("/backtest", async (req, res) => {
   try {
     const {
@@ -1880,16 +1889,18 @@ router.post("/backtest", async (req, res) => {
       leverage = 1, allowShorts = false,
       filters,
     } = req.body ?? {};
+    // Window in days → candle interval. Kraken caps each fetch at ~720 candles, so a
+    // longer window needs a coarser interval (30 days only fits at 1h).
+    const days = Math.max(1, Math.min(30, Number(req.body?.days) || 3));
+    const interval = intervalForDays(days);
 
     const pair = krakenPair(symbol);
 
-    // Single fetch — Kraken returns up to 720 recent candles regardless of 'since'.
-    // With disk history loaded at startup the merged result may be much larger.
-    const since5 = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
-    let raw: any[] = (await krakenOhlcFetch(pair, 5, since5)) ?? [];
+    const since = Math.floor(Date.now() / 1000) - days * 24 * 3600;
+    let raw: any[] = (await krakenOhlcFetch(pair, interval, since)) ?? [];
     const seen = new Set<number>();
     raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
-    if (raw.length < 100) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 100)`);
+    if (raw.length < 100) throw new Error(`Za mało danych (${raw.length} świec ${interval}m, wymagane 100)`);
 
     // ── Fetch 4H candles for trend lookup (mirrors live fetch4HCandles) ────────
     let raw4: any[] = [];
@@ -1902,12 +1913,13 @@ router.post("/backtest", async (req, res) => {
     const r = simulate(raw, raw4, {
       rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin,
       stopLoss, takeProfit, trailPct, leverage, allowShorts,
-      filters,
+      filters, baseMin: interval,
     });
 
     res.json({
       ok: true,
-      days: Math.round(raw.length * 5 / 60 / 24),
+      days: Math.round(raw.length * interval / 60 / 24),
+      interval,
       symbol,
       numTrades: r.numTrades,
       longs: r.longs,
@@ -1936,18 +1948,18 @@ type OptCombo = {
 
 async function runOptimize(params: {
   symbol: string; adxMin: number; confluenceMin: number;
-  volMultMin: number; cooldownMin: number; leverage: number; allowShorts: boolean;
+  volMultMin: number; cooldownMin: number; leverage: number; allowShorts: boolean; days?: number;
 }): Promise<{ result: OptCombo; days: number; combosTested: number }> {
   const { symbol, adxMin, confluenceMin, volMultMin, cooldownMin, leverage, allowShorts } = params;
+  const days = Math.max(1, Math.min(30, Number(params.days) || 3));
+  const interval = intervalForDays(days);
   const pair = krakenPair(symbol);
 
-  // Single fetch — Kraken returns up to 720 recent candles regardless of 'since'.
-  // With disk history (data/ohlc_cache.json) the merged result grows over time.
-  const since5 = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
-  let raw: any[] = (await krakenOhlcFetch(pair, 5, since5)) ?? [];
+  const since = Math.floor(Date.now() / 1000) - days * 24 * 3600;
+  let raw: any[] = (await krakenOhlcFetch(pair, interval, since)) ?? [];
   const seen = new Set<number>();
   raw = raw.filter(c => { if (seen.has(c[0])) return false; seen.add(c[0]); return true; }).sort((a, b) => a[0] - b[0]);
-  if (raw.length < 200) throw new Error(`Za mało danych historycznych 5m (${raw.length} świec, wymagane 200) [${pair}]`);
+  if (raw.length < 200) throw new Error(`Za mało danych (${raw.length} świec ${interval}m, wymagane 200) [${pair}]`);
 
   // 4H candles (optional)
   let raw4: any[] = [];
@@ -1979,7 +1991,7 @@ async function runOptimize(params: {
   for (const [rsiMin, rsiMax, trailPct, stopLoss, takeProfit] of grid) {
     // Optimizer uses permissive confluence/cooldown to find signals across all combos.
     // Strict preset settings are applied by the live bot, not the signal search.
-    const p = { rsiMin, rsiMax, adxMin, confluenceMin: 1, volMultMin: 1.0, cooldownMin: 30, stopLoss, takeProfit, trailPct, leverage, allowShorts };
+    const p = { rsiMin, rsiMax, adxMin, confluenceMin: 1, volMultMin: 1.0, cooldownMin: 30, stopLoss, takeProfit, trailPct, leverage, allowShorts, baseMin: interval };
     const tr = simulate(trainRaw, raw4, p);
     if (tr.numTrades < 3) continue;
     const vr = simulate(validRaw, raw4, p);
@@ -2003,7 +2015,7 @@ async function runOptimize(params: {
   }
 
   if (!best) throw new Error("Żadna kombinacja nie miała wystarczająco transakcji");
-  return { result: best, days: Math.round(raw.length * 5 / 60 / 24), combosTested: grid.length };
+  return { result: best, days: Math.round(raw.length * interval / 60 / 24), combosTested: grid.length };
 }
 
 // ── Auto-retrain timer ─────────────────────────────────────────────────────────
@@ -2116,14 +2128,14 @@ router.post("/optimize", async (req, res) => {
     const {
       symbol = "BTCUSDT",
       adxMin = 12, confluenceMin = 1, volMultMin = 1.0, cooldownMin = 20,
-      leverage = 1, allowShorts = false,
+      leverage = 1, allowShorts = false, days = 3,
     } = req.body ?? {};
 
-    const { result, days, combosTested } = await runOptimize({
-      symbol, adxMin, confluenceMin, volMultMin, cooldownMin, leverage, allowShorts,
+    const { result, days: actualDays, combosTested } = await runOptimize({
+      symbol, adxMin, confluenceMin, volMultMin, cooldownMin, leverage, allowShorts, days,
     });
 
-    res.json({ ok: true, ...result, days, combosTested });
+    res.json({ ok: true, ...result, days: actualDays, combosTested });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

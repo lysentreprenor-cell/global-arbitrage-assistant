@@ -212,6 +212,7 @@ export default function TradingBot() {
   const [customSL,   setCustomSL]   = useState<number>(saved.customSL ?? 0); // 0 = użyj presetu
   const [minVolume,  setMinVolume]  = useState<number>(saved.minVolume ?? 0); // 0 = filtr wyłączony
   const [maxPositions, setMaxPositions] = useState<number>(saved.maxPositions ?? 5);
+  const [simDays,    setSimDays]    = useState<number>(saved.simDays ?? 3); // okno symulacji w dniach
 
   const [price,    setPrice]    = useState(0);
   const [change24h,setChange24h]= useState(0);
@@ -266,9 +267,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -386,7 +387,7 @@ export default function TradingBot() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, leverage, allowShorts,
+          symbol, leverage, allowShorts, days: simDays,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin, stopLoss: p.stopLoss,
@@ -411,7 +412,7 @@ export default function TradingBot() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, leverage, allowShorts,
+          symbol, leverage, allowShorts, days: simDays,
           adxMin: p.adxMin, confluenceMin: p.confluenceMin,
           volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
           stopLoss: p.stopLoss, takeProfit: p.takeProfit,
@@ -444,7 +445,7 @@ export default function TradingBot() {
       const ro = await fetch("/api/bot/optimize", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, leverage, allowShorts,
+          symbol, leverage, allowShorts, days: simDays,
           adxMin: p.adxMin, confluenceMin: p.confluenceMin,
           volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
           stopLoss: p.stopLoss, takeProfit: p.takeProfit,
@@ -459,7 +460,7 @@ export default function TradingBot() {
       const rs = await fetch("/api/bot/backtest", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, leverage, allowShorts,
+          symbol, leverage, allowShorts, days: simDays,
           rsiMin:   useOpt ? opt.rsiMin   : p.rsiMin,
           rsiMax:   useOpt ? opt.rsiMax   : p.rsiMax,
           trailPct: useOpt ? opt.trailPct : p.trailPct,
@@ -1104,6 +1105,24 @@ export default function TradingBot() {
 
           {/* ── Simulation & Optimization ─────────────────────────────────── */}
           <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+            {/* simulation window selector */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">Okno symulacji</span>
+                <span className="text-xs text-green-400">{simDays}d {simDays <= 4 ? "(5m)" : simDays <= 10 ? "(15m)" : simDays <= 21 ? "(30m)" : "(1h)"}</span>
+              </div>
+              <div className="flex gap-1">
+                {[3, 7, 14, 30].map(d => (
+                  <button key={d} onClick={() => setSimDays(d)}
+                    className={`flex-1 text-xs py-1.5 rounded font-medium ${simDays === d ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    {d}d
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] text-gray-600 mt-0.5">
+                Dłuższe okno = grubsze świece (Kraken daje max ~720 świec na raz). 30d testuje na 1h.
+              </div>
+            </div>
             <button onClick={runTrainAndSim} disabled={simRunning || optRunning || trainAndSim}
               className="w-full flex items-center justify-center gap-2 bg-green-800/40 hover:bg-green-800/60 border border-green-600/60 text-green-300 py-3 rounded-lg text-sm font-semibold disabled:opacity-50">
               <Zap className="w-4 h-4" />

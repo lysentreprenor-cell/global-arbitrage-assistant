@@ -9,6 +9,7 @@ export type SimParams = {
   rsiMin: number; rsiMax: number; adxMin: number; confluenceMin: number;
   volMultMin: number; cooldownMin: number; stopLoss: number; takeProfit: number;
   trailPct: number; leverage: number; allowShorts: boolean;
+  baseMin?: number; // base candle interval in minutes (default 5); enables longer windows at 1h
   filters?: {
     stochRsi80?: boolean;  bbPercB80?: boolean;  bodyQuality?: boolean;
     emaSlope?: boolean;    candleConfirm?: boolean; adxRising?: boolean;
@@ -37,6 +38,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin,
     stopLoss, takeProfit, trailPct, leverage, allowShorts,
   } = p;
+  const baseMin = Math.max(1, p.baseMin ?? 5); // base candle interval (5m default, 60m for 30-day)
 
   // Realistic fee model: maker entry (limit order) + taker exit (market at SL/TP)
   // Kraken: maker 0.16%, taker 0.26% → mixed round-trip ≈ 0.42% (better than pure taker 0.52%)
@@ -71,7 +73,10 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     for (let q = factor - 1; q < closes.length; q += factor) { rc.push(closes[q]); rt.push(c5times[q]); }
     return { rc, rt };
   };
-  const _tf15 = _resample(3), _tf30 = _resample(6), _tf60 = _resample(12);
+  // Resample factors scale with the base interval (×3 for 15m on 5m base, ×1 on coarser base)
+  const _tf15 = _resample(Math.max(1, Math.round(15 / baseMin)));
+  const _tf30 = _resample(Math.max(1, Math.round(30 / baseMin)));
+  const _tf60 = _resample(Math.max(1, Math.round(60 / baseMin)));
   const trendTfAt = (tMs: number, tf: { rc: number[]; rt: number[] }): "bull" | "bear" | "neutral" => {
     let idx = -1;
     for (let q = tf.rt.length - 1; q >= 0; q--) { if (tf.rt[q] <= tMs) { idx = q; break; } }
@@ -83,7 +88,7 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
   const trades: SimTrade[] = [];
   const cooldownMs = cooldownMin * 60 * 1000;
   const effLev = Math.max(1, leverage);
-  const MAX_HOLD = 576; // 48h / 5min — same as live
+  const MAX_HOLD = Math.round(48 * 60 / baseMin); // 48h in candles (576 at 5m, 48 at 1h)
   let lastEntry = 0;
   let prevRsiSim = 50;           // RSI recovery tracking across candles (mirrors prevRsi)
   let adxLowCnt = 0;             // range-mode counter (mirrors adxLowCount)
