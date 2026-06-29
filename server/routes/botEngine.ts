@@ -190,6 +190,16 @@ type KrakenSymbolInfo = {
 // XBT → BTC (Kraken uses XBT, the world uses BTC; show BTC in UI)
 const ALTNAME_OVERRIDE: Record<string, string> = { XBT: "BTC", XDG: "DOGE", XLM: "XLM", XMR: "XMR", XRP: "XRP", XTZ: "XTZ", ZEC: "ZEC", LTC: "LTC", ETC: "ETC" };
 
+// Fiat currencies and stablecoins must NEVER be traded as "coins" — they don't pump,
+// and buying EUR/USDC "long" just converts cash pointlessly. Excluded from discovery.
+const NON_TRADEABLE_ASSETS = new Set<string>([
+  // Fiat
+  "EUR", "USD", "GBP", "JPY", "CHF", "CAD", "AUD", "AED",
+  // Stablecoins (USD- and EUR-pegged)
+  "USDC", "USDT", "DAI", "USDG", "PYUSD", "RLUSD", "USDR", "USDS", "TUSD", "BUSD",
+  "USDD", "GUSD", "FDUSD", "EURT", "EURR", "EURQ", "USDQ", "STUSD", "USTC",
+]);
+
 let krakenSymbolCache: KrakenSymbolInfo[] | null = null;
 let krakenSymbolCacheAt = 0;
 
@@ -225,7 +235,8 @@ async function loadKrakenSymbols(): Promise<KrakenSymbolInfo[]> {
     for (const [base, info] of Object.entries(byBase)) {
       if (!info.usd) continue; // skip pairs without a USD leg
       const name = altname[base] ?? base;
-      if (!name || name.length > 10) continue; // skip strangely-named assets
+      if (!name || name.length > 10) continue;            // skip strangely-named assets
+      if (NON_TRADEABLE_ASSETS.has(name.toUpperCase())) continue; // skip fiat & stablecoins (EUR, USDC…)
       result.push({
         symbol: `${name}USDT`,
         name,
@@ -1671,7 +1682,10 @@ router.post("/start", (req, res) => {
 
   config = {
     symbol: symbol || "BTCUSDT",
-    symbols: Array.isArray(symbols) && symbols.length > 0 ? symbols : undefined,
+    // Filter out fiat/stablecoin symbols (EURUSDT, USDCUSDT…) — never trade those
+    symbols: Array.isArray(symbols) && symbols.length > 0
+      ? symbols.filter((s: string) => !NON_TRADEABLE_ASSETS.has(String(s).replace(/USDT$/, "").toUpperCase()))
+      : undefined,
     rsiMin:     rsiMin     ?? 40,   // kup przy RSI < 40 — wyprzedanie na 5m
     rsiMax:     rsiMax     ?? 70,   // trzymaj do RSI > 70
     trailPct:   trailPct   ?? 1.50, // 1.5% trail — sprawdzony w grid-search
