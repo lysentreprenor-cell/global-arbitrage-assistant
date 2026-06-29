@@ -692,8 +692,11 @@ async function finalizeClose(pos: Position, exitPrice: number, pct: number, reas
   const closed = await closePosition(reason, pos);
   if (!closed) return false;
   const KRAKEN_FEE_RT = 0.0052; // 0.26% taker × 2 (open + close)
-  const feeCost = config.platform === "kraken" ? config.capital * KRAKEN_FEE_RT : 0;
-  const pnlUsdt = pct / 100 * config.capital - feeCost;
+  // P&L on the ACTUAL size of THIS position (entryPrice × qty), not the full capital.
+  // With multiple positions each is ~capital/N, so using full capital overstated P&L Nx.
+  const notional = pos.entryPrice * pos.qty;
+  const feeCost = config.platform === "kraken" ? notional * KRAKEN_FEE_RT : 0;
+  const pnlUsdt = pct / 100 * notional - feeCost;
   sessionPnl += pnlUsdt;
   recordTrade(pos, exitPrice, pnlUsdt, pct, reason);
   addLog(`CLOSE ${pos.direction.toUpperCase()} ${pos.symbol ?? config.symbol} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
