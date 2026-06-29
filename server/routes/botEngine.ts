@@ -495,6 +495,10 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
       symbol: scanSym,
     });
     lastEntryTime = new Date(entryTime).getTime();
+    // Persist this adoption to memory so the next restart recovers it with the SAME
+    // entryTime — otherwise the max-hold clock would reset to "now" on every restart
+    // and a frequently-restarting bot would never reach the time limit.
+    rememberBuy(scanSym, { entryPrice, entryTime, qty, slPct: recoveredSlPct, tpPct: config.takeProfit, trailPct: config.trailPct });
     saveState();
     addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${fmtPrice(entryPrice)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
   } catch (e: any) {
