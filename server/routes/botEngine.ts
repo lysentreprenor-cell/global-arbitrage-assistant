@@ -325,7 +325,7 @@ async function reconcilePosition() {
 }
 
 // Minimum USD value of a coin balance to count as a real open position (ignore dust).
-const RECOVER_MIN_USD = 5;
+const RECOVER_MIN_USD = 3;
 
 // If the bot starts with NO tracked position but the Kraken account already holds the
 // traded coin (e.g. a spot LONG bought before a restart that wiped bot-state.json),
