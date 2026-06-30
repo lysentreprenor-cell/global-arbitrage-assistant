@@ -118,6 +118,12 @@ let sessionPnl = 0;
 type OwnedEntry = { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number };
 let ownedEntries: Record<string, OwnedEntry> = {};
 
+// Memory of margin positions the bot OPENED (pair, side, volume, leverage). Lets the bot
+// close them later by placing the opposite order — WITHOUT needing read permission, since
+// it already knows what it opened. Persisted so it survives restarts.
+type OwnMargin = { pair: string; side: "buy" | "sell"; vol: number; lev: number; time: string };
+let ownMargin: OwnMargin[] = [];
+
 // Record a buy the bot itself made so it can recover it accurately later.
 function rememberBuy(sym: string, p: { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number }) {
   ownedEntries[sym] = { entryPrice: p.entryPrice, entryTime: p.entryTime, qty: p.qty, slPct: p.slPct, tpPct: p.tpPct, trailPct: p.trailPct, leverage: p.leverage };
@@ -133,7 +139,7 @@ function saveState() {
   try {
     // Never persist API keys to disk
     const safeCfg = config ? { ...config, apiKey: "", secret: "" } : null;
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, positions, sessionPnl, ownedEntries }));
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, positions, sessionPnl, ownedEntries, ownMargin }));
   } catch { /* ignore */ }
 }
 
@@ -157,6 +163,7 @@ function loadState() {
       if (positions.length > 0) lastEntryTime = Math.max(...positions.map(p => new Date(p.entryTime).getTime()));
       sessionPnl = s.sessionPnl ?? 0;
       ownedEntries = s.ownedEntries ?? {};
+      ownMargin = Array.isArray(s.ownMargin) ? s.ownMargin : [];
       running = true;
       saveState();
       addLog(`Auto-resume po restarcie${positions.length ? ` — przywrócono ${positions.length} pozycji` : ""}`, "info");
@@ -365,34 +372,67 @@ function fmtPrice(p: number): string {
 // Requires the API key's "Query Open Positions" permission; otherwise reports that.
 async function closeOrphanMarginPositions(): Promise<{ closed: number; found: number; error?: string }> {
   if (!config || config.platform !== "kraken") return { closed: 0, found: 0 };
+
+  // ── Path 1: read OpenPositions (authoritative — needs Query Open Positions) ────
   let open: Record<string, any> | null = null;
+  let readErr = "";
   try {
     open = await krakenPrivate("/0/private/OpenPositions") as Record<string, any>;
   } catch (e: any) {
-    addLog(`⚠️ Nie mogę odczytać pozycji margin: ${e.message} — dodaj uprawnienie „Query Open Positions" do klucza API, albo zamknij ręcznie w Kraken Pro → Pozycje`, "warn");
-    return { closed: 0, found: 0, error: e.message };
+    readErr = e.message;
   }
-  const list = open ? Object.entries(open) : [];
-  if (list.length === 0) { addLog(`✅ Brak otwartych pozycji margin — czysto`, "info"); return { closed: 0, found: 0 }; }
 
-  let closed = 0;
-  for (const [txid, p] of list) {
-    const pair = p.pair as string;
-    const type = String(p.type ?? "").toLowerCase();           // buy=long, sell=short
-    const vol  = parseFloat(p.vol ?? "0") - parseFloat(p.vol_closed ?? "0"); // remaining
-    if (!pair || vol <= 0) continue;
-    const closeSide = type === "sell" ? "buy" : "sell";        // opposite side closes it
-    const lev = Math.max(2, Math.round(parseFloat(p.leverage ?? "2")) || 2);
-    try {
-      await krakenPrivate("/0/private/AddOrder", { pair, type: closeSide, ordertype: "market", volume: String(vol), leverage: String(lev) });
-      addLog(`🧹 Zamknięto pozycję margin ${type.toUpperCase()} ${pair} vol=${vol} (txid ${txid.slice(0, 8)})`, "sell");
-      closed++;
-    } catch (e: any) {
-      addLog(`⚠️ Nie udało się zamknąć ${pair}: ${e.message}`, "warn");
+  if (open) {
+    const list = Object.entries(open);
+    if (list.length === 0 && ownMargin.length === 0) {
+      addLog(`✅ Brak otwartych pozycji margin — czysto`, "info");
+      return { closed: 0, found: 0 };
     }
+    let closed = 0;
+    for (const [txid, p] of list) {
+      const pair = p.pair as string;
+      const type = String(p.type ?? "").toLowerCase();
+      const vol  = parseFloat(p.vol ?? "0") - parseFloat(p.vol_closed ?? "0");
+      if (!pair || vol <= 0) continue;
+      const closeSide = type === "sell" ? "buy" : "sell";
+      const lev = Math.max(2, Math.round(parseFloat(p.leverage ?? "2")) || 2);
+      try {
+        await krakenPrivate("/0/private/AddOrder", { pair, type: closeSide, ordertype: "market", volume: String(vol), leverage: String(lev) });
+        addLog(`🧹 Zamknięto pozycję margin ${type.toUpperCase()} ${pair} vol=${vol} (txid ${txid.slice(0, 8)})`, "sell");
+        closed++;
+      } catch (e: any) {
+        addLog(`⚠️ Nie udało się zamknąć ${pair}: ${e.message}`, "warn");
+      }
+    }
+    ownMargin = []; saveState(); // exchange is the source of truth — memory now stale
+    addLog(`🧹 Sprzątanie margin: zamknięto ${closed}/${list.length} pozycji`, closed > 0 ? "sell" : "warn");
+    return { closed, found: list.length };
   }
-  addLog(`🧹 Sprzątanie margin: zamknięto ${closed}/${list.length} pozycji`, closed > 0 ? "sell" : "warn");
-  return { closed, found: list.length };
+
+  // ── Path 2: can't read positions → close from MEMORY of what we opened ─────────
+  // Needs no read permission: just place the opposite order for each remembered margin pos.
+  if (ownMargin.length > 0) {
+    addLog(`ℹ️ Brak odczytu pozycji (${readErr}) — zamykam ${ownMargin.length} z pamięci bota`, "info");
+    let closed = 0;
+    const remaining: OwnMargin[] = [];
+    for (const m of ownMargin) {
+      const closeSide = m.side === "sell" ? "buy" : "sell"; // opposite of what we opened
+      try {
+        await krakenPrivate("/0/private/AddOrder", { pair: m.pair, type: closeSide, ordertype: "market", volume: String(m.vol), leverage: String(m.lev) });
+        addLog(`🧹 Zamknięto z pamięci: ${m.side.toUpperCase()} ${m.pair} vol=${m.vol} → ${closeSide}`, "sell");
+        closed++;
+      } catch (e: any) {
+        addLog(`⚠️ Nie udało się zamknąć ${m.pair} z pamięci: ${e.message}`, "warn");
+        remaining.push(m); // keep for retry
+      }
+    }
+    ownMargin = remaining; saveState();
+    return { closed, found: closed + remaining.length };
+  }
+
+  // ── Neither read nor memory ───────────────────────────────────────────────────
+  addLog(`⚠️ Nie mogę odczytać pozycji margin (${readErr}) i brak ich w pamięci. Dodaj uprawnienie „Query Open Positions" lub zamknij ręcznie w Kraken Pro → Pozycje.`, "warn");
+  return { closed: 0, found: 0, error: readErr };
 }
 
 // If the bot starts with NO tracked position but the Kraken account already holds the
@@ -656,6 +696,11 @@ async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{
     const txid = result.txid?.[0];
     // No txid means Kraken did NOT accept the order — never record a phantom position
     if (!txid) throw new Error("Kraken nie zwrócił txid — zlecenie odrzucone");
+    // Remember margin positions we open so we can close them later WITHOUT read permission
+    if (effLev > 1) {
+      ownMargin.push({ pair, side: side === "long" ? "buy" : "sell", vol: qty, lev: effLev, time: new Date().toISOString() });
+      saveState();
+    }
     addLog(`🟢 LIVE ${side.toUpperCase()} qty=${qty}${effLev > 1 ? ` lev=${effLev}x` : ""} | TxID: ${txid}`, "buy");
     // Verify the market order actually filled and capture the real average fill price
     let fillPrice = 0;
