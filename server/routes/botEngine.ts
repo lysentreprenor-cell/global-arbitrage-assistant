@@ -162,8 +162,13 @@ function loadState() {
       addLog(`Auto-resume po restarcie${positions.length ? ` — przywrócono ${positions.length} pozycji` : ""}`, "info");
       // Reconcile restored positions against the exchange — drop phantoms — then adopt
       // any other coins the account holds (up to maxPositions) from the real balance.
+      // On spot (1x) also auto-close any leftover margin positions (orphan shorts that
+      // keep paying rollover fees) — best-effort, needs Query Open Positions permission.
       (async () => {
         await reconcilePosition();
+        if (config && Math.max(1, config.leverage ?? 1) <= 1) {
+          await closeOrphanMarginPositions();
+        }
         await recoverPositionFromBalance();
       })();
       engineTick();
@@ -353,6 +358,41 @@ function fmtPrice(p: number): string {
   if (p >= 1)    return p.toFixed(2);
   if (p >= 0.01) return p.toFixed(4);
   return p.toFixed(8);
+}
+
+// Close ALL open margin positions on Kraken (the orphaned shorts that keep paying
+// rollover fees). Reads OpenPositions, then places an opposite market order for each.
+// Requires the API key's "Query Open Positions" permission; otherwise reports that.
+async function closeOrphanMarginPositions(): Promise<{ closed: number; found: number; error?: string }> {
+  if (!config || config.platform !== "kraken") return { closed: 0, found: 0 };
+  let open: Record<string, any> | null = null;
+  try {
+    open = await krakenPrivate("/0/private/OpenPositions") as Record<string, any>;
+  } catch (e: any) {
+    addLog(`⚠️ Nie mogę odczytać pozycji margin: ${e.message} — dodaj uprawnienie „Query Open Positions" do klucza API, albo zamknij ręcznie w Kraken Pro → Pozycje`, "warn");
+    return { closed: 0, found: 0, error: e.message };
+  }
+  const list = open ? Object.entries(open) : [];
+  if (list.length === 0) { addLog(`✅ Brak otwartych pozycji margin — czysto`, "info"); return { closed: 0, found: 0 }; }
+
+  let closed = 0;
+  for (const [txid, p] of list) {
+    const pair = p.pair as string;
+    const type = String(p.type ?? "").toLowerCase();           // buy=long, sell=short
+    const vol  = parseFloat(p.vol ?? "0") - parseFloat(p.vol_closed ?? "0"); // remaining
+    if (!pair || vol <= 0) continue;
+    const closeSide = type === "sell" ? "buy" : "sell";        // opposite side closes it
+    const lev = Math.max(2, Math.round(parseFloat(p.leverage ?? "2")) || 2);
+    try {
+      await krakenPrivate("/0/private/AddOrder", { pair, type: closeSide, ordertype: "market", volume: String(vol), leverage: String(lev) });
+      addLog(`🧹 Zamknięto pozycję margin ${type.toUpperCase()} ${pair} vol=${vol} (txid ${txid.slice(0, 8)})`, "sell");
+      closed++;
+    } catch (e: any) {
+      addLog(`⚠️ Nie udało się zamknąć ${pair}: ${e.message}`, "warn");
+    }
+  }
+  addLog(`🧹 Sprzątanie margin: zamknięto ${closed}/${list.length} pozycji`, closed > 0 ? "sell" : "warn");
+  return { closed, found: list.length };
 }
 
 // If the bot starts with NO tracked position but the Kraken account already holds the
@@ -1647,6 +1687,21 @@ router.post("/clear-position", (req, res) => {
   saveState();
   addLog(`🧹 Wyczyszczono wszystkie ${count} pozycji (bez zlecenia na Krakenie)`, "warn");
   res.json({ ok: true, message: `Wyczyszczono ${count} pozycji` });
+});
+
+// POST /api/bot/close-margin — close ALL open margin positions on Kraken (orphan shorts).
+// Sends real closing orders; needs the API key's "Query Open Positions" permission to see them.
+router.post("/close-margin", async (_req, res) => {
+  if (!config) {
+    const saved = decryptApiKeys();
+    if (!saved) return res.status(400).json({ error: "Brak kluczy API" });
+    config = { symbol: "BTCUSDT", rsiMin: 40, rsiMax: 70, trailPct: 1.5, stopLoss: 1.5, takeProfit: 3,
+      leverage: 1, allowShorts: false, capital: 12, riskPct: 20, adxMin: 18, confluenceMin: 1,
+      volMultMin: 0.8, cooldownMin: 20, apiKey: saved.apiKey, secret: saved.secret,
+      testnet: saved.testnet, platform: saved.platform ?? "kraken" } as BotConfig;
+  }
+  const r = await closeOrphanMarginPositions();
+  res.json({ ok: true, ...r });
 });
 
 // GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)

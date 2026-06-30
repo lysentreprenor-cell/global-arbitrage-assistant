@@ -382,6 +382,23 @@ export default function TradingBot() {
     } catch { /* ignore */ }
   };
 
+  const [marginBusy, setMarginBusy] = useState(false);
+  const closeMargin = async () => {
+    if (!confirm("Zamknąć WSZYSTKIE pozycje margin na Krakenie? (wysyła prawdziwe zlecenia zamykające — kończy sieroty short i opłaty rollover)")) return;
+    setMarginBusy(true);
+    try {
+      const r = await fetch("/api/bot/close-margin", { method: "POST" });
+      const d = await r.json();
+      if (d.error) alert(`Nie udało się odczytać pozycji margin:\n${d.error}\n\nDodaj uprawnienie „Query Open Positions" do klucza API na Krakenie, albo zamknij ręcznie w Kraken Pro → Pozycje.`);
+      else alert(d.found === 0 ? "Brak otwartych pozycji margin — czysto ✅" : `Zamknięto ${d.closed}/${d.found} pozycji margin 🧹`);
+      await fetchStatus();
+    } catch (e: any) {
+      alert("Błąd: " + e.message);
+    } finally {
+      setMarginBusy(false);
+    }
+  };
+
   const runSim = async () => {
     setSimRunning(true); setSimError(null); setSimResult(null); setOptResult(null);
     try {
@@ -722,6 +739,12 @@ export default function TradingBot() {
               </div>
               <span className="text-sm text-gray-300">Zezwól na shorty</span>
             </label>
+
+            {/* close orphan margin positions */}
+            <button onClick={closeMargin} disabled={marginBusy}
+              className="w-full text-xs py-2 rounded-lg bg-red-900/30 border border-red-700/50 text-red-300 hover:bg-red-900/50 disabled:opacity-50">
+              {marginBusy ? "Zamykam pozycje margin…" : "🧹 Zamknij sieroty margin (shorty + rollover)"}
+            </button>
 
             {/* max hold time */}
             <div>
