@@ -76,6 +76,7 @@ type BotConfig = {
   minVolume?: number;     // min 24h turnover in quote currency to trade a coin (0 = off)
   maxPositions?: number;  // max simultaneous open positions (default 1)
   paperMode?: boolean;    // live paper trading — real prices, virtual money, no real orders
+  humanRhythm?: boolean;  // "watch the people" — trade when humans are active, rest when they sleep
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -1358,18 +1359,20 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     //  a) bounce started — last candle green AND its close ≥ the prior close (2-bar up)
     //  b) NOT in a steep downtrend — EMA9 not far below EMA21 (else oversold keeps
     //     getting more oversold; that's how ENA was bought into a falling market).
-    const lastOpen   = opens[opens.length - 2] ?? closedCloses[closedCloses.length - 2];
     const lastClose  = closedCloses[closedCloses.length - 1];
-    const prevClose  = closedCloses[closedCloses.length - 2] ?? lastClose;
     const ema9s      = calcEma(closedCloses, 9);
     const ema21s     = calcEma(closedCloses, 21);
     const notSteepDown = ema9s >= ema21s * 0.985; // ema9 < 1.5% below ema21 = clear downtrend → skip
-    const bounceUp   = lastClose > lastOpen && lastClose >= prevClose;
+    // CONFIRMED bottom/top — only buy once the dip/peak already formed and price turned
+    const recent5s = closedCloses.slice(-5);
+    const los = Math.min(...recent5s), his = Math.max(...recent5s);
+    const bottomConfirmed = recent5s.indexOf(los) < recent5s.length - 1 && lastClose > los;
+    const topConfirmed    = recent5s.indexOf(his) < recent5s.length - 1 && lastClose < his;
 
     const effLev = Math.max(1, config.leverage ?? 1);
     const spotOnly = config.platform === "kraken" && effLev <= 1;
-    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym && bounceUp && notSteepDown;
-    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && price > vwap && lastClose < lastOpen;
+    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
+    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && price > vwap && topConfirmed;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
 
     const effSL    = Math.max(config.stopLoss,   atrPct * 1.5);
@@ -1389,6 +1392,22 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     return { sym, bbPercB, isLong, isShort, score, price, atrPct, effSL, effTP, effTrail, qty, spec };
   } catch { return null; }
 }
+
+// ── Human-activity curve (people ARE the market) ──────────────────────────────
+// Weight 0..1 per UTC hour: how many humans are awake & trading across the 3 big
+// money centers (Asia/Europe/US). Peaks at the EU+US overlap (13-16 UTC), troughs
+// when the world sleeps (02-06 UTC). Used by the "watch the people" mode.
+const HUMAN_ACTIVITY: number[] = [
+  /*00*/ 0.45, /*01*/ 0.40, /*02*/ 0.28, /*03*/ 0.22, /*04*/ 0.22, /*05*/ 0.28,
+  /*06*/ 0.42, /*07*/ 0.62, /*08*/ 0.75, /*09*/ 0.80, /*10*/ 0.82, /*11*/ 0.78,
+  /*12*/ 0.70, /*13*/ 0.90, /*14*/ 0.97, /*15*/ 1.00, /*16*/ 0.92, /*17*/ 0.82,
+  /*18*/ 0.75, /*19*/ 0.68, /*20*/ 0.58, /*21*/ 0.50, /*22*/ 0.45, /*23*/ 0.48,
+];
+function humanActivity(utcHour: number): number { return HUMAN_ACTIVITY[utcHour % 24] ?? 0.5; }
+function humanActivityLabel(w: number): string {
+  return w >= 0.85 ? "🔥 szczyt" : w >= 0.6 ? "💼 praca" : w >= 0.4 ? "🌆 luz" : "😴 śpi";
+}
+const HUMAN_MIN_ACTIVITY = 0.40; // below this = world asleep → skip entries in human-rhythm mode
 
 // ── Full indicator tick (every 5 min — 1h candles) ───────────────────────────
 async function engineTick() {
@@ -1508,7 +1527,8 @@ async function engineTick() {
     // Compact per-TF arrow stack, e.g. "1m↓5m↑15m↑30m↑1h↑4h↑"
     const arrow = (t: "bull" | "bear" | "neutral") => t === "bull" ? "↑" : t === "bear" ? "↓" : "=";
     const stackLog = `1m${arrow(trendStack[1] ?? "neutral")}5m${arrow(trendStack[5] ?? "neutral")}15m${arrow(trendStack[15] ?? "neutral")}30m${arrow(trendStack[30] ?? "neutral")}1h${arrow(trendStack[60] ?? "neutral")}4h${arrow(trendStack[240] ?? "neutral")}`;
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})`);
+    const humanTag = config.humanRhythm ? ` 👁️${humanActivityLabel(humanActivity(utcHour))}(${(humanActivity(utcHour) * 100).toFixed(0)}%)` : "";
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})${humanTag}`);
     prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
     // ── Open position management ─────────────────────────────────────────────
@@ -1547,6 +1567,14 @@ async function engineTick() {
       addLog(`⏸ Niska płynność UTC ${utcHour}:xx (02-06) — pomijam sygnał`, "info");
       return;
     }
+    // ── "Watch the people" — rest when the world sleeps ─────────────────────
+    if (config.humanRhythm) {
+      const act = humanActivity(utcHour);
+      if (act < HUMAN_MIN_ACTIVITY) {
+        addLog(`😴 Ludzie śpią (UTC ${utcHour}:xx, aktywność ${(act * 100).toFixed(0)}%) — bot odpoczywa z nimi`, "info");
+        return;
+      }
+    }
 
     // ── Entry logic — simplified single mode ─────────────────────────────────
     // Long:  BB%B < 40 + price below VWAP + no crash
@@ -1560,11 +1588,18 @@ async function engineTick() {
     const primaryLiquid = !config.minVolume || config.minVolume <= 0
       || estimate24hTurnover(volumes.slice(0, -1), price) >= config.minVolume;
     const primaryFree = !holdsSymbol(config.symbol); // don't double up on a coin we already hold
-    // Bounce confirmation + trend filter (Law 2: don't catch a falling knife)
     const notSteepDown = ema9 >= ema21 * 0.985; // ema9 < 1.5% below ema21 = clear downtrend → skip longs
-    const bounceUp = (bullCandle || rsi >= prevRsi) && notSteepDown;
-    const isLong  = primaryFree && primaryLiquid && bbPercB < 40 && belowVwap && !inCrash && bounceUp;
-    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap && bearCandle;
+    // CONFIRMED bottom/top (uczeń: kupuj dopiero gdy dołek/górka już BYŁ, nie w trakcie).
+    // Bottom is confirmed when the lowest of the last 5 closes is BEHIND us (≥1 candle ago)
+    // and price has turned up off it. Top is the mirror image.
+    const recent5 = closedCloses.slice(-5);
+    const lo = Math.min(...recent5), hi = Math.max(...recent5);
+    const loBehind = recent5.indexOf(lo) < recent5.length - 1; // the dip already formed
+    const hiBehind = recent5.indexOf(hi) < recent5.length - 1;  // the peak already formed
+    const bottomConfirmed = loBehind && lastClose > lo;  // turned UP off a past low
+    const topConfirmed    = hiBehind && lastClose < hi;  // turned DOWN off a past high
+    const isLong  = primaryFree && primaryLiquid && bbPercB < 40 && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
+    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap && topConfirmed;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -1629,7 +1664,7 @@ async function engineTick() {
           return;
         }
       }
-      addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<40,short>60) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} odbicie=${bounceUp?"✓":"✗"} cool=${coolLeft} crash=${inCrash}`);
+      addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<40,short>60) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} dołek=${bottomConfirmed?"✓":"✗"} cool=${coolLeft} crash=${inCrash}`);
       return;
     }
     lastEntrySignal = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
@@ -1899,7 +1934,7 @@ router.post("/keys", (req, res) => {
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
-          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions, paperMode } = req.body;
+          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions, paperMode, humanRhythm } = req.body;
 
   // If keys not provided, try to load saved encrypted keys.
   // Paper mode needs only PUBLIC data (prices/candles) → runs even without keys.
@@ -1936,6 +1971,7 @@ router.post("/start", (req, res) => {
     minVolume:     minVolume     ?? 0,   // 0 = filtr płynności wyłączony; >0 = min. obrót 24h
     maxPositions:  Math.max(1, Math.min(5, Number(maxPositions) || 5)), // 1-5 pozycji naraz (domyślnie 5)
     paperMode:     paperMode === true, // symulacja na żywo — wirtualne pieniądze
+    humanRhythm:   humanRhythm === true, // patrz na ludzi — handluj gdy aktywni
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
@@ -2062,6 +2098,7 @@ router.get("/status", (_req, res) => {
     positions,                       // full list (up to maxPositions)
     maxPositions: config?.maxPositions ?? 1,
     paperMode: config?.paperMode ?? false,
+    humanRhythm: config?.humanRhythm ?? false,
     sessionPnl,
     logs: logs.slice(-50),
     symbol: config?.symbol,

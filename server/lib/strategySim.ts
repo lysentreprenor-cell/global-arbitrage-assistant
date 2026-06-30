@@ -201,12 +201,14 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const bullCandle = curClose > lastOpen;
     const bearCandle = curClose < lastOpen;
 
-    // Entry: BB%B + VWAP + bounce confirmation + trend filter (mirrors live engineTick)
-    const prevClose    = wc[wc.length - 2] ?? curClose;
+    // Entry: BB%B + VWAP + CONFIRMED bottom/top + trend filter (mirrors live engineTick)
     const notSteepDown = ema9 >= ema21 * 0.985;        // skip clear downtrends (falling knives)
-    const bounceUp     = bullCandle && curClose >= prevClose; // 2-bar up = bounce started
-    const isLong  = bbPercB < 40 && belowVwap && !inCrash && bounceUp && notSteepDown;
-    const isShort = allowShorts && bbPercB > 60 && aboveVwap && bearCandle;
+    const recent5 = wc.slice(-5);
+    const lo = Math.min(...recent5), hi = Math.max(...recent5);
+    const bottomConfirmed = recent5.indexOf(lo) < recent5.length - 1 && curClose > lo; // dip already formed
+    const topConfirmed    = recent5.indexOf(hi) < recent5.length - 1 && curClose < hi; // peak already formed
+    const isLong  = bbPercB < 40 && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
+    const isShort = allowShorts && bbPercB > 60 && aboveVwap && topConfirmed;
     const sig = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
     if (!isLong && !isShort) continue;
 
