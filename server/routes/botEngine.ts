@@ -1784,22 +1784,61 @@ router.post("/seasonality", async (req, res) => {
       currentRun: run, currentDir: cur > 0 ? "up" : cur < 0 ? "down" : "flat",
     };
 
-    // Hour-of-day (UTC) from hourly candles (30 days) — smaller sample, directional hint only
+    // ── Human rhythm: hour-of-day return + VOLUME (= human activity) ───────────
+    // People ARE the market — volume peaks when humans are awake & working.
     const hSince = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
     let hourly: any[] = (await krakenOhlcFetch(pair, 60, hSince)) ?? [];
-    const hBuckets: Record<number, number[]> = {};
+    const hRet: Record<number, number[]> = {};
+    const hVol: Record<number, number[]> = {};
+    // Human-activity label per UTC hour (across the 3 big money centers: Asia/EU/US)
+    const HUMAN: Record<number, string> = {
+      0: "🌏 Azja praca", 1: "🌏 Azja praca", 2: "🌏 Azja praca", 3: "🌏 Azja lunch",
+      4: "🌏 Azja praca", 5: "🌏 Azja popoł.", 6: "🌅 EU budzi się", 7: "🇪🇺 EU praca",
+      8: "🇪🇺 EU praca", 9: "🇪🇺 EU praca", 10: "🇪🇺 EU praca", 11: "🇪🇺 EU lunch",
+      12: "🇪🇺 EU lunch", 13: "🇺🇸🇪🇺 EU+US start", 14: "🇺🇸 US giełda open", 15: "🇺🇸🇪🇺 SZCZYT",
+      16: "🇺🇸 US praca", 17: "🇺🇸 US lunch", 18: "🇺🇸 US popoł.", 19: "🇺🇸 US popoł.",
+      20: "🇺🇸 US koniec", 21: "🌆 US wieczór", 22: "🌙 świat luzuje", 23: "😴 świat śpi",
+    };
     for (const c of hourly) {
-      const o = parseFloat(c[1]), cl = parseFloat(c[4]);
+      const o = parseFloat(c[1]), cl = parseFloat(c[4]), vol = parseFloat(c[6] ?? "0");
       if (o <= 0) continue;
       const h = new Date(c[0] * 1000).getUTCHours();
-      (hBuckets[h] ??= []).push((cl - o) / o * 100);
+      (hRet[h] ??= []).push((cl - o) / o * 100);
+      (hVol[h] ??= []).push(vol);
     }
-    const byHour = Array.from({ length: 24 }, (_, h) => {
-      const arr = hBuckets[h] ?? [];
-      return { hour: h, avgRet: arr.length ? parseFloat((arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(3)) : 0, n: arr.length };
-    });
+    const avgArr = (a: number[]) => a?.length ? a.reduce((s, v) => s + v, 0) / a.length : 0;
+    const meanVol = avgArr(Object.values(hVol).flat());
+    const byHour = Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      avgRet: parseFloat(avgArr(hRet[h]).toFixed(3)),
+      volRel: meanVol > 0 ? parseFloat((avgArr(hVol[h]) / meanVol).toFixed(2)) : 0, // 1.0 = średnia
+      human: HUMAN[h],
+      n: hRet[h]?.length ?? 0,
+    }));
 
-    res.json({ ok: true, symbol, days: daily.length, byDay, trend, byHour });
+    // ── World trading sessions (UTC) — return + activity ───────────────────────
+    const sessionStat = (from: number, to: number) => {
+      const rets: number[] = [], vols: number[] = [];
+      for (let h = from; h < to; h++) { rets.push(...(hRet[h] ?? [])); vols.push(...(hVol[h] ?? [])); }
+      return { avgRet: parseFloat(avgArr(rets).toFixed(3)), volRel: meanVol > 0 ? parseFloat((avgArr(vols) / meanVol).toFixed(2)) : 0 };
+    };
+    const sessions = {
+      asia:    { label: "🌏 Azja (00-08)",   ...sessionStat(0, 8) },
+      europe:  { label: "🇪🇺 Europa (07-16)", ...sessionStat(7, 16) },
+      us:      { label: "🇺🇸 USA (13-22)",    ...sessionStat(13, 22) },
+      overlap: { label: "🔥 EU+US szczyt (13-16)", ...sessionStat(13, 16) },
+      asleep:  { label: "😴 Świat śpi (22-06)", ...sessionStat(22, 24) },
+    };
+
+    // ── Weekday vs weekend (work vs rest) ──────────────────────────────────────
+    const wd = byDay.filter(d => !["Sob", "Niedz"].includes(d.day));
+    const we = byDay.filter(d => ["Sob", "Niedz"].includes(d.day));
+    const workVsRest = {
+      workday: parseFloat((avgArr(wd.map(d => d.avgRet))).toFixed(3)),
+      weekend: parseFloat((avgArr(we.map(d => d.avgRet))).toFixed(3)),
+    };
+
+    res.json({ ok: true, symbol, days: daily.length, byDay, trend, byHour, sessions, workVsRest });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

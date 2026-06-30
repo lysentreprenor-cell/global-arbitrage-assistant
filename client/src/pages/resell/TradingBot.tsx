@@ -1247,19 +1247,66 @@ export default function TradingBot() {
                     </div>
                   </div>
                 </div>
-                {/* best/worst hours */}
-                {(() => {
-                  const sorted = [...seasonality.byHour].filter((h: any) => h.n > 0).sort((a: any, b: any) => b.avgRet - a.avgRet);
-                  const best = sorted.slice(0, 3), worst = sorted.slice(-3).reverse();
-                  return (
-                    <div className="text-[10px] text-gray-500">
-                      <span className="text-green-400">Najlepsze godz (UTC):</span> {best.map((h: any) => `${h.hour}:00`).join(", ")} ·{" "}
-                      <span className="text-red-400">Najgorsze:</span> {worst.map((h: any) => `${h.hour}:00`).join(", ")}
+                {/* work vs rest */}
+                {seasonality.workVsRest && (
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                      <div className="text-[9px] text-gray-500">💼 DZIEŃ ROBOCZY</div>
+                      <div className={`text-sm font-bold ${seasonality.workVsRest.workday >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {seasonality.workVsRest.workday >= 0 ? "+" : ""}{seasonality.workVsRest.workday}%
+                      </div>
                     </div>
-                  );
-                })()}
+                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                      <div className="text-[9px] text-gray-500">🏖️ WEEKEND</div>
+                      <div className={`text-sm font-bold ${seasonality.workVsRest.weekend >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {seasonality.workVsRest.weekend >= 0 ? "+" : ""}{seasonality.workVsRest.weekend}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* world sessions — people are the market */}
+                {seasonality.sessions && (
+                  <div>
+                    <div className="text-[10px] text-gray-500 mb-1">🌍 SESJE ŚWIATA (aktywność ludzi = wolumen)</div>
+                    <div className="space-y-1">
+                      {Object.values(seasonality.sessions).map((s: any) => (
+                        <div key={s.label} className="flex items-center gap-2 text-[10px]">
+                          <span className="w-32 text-gray-400">{s.label}</span>
+                          <div className="flex-1 bg-[#0a140d] rounded h-3 overflow-hidden">
+                            <div className="h-full bg-blue-600/60" style={{ width: `${Math.min(100, s.volRel * 50)}%` }} />
+                          </div>
+                          <span className="w-8 text-gray-500">{s.volRel}×</span>
+                          <span className={`w-12 text-right font-semibold ${s.avgRet >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {s.avgRet >= 0 ? "+" : ""}{s.avgRet}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-[9px] text-gray-600 mt-1">słupek = wolumen (ile ludzi handluje) · % = średni zwrot tej sesji</div>
+                  </div>
+                )}
+
+                {/* human rhythm by hour */}
+                <div>
+                  <div className="text-[10px] text-gray-500 mb-1">⏰ RYTM DOBY — kiedy ludzie ruszają BTC (UTC)</div>
+                  <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                    {[...seasonality.byHour].sort((a: any, b: any) => b.volRel - a.volRel).slice(0, 6).map((h: any) => (
+                      <div key={h.hour} className="flex items-center gap-2 text-[10px]">
+                        <span className="w-10 text-gray-500">{String(h.hour).padStart(2, "0")}:00</span>
+                        <span className="flex-1 text-gray-400">{h.human}</span>
+                        <span className="w-8 text-blue-300">{h.volRel}×</span>
+                        <span className={`w-12 text-right ${h.avgRet >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {h.avgRet >= 0 ? "+" : ""}{h.avgRet}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[9px] text-gray-600 mt-0.5">6 godzin z największą aktywnością ludzi</div>
+                </div>
+
                 <div className="text-[10px] text-orange-400/80 leading-tight">
-                  ⚠️ Sezonowość to SŁABY sygnał — używaj jako kontekst, nie jako jedyny powód wejścia.
+                  ⚠️ To KONTEKST (kiedy ludzie są aktywni), nie pewniak. Większy ruch = większe okazje, ale i ryzyko.
                 </div>
               </div>
             )}
