@@ -29,6 +29,7 @@ type BotStatus = {
     entryTime: string; slPct: number; tpPct: number; symbol?: string;
   }[];
   maxPositions?: number;
+  paperMode?: boolean;
   logs: { time: string; msg: string; type: string }[];
   dipStats?: {
     fourHourTrend: string; rangeMode: boolean;
@@ -415,6 +416,27 @@ export default function TradingBot() {
     }
   };
 
+  const startPaper = async () => {
+    if (botStatus?.running) { await fetch("/api/bot/stop", { method: "POST" }); await fetchStatus(); return; }
+    const amt = Number(prompt("Wirtualny kapitał do symulacji na żywo ($):", "100")) || 100;
+    const k = hasKrakenKeys() ? getKrakenKeys() : { apiKey: "", secret: "" };
+    const r = await fetch("/api/bot/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        apiKey: k.apiKey, secret: k.secret, platform: "kraken", paperMode: true,
+        symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
+        capital: amt, riskPct, leverage: 1, allowShorts: false, maxHoldMin, minVolume, maxPositions,
+        rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
+        confluenceMin: p.confluenceMin, volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
+        stopLoss: customSL > 0 ? customSL : p.stopLoss,
+        takeProfit: customTP > 0 ? customTP : p.takeProfit, trailPct: p.trailPct,
+        filters: indOpts,
+      }),
+    });
+    if (!r.ok) { const e = await r.json(); alert(e.error ?? "Błąd startu symulacji"); return; }
+    await fetchStatus();
+  };
+
   const runSim = async () => {
     setSimRunning(true); setSimError(null); setSimResult(null); setOptResult(null);
     try {
@@ -665,7 +687,7 @@ export default function TradingBot() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${running ? "bg-red-500 animate-pulse" : "bg-gray-600"}`} />
-                <span className="font-semibold text-white text-sm">LIVE TRADING — Kraken 🦑</span>
+                <span className="font-semibold text-white text-sm">{botStatus?.paperMode ? "📝 SYMULACJA NA ŻYWO" : "LIVE TRADING — Kraken 🦑"}</span>
               </div>
               <button onClick={toggleBot}
                 className={`relative w-12 h-6 rounded-full transition-colors ${running ? "bg-green-500" : "bg-gray-600"}`}>
@@ -673,7 +695,15 @@ export default function TradingBot() {
               </button>
             </div>
 
-            {running && <div className="text-xs text-gray-500">działa nawet po zamknięciu aplikacji</div>}
+            {running && <div className="text-xs text-gray-500">{botStatus?.paperMode ? "wirtualne pieniądze — zero ryzyka" : "działa nawet po zamknięciu aplikacji"}</div>}
+
+            {/* paper trading button (when stopped) */}
+            {!running && (
+              <button onClick={startPaper}
+                className="w-full text-xs py-2.5 rounded-lg bg-blue-900/30 border border-blue-600/50 text-blue-300 hover:bg-blue-900/50 font-semibold">
+                📝 Symulacja na żywo (wirtualne $) — testuj bez ryzyka
+              </button>
+            )}
 
             {/* symbol — primary + optional extras, compact grid */}
             <div>

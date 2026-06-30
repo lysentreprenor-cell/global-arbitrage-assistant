@@ -75,6 +75,7 @@ type BotConfig = {
   maxHoldMin?: number;    // max minutes to hold a position (0/undefined = 48h default)
   minVolume?: number;     // min 24h turnover in quote currency to trade a coin (0 = off)
   maxPositions?: number;  // max simultaneous open positions (default 1)
+  paperMode?: boolean;    // live paper trading — real prices, virtual money, no real orders
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -314,6 +315,7 @@ const KRAKEN_SPEC           = KRAKEN_SPEC_FALLBACK;
 // right place depending on how the position was opened.
 async function reconcilePosition() {
   if (!config || positions.length === 0 || config.platform !== "kraken") return;
+  if (config.paperMode) return; // virtual positions — nothing to reconcile on the exchange
   const effLev = Math.max(1, config.leverage ?? 1);
 
   // Spot SHORT positions are impossible — drop them immediately (leftover phantoms).
@@ -372,6 +374,7 @@ function fmtPrice(p: number): string {
 // Requires the API key's "Query Open Positions" permission; otherwise reports that.
 async function closeOrphanMarginPositions(): Promise<{ closed: number; found: number; error?: string }> {
   if (!config || config.platform !== "kraken") return { closed: 0, found: 0 };
+  if (config.paperMode) return { closed: 0, found: 0 }; // no real positions in paper mode
 
   // ── Path 1: read OpenPositions (authoritative — needs Query Open Positions) ────
   let open: Record<string, any> | null = null;
@@ -441,6 +444,7 @@ async function closeOrphanMarginPositions(): Promise<{ closed: number; found: nu
 // pulled from the most recent buy in TradesHistory; falls back to the current price.
 async function recoverPositionFromBalance(): Promise<void> {
   if (!config || config.platform !== "kraken") return;
+  if (config.paperMode) return; // no real balance to adopt in paper mode
   if (positions.length >= maxPos()) return; // already at capacity
   const effLev = Math.max(1, config.leverage ?? 1);
   if (effLev > 1) return; // margin positions are handled by OpenPositions / reconcile
@@ -685,6 +689,13 @@ async function krakenPrivate(path: string, params: Record<string, any> = {}) {
 async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{ txid: string; fillPrice: number }> {
   if (!config) throw new Error("No config");
   const tradeSym = sym ?? config.symbol;
+  // Paper trading — real price, virtual fill, NO order sent to the exchange
+  if (config.paperMode) {
+    const px = await fetchCurrentPrice(tradeSym) ?? 0;
+    if (px <= 0) throw new Error("Brak ceny do symulacji");
+    addLog(`📝 PAPIER ${side.toUpperCase()} ${tradeSym} qty=${qty} @ $${fmtPrice(px)} (wirtualnie)`, "buy");
+    return { txid: "PAPER-" + Date.now(), fillPrice: px };
+  }
   if (config.platform === "kraken") {
     const pair = krakenPair(tradeSym);
     const effLev = Math.max(1, config.leverage ?? 1);
@@ -736,6 +747,11 @@ async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{
 async function closePosition(reason: string, pos: Position): Promise<boolean> {
   if (!config || !pos) return false;
   const closeSym = pos.symbol ?? config.symbol;
+  // Paper trading — virtual close, no real order
+  if (config.paperMode) {
+    addLog(`📝 PAPIER CLOSE ${pos.direction.toUpperCase()} ${closeSym} — ${reason}`, "sell");
+    return true;
+  }
   try {
     if (config.platform === "kraken") {
       const pair = krakenPair(closeSym);
@@ -1579,9 +1595,9 @@ async function engineTick() {
         const best = scans.filter(s => (s.isLong || s.isShort) && !holdsSymbol(s.sym)).sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
-          // Free-balance check — skip the buy if there isn't enough spare fiat
+          // Free-balance check — skip the buy if there isn't enough spare fiat (real mode only)
           const needUsd = best.qty * best.price;
-          try {
+          if (!config.paperMode) try {
             const balR = await krakenPrivate("/0/private/Balance") as Record<string, string>;
             const usd = parseFloat(balR.ZUSD ?? "0");
             const eur = parseFloat(balR.ZEUR ?? "0");
@@ -1642,9 +1658,11 @@ async function engineTick() {
     const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
     addLog(`📐 Rozmiar: ${(perPosFraction * 100).toFixed(0)}% (×1/${maxPos()}) × ATR-scale ${atrScale.toFixed(2)} = $${positionUsdt.toFixed(2)} → qty=${qty}`);
 
-    // Balance check
+    // Balance check (skipped in paper mode — virtual balance always sufficient)
     try {
-      if (config.platform === "kraken") {
+      if (config.paperMode) {
+        // virtual balance — no real check
+      } else if (config.platform === "kraken") {
         const balResult = await krakenPrivate("/0/private/Balance");
         const usd = parseFloat(balResult.ZUSD ?? "0");
         const eur = parseFloat(balResult.ZEUR ?? "0");
@@ -1842,14 +1860,15 @@ router.post("/keys", (req, res) => {
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
-          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions } = req.body;
+          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions, paperMode } = req.body;
 
-  // If keys not provided, try to load saved encrypted keys
+  // If keys not provided, try to load saved encrypted keys.
+  // Paper mode needs only PUBLIC data (prices/candles) → runs even without keys.
   if (!apiKey || !secret) {
     const saved = decryptApiKeys();
-    if (!saved) return res.status(400).json({ error: "Missing exchange keys" });
-    apiKey = saved.apiKey; secret = saved.secret; testnet = saved.testnet;
-    platform = platform ?? saved.platform;
+    if (saved) { apiKey = saved.apiKey; secret = saved.secret; testnet = saved.testnet; platform = platform ?? saved.platform; }
+    else if (!paperMode) return res.status(400).json({ error: "Missing exchange keys" });
+    else { apiKey = apiKey || ""; secret = secret || ""; platform = platform ?? "kraken"; }
   }
 
   if (intervalId) { clearInterval(intervalId); intervalId = null; }
@@ -1877,12 +1896,13 @@ router.post("/start", (req, res) => {
     maxHoldMin:    maxHoldMin    ?? 0,   // 0 = domyślne 48h; >0 = limit czasu trzymania (scalping)
     minVolume:     minVolume     ?? 0,   // 0 = filtr płynności wyłączony; >0 = min. obrót 24h
     maxPositions:  Math.max(1, Math.min(5, Number(maxPositions) || 5)), // 1-5 pozycji naraz (domyślnie 5)
+    paperMode:     paperMode === true, // symulacja na żywo — wirtualne pieniądze
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
 
-  // Save keys encrypted for auto-resume after restarts
-  encryptApiKeys(apiKey, secret, testnet === true, config.platform);
+  // Save keys encrypted for auto-resume after restarts (skip if paper mode w/o keys)
+  if (apiKey && secret) encryptApiKeys(apiKey, secret, testnet === true, config.platform);
 
   running = true;
   positions = [];
@@ -1921,7 +1941,7 @@ router.post("/start", (req, res) => {
     ? `Kraken (${krakenLev > 1 ? `margin ${krakenLev}x` : "spot"} ${config.krakenFiat ?? "USD"})`
     : config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)";
   const capitalLabel = config.platform === "kraken" ? (config.krakenFiat ?? "USD") : "USDT";
-  addLog(`Bot started — ${config.symbol} ${platformLabel} capital=${config.capital} ${capitalLabel} | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
+  addLog(`Bot started — ${config.paperMode ? "📝 SYMULACJA NA ŻYWO (wirtualne $)" : platformLabel} ${config.symbol} capital=${config.capital} ${capitalLabel} | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
   saveState();
 
   // If the account already holds the traded coin (e.g. a spot LONG from a previous
@@ -2002,6 +2022,7 @@ router.get("/status", (_req, res) => {
     position: positions[0] ?? null, // back-compat: first position
     positions,                       // full list (up to maxPositions)
     maxPositions: config?.maxPositions ?? 1,
+    paperMode: config?.paperMode ?? false,
     sessionPnl,
     logs: logs.slice(-50),
     symbol: config?.symbol,
