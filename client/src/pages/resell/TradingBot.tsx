@@ -382,6 +382,22 @@ export default function TradingBot() {
     } catch { /* ignore */ }
   };
 
+  const [seasonality, setSeasonality] = useState<any>(null);
+  const [seasonBusy, setSeasonBusy] = useState(false);
+  const runSeasonality = async () => {
+    setSeasonBusy(true);
+    try {
+      const r = await fetch("/api/bot/seasonality", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol }),
+      });
+      const d = await r.json();
+      if (d.error) alert("Błąd: " + d.error);
+      else setSeasonality(d);
+    } catch (e: any) { alert("Błąd: " + e.message); }
+    finally { setSeasonBusy(false); }
+  };
+
   const [marginBusy, setMarginBusy] = useState(false);
   const closeMargin = async () => {
     if (!confirm("Zamknąć WSZYSTKIE pozycje margin na Krakenie? (wysyła prawdziwe zlecenia zamykające — kończy sieroty short i opłaty rollover)")) return;
@@ -1152,6 +1168,71 @@ export default function TradingBot() {
             <div className="text-xs text-gray-600">
               RSI [{p.rsiMin}–{p.rsiMax}] · ADX≥{p.adxMin} · SL {p.stopLoss}% · TP {p.takeProfit}% · Trail {p.trailPct}% · Cooldown {p.cooldownMin}min
             </div>
+          </div>
+
+          {/* ── Seasonality / repeatability analysis ─────────────────────── */}
+          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">📅 Powtarzalność {symbol.replace("USDT", "")}</span>
+              <button onClick={runSeasonality} disabled={seasonBusy}
+                className="text-xs px-3 py-1.5 rounded-lg bg-blue-900/40 border border-blue-700/50 text-blue-300 hover:bg-blue-900/60 disabled:opacity-50">
+                {seasonBusy ? "Analizuję…" : "Analizuj 2 lata"}
+              </button>
+            </div>
+            {seasonality && (
+              <div className="space-y-3">
+                {/* day of week */}
+                <div>
+                  <div className="text-[10px] text-gray-500 mb-1">ŚREDNI ZWROT WG DNIA TYGODNIA ({seasonality.days} dni)</div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {seasonality.byDay.map((d: any) => (
+                      <div key={d.day} className="text-center">
+                        <div className="text-[9px] text-gray-500">{d.day}</div>
+                        <div className={`text-[11px] font-bold ${d.avgRet >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {d.avgRet >= 0 ? "+" : ""}{d.avgRet}%
+                        </div>
+                        <div className="text-[8px] text-gray-600">{d.winRate}%↑</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* trend persistence */}
+                <div className="bg-[#0a140d] border border-[#1e3a28] rounded p-2">
+                  <div className="text-[10px] text-gray-500 mb-1">JAK DŁUGO TRZYMA SIĘ TREND (dni)</div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-[9px] text-gray-500">ŚR. WZROST</div>
+                      <div className="text-sm font-bold text-green-400">{seasonality.trend.avgUpDays}d</div>
+                      <div className="text-[8px] text-gray-600">max {seasonality.trend.maxUpDays}d</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-gray-500">ŚR. SPADEK</div>
+                      <div className="text-sm font-bold text-red-400">{seasonality.trend.avgDownDays}d</div>
+                      <div className="text-[8px] text-gray-600">max {seasonality.trend.maxDownDays}d</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-gray-500">ZMIAN/MIES</div>
+                      <div className="text-sm font-bold text-yellow-400">{seasonality.trend.flipsPerMonth}</div>
+                      <div className="text-[8px] text-gray-600">teraz {seasonality.trend.currentRun}d {seasonality.trend.currentDir === "up" ? "↑" : "↓"}</div>
+                    </div>
+                  </div>
+                </div>
+                {/* best/worst hours */}
+                {(() => {
+                  const sorted = [...seasonality.byHour].filter((h: any) => h.n > 0).sort((a: any, b: any) => b.avgRet - a.avgRet);
+                  const best = sorted.slice(0, 3), worst = sorted.slice(-3).reverse();
+                  return (
+                    <div className="text-[10px] text-gray-500">
+                      <span className="text-green-400">Najlepsze godz (UTC):</span> {best.map((h: any) => `${h.hour}:00`).join(", ")} ·{" "}
+                      <span className="text-red-400">Najgorsze:</span> {worst.map((h: any) => `${h.hour}:00`).join(", ")}
+                    </div>
+                  );
+                })()}
+                <div className="text-[10px] text-orange-400/80 leading-tight">
+                  ⚠️ Sezonowość to SŁABY sygnał — używaj jako kontekst, nie jako jedyny powód wejścia.
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Simulation & Optimization ─────────────────────────────────── */}

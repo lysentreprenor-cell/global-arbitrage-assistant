@@ -1712,6 +1712,81 @@ router.get("/symbols", async (_req, res) => {
   res.json(syms.map(s => ({ symbol: s.symbol, name: s.name })));
 });
 
+// POST /api/bot/seasonality — analyze repeatability: day-of-week & hour-of-day returns,
+// plus trend-run statistics (how long trends persist, how often they flip).
+router.post("/seasonality", async (req, res) => {
+  try {
+    const symbol = (req.body?.symbol as string) || "BTCUSDT";
+    const pair = krakenPair(symbol);
+
+    // Daily candles (interval 1440) — ~720 = ~2 years for weekday seasonality + trend runs
+    const dSince = Math.floor(Date.now() / 1000) - 720 * 24 * 3600;
+    let daily: any[] = (await krakenOhlcFetch(pair, 1440, dSince)) ?? [];
+    daily = daily.slice().sort((a, b) => a[0] - b[0]);
+    if (daily.length < 30) throw new Error(`Za mało danych dziennych (${daily.length})`);
+
+    // Day-of-week: avg return % and win rate, grouped by UTC weekday
+    const dayNames = ["Niedz", "Pon", "Wt", "Śr", "Czw", "Pt", "Sob"];
+    const byDay: { day: string; avgRet: number; winRate: number; n: number }[] = [];
+    const buckets: Record<number, number[]> = {};
+    for (const c of daily) {
+      const o = parseFloat(c[1]), cl = parseFloat(c[4]);
+      if (o <= 0) continue;
+      const ret = (cl - o) / o * 100;
+      const d = new Date(c[0] * 1000).getUTCDay();
+      (buckets[d] ??= []).push(ret);
+    }
+    for (let d = 0; d < 7; d++) {
+      const arr = buckets[d] ?? [];
+      const avg = arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+      const wins = arr.filter(v => v > 0).length;
+      byDay.push({ day: dayNames[d], avgRet: parseFloat(avg.toFixed(3)), winRate: arr.length ? Math.round(wins / arr.length * 100) : 0, n: arr.length });
+    }
+
+    // Trend runs: consecutive up-days / down-days based on daily close-to-close
+    const closes = daily.map(c => parseFloat(c[4]));
+    const dirs: number[] = [];
+    for (let i = 1; i < closes.length; i++) dirs.push(Math.sign(closes[i] - closes[i - 1]));
+    const upRuns: number[] = [], downRuns: number[] = [];
+    let run = 0, cur = 0;
+    for (const s of dirs) {
+      if (s === 0) continue;
+      if (s === cur) run++;
+      else { if (cur > 0 && run > 0) upRuns.push(run); if (cur < 0 && run > 0) downRuns.push(run); cur = s; run = 1; }
+    }
+    if (cur > 0 && run > 0) upRuns.push(run); if (cur < 0 && run > 0) downRuns.push(run);
+    const avg = (a: number[]) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0;
+    const flips = upRuns.length + downRuns.length;
+    const trend = {
+      avgUpDays:   parseFloat(avg(upRuns).toFixed(1)),
+      avgDownDays: parseFloat(avg(downRuns).toFixed(1)),
+      maxUpDays:   upRuns.length ? Math.max(...upRuns) : 0,
+      maxDownDays: downRuns.length ? Math.max(...downRuns) : 0,
+      flipsPerMonth: dirs.length ? parseFloat((flips / (dirs.length / 30)).toFixed(1)) : 0,
+      currentRun: run, currentDir: cur > 0 ? "up" : cur < 0 ? "down" : "flat",
+    };
+
+    // Hour-of-day (UTC) from hourly candles (30 days) — smaller sample, directional hint only
+    const hSince = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+    let hourly: any[] = (await krakenOhlcFetch(pair, 60, hSince)) ?? [];
+    const hBuckets: Record<number, number[]> = {};
+    for (const c of hourly) {
+      const o = parseFloat(c[1]), cl = parseFloat(c[4]);
+      if (o <= 0) continue;
+      const h = new Date(c[0] * 1000).getUTCHours();
+      (hBuckets[h] ??= []).push((cl - o) / o * 100);
+    }
+    const byHour = Array.from({ length: 24 }, (_, h) => {
+      const arr = hBuckets[h] ?? [];
+      return { hour: h, avgRet: arr.length ? parseFloat((arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(3)) : 0, n: arr.length };
+    });
+
+    res.json({ ok: true, symbol, days: daily.length, byDay, trend, byHour });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/bot/clear-position — manually wipe phantom/stuck positions (no order sent).
 // Body { symbol } clears just that one; no body clears all.
 router.post("/clear-position", (req, res) => {
