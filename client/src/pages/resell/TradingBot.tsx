@@ -222,6 +222,7 @@ export default function TradingBot() {
   const [maxPositions, setMaxPositions] = useState<number>(saved.maxPositions ?? 5);
   const [humanRhythm, setHumanRhythm] = useState<boolean>(saved.humanRhythm ?? false);
   const [learnAdapt, setLearnAdapt] = useState<boolean>(saved.learnAdapt ?? false);
+  const [paperCapital, setPaperCapital] = useState<number>(saved.paperCapital ?? 100);
   const [simDays,    setSimDays]    = useState<number>(saved.simDays ?? 3); // okno symulacji w dniach
 
   const [price,    setPrice]    = useState(0);
@@ -277,9 +278,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -436,12 +437,13 @@ export default function TradingBot() {
     }
   };
 
-  // Standalone paper engine — runs IN PARALLEL with the real bot (both at once)
+  // Standalone paper engine — runs IN PARALLEL with the real bot (both at once).
+  // No prompt() here — in-app mobile browsers block it; capital comes from an inline input.
   const startPaper = async () => {
     if (botStatus?.paper?.running) {
       await fetch("/api/bot/paper/stop", { method: "POST" }); await fetchStatus(); return;
     }
-    const amt = Number(prompt("Wirtualny kapitał do symulacji na żywo ($):", "100")) || 100;
+    const amt = Math.max(1, Number(paperCapital) || 100);
     const r = await fetch("/api/bot/paper/start", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -730,7 +732,15 @@ export default function TradingBot() {
             </div>
             {botStatus?.paper?.running
               ? <div className="text-xs text-gray-500">działa równolegle z botem — zero ryzyka</div>
-              : <div className="text-xs text-gray-600">włącz suwakiem — zapyta o wirtualny kapitał</div>}
+              : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Wirtualny kapitał ($)</span>
+                  <input type="number" min={1} value={paperCapital}
+                    onChange={e => setPaperCapital(Number(e.target.value))}
+                    className="w-24 bg-[#1a2e1f] border border-blue-800/60 rounded-lg px-2 py-1 text-white text-sm" />
+                  <span className="text-[10px] text-gray-600">← ustaw i włącz suwakiem</span>
+                </div>
+              )}
 
             {/* paper engine live panel */}
             {botStatus?.paper?.running && (
