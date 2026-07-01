@@ -16,6 +16,7 @@ const router = express.Router();
 const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
 const KEY_FILE   = path.resolve(process.cwd(), ".bot_key");
 const KEYS_FILE  = path.resolve(process.cwd(), "api_keys.enc");
+const LEARN_FILE = path.resolve(process.cwd(), "data", "learning.json");
 
 // ── Encrypted key storage ─────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ type Position = {
   signal?: string;             // which condition triggered entry (optional for restored positions)
   symbol?: string;             // which asset this position is for (defaults to config.symbol)
   leverage?: number;           // leverage this position was OPENED with (close with the same)
+  ctx?: { hour: number; human: number; bb: number; regime: string }; // entry context for learning
 };
 
 type LogEntry = { time: string; msg: string; type: "info" | "buy" | "sell" | "warn" };
@@ -125,6 +127,37 @@ let ownedEntries: Record<string, OwnedEntry> = {};
 // it already knows what it opened. Persisted so it survives restarts.
 type OwnMargin = { pair: string; side: "buy" | "sell"; vol: number; lev: number; time: string };
 let ownMargin: OwnMargin[] = [];
+
+// ── Learning journal ──────────────────────────────────────────────────────────
+// Persistent record of the CONTEXT of every closed trade + its outcome. Survives
+// restarts (that's the point — accumulate evidence over time). Later analyzed to
+// reveal which conditions have positive expectancy (E) — evidence, not guessing.
+type LearnRecord = {
+  time: string; symbol: string; dir: string; pnlPct: number; win: boolean;
+  hour: number;        // UTC hour of entry
+  human: number;       // human-activity weight at entry (0..1)
+  bb: number;          // BB%B at entry
+  regime: string;      // market regime at entry
+  reason: string;      // exit reason
+};
+let learningLog: LearnRecord[] = [];
+
+function loadLearning() {
+  try {
+    if (fs.existsSync(LEARN_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(LEARN_FILE, "utf8"));
+      if (Array.isArray(raw)) learningLog = raw.slice(-3000);
+    }
+  } catch { /* ignore */ }
+}
+function saveLearning() {
+  try {
+    const dir = path.dirname(LEARN_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(LEARN_FILE, JSON.stringify(learningLog.slice(-3000)));
+  } catch { /* ignore */ }
+}
+loadLearning();
 
 // Record a buy the bot itself made so it can recover it accurately later.
 function rememberBuy(sym: string, p: { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number }) {
@@ -813,6 +846,14 @@ async function finalizeClose(pos: Position, exitPrice: number, pct: number, reas
   sessionPnl += pnlUsdt;
   recordTrade(pos, exitPrice, pnlUsdt, pct, reason);
   addLog(`CLOSE ${pos.direction.toUpperCase()} ${pos.symbol ?? config.symbol} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
+  // Learning journal — record the trade context + outcome (evidence for later analysis)
+  learningLog.push({
+    time: new Date().toISOString(), symbol: pos.symbol ?? config.symbol, dir: pos.direction,
+    pnlPct: parseFloat(pct.toFixed(3)), win: pct > 0,
+    hour: pos.ctx?.hour ?? new Date().getUTCHours(), human: pos.ctx?.human ?? 0.5,
+    bb: pos.ctx?.bb ?? 50, regime: pos.ctx?.regime ?? "?", reason,
+  });
+  saveLearning();
   forgetBuy(pos.symbol ?? config.symbol);
   positions = positions.filter(p => p !== pos);
   saveState();
@@ -1654,6 +1695,7 @@ async function engineTick() {
               entryTime, trailRef: entryPrice,
               slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
               breakEvenSet: false, signal: "multi_scan", symbol: best.sym, leverage: altLev,
+              ctx: { hour: new Date().getUTCHours(), human: humanActivity(new Date().getUTCHours()), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime },
             });
             lastEntryTime = Date.now();
             rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, leverage: altLev });
@@ -1742,6 +1784,7 @@ async function engineTick() {
         direction, entryPrice, qty, entryTime, trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
         signal: lastEntrySignal, symbol: config.symbol, leverage: effLev,
+        ctx: { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(bbPercB.toFixed(1)), regime: marketRegime },
       });
       lastEntryTime = Date.now();
       rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail, leverage: effLev });
@@ -1877,6 +1920,47 @@ router.post("/seasonality", async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// GET /api/bot/learning — analyze the learning journal: which conditions have +E.
+router.get("/learning", (_req, res) => {
+  const FEE = 0.52;
+  // Expectancy stats for a set of trade records
+  const stat = (recs: LearnRecord[]) => {
+    const n = recs.length;
+    if (n === 0) return { n: 0, winRate: 0, avgWin: 0, avgLoss: 0, E: 0 };
+    const wins = recs.filter(r => r.win), losses = recs.filter(r => !r.win);
+    const avgWin  = wins.length   ? wins.reduce((s, r) => s + r.pnlPct, 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((s, r) => s + r.pnlPct, 0) / losses.length : 0;
+    const wr = wins.length / n;
+    const E = wr * avgWin + (1 - wr) * avgLoss - FEE; // net expectancy per trade after fees
+    return { n, winRate: Math.round(wr * 100), avgWin: parseFloat(avgWin.toFixed(2)), avgLoss: parseFloat(avgLoss.toFixed(2)), E: parseFloat(E.toFixed(2)) };
+  };
+  const L = learningLog;
+  // Human-activity bands
+  const humanBand = (w: number) => w >= 0.85 ? "🔥 szczyt" : w >= 0.6 ? "💼 praca" : w >= 0.4 ? "🌆 luz" : "😴 śpi";
+  const byHuman: Record<string, LearnRecord[]> = {};
+  for (const r of L) (byHuman[humanBand(r.human)] ??= []).push(r);
+  // BB%B bands at entry
+  const bbBand = (b: number) => b < 0 ? "BB<0 (ekstrem)" : b < 15 ? "BB 0-15" : b < 30 ? "BB 15-30" : b < 40 ? "BB 30-40" : "BB 40+";
+  const byBb: Record<string, LearnRecord[]> = {};
+  for (const r of L) (byBb[bbBand(r.bb)] ??= []).push(r);
+  // By symbol
+  const bySym: Record<string, LearnRecord[]> = {};
+  for (const r of L) (bySym[r.symbol] ??= []).push(r);
+
+  res.json({
+    ok: true,
+    total: L.length,
+    overall: stat(L),
+    byHuman: Object.entries(byHuman).map(([k, v]) => ({ key: k, ...stat(v) })).sort((a, b) => b.E - a.E),
+    byBb:    Object.entries(byBb).map(([k, v]) => ({ key: k, ...stat(v) })).sort((a, b) => b.E - a.E),
+    bySymbol: Object.entries(bySym).map(([k, v]) => ({ key: k.replace("USDT", ""), ...stat(v) })).sort((a, b) => b.n - a.n).slice(0, 8),
+    byDir: [
+      { key: "LONG", ...stat(L.filter(r => r.dir === "long")) },
+      { key: "SHORT", ...stat(L.filter(r => r.dir === "short")) },
+    ].filter(x => x.n > 0),
+  });
 });
 
 // POST /api/bot/clear-position — manually wipe phantom/stuck positions (no order sent).

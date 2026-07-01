@@ -384,6 +384,19 @@ export default function TradingBot() {
     } catch { /* ignore */ }
   };
 
+  const [learning, setLearning] = useState<any>(null);
+  const [learnBusy, setLearnBusy] = useState(false);
+  const runLearning = async () => {
+    setLearnBusy(true);
+    try {
+      const r = await fetch("/api/bot/learning");
+      const d = await r.json();
+      if (d.error) alert("Błąd: " + d.error);
+      else setLearning(d);
+    } catch (e: any) { alert("Błąd: " + e.message); }
+    finally { setLearnBusy(false); }
+  };
+
   const [seasonality, setSeasonality] = useState<any>(null);
   const [seasonBusy, setSeasonBusy] = useState(false);
   const runSeasonality = async () => {
@@ -795,6 +808,55 @@ export default function TradingBot() {
               </div>
               <span className="text-sm text-gray-300">👁️ Patrz na ludzi (handluj gdy aktywni, odpoczywaj gdy śpią)</span>
             </label>
+
+            {/* learning journal */}
+            <div>
+              <button onClick={runLearning} disabled={learnBusy}
+                className="w-full text-xs py-2 rounded-lg bg-purple-900/30 border border-purple-600/50 text-purple-300 hover:bg-purple-900/50 disabled:opacity-50">
+                {learnBusy ? "Analizuję…" : "📓 Dziennik Uczenia — co działa, co nie"}
+              </button>
+              {learning && (
+                <div className="mt-2 space-y-2 bg-[#0a0d1a] border border-purple-800/40 rounded-lg p-2.5">
+                  {learning.total < 10 ? (
+                    <div className="text-[11px] text-orange-400">
+                      ⏳ Zebrano {learning.total} transakcji. Wzorce nabiorą sensu od ~20-30.
+                      Niech bot pohandluje — dziennik rośnie z każdą transakcją.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-500 uppercase">📓 Dziennik — {learning.total} transakcji</span>
+                        <span className={`text-xs font-bold ${learning.overall.E > 0 ? "text-emerald-300" : "text-red-400"}`}>
+                          E {learning.overall.E >= 0 ? "+" : ""}{learning.overall.E}% · WR {learning.overall.winRate}%
+                        </span>
+                      </div>
+                      {[
+                        { title: "wg AKTYWNOŚCI LUDZI", rows: learning.byHuman },
+                        { title: "wg BB%B przy wejściu", rows: learning.byBb },
+                        { title: "wg MONETY", rows: learning.bySymbol },
+                      ].map(sec => (
+                        <div key={sec.title}>
+                          <div className="text-[9px] text-gray-600 mb-0.5">{sec.title}</div>
+                          {sec.rows.filter((r: any) => r.n >= 2).map((r: any) => (
+                            <div key={r.key} className="flex items-center gap-2 text-[10px]">
+                              <span className="w-28 text-gray-400 truncate">{r.key}</span>
+                              <span className="w-10 text-gray-500">{r.n}×</span>
+                              <span className="w-10 text-gray-500">{r.winRate}%</span>
+                              <span className={`flex-1 text-right font-semibold ${r.E > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                E {r.E >= 0 ? "+" : ""}{r.E}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      <div className="text-[9px] text-gray-600">
+                        Zielone E = ten warunek zarabia · Czerwone = traci. Handluj zielonym, unikaj czerwonego.
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* close orphan margin positions */}
             <button onClick={closeMargin} disabled={marginBusy}
