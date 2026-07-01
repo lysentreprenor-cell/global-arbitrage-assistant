@@ -140,6 +140,7 @@ type LearnRecord = {
   bb: number;          // BB%B at entry
   regime: string;      // market regime at entry
   reason: string;      // exit reason
+  paper?: boolean;     // true = from live simulation (slightly optimistic), false = real
 };
 let learningLog: LearnRecord[] = [];
 
@@ -853,6 +854,7 @@ async function finalizeClose(pos: Position, exitPrice: number, pct: number, reas
     pnlPct: parseFloat(pct.toFixed(3)), win: pct > 0,
     hour: pos.ctx?.hour ?? new Date().getUTCHours(), human: pos.ctx?.human ?? 0.5,
     bb: pos.ctx?.bb ?? 50, regime: pos.ctx?.regime ?? "?", reason,
+    paper: !!config.paperMode,
   });
   saveLearning();
   forgetBuy(pos.symbol ?? config.symbol);
@@ -1977,10 +1979,14 @@ router.get("/learning", (_req, res) => {
   const bySym: Record<string, LearnRecord[]> = {};
   for (const r of L) (bySym[r.symbol] ??= []).push(r);
 
+  const paperCount = L.filter(r => r.paper).length;
   res.json({
     ok: true,
     total: L.length,
+    paperCount,
+    realCount: L.length - paperCount,
     overall: stat(L),
+    overallReal: stat(L.filter(r => !r.paper)),
     byHuman: Object.entries(byHuman).map(([k, v]) => ({ key: k, ...stat(v) })).sort((a, b) => b.E - a.E),
     byBb:    Object.entries(byBb).map(([k, v]) => ({ key: k, ...stat(v) })).sort((a, b) => b.E - a.E),
     bySymbol: Object.entries(bySym).map(([k, v]) => ({ key: k.replace("USDT", ""), ...stat(v) })).sort((a, b) => b.n - a.n).slice(0, 8),

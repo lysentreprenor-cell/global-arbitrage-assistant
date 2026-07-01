@@ -853,6 +853,10 @@ export default function TradingBot() {
                           E {learning.overall.E >= 0 ? "+" : ""}{learning.overall.E}% · WR {learning.overall.winRate}%
                         </span>
                       </div>
+                      <div className="text-[9px] text-gray-600">
+                        📝 symulacja: {learning.paperCount} · 💰 realne: {learning.realCount}
+                        {learning.realCount >= 5 && ` · E realne: ${learning.overallReal.E >= 0 ? "+" : ""}${learning.overallReal.E}%`}
+                      </div>
                       {[
                         { title: "wg AKTYWNOŚCI LUDZI", rows: learning.byHuman },
                         { title: "wg BB%B przy wejściu", rows: learning.byBb },
