@@ -717,17 +717,20 @@ export default function TradingBot() {
 
             {running && <div className="text-xs text-gray-500">{botStatus?.paperMode ? "wirtualne pieniądze — zero ryzyka" : "działa nawet po zamknięciu aplikacji"}</div>}
 
-            {/* parallel paper engine — runs alongside the real bot (both at once) */}
-            <button onClick={startPaper}
-              className={`w-full text-xs py-2.5 rounded-lg border font-semibold ${
-                botStatus?.paper?.running
-                  ? "bg-blue-700/50 border-blue-400 text-white"
-                  : "bg-blue-900/30 border-blue-600/50 text-blue-300 hover:bg-blue-900/50"
-              }`}>
-              {botStatus?.paper?.running
-                ? "📝 Symulacja AKTYWNA (równolegle z botem) — kliknij aby zatrzymać"
-                : "📝 Symulacja na żywo (wirtualne $) — działa RÓWNOLEGLE z botem"}
-            </button>
+            {/* parallel paper engine — same header style as LIVE TRADING (dot + toggle) */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${botStatus?.paper?.running ? "bg-blue-400 animate-pulse" : "bg-gray-600"}`} />
+                <span className="font-semibold text-white text-sm">📝 SYMULACJA — wirtualne $ 🧪</span>
+              </div>
+              <button onClick={startPaper}
+                className={`relative w-12 h-6 rounded-full transition-colors ${botStatus?.paper?.running ? "bg-blue-500" : "bg-gray-600"}`}>
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${botStatus?.paper?.running ? "translate-x-6" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+            {botStatus?.paper?.running
+              ? <div className="text-xs text-gray-500">działa równolegle z botem — zero ryzyka</div>
+              : <div className="text-xs text-gray-600">włącz suwakiem — zapyta o wirtualny kapitał</div>}
 
             {/* paper engine live panel */}
             {botStatus?.paper?.running && (
