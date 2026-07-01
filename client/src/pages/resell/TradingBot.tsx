@@ -216,6 +216,7 @@ export default function TradingBot() {
   const [minVolume,  setMinVolume]  = useState<number>(saved.minVolume ?? 0); // 0 = filtr wyłączony
   const [maxPositions, setMaxPositions] = useState<number>(saved.maxPositions ?? 5);
   const [humanRhythm, setHumanRhythm] = useState<boolean>(saved.humanRhythm ?? false);
+  const [learnAdapt, setLearnAdapt] = useState<boolean>(saved.learnAdapt ?? false);
   const [simDays,    setSimDays]    = useState<number>(saved.simDays ?? 3); // okno symulacji w dniach
 
   const [price,    setPrice]    = useState(0);
@@ -271,9 +272,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -359,7 +360,7 @@ export default function TradingBot() {
         body: JSON.stringify({
           apiKey, secret, platform: "kraken",
           symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
-          capital, riskPct, leverage, allowShorts, maxHoldMin, minVolume, maxPositions, humanRhythm,
+          capital, riskPct, leverage, allowShorts, maxHoldMin, minVolume, maxPositions, humanRhythm, learnAdapt,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin,
@@ -439,7 +440,7 @@ export default function TradingBot() {
       body: JSON.stringify({
         apiKey: k.apiKey, secret: k.secret, platform: "kraken", paperMode: true,
         symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
-        capital: amt, riskPct, leverage: 1, allowShorts: false, maxHoldMin, minVolume, maxPositions, humanRhythm,
+        capital: amt, riskPct, leverage: 1, allowShorts: false, maxHoldMin, minVolume, maxPositions, humanRhythm, learnAdapt,
         rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
         confluenceMin: p.confluenceMin, volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
         stopLoss: customSL > 0 ? customSL : p.stopLoss,
@@ -807,6 +808,15 @@ export default function TradingBot() {
                 <span className={`block w-3.5 h-3.5 bg-white rounded-full m-0.5 shadow transition-transform ${humanRhythm ? "translate-x-4" : ""}`} />
               </div>
               <span className="text-sm text-gray-300">👁️ Patrz na ludzi (handluj gdy aktywni, odpoczywaj gdy śpią)</span>
+            </label>
+
+            {/* learn & adapt toggle */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div onClick={() => setLearnAdapt(!learnAdapt)}
+                className={`w-8 h-4 rounded-full transition-colors cursor-pointer ${learnAdapt ? "bg-purple-500" : "bg-gray-600"}`}>
+                <span className={`block w-3.5 h-3.5 bg-white rounded-full m-0.5 shadow transition-transform ${learnAdapt ? "translate-x-4" : ""}`} />
+              </div>
+              <span className="text-sm text-gray-300">🧠 Ucz się i dostrajaj (omijaj warunki które tracą — od 8+ transakcji)</span>
             </label>
 
             {/* learning journal */}

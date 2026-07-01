@@ -78,6 +78,7 @@ type BotConfig = {
   maxPositions?: number;  // max simultaneous open positions (default 1)
   paperMode?: boolean;    // live paper trading — real prices, virtual money, no real orders
   humanRhythm?: boolean;  // "watch the people" — trade when humans are active, rest when they sleep
+  learnAdapt?: boolean;   // ACT on the learning journal — skip conditions with proven negative E
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -1450,6 +1451,25 @@ function humanActivityLabel(w: number): string {
 }
 const HUMAN_MIN_ACTIVITY = 0.40; // below this = world asleep → skip entries in human-rhythm mode
 
+// Learned expectancy for a given context (human band + BB band), from the journal.
+// Returns null if too few samples to trust. Used by "learn & adapt" mode to skip
+// conditions the bot has PROVEN to lose in (evidence-based, needs a real sample).
+const LEARN_MIN_SAMPLE = 8; // need ≥8 trades in a bucket before trusting its E
+function humanBandKey(w: number): string { return w >= 0.85 ? "peak" : w >= 0.6 ? "work" : w >= 0.4 ? "chill" : "sleep"; }
+function bbBandKey(b: number): string { return b < 0 ? "x" : b < 15 ? "0-15" : b < 30 ? "15-30" : b < 40 ? "30-40" : "40+"; }
+function learnedContextE(human: number, bb: number): { n: number; E: number } | null {
+  const hk = humanBandKey(human), bk = bbBandKey(bb);
+  const recs = learningLog.filter(r => humanBandKey(r.human) === hk && bbBandKey(r.bb) === bk);
+  if (recs.length < LEARN_MIN_SAMPLE) return null;
+  const wins = recs.filter(r => r.win);
+  const avgWin  = wins.length ? wins.reduce((s, r) => s + r.pnlPct, 0) / wins.length : 0;
+  const losses = recs.filter(r => !r.win);
+  const avgLoss = losses.length ? losses.reduce((s, r) => s + r.pnlPct, 0) / losses.length : 0;
+  const wr = wins.length / recs.length;
+  const E = wr * avgWin + (1 - wr) * avgLoss - 0.52; // net after fees
+  return { n: recs.length, E };
+}
+
 // ── Full indicator tick (every 5 min — 1h candles) ───────────────────────────
 async function engineTick() {
   if (!config || !running) return;
@@ -1613,6 +1633,14 @@ async function engineTick() {
       const act = humanActivity(utcHour);
       if (act < HUMAN_MIN_ACTIVITY) {
         addLog(`😴 Ludzie śpią (UTC ${utcHour}:xx, aktywność ${(act * 100).toFixed(0)}%) — bot odpoczywa z nimi`, "info");
+        return;
+      }
+    }
+    // ── "Learn & adapt" — skip contexts the journal proved to LOSE in ───────
+    if (config.learnAdapt) {
+      const learned = learnedContextE(humanActivity(utcHour), bbPercB);
+      if (learned && learned.E < 0) {
+        addLog(`🧠 Dziennik: ten warunek traci (E ${learned.E.toFixed(2)}% z ${learned.n} transakcji) — pomijam`, "info");
         return;
       }
     }
@@ -2018,7 +2046,7 @@ router.post("/keys", (req, res) => {
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
-          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions, paperMode, humanRhythm } = req.body;
+          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions, paperMode, humanRhythm, learnAdapt } = req.body;
 
   // If keys not provided, try to load saved encrypted keys.
   // Paper mode needs only PUBLIC data (prices/candles) → runs even without keys.
@@ -2056,6 +2084,7 @@ router.post("/start", (req, res) => {
     maxPositions:  Math.max(1, Math.min(5, Number(maxPositions) || 5)), // 1-5 pozycji naraz (domyślnie 5)
     paperMode:     paperMode === true, // symulacja na żywo — wirtualne pieniądze
     humanRhythm:   humanRhythm === true, // patrz na ludzi — handluj gdy aktywni
+    learnAdapt:    learnAdapt === true,  // działaj na dzienniku — omijaj przegrywające warunki
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
@@ -2183,6 +2212,7 @@ router.get("/status", (_req, res) => {
     maxPositions: config?.maxPositions ?? 1,
     paperMode: config?.paperMode ?? false,
     humanRhythm: config?.humanRhythm ?? false,
+    learnAdapt: config?.learnAdapt ?? false,
     sessionPnl,
     logs: logs.slice(-50),
     symbol: config?.symbol,
