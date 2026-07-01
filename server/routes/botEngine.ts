@@ -408,7 +408,13 @@ function fmtPrice(p: number): string {
 // Close ALL open margin positions on Kraken (the orphaned shorts that keep paying
 // rollover fees). Reads OpenPositions, then places an opposite market order for each.
 // Requires the API key's "Query Open Positions" permission; otherwise reports that.
-async function closeOrphanMarginPositions(): Promise<{ closed: number; found: number; error?: string }> {
+//
+// allowMemoryClose: the memory fallback (close what WE remember opening) is only safe
+// when a human just pressed the button. If it ran automatically at startup with stale
+// memory (position already closed manually), the "closing" order would OPEN a fresh
+// margin position in the opposite direction. So: auto-runs may read-and-close, but
+// only an explicit button press may close from memory.
+async function closeOrphanMarginPositions(allowMemoryClose = false): Promise<{ closed: number; found: number; error?: string }> {
   if (!config || config.platform !== "kraken") return { closed: 0, found: 0 };
   if (config.paperMode) return { closed: 0, found: 0 }; // no real positions in paper mode
 
@@ -450,6 +456,10 @@ async function closeOrphanMarginPositions(): Promise<{ closed: number; found: nu
 
   // ── Path 2: can't read positions → close from MEMORY of what we opened ─────────
   // Needs no read permission: just place the opposite order for each remembered margin pos.
+  if (ownMargin.length > 0 && !allowMemoryClose) {
+    addLog(`ℹ️ ${ownMargin.length} pozycji margin w pamięci, ale odczyt niedostępny (${readErr}) — automatycznie NIE zamykam (pamięć może być nieaktualna). Użyj przycisku „Zamknij sieroty margin".`, "warn");
+    return { closed: 0, found: ownMargin.length, error: readErr };
+  }
   if (ownMargin.length > 0) {
     addLog(`ℹ️ Brak odczytu pozycji (${readErr}) — zamykam ${ownMargin.length} z pamięci bota`, "info");
     let closed = 0;
@@ -848,10 +858,12 @@ async function finalizeClose(pos: Position, exitPrice: number, pct: number, reas
   sessionPnl += pnlUsdt;
   recordTrade(pos, exitPrice, pnlUsdt, pct, reason);
   addLog(`CLOSE ${pos.direction.toUpperCase()} ${pos.symbol ?? config.symbol} — ${reason} | ${pnlUsdt >= 0 ? "+" : ""}${pnlUsdt.toFixed(2)} USDT`, pnlUsdt >= 0 ? "sell" : "warn");
-  // Learning journal — record the trade context + outcome (evidence for later analysis)
+  // Learning journal — record the trade context + outcome (evidence for later analysis).
+  // "win" is NET of fees (pnlUsdt includes them) — a +0.3% move that loses to the 0.52%
+  // round-trip fee is a loss, and the journal must learn it as one.
   learningLog.push({
     time: new Date().toISOString(), symbol: pos.symbol ?? config.symbol, dir: pos.direction,
-    pnlPct: parseFloat(pct.toFixed(3)), win: pct > 0,
+    pnlPct: parseFloat(pct.toFixed(3)), win: pnlUsdt > 0,
     hour: pos.ctx?.hour ?? new Date().getUTCHours(), human: pos.ctx?.human ?? 0.5,
     bb: pos.ctx?.bb ?? 50, regime: pos.ctx?.regime ?? "?", reason,
     paper: !!config.paperMode,
@@ -1245,7 +1257,9 @@ async function getIndSnap(symbol: string): Promise<Record<string, number>> {
 
 function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: number, reason: string) {
   const durationH = (Date.now() - new Date(pos.entryTime).getTime()) / 3_600_000;
-  if (pnlPct > 0) {
+  // Win/loss counted NET of fees (pnlUsdt includes them) — gross pnlPct would call a
+  // +0.3% move a "win" even though the 0.52% fee makes it a real loss.
+  if (pnlUsdt > 0) {
     sessionWins++;
     consecutiveLosses = 0;
     lossPauseUntil = 0;
@@ -1638,14 +1652,8 @@ async function engineTick() {
         return;
       }
     }
-    // ── "Learn & adapt" — skip contexts the journal proved to LOSE in ───────
-    if (config.learnAdapt) {
-      const learned = learnedContextE(humanActivity(utcHour), bbPercB);
-      if (learned && learned.E < 0) {
-        addLog(`🧠 Dziennik: ten warunek traci (E ${learned.E.toFixed(2)}% z ${learned.n} transakcji) — pomijam`, "info");
-        return;
-      }
-    }
+    // (🧠 learn-&-adapt gate is applied per-entry below, with EACH coin's own BB%B —
+    //  a global gate here would judge alt entries by the primary symbol's context.)
 
     // ── Entry logic — simplified single mode ─────────────────────────────────
     // Long:  BB%B < 40 + price below VWAP + no crash
@@ -1701,6 +1709,14 @@ async function engineTick() {
         const best = scans.filter(s => (s.isLong || s.isShort) && !holdsSymbol(s.sym)).sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
+          // 🧠 Learn & adapt — judge THIS coin's context (its own BB%B), not the primary's
+          if (config.learnAdapt) {
+            const learned = learnedContextE(humanActivity(new Date().getUTCHours()), best.bbPercB);
+            if (learned && learned.E < 0) {
+              addLog(`🧠 Dziennik: warunek ${best.sym} traci (E ${learned.E.toFixed(2)}% z ${learned.n} transakcji) — pomijam`, "info");
+              return;
+            }
+          }
           // Free-balance check — skip the buy if there isn't enough spare fiat (real mode only)
           const needUsd = best.qty * best.price;
           if (!config.paperMode) try {
@@ -1738,6 +1754,14 @@ async function engineTick() {
       }
       addLog(`Brak sygnału — BB%B=${bbPercB.toFixed(0)}(long<40,short>60) vwap=${belowVwap?"↓":aboveVwap?"↑":"="} RSI=${rsi.toFixed(1)} dołek=${bottomConfirmed?"✓":"✗"} cool=${coolLeft} crash=${inCrash}`);
       return;
+    }
+    // 🧠 Learn & adapt — primary entry judged by the PRIMARY symbol's own context
+    if (config.learnAdapt) {
+      const learned = learnedContextE(humanActivity(utcHour), bbPercB);
+      if (learned && learned.E < 0) {
+        addLog(`🧠 Dziennik: warunek ${config.symbol} traci (E ${learned.E.toFixed(2)}% z ${learned.n} transakcji) — pomijam`, "info");
+        return;
+      }
     }
     lastEntrySignal = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
 
@@ -2030,7 +2054,7 @@ router.post("/close-margin", async (_req, res) => {
       volMultMin: 0.8, cooldownMin: 20, apiKey: saved.apiKey, secret: saved.secret,
       testnet: saved.testnet, platform: saved.platform ?? "kraken" } as BotConfig;
   }
-  const r = await closeOrphanMarginPositions();
+  const r = await closeOrphanMarginPositions(true); // human pressed the button → memory close allowed
   res.json({ ok: true, ...r });
 });
 
