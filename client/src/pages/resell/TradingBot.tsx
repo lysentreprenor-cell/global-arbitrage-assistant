@@ -30,6 +30,11 @@ type BotStatus = {
   }[];
   maxPositions?: number;
   paperMode?: boolean;
+  paper?: {
+    running: boolean; capital: number; pnl: number; wins: number; losses: number;
+    maxPositions: number;
+    positions: { direction: Direction; entryPrice: number; qty: number; entryTime: string; slPct: number; tpPct: number; symbol?: string }[];
+  };
   logs: { time: string; msg: string; type: string }[];
   dipStats?: {
     fourHourTrend: string; rangeMode: boolean;
@@ -431,28 +436,21 @@ export default function TradingBot() {
     }
   };
 
+  // Standalone paper engine — runs IN PARALLEL with the real bot (both at once)
   const startPaper = async () => {
-    // Already in paper mode → stop it
-    if (botStatus?.running && botStatus?.paperMode) {
-      await fetch("/api/bot/stop", { method: "POST" }); await fetchStatus(); return;
-    }
-    // Running a REAL bot → confirm switch to simulation
-    if (botStatus?.running && !botStatus?.paperMode) {
-      if (!confirm("Przełączyć na SYMULACJĘ? Zatrzyma prawdziwego bota (pozycje na Krakenie zostają, ale bot przestaje je śledzić).")) return;
+    if (botStatus?.paper?.running) {
+      await fetch("/api/bot/paper/stop", { method: "POST" }); await fetchStatus(); return;
     }
     const amt = Number(prompt("Wirtualny kapitał do symulacji na żywo ($):", "100")) || 100;
-    const k = hasKrakenKeys() ? getKrakenKeys() : { apiKey: "", secret: "" };
-    const r = await fetch("/api/bot/start", {
+    const r = await fetch("/api/bot/paper/start", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        apiKey: k.apiKey, secret: k.secret, platform: "kraken", paperMode: true,
         symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
-        capital: amt, riskPct, leverage: 1, allowShorts: false, maxHoldMin, minVolume, maxPositions, humanRhythm, learnAdapt,
+        capital: amt, riskPct, maxHoldMin, minVolume, maxPositions, humanRhythm, learnAdapt,
         rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
         confluenceMin: p.confluenceMin, volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
         stopLoss: customSL > 0 ? customSL : p.stopLoss,
         takeProfit: customTP > 0 ? customTP : p.takeProfit, trailPct: p.trailPct,
-        filters: indOpts,
       }),
     });
     if (!r.ok) { const e = await r.json(); alert(e.error ?? "Błąd startu symulacji"); return; }
@@ -719,19 +717,40 @@ export default function TradingBot() {
 
             {running && <div className="text-xs text-gray-500">{botStatus?.paperMode ? "wirtualne pieniądze — zero ryzyka" : "działa nawet po zamknięciu aplikacji"}</div>}
 
-            {/* paper trading button — always available */}
+            {/* parallel paper engine — runs alongside the real bot (both at once) */}
             <button onClick={startPaper}
               className={`w-full text-xs py-2.5 rounded-lg border font-semibold ${
-                botStatus?.paperMode
+                botStatus?.paper?.running
                   ? "bg-blue-700/50 border-blue-400 text-white"
                   : "bg-blue-900/30 border-blue-600/50 text-blue-300 hover:bg-blue-900/50"
               }`}>
-              {botStatus?.paperMode
-                ? "📝 Symulacja AKTYWNA — kliknij aby zatrzymać"
-                : running
-                  ? "📝 Przełącz na symulację (wirtualne $, zero ryzyka)"
-                  : "📝 Symulacja na żywo (wirtualne $) — testuj bez ryzyka"}
+              {botStatus?.paper?.running
+                ? "📝 Symulacja AKTYWNA (równolegle z botem) — kliknij aby zatrzymać"
+                : "📝 Symulacja na żywo (wirtualne $) — działa RÓWNOLEGLE z botem"}
             </button>
+
+            {/* paper engine live panel */}
+            {botStatus?.paper?.running && (
+              <div className="bg-blue-950/30 border border-blue-700/40 rounded-lg p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-blue-300 font-semibold uppercase">📝 Symulacja — ${botStatus.paper.capital} wirtualne</span>
+                  <span className={`text-sm font-bold ${botStatus.paper.pnl >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+                    {botStatus.paper.pnl >= 0 ? "+" : ""}${safe(botStatus.paper.pnl, 2)}
+                  </span>
+                </div>
+                <div className="text-[10px] text-gray-400">
+                  {botStatus.paper.wins}W / {botStatus.paper.losses}L
+                  · pozycje: {botStatus.paper.positions.length}/{botStatus.paper.maxPositions}
+                </div>
+                {botStatus.paper.positions.map((pp, i) => (
+                  <div key={(pp.symbol ?? "") + i} className="flex justify-between text-[10px] text-gray-400 bg-blue-950/40 rounded px-2 py-1">
+                    <span className="text-blue-200 font-medium">{(pp.symbol ?? "?").replace("USDT", "")} {pp.direction.toUpperCase()}</span>
+                    <span>@ ${fmtP(pp.entryPrice)}</span>
+                    <span>SL {safe(pp.slPct)}% · TP {safe(pp.tpPct)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* symbol — primary + optional extras, compact grid */}
             <div>

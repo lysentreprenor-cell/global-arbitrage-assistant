@@ -1352,12 +1352,13 @@ const MAX_SCAN_PER_TICK = 20;
 const SCAN_BATCH_SIZE = 5;
 let scanCursor = 0;
 
-// Run quickScanSymbol over a list with limited concurrency (batches of SCAN_BATCH_SIZE)
-async function scanInBatches(symbols: string[]): Promise<QuickSignal[]> {
+// Run quickScanSymbol over a list with limited concurrency (batches of SCAN_BATCH_SIZE).
+// cfgIn lets a second engine (paper) scan with ITS config while the real bot runs its own.
+async function scanInBatches(symbols: string[], cfgIn?: BotConfig): Promise<QuickSignal[]> {
   const out: QuickSignal[] = [];
   for (let i = 0; i < symbols.length; i += SCAN_BATCH_SIZE) {
     const batch = symbols.slice(i, i + SCAN_BATCH_SIZE);
-    const res = (await Promise.all(batch.map(quickScanSymbol))).filter(Boolean) as QuickSignal[];
+    const res = (await Promise.all(batch.map(s => quickScanSymbol(s, cfgIn)))).filter(Boolean) as QuickSignal[];
     out.push(...res);
   }
   return out;
@@ -1379,8 +1380,9 @@ function estimate24hTurnover(volumes: number[], price: number): number {
   return baseVol * scaleTo24h * price;                          // quote-currency turnover
 }
 
-async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
-  if (!config) return null;
+async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSignal | null> {
+  const cfg = cfgIn ?? config;
+  if (!cfg) return null;
   try {
     const candles = await fetchCandles(sym);
     if (!candles) return null;
@@ -1391,9 +1393,9 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     if (!price) return null;
 
     // Liquidity filter — skip illiquid coins where the chart price isn't really tradeable
-    if (config.minVolume && config.minVolume > 0) {
+    if (cfg.minVolume && cfg.minVolume > 0) {
       const turnover24h = estimate24hTurnover(volumes.slice(0, -1), price);
-      if (turnover24h < config.minVolume) return null;
+      if (turnover24h < cfg.minVolume) return null;
     }
 
     const closedCloses = closes.slice(0, -1);
@@ -1427,24 +1429,24 @@ async function quickScanSymbol(sym: string): Promise<QuickSignal | null> {
     const bottomConfirmed = recent5s.indexOf(los) < recent5s.length - 1 && lastClose > los;
     const topConfirmed    = recent5s.indexOf(his) < recent5s.length - 1 && lastClose < his;
 
-    const effLev = Math.max(1, config.leverage ?? 1);
-    const spotOnly = config.platform === "kraken" && effLev <= 1;
+    const effLev = Math.max(1, cfg.leverage ?? 1);
+    const spotOnly = cfg.platform === "kraken" && effLev <= 1;
     const isLong  = bbPercB < 40 && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
-    const isShort = config.allowShorts && !spotOnly && bbPercB > 60 && price > vwap && topConfirmed;
+    const isShort = cfg.allowShorts && !spotOnly && bbPercB > 60 && price > vwap && topConfirmed;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
 
-    const effSL    = Math.max(config.stopLoss,   atrPct * 1.5);
-    const effTP    = Math.max(config.takeProfit,  atrPct * 2.5);
-    const effTrail = Math.max(config.trailPct,    atrPct * 0.8);
+    const effSL    = Math.max(cfg.stopLoss,   atrPct * 1.5);
+    const effTP    = Math.max(cfg.takeProfit,  atrPct * 2.5);
+    const effTrail = Math.max(cfg.trailPct,    atrPct * 0.8);
 
     const spec = getKrakenSpec(sym);
 
-    const riskFraction = Math.min(100, Math.max(1, config.riskPct ?? 100)) / 100;
+    const riskFraction = Math.min(100, Math.max(1, cfg.riskPct ?? 100)) / 100;
     // Cap per-position size at capital / maxPositions so N positions all fit the capital.
-    const perPosFraction = Math.min(riskFraction, 1 / maxPos());
+    const perPosFraction = Math.min(riskFraction, 1 / Math.max(1, cfg.maxPositions ?? 1));
     const slForSizing  = effSL / 100;
-    const atrScale     = slForSizing > 0 ? Math.min(1, (config.stopLoss / 100) / slForSizing) : 1;
-    const positionUsdt = config.capital * perPosFraction * atrScale * effLev;
+    const atrScale     = slForSizing > 0 ? Math.min(1, (cfg.stopLoss / 100) / slForSizing) : 1;
+    const positionUsdt = cfg.capital * perPosFraction * atrScale * effLev;
     const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
 
     return { sym, bbPercB, isLong, isShort, score, price, atrPct, effSL, effTP, effTrail, qty, spec };
@@ -1484,6 +1486,179 @@ function learnedContextE(human: number, bb: number): { n: number; E: number } | 
   const wr = wins.length / recs.length;
   const E = wr * avgWin + (1 - wr) * avgLoss - 0.52; // net after fees
   return { n: recs.length, E };
+}
+
+// ── STANDALONE PAPER ENGINE ───────────────────────────────────────────────────
+// A second, fully independent engine trading VIRTUAL money on live prices.
+// Runs in parallel with the real bot (own config, positions, P&L, intervals) so
+// you can compare them side by side. Shares: price/candle cache, signal logic
+// (quickScanSymbol) and the learning journal (records marked paper:true).
+const PAPER_FILE = path.resolve(process.cwd(), "data", "paper_state.json");
+
+let paperRunning = false;
+let paperCfg: BotConfig | null = null;
+let paperPositions: Position[] = [];
+let paperPnl = 0;
+let paperWins = 0;
+let paperLosses = 0;
+let paperLastEntry = 0;
+let paperScanCursor = 0;
+let paperTickBusy = false;
+let paperClosing = new Set<string>();
+let paperIntervalId: ReturnType<typeof setInterval> | null = null;
+let paperPriceIntervalId: ReturnType<typeof setInterval> | null = null;
+
+function savePaper() {
+  try {
+    const dir = path.dirname(PAPER_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const safeCfg = paperCfg ? { ...paperCfg, apiKey: "", secret: "" } : null;
+    fs.writeFileSync(PAPER_FILE, JSON.stringify({ running: paperRunning, config: safeCfg, positions: paperPositions, pnl: paperPnl, wins: paperWins, losses: paperLosses }));
+  } catch { /* ignore */ }
+}
+
+function startPaperIntervals() {
+  if (paperIntervalId) clearInterval(paperIntervalId);
+  if (paperPriceIntervalId) clearInterval(paperPriceIntervalId);
+  paperIntervalId = setInterval(paperTick, 60_000);
+  paperPriceIntervalId = setInterval(paperPriceCheck, 5_000);
+  paperTick();
+}
+
+function stopPaper() {
+  paperRunning = false;
+  if (paperIntervalId) { clearInterval(paperIntervalId); paperIntervalId = null; }
+  if (paperPriceIntervalId) { clearInterval(paperPriceIntervalId); paperPriceIntervalId = null; }
+  savePaper();
+  addLog(`📝 Symulacja zatrzymana — P&L ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)} (${paperWins}W/${paperLosses}L)`, "info");
+}
+
+function loadPaper() {
+  try {
+    if (!fs.existsSync(PAPER_FILE)) return;
+    const s = JSON.parse(fs.readFileSync(PAPER_FILE, "utf8"));
+    if (s.running && s.config) {
+      paperCfg = { ...s.config, apiKey: "", secret: "" };
+      paperPositions = Array.isArray(s.positions) ? s.positions : [];
+      paperPnl = s.pnl ?? 0; paperWins = s.wins ?? 0; paperLosses = s.losses ?? 0;
+      paperRunning = true;
+      addLog(`📝 Symulacja wznowiona po restarcie — ${paperPositions.length} pozycji, P&L ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)}`, "info");
+      startPaperIntervals();
+    }
+  } catch { /* ignore */ }
+}
+
+// Entry tick — same gates and signal as the real engine, but fully virtual.
+async function paperTick() {
+  if (!paperRunning || !paperCfg || paperTickBusy) return;
+  paperTickBusy = true;
+  try {
+    const maxP = Math.max(1, paperCfg.maxPositions ?? 1);
+    if (paperPositions.length >= maxP) return;
+    const utcHour = new Date().getUTCHours();
+    if (utcHour >= TREND.LOW_LIQ_START && utcHour < TREND.LOW_LIQ_END) return;
+    if (paperCfg.humanRhythm && humanActivity(utcHour) < HUMAN_MIN_ACTIVITY) return;
+    const cooldownMs = (paperCfg.cooldownMin ?? 20) * 60_000;
+    if (Date.now() - paperLastEntry <= cooldownMs) return;
+
+    // Rotate through the full watch-list (primary + alts), skipping held coins
+    const all = Array.from(new Set([paperCfg.symbol, ...(paperCfg.symbols ?? [])]))
+      .filter(s => !paperPositions.some(p => p.symbol === s));
+    if (all.length === 0) return;
+    if (paperScanCursor >= all.length) paperScanCursor = 0;
+    const batch = all.slice(paperScanCursor, paperScanCursor + MAX_SCAN_PER_TICK);
+    if (batch.length < MAX_SCAN_PER_TICK && all.length > MAX_SCAN_PER_TICK) {
+      batch.push(...all.slice(0, MAX_SCAN_PER_TICK - batch.length));
+    }
+    paperScanCursor += MAX_SCAN_PER_TICK;
+
+    const scans = await scanInBatches(batch, paperCfg);
+    const best = scans.filter(s => s.isLong || s.isShort).sort((a, b) => b.score - a.score)[0];
+    if (!best) return;
+
+    // 🧠 learn & adapt — same journal as the real bot, judged on THIS coin's context
+    if (paperCfg.learnAdapt) {
+      const learned = learnedContextE(humanActivity(utcHour), best.bbPercB);
+      if (learned && learned.E < 0) {
+        addLog(`📝🧠 SYM: warunek ${best.sym} traci (E ${learned.E.toFixed(2)}% z ${learned.n}) — pomijam`, "info");
+        return;
+      }
+    }
+
+    const px = await fetchCurrentPrice(best.sym) ?? best.price;
+    const dir: Direction = best.isLong ? "long" : "short";
+    paperPositions.push({
+      direction: dir, entryPrice: px, qty: best.qty,
+      entryTime: new Date().toISOString(), trailRef: px,
+      slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
+      breakEvenSet: false, signal: "paper_scan", symbol: best.sym, leverage: 1,
+      ctx: { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime },
+    });
+    paperLastEntry = Date.now();
+    savePaper();
+    addLog(`📝 SYM ${dir.toUpperCase()} ${best.sym} @ $${fmtPrice(px)} qty=${best.qty} BB%B=${best.bbPercB.toFixed(0)} (${paperPositions.length}/${maxP})`, "buy");
+  } catch (e: any) {
+    addLog(`📝 SYM tick error: ${e.message}`, "warn");
+  } finally { paperTickBusy = false; }
+}
+
+// Exit check — identical SL/TP/trail/time rules, virtual close, shared learning journal.
+async function paperPriceCheck() {
+  if (!paperRunning || !paperCfg || paperPositions.length === 0) return;
+  for (const pos of [...paperPositions]) {
+    if (!paperPositions.includes(pos)) continue;
+    const sym = pos.symbol ?? paperCfg.symbol;
+    if (paperClosing.has(sym)) continue;
+
+    const price = await fetchCurrentPrice(sym);
+    if (!price) continue;
+
+    const rawPct = (price - pos.entryPrice) / pos.entryPrice * 100;
+    const pct    = pos.direction === "short" ? -rawPct : rawPct;
+
+    if (pos.direction === "long")  pos.trailRef = Math.max(pos.trailRef, price);
+    if (pos.direction === "short") pos.trailRef = Math.min(pos.trailRef, price);
+
+    if (!pos.breakEvenSet && pct >= pos.tpPct * 0.5) {
+      pos.breakEvenSet = true;
+      pos.trailPct = Math.max(pos.trailPct * 0.5, 0.08);
+      if (pos.direction === "long") pos.trailRef = Math.max(pos.trailRef, pos.entryPrice / (1 - pos.trailPct / 100));
+      else pos.trailRef = Math.min(pos.trailRef, pos.entryPrice / (1 + pos.trailPct / 100));
+    }
+
+    const trailSL = pos.direction === "long" ? pos.trailRef * (1 - pos.trailPct / 100) : pos.trailRef * (1 + pos.trailPct / 100);
+    const initSL  = pos.direction === "long" ? pos.entryPrice * (1 - pos.slPct / 100)  : pos.entryPrice * (1 + pos.slPct / 100);
+    const holdMin = (Date.now() - new Date(pos.entryTime).getTime()) / 60_000;
+    const maxHold = (paperCfg.maxHoldMin && paperCfg.maxHoldMin > 0) ? paperCfg.maxHoldMin : 48 * 60;
+    const timeLabel = maxHold >= 60 ? `${(maxHold / 60).toFixed(0)}h` : `${maxHold}m`;
+
+    let reason: string | null = null;
+    if (pct >= pos.tpPct) reason = `TP +${pct.toFixed(2)}%`;
+    else if (pos.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+    else if (pos.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+    else if (holdMin >= maxHold) reason = `Limit czasu ${timeLabel} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+
+    if (reason) {
+      paperClosing.add(sym);
+      try {
+        const notional = pos.entryPrice * pos.qty;
+        const fee = notional * 0.0052; // same fee model as live
+        const pnl = pct / 100 * notional - fee;
+        paperPnl += pnl;
+        if (pnl > 0) paperWins++; else paperLosses++;
+        learningLog.push({
+          time: new Date().toISOString(), symbol: sym, dir: pos.direction,
+          pnlPct: parseFloat(pct.toFixed(3)), win: pnl > 0,
+          hour: pos.ctx?.hour ?? new Date().getUTCHours(), human: pos.ctx?.human ?? 0.5,
+          bb: pos.ctx?.bb ?? 50, regime: pos.ctx?.regime ?? "?", reason, paper: true,
+        });
+        saveLearning();
+        paperPositions = paperPositions.filter(p => p !== pos);
+        savePaper();
+        addLog(`📝 SYM CLOSE ${pos.direction.toUpperCase()} ${sym} — ${reason} | ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)} (razem ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)})`, pnl >= 0 ? "sell" : "warn");
+      } finally { paperClosing.delete(sym); }
+    }
+  }
 }
 
 // ── Full indicator tick (every 5 min — 1h candles) ───────────────────────────
@@ -2058,6 +2233,45 @@ router.post("/close-margin", async (_req, res) => {
   res.json({ ok: true, ...r });
 });
 
+// ── Standalone paper engine endpoints (runs ALONGSIDE the real bot) ───────────
+
+// POST /api/bot/paper/start — start the parallel live simulation (virtual money)
+router.post("/paper/start", (req, res) => {
+  const b = req.body ?? {};
+  paperCfg = {
+    symbol: b.symbol || "BTCUSDT",
+    symbols: Array.isArray(b.symbols) && b.symbols.length > 0
+      ? b.symbols.filter((s: string) => !NON_TRADEABLE_ASSETS.has(String(s).replace(/USDT$/, "").toUpperCase()))
+      : undefined,
+    rsiMin: b.rsiMin ?? 35, rsiMax: b.rsiMax ?? 70,
+    trailPct: b.trailPct ?? 0.6,
+    stopLoss: b.stopLoss ?? 1.5, takeProfit: b.takeProfit ?? 3.0,
+    leverage: 1, allowShorts: false, // paper = spot longs (mirrors the real strategy under test)
+    capital: Math.max(1, Number(b.capital) || 100),
+    riskPct: b.riskPct ?? 20,
+    adxMin: b.adxMin ?? 15, confluenceMin: b.confluenceMin ?? 2,
+    volMultMin: b.volMultMin ?? 1.0, cooldownMin: b.cooldownMin ?? 30,
+    maxHoldMin: b.maxHoldMin ?? 0, minVolume: b.minVolume ?? 0,
+    maxPositions: Math.max(1, Math.min(5, Number(b.maxPositions) || 5)),
+    paperMode: true, humanRhythm: b.humanRhythm === true, learnAdapt: b.learnAdapt === true,
+    apiKey: "", secret: "", testnet: false, platform: "kraken",
+  };
+  paperRunning = true;
+  paperPositions = [];
+  paperPnl = 0; paperWins = 0; paperLosses = 0;
+  paperLastEntry = 0; paperScanCursor = 0;
+  savePaper();
+  addLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji — działa RÓWNOLEGLE z botem`, "info");
+  startPaperIntervals();
+  res.json({ ok: true });
+});
+
+// POST /api/bot/paper/stop — stop the parallel simulation
+router.post("/paper/stop", (_req, res) => {
+  stopPaper();
+  res.json({ ok: true, pnl: paperPnl, wins: paperWins, losses: paperLosses });
+});
+
 // GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)
 router.get("/keys", (_req, res) => {
   const keys = decryptApiKeys();
@@ -2243,6 +2457,16 @@ router.get("/status", (_req, res) => {
     paperMode: config?.paperMode ?? false,
     humanRhythm: config?.humanRhythm ?? false,
     learnAdapt: config?.learnAdapt ?? false,
+    // Parallel paper engine (independent from the real bot above)
+    paper: {
+      running: paperRunning,
+      capital: paperCfg?.capital ?? 0,
+      pnl: parseFloat(paperPnl.toFixed(2)),
+      wins: paperWins,
+      losses: paperLosses,
+      positions: paperPositions,
+      maxPositions: paperCfg?.maxPositions ?? 0,
+    },
     sessionPnl,
     logs: logs.slice(-50),
     symbol: config?.symbol,
@@ -2557,7 +2781,8 @@ router.post("/optimize", async (req, res) => {
   }
 });
 
-// Auto-resume bot if it was running before server restart
+// Auto-resume bot + paper simulation if they were running before server restart
 setTimeout(loadState, 3000);
+setTimeout(loadPaper, 4000);
 
 export default router;
