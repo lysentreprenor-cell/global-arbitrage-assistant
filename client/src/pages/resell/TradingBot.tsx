@@ -432,7 +432,14 @@ export default function TradingBot() {
   };
 
   const startPaper = async () => {
-    if (botStatus?.running) { await fetch("/api/bot/stop", { method: "POST" }); await fetchStatus(); return; }
+    // Already in paper mode → stop it
+    if (botStatus?.running && botStatus?.paperMode) {
+      await fetch("/api/bot/stop", { method: "POST" }); await fetchStatus(); return;
+    }
+    // Running a REAL bot → confirm switch to simulation
+    if (botStatus?.running && !botStatus?.paperMode) {
+      if (!confirm("Przełączyć na SYMULACJĘ? Zatrzyma prawdziwego bota (pozycje na Krakenie zostają, ale bot przestaje je śledzić).")) return;
+    }
     const amt = Number(prompt("Wirtualny kapitał do symulacji na żywo ($):", "100")) || 100;
     const k = hasKrakenKeys() ? getKrakenKeys() : { apiKey: "", secret: "" };
     const r = await fetch("/api/bot/start", {
@@ -712,13 +719,19 @@ export default function TradingBot() {
 
             {running && <div className="text-xs text-gray-500">{botStatus?.paperMode ? "wirtualne pieniądze — zero ryzyka" : "działa nawet po zamknięciu aplikacji"}</div>}
 
-            {/* paper trading button (when stopped) */}
-            {!running && (
-              <button onClick={startPaper}
-                className="w-full text-xs py-2.5 rounded-lg bg-blue-900/30 border border-blue-600/50 text-blue-300 hover:bg-blue-900/50 font-semibold">
-                📝 Symulacja na żywo (wirtualne $) — testuj bez ryzyka
-              </button>
-            )}
+            {/* paper trading button — always available */}
+            <button onClick={startPaper}
+              className={`w-full text-xs py-2.5 rounded-lg border font-semibold ${
+                botStatus?.paperMode
+                  ? "bg-blue-700/50 border-blue-400 text-white"
+                  : "bg-blue-900/30 border-blue-600/50 text-blue-300 hover:bg-blue-900/50"
+              }`}>
+              {botStatus?.paperMode
+                ? "📝 Symulacja AKTYWNA — kliknij aby zatrzymać"
+                : running
+                  ? "📝 Przełącz na symulację (wirtualne $, zero ryzyka)"
+                  : "📝 Symulacja na żywo (wirtualne $) — testuj bez ryzyka"}
+            </button>
 
             {/* symbol — primary + optional extras, compact grid */}
             <div>
