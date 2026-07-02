@@ -673,18 +673,17 @@ export default function TradingBot() {
     <ResellLayout>
       <div className="p-3 space-y-3 max-w-lg mx-auto pb-8">
 
-        {/* ── Ticker ──────────────────────────────────────────────────────── */}
-        <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4">
-          <div className="text-xs text-gray-400 mb-1">{symbol} · LIVE</div>
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-white">${fmtP(price)}</span>
-            <span className={`text-sm font-semibold px-2 py-0.5 rounded ${change24h >= 0 ? "bg-green-900/60 text-green-400" : "bg-red-900/60 text-red-400"}`}>
+        {/* ── Ticker — compact single row ─────────────────────────────────── */}
+        <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl px-3 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500">{symbol.replace("USDT", "")}</span>
+            <span className="text-base font-bold text-white">${fmtP(price)}</span>
+            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${change24h >= 0 ? "bg-green-900/60 text-green-400" : "bg-red-900/60 text-red-400"}`}>
               {fmtPct(change24h)}
             </span>
           </div>
-          <div className="flex gap-4 mt-1 text-xs text-gray-400">
-            <span>24H MAX <span className="text-white">${fmtP(high24h)}</span></span>
-            <span>24H MIN <span className="text-white">${fmtP(low24h)}</span></span>
+          <div className="text-[10px] text-gray-500">
+            H <span className="text-gray-300">${fmtP(high24h)}</span> · L <span className="text-gray-300">${fmtP(low24h)}</span>
           </div>
         </div>
 
