@@ -209,6 +209,7 @@ export default function TradingBot() {
   const [preset,      setPreset]      = useState<RiskLevel>(saved.preset      ?? "aggressive");
   const [capital,     setCapital]     = useState<number>   (saved.capital     ?? 18);
   const [riskPct,     setRiskPct]     = useState<number>   (saved.riskPct     ?? 20);
+  const riskTouched = useRef(false); // true once the user moves the slider this session
   const [leverage,    setLeverage]    = useState<number>   (saved.leverage    ?? 1);
   const [allowShorts, setAllowShorts] = useState<boolean>  (saved.allowShorts ?? false);
   const [symbol,       setSymbol]       = useState<Symbol>   (saved.symbol      ?? "BTCUSDT");
@@ -320,6 +321,13 @@ export default function TradingBot() {
       if (!r.ok) return;
       const s: BotStatus = await r.json();
       setBotStatus(s);
+      // While the bot is RUNNING, the server config is the single source of truth
+      // for risk — sync the slider to it unless the user is actively adjusting.
+      // (Stale background tabs used to overwrite localStorage and "haunt" the
+      // slider back to old values like 95% — this kills that ghost.)
+      if (s.running && typeof s.riskPct === "number" && !riskTouched.current) {
+        setRiskPct(prev => prev !== s.riskPct ? s.riskPct! : prev);
+      }
       if (s.logs?.length) setLogs(s.logs.slice(-40).reverse());
       if (s.sessionStats?.tradeHistory?.length) {
         setTradeHistory(mergeLocalTrades(s.sessionStats.tradeHistory));
@@ -907,8 +915,13 @@ export default function TradingBot() {
                 </span>
               </div>
               <input type="range" min={5} max={100} step={5} value={riskPct}
-                onChange={e => setRiskPct(Number(e.target.value))}
+                onChange={e => { riskTouched.current = true; setRiskPct(Number(e.target.value)); }}
                 className="w-full accent-green-500 cursor-pointer" />
+              {running && botStatus?.riskPct != null && riskTouched.current && botStatus.riskPct !== riskPct && (
+                <div className="text-[10px] text-yellow-500 mt-0.5">
+                  ⚠️ bot działa na {botStatus.riskPct}% — nowa wartość {riskPct}% zadziała po restarcie bota (OFF→ON)
+                </div>
+              )}
               <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
                 <span>5% (bezpieczny)</span><span>50% (normalny)</span><span>100% (all-in)</span>
               </div>
