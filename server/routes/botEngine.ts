@@ -98,6 +98,8 @@ type Position = {
   signal?: string;             // which condition triggered entry (optional for restored positions)
   symbol?: string;             // which asset this position is for (defaults to config.symbol)
   leverage?: number;           // leverage this position was OPENED with (close with the same)
+  fiat?: KrakenFiat;           // quote currency the entry price is in — price checks MUST use
+                               // the same fiat, else a USD→EUR auto-flip fakes a ~-8% "loss"
   ctx?: { hour: number; human: number; bb: number; regime: string }; // entry context for learning
 };
 
@@ -121,7 +123,7 @@ let sessionPnl = 0;
 // Keyed by symbol. Survives restarts via bot-state.json so recovery uses the REAL
 // entry price (not the current price) and the correct SL/TP, even when the API key
 // can't read TradesHistory.
-type OwnedEntry = { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number };
+type OwnedEntry = { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number; fiat?: KrakenFiat };
 let ownedEntries: Record<string, OwnedEntry> = {};
 
 // Memory of margin positions the bot OPENED (pair, side, volume, leverage). Lets the bot
@@ -163,8 +165,8 @@ function saveLearning() {
 loadLearning();
 
 // Record a buy the bot itself made so it can recover it accurately later.
-function rememberBuy(sym: string, p: { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number }) {
-  ownedEntries[sym] = { entryPrice: p.entryPrice, entryTime: p.entryTime, qty: p.qty, slPct: p.slPct, tpPct: p.tpPct, trailPct: p.trailPct, leverage: p.leverage };
+function rememberBuy(sym: string, p: { entryPrice: number; entryTime: string; qty: number; slPct: number; tpPct: number; trailPct: number; leverage?: number; fiat?: KrakenFiat }) {
+  ownedEntries[sym] = { entryPrice: p.entryPrice, entryTime: p.entryTime, qty: p.qty, slPct: p.slPct, tpPct: p.tpPct, trailPct: p.trailPct, leverage: p.leverage, fiat: p.fiat };
   saveState();
 }
 
@@ -563,6 +565,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
         signal: "recovered_own_memory",
         symbol: scanSym,
         leverage: mem.leverage ?? 1,
+        fiat: mem.fiat, // price checks stay in the fiat the entry was recorded in
       });
       lastEntryTime = new Date(mem.entryTime).getTime();
       saveState();
@@ -641,12 +644,13 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
       signal: entryKnown ? "recovered_from_balance" : "recovered_unknown_entry",
       symbol: scanSym,
       leverage: 1, // adopted spot holding (recover only runs for spot 1x)
+      fiat: config.krakenFiat ?? "USD", // adoption price fetched in current fiat — pin it
     });
     lastEntryTime = new Date(entryTime).getTime();
     // Persist this adoption to memory so the next restart recovers it with the SAME
     // entryTime — otherwise the max-hold clock would reset to "now" on every restart
     // and a frequently-restarting bot would never reach the time limit.
-    rememberBuy(scanSym, { entryPrice, entryTime, qty, slPct: recoveredSlPct, tpPct: config.takeProfit, trailPct: config.trailPct, leverage: 1 });
+    rememberBuy(scanSym, { entryPrice, entryTime, qty, slPct: recoveredSlPct, tpPct: config.takeProfit, trailPct: config.trailPct, leverage: 1, fiat: config.krakenFiat ?? "USD" });
     saveState();
     addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${fmtPrice(entryPrice)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
   } catch (e: any) {
@@ -801,7 +805,8 @@ async function closePosition(reason: string, pos: Position): Promise<boolean> {
   }
   try {
     if (config.platform === "kraken") {
-      const pair = krakenPair(closeSym);
+      // Close on the pair in the SAME fiat the position was opened in
+      const pair = pos.fiat ? getKrakenPairName(closeSym, pos.fiat) : krakenPair(closeSym);
       const closeSide = pos.direction === "long" ? "sell" : "buy";
       // Close with the SAME leverage the position was opened with (not the current config)
       const effLev = Math.max(1, pos.leverage ?? config.leverage ?? 1);
@@ -982,8 +987,8 @@ async function fetchCandles(symbol: string): Promise<{closes:number[];opens:numb
   }
 }
 
-async function fetchCurrentPrice(symbol: string): Promise<number | null> {
-  const pair = krakenPair(symbol);
+async function fetchCurrentPrice(symbol: string, fiatOverride?: KrakenFiat): Promise<number | null> {
+  const pair = fiatOverride ? getKrakenPairName(symbol, fiatOverride) : krakenPair(symbol);
   try {
     const r = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
@@ -1293,7 +1298,9 @@ async function priceCheck() {
     const sym = position.symbol ?? config.symbol;
     if (closingSymbols.has(sym)) continue;                 // close already in flight
 
-    const live = await fetchCurrentPrice(sym);
+    // Fetch the price in the SAME fiat the entry was recorded in — a mid-session
+    // USD→EUR auto-flip must never fake a "-8%" move on an open position.
+    const live = await fetchCurrentPrice(sym, position.fiat);
     if (!live && lastPrice <= 0) continue;
     const price = live ?? position.entryPrice;             // fall back to entry if no price
     if (live) lastPrice = live;
@@ -1596,6 +1603,7 @@ async function paperTick() {
       entryTime: new Date().toISOString(), trailRef: px,
       slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
       breakEvenSet: false, signal: "paper_scan", symbol: best.sym, leverage: 1,
+      fiat: config?.krakenFiat ?? "USD", // pin entry fiat (fetch above used the same via krakenPair)
       ctx: { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime },
     });
     paperLastEntry = Date.now();
@@ -1614,7 +1622,7 @@ async function paperPriceCheck() {
     const sym = pos.symbol ?? paperCfg.symbol;
     if (paperClosing.has(sym)) continue;
 
-    const price = await fetchCurrentPrice(sym);
+    const price = await fetchCurrentPrice(sym, pos.fiat); // same fiat as entry (see priceCheck)
     if (!price) continue;
 
     const rawPct = (price - pos.entryPrice) / pos.entryPrice * 100;
@@ -1915,15 +1923,16 @@ async function engineTick() {
             const entryPrice = fillPrice > 0 ? fillPrice : best.price;
             const entryTime = new Date().toISOString();
             const altLev = Math.max(1, config.leverage ?? 1);
+            const altFiat: KrakenFiat = config.krakenFiat ?? "USD";
             positions.push({
               direction: altDir, entryPrice, qty: best.qty,
               entryTime, trailRef: entryPrice,
               slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
-              breakEvenSet: false, signal: "multi_scan", symbol: best.sym, leverage: altLev,
+              breakEvenSet: false, signal: "multi_scan", symbol: best.sym, leverage: altLev, fiat: altFiat,
               ctx: { hour: new Date().getUTCHours(), human: humanActivity(new Date().getUTCHours()), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime },
             });
             lastEntryTime = Date.now();
-            rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, leverage: altLev });
+            rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, leverage: altLev, fiat: altFiat });
             saveState();
           } catch (e: any) {
             addLog(`🔴 ZLECENIE ${best.sym} NIEUDANE: ${e.message}`, "warn");
@@ -2013,14 +2022,15 @@ async function engineTick() {
       const { fillPrice } = await placeOrder(direction, qty);
       const entryPrice = fillPrice > 0 ? fillPrice : price; // real fill price if available
       const entryTime = new Date().toISOString();
+      const entryFiat: KrakenFiat = config.krakenFiat ?? "USD";
       positions.push({
         direction, entryPrice, qty, entryTime, trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
-        signal: lastEntrySignal, symbol: config.symbol, leverage: effLev,
+        signal: lastEntrySignal, symbol: config.symbol, leverage: effLev, fiat: entryFiat,
         ctx: { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(bbPercB.toFixed(1)), regime: marketRegime },
       });
       lastEntryTime = Date.now();
-      rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail, leverage: effLev });
+      rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail, leverage: effLev, fiat: entryFiat });
       saveState();
     } catch (e: any) {
       addLog(`🔴 ZLECENIE NIEUDANE: ${e.message}`, "warn");
