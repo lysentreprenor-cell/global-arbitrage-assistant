@@ -20,6 +20,7 @@ type Preset = {
 type BotStatus = {
   running: boolean;
   sessionPnl: number;
+  capital?: number;
   position: {
     direction: Direction; entryPrice: number; qty: number;
     entryTime: string; slPct: number; tpPct: number; symbol?: string;
@@ -720,6 +721,34 @@ export default function TradingBot() {
 
             {running && <div className="text-xs text-gray-500">{botStatus?.paperMode ? "wirtualne pieniądze — zero ryzyka" : "działa nawet po zamknięciu aplikacji"}</div>}
 
+            {/* real-bot live panel — green twin of the simulation panel */}
+            {running && (
+              <div className="bg-green-950/30 border border-green-700/40 rounded-lg p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-green-300 font-semibold uppercase">💰 BOT — ${botStatus?.capital ?? capital} prawdziwe</span>
+                  <span className={`text-sm font-bold ${(botStatus?.sessionPnl ?? 0) >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+                    {(botStatus?.sessionPnl ?? 0) >= 0 ? "+" : ""}${safe(botStatus?.sessionPnl, 2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-400">
+                    {sess?.wins ?? 0}W / {sess?.losses ?? 0}L · pozycje: {openPositions.length}/{botStatus?.maxPositions ?? maxPositions}
+                  </span>
+                  {openPositions.length > 0 && (
+                    <button onClick={() => clearPosition()}
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-red-900/40 border border-red-700/50 text-red-300">🧹</button>
+                  )}
+                </div>
+                {openPositions.map((pp, i) => (
+                  <div key={(pp.symbol ?? "") + i} className="flex justify-between text-[10px] text-gray-400 bg-green-950/40 rounded px-2 py-1">
+                    <span className="text-green-200 font-medium">{(pp.symbol ?? "?").replace("USDT", "")} {pp.direction.toUpperCase()}</span>
+                    <span>@ ${fmtP(pp.entryPrice)}</span>
+                    <span>SL {safe(pp.slPct)}% · TP {safe(pp.tpPct)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* parallel paper engine — same header style as LIVE TRADING (dot + toggle) */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1059,43 +1088,8 @@ export default function TradingBot() {
               </div>
             </div>
 
-            {/* open positions */}
-            {openPositions.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-gray-500">OTWARTE POZYCJE ({openPositions.length}{botStatus?.maxPositions ? `/${botStatus.maxPositions}` : ""})</span>
-                  <button onClick={() => clearPosition()}
-                    className="text-[10px] px-2 py-0.5 rounded bg-red-900/40 border border-red-700/50 text-red-300 hover:bg-red-900/60">
-                    🧹 wyczyść wszystkie
-                  </button>
-                </div>
-                {openPositions.map((pos, i) => (
-                  <div key={(pos.symbol ?? "") + i} className={`rounded-lg p-2.5 border ${pos.direction === "long" ? "bg-green-900/20 border-green-700/50" : "bg-red-900/20 border-red-700/50"}`}>
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm font-bold ${pos.direction === "long" ? "text-green-400" : "text-red-400"}`}>
-                        {pos.symbol ? pos.symbol.replace("USDT", "") : "?"} {pos.direction.toUpperCase()}
-                      </span>
-                      <span className="text-sm text-white">@ ${fmtP(pos.entryPrice)}</span>
-                      <span className="text-xs text-gray-400">qty {pos.qty}</span>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-0.5">SL {safe(pos.slPct)}% · TP {safe(pos.tpPct)}%</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* session strip */}
-            {running && (
-              <div className="flex gap-4 text-xs text-gray-400 flex-wrap">
-                <span>P&L: <span className={botStatus!.sessionPnl >= 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{fmtPct(botStatus!.sessionPnl)}</span></span>
-                {sess && sess.wins + sess.losses > 0 && (
-                  <span>Win {safe(sess.winRate, 0)}% · {sess.wins ?? 0}W/{sess.losses ?? 0}L</span>
-                )}
-                {dipStats && (
-                  <span>4H: <span className={dipStats.fourHourTrend === "bull" ? "text-green-400" : dipStats.fourHourTrend === "bear" ? "text-red-400" : "text-gray-400"}>{dipStats.fourHourTrend}</span></span>
-                )}
-              </div>
-            )}
+            {/* (pozycje i P&L bota są teraz w zielonym panelu 💰 BOT pod przełącznikiem —
+                lustrzanym odbiciem niebieskiego panelu 📝 SYMULACJA) */}
 
             {/* ── Student scoreboard (master's verdict) ── */}
             {running && sess && (() => {
@@ -1111,7 +1105,7 @@ export default function TradingBot() {
                 <div className="border border-[#2a4a30] rounded-lg p-2.5 space-y-2 bg-[#0d1a0f]">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">🥋 Tablica Ucznia</span>
-                    <span className={`text-xs font-bold ${botStatus!.sessionPnl >= 0 ? "text-green-400" : "text-red-400"}`}>{fmtPct(botStatus!.sessionPnl)} sesja</span>
+                    <span className={`text-xs font-bold ${botStatus!.sessionPnl >= 0 ? "text-green-400" : "text-red-400"}`}>{botStatus!.sessionPnl >= 0 ? "+" : ""}${safe(botStatus!.sessionPnl, 2)} sesja</span>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 text-center">
                     <div className="bg-[#1a2e1f] rounded p-1.5">
