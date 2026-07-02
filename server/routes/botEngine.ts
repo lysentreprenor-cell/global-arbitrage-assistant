@@ -2035,10 +2035,31 @@ loadKrakenSymbols().catch(() => {});
 
 // ── HTTP endpoints ────────────────────────────────────────────────────────────
 
-// GET /api/bot/symbols — return all Kraken tradeable symbols for the UI
+// All-pairs ticker cache (Kraken returns EVERY pair when no ?pair= given) — 10 min TTL.
+// Used to sort the symbol list by price without 650 separate calls.
+let _allTickers: { at: number; prices: Record<string, number> } | null = null;
+async function loadAllTickers(): Promise<Record<string, number>> {
+  if (_allTickers && Date.now() - _allTickers.at < 10 * 60_000) return _allTickers.prices;
+  try {
+    const r = await fetch("https://api.kraken.com/0/public/Ticker", { signal: AbortSignal.timeout(15000) });
+    const d = await r.json() as any;
+    const prices: Record<string, number> = {};
+    for (const [pair, t] of Object.entries((d.result ?? {}) as Record<string, any>)) {
+      const p = parseFloat(t?.c?.[0] ?? "0");
+      if (p > 0) prices[pair] = p;
+    }
+    _allTickers = { at: Date.now(), prices };
+    return prices;
+  } catch { return _allTickers?.prices ?? {}; }
+}
+
+// GET /api/bot/symbols — all Kraken tradeable symbols + price, sorted most-expensive first
 router.get("/symbols", async (_req, res) => {
-  const syms = await loadKrakenSymbols();
-  res.json(syms.map(s => ({ symbol: s.symbol, name: s.name })));
+  const [syms, prices] = await Promise.all([loadKrakenSymbols(), loadAllTickers()]);
+  const list = syms
+    .map(s => ({ symbol: s.symbol, name: s.name, price: prices[s.pairUSD] ?? 0 }))
+    .sort((a, b) => b.price - a.price);
+  res.json(list);
 });
 
 // POST /api/bot/seasonality — analyze repeatability: day-of-week & hour-of-day returns,

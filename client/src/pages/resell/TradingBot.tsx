@@ -213,9 +213,10 @@ export default function TradingBot() {
   const [allowShorts, setAllowShorts] = useState<boolean>  (saved.allowShorts ?? false);
   const [symbol,       setSymbol]       = useState<Symbol>   (saved.symbol      ?? "BTCUSDT");
   const [extraSymbols, setExtraSymbols] = useState<Symbol[]> (saved.extraSymbols ?? []);
-  const [availSymbols, setAvailSymbols] = useState<{ symbol: string; name: string }[]>(
+  const [availSymbols, setAvailSymbols] = useState<{ symbol: string; name: string; price?: number }[]>(
     SYMBOLS_FALLBACK.map(s => ({ symbol: s, name: s.replace("USDT", "") }))
   );
+  const [monitorOpen, setMonitorOpen] = useState(false); // coin grid collapsed by default
   const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
   const [customSL,   setCustomSL]   = useState<number>(saved.customSL ?? 0); // 0 = użyj presetu
@@ -817,39 +818,62 @@ export default function TradingBot() {
               </div>
             )}
 
-            {/* symbol — primary + optional extras, compact grid */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-400">Monitoruj</span>
-                <button onClick={() => setExtraSymbols(availSymbols.map(s => s.symbol as Symbol).filter(s => s !== symbol))}
-                  className="text-[10px] text-blue-400 hover:text-blue-300">wszystkie +</button>
-              </div>
-              <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
-                {availSymbols.map(({ symbol: s, name }) => {
-                  const isPrimary = s === symbol;
-                  const isExtra = extraSymbols.includes(s as Symbol);
-                  return (
-                    <button key={s} onClick={() => {
-                      if (isPrimary) {
-                        const others = availSymbols.map(x => x.symbol as Symbol).filter(x => x !== s && !extraSymbols.includes(x));
-                        if (others.length > 0) setSymbol(others[0]);
-                      } else if (isExtra) {
-                        setExtraSymbols(prev => prev.filter(x => x !== s));
-                      } else {
-                        setExtraSymbols(prev => [...prev, s as Symbol]);
-                      }
-                    }}
-                      className={`text-[10px] px-1.5 py-1 rounded font-medium relative ${isPrimary ? "bg-green-700 text-white" : isExtra ? "bg-blue-800 text-white" : "bg-[#1a2e1f] text-gray-500"}`}>
-                      {name}
-                      {isPrimary && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-400 rounded-full" />}
-                      {isExtra && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />}
+            {/* symbol watch-list — collapsible, sorted by price (most expensive first) */}
+            <div className="bg-[#0a140d] border border-[#1e3a28] rounded-lg overflow-hidden">
+              {/* header — always visible, tap to expand/collapse */}
+              <button onClick={() => setMonitorOpen(o => !o)}
+                className="w-full flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">Monitoruj</span>
+                  <span className="text-xs font-semibold text-white bg-green-800/60 rounded px-1.5 py-0.5">{symbol.replace("USDT", "")}</span>
+                  {extraSymbols.length > 0 && (
+                    <span className="text-[10px] text-blue-300 bg-blue-900/40 rounded px-1.5 py-0.5">+{extraSymbols.length} skanowanych</span>
+                  )}
+                </div>
+                <span className={`text-gray-500 text-xs transition-transform ${monitorOpen ? "rotate-180" : ""}`}>▼</span>
+              </button>
+
+              {/* body — expanded only */}
+              {monitorOpen && (
+                <div className="px-3 pb-3 space-y-2">
+                  <div className="flex gap-2">
+                    <button onClick={() => setExtraSymbols(availSymbols.map(s => s.symbol as Symbol).filter(s => s !== symbol))}
+                      className="flex-1 text-[11px] py-1.5 rounded-lg bg-blue-900/40 border border-blue-700/50 text-blue-300">
+                      ✓ Zaznacz wszystkie ({availSymbols.length})
                     </button>
-                  );
-                })}
-              </div>
-              <div className="text-[10px] text-gray-600 mt-0.5">
-                {extraSymbols.length > 0 ? `● główny  ● +${extraSymbols.length} skanowanych` : "kliknij aby dodać do skanu"}
-              </div>
+                    <button onClick={() => setExtraSymbols([])}
+                      className="flex-1 text-[11px] py-1.5 rounded-lg bg-[#1a2e1f] border border-[#2a4a30] text-gray-400">
+                      ✕ Wyczyść zaznaczenie
+                    </button>
+                  </div>
+                  <div className="text-[10px] text-gray-600">od najdroższych · 🟢 główny · 🔵 skanowany · szary = nieaktywny</div>
+                  <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto pr-1">
+                    {availSymbols.map(({ symbol: s, name, price }) => {
+                      const isPrimary = s === symbol;
+                      const isExtra = extraSymbols.includes(s as Symbol);
+                      return (
+                        <button key={s} title={price ? `$${price >= 1 ? price.toFixed(2) : price.toFixed(4)}` : undefined}
+                          onClick={() => {
+                            if (isPrimary) {
+                              const others = availSymbols.map(x => x.symbol as Symbol).filter(x => x !== s && !extraSymbols.includes(x));
+                              if (others.length > 0) setSymbol(others[0]);
+                            } else if (isExtra) {
+                              setExtraSymbols(prev => prev.filter(x => x !== s));
+                            } else {
+                              setExtraSymbols(prev => [...prev, s as Symbol]);
+                            }
+                          }}
+                          className={`text-[10px] px-2 py-1 rounded-full font-medium border transition-colors ${
+                            isPrimary ? "bg-green-700 border-green-500 text-white"
+                            : isExtra ? "bg-blue-800/80 border-blue-600 text-white"
+                            : "bg-[#141f18] border-[#243528] text-gray-500"}`}>
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* capital + leverage */}
