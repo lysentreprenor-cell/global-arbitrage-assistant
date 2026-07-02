@@ -217,6 +217,7 @@ export default function TradingBot() {
     SYMBOLS_FALLBACK.map(s => ({ symbol: s, name: s.replace("USDT", "") }))
   );
   const [monitorOpen, setMonitorOpen] = useState(false); // coin grid collapsed by default
+  const [presetsOpen, setPresetsOpen] = useState(false); // risk preset tiles collapsed by default
   const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
   const [customSL,   setCustomSL]   = useState<number>(saved.customSL ?? 0); // 0 = użyj presetu
@@ -1351,25 +1352,36 @@ export default function TradingBot() {
             )}
           </div>
 
-          {/* ── Risk presets ─────────────────────────────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Poziom Ryzyka</div>
-            <div className="grid grid-cols-2 gap-2">
-              {PRESETS.map(pr => (
-                <button key={pr.id} onClick={() => setPreset(pr.id)}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    preset === pr.id ? "border-green-500 bg-green-900/25" : "border-[#2a4a30] bg-[#111f16] hover:border-green-700/50"
-                  }`}>
-                  <div className="text-xl mb-1">{pr.icon}</div>
-                  <div className="text-sm font-semibold text-white">{pr.label}</div>
-                  <div className="text-xs text-gray-400 leading-tight">{pr.desc}</div>
-                  <div className={`text-xs mt-1 font-medium ${preset === pr.id ? "text-green-400" : "text-gray-600"}`}>{pr.freq}</div>
-                </button>
-              ))}
-            </div>
-            <div className="text-xs text-gray-600">
-              RSI [{p.rsiMin}–{p.rsiMax}] · ADX≥{p.adxMin} · SL {p.stopLoss}% · TP {p.takeProfit}% · Trail {p.trailPct}% · Cooldown {p.cooldownMin}min
-            </div>
+          {/* ── Risk presets — collapsible, compact tiles ───────────────── */}
+          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl overflow-hidden">
+            <button onClick={() => setPresetsOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Poziom Ryzyka</span>
+                <span className="text-xs font-semibold text-white bg-green-800/60 rounded px-1.5 py-0.5">{p.icon} {p.label}</span>
+                <span className="text-[10px] text-gray-500">{p.freq}</span>
+              </div>
+              <span className={`text-gray-500 text-xs transition-transform ${presetsOpen ? "rotate-180" : ""}`}>▼</span>
+            </button>
+            {presetsOpen && (
+              <div className="px-4 pb-3 space-y-2">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {PRESETS.map(pr => (
+                    <button key={pr.id} onClick={() => setPreset(pr.id)}
+                      className={`px-2.5 py-2 rounded-lg border text-left transition-all ${
+                        preset === pr.id ? "border-green-500 bg-green-900/25" : "border-[#2a4a30] bg-[#111f16] hover:border-green-700/50"
+                      }`}>
+                      <div className="text-xs font-semibold text-white">{pr.icon} {pr.label}</div>
+                      <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{pr.desc}</div>
+                      <div className={`text-[10px] font-medium ${preset === pr.id ? "text-green-400" : "text-gray-600"}`}>{pr.freq}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-gray-600">
+                  RSI [{p.rsiMin}–{p.rsiMax}] · ADX≥{p.adxMin} · SL {p.stopLoss}% · TP {p.takeProfit}% · Trail {p.trailPct}% · Cooldown {p.cooldownMin}min
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Seasonality / repeatability analysis ─────────────────────── */}
