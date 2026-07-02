@@ -35,6 +35,7 @@ type BotStatus = {
     nowPct: number | null; tilt: number; avgPct: number;
     bestHours: { hour: number; pct: number }[]; bestDays: { day: string; pct: number }[];
   } | null;
+  btcGuard?: { active: boolean; chg1h: number | null };
   paper?: {
     running: boolean; capital: number; pnl: number; wins: number; losses: number;
     maxPositions: number;
@@ -1288,6 +1289,14 @@ export default function TradingBot() {
                         <div className="text-gray-500 text-[10px]">VWAP 4h</div>
                         <div className="font-bold text-white">${ind.vwap > 0 ? ind.vwap.toFixed(0) : "—"}</div>
                       </div>
+                    </div>
+                  )}
+                  {/* BTC guard — gravity watch */}
+                  {botStatus?.btcGuard && botStatus.btcGuard.chg1h !== null && (
+                    <div className={`text-xs ${botStatus.btcGuard.active ? "text-red-400 font-semibold" : "text-gray-500"}`}>
+                      🛡️ Straż BTC: {botStatus.btcGuard.active
+                        ? `AKTYWNA — BTC ${botStatus.btcGuard.chg1h}%/1h, zakupy wstrzymane`
+                        : `czuwa (BTC ${botStatus.btcGuard.chg1h >= 0 ? "+" : ""}${botStatus.btcGuard.chg1h}%/1h)`}
                     </div>
                   )}
                   {/* Reversal map — measured flip frequencies, not fortune-telling */}

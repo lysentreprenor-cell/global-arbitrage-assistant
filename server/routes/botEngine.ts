@@ -1530,6 +1530,30 @@ async function loadReversalMap(): Promise<ReversalMap | null> {
   } catch { return _reversalMap; }
 }
 
+// ── BTC guard ("gravity watch") ───────────────────────────────────────────────
+// BTC leads the whole market: when BTC dumps, alts follow within minutes and fall
+// HARDER (beta > 1), then keep bleeding after BTC stops. So while BTC is down ≥2%
+// over the last hour, we pause ALL new entries (bot + paper) — the knives are
+// falling everywhere. Exits are never blocked.
+let _btcHist: { t: number; p: number }[] = [];
+let btcGuardActive = false;
+let btcChg1h: number | null = null;
+
+async function updateBtcGuard(): Promise<void> {
+  try {
+    const p = await fetchCurrentPrice("BTCUSDT", config?.krakenFiat ?? "USD");
+    if (!p) return;
+    const now = Date.now();
+    _btcHist.push({ t: now, p });
+    _btcHist = _btcHist.filter(x => now - x.t <= 75 * 60_000); // keep ~75 min
+    const cutoff = now - 60 * 60_000;
+    const ref = _btcHist.find(x => x.t <= cutoff) ?? _btcHist[0];
+    if (now - ref.t < 30 * 60_000) { btcGuardActive = false; btcChg1h = null; return; } // need ≥30 min of history
+    btcChg1h = (p - ref.p) / ref.p * 100;
+    btcGuardActive = btcChg1h <= -2.0;
+  } catch { /* keep last state on transient errors */ }
+}
+
 // Refresh the "now" tilt from the map — called each engine tick.
 async function updateReversalTilt(utcHour: number) {
   const m = await loadReversalMap();
@@ -1629,6 +1653,10 @@ async function paperTick() {
     const utcHour = new Date().getUTCHours();
     if (utcHour >= TREND.LOW_LIQ_START && utcHour < TREND.LOW_LIQ_END) return;
     if (paperCfg.humanRhythm && humanActivity(utcHour) < HUMAN_MIN_ACTIVITY) return;
+    // 🛡️ BTC guard — same gravity rule as the real bot (update ourselves in case
+    // the real engine is stopped and nobody else refreshes the measurement)
+    await updateBtcGuard().catch(() => {});
+    if (btcGuardActive) return;
     const cooldownMs = (paperCfg.cooldownMin ?? 20) * 60_000;
     if (Date.now() - paperLastEntry <= cooldownMs) return;
 
@@ -1802,6 +1830,8 @@ async function engineTick() {
     const lowLiqHour = utcHour >= TREND.LOW_LIQ_START && utcHour < TREND.LOW_LIQ_END;
     // Reversal map — refresh the soft BB-threshold tilt for this hour (cached 12h)
     await updateReversalTilt(utcHour).catch(() => {});
+    // BTC guard — measure BTC's 1h change (gravity source for all alts)
+    await updateBtcGuard().catch(() => {});
     // Daily loss tracking
     const todayStr = new Date().toISOString().slice(0, 10);
     if (dailyDate !== todayStr) { dailyDate = todayStr; dailyStartPnl = sessionPnl; }
@@ -1855,7 +1885,8 @@ async function engineTick() {
     const stackLog = `1m${arrow(trendStack[1] ?? "neutral")}5m${arrow(trendStack[5] ?? "neutral")}15m${arrow(trendStack[15] ?? "neutral")}30m${arrow(trendStack[30] ?? "neutral")}1h${arrow(trendStack[60] ?? "neutral")}4h${arrow(trendStack[240] ?? "neutral")}`;
     const humanTag = config.humanRhythm ? ` 👁️${humanActivityLabel(humanActivity(utcHour))}(${(humanActivity(utcHour) * 100).toFixed(0)}%)` : "";
     const revTag = reversalNowPct !== null ? ` 🔄${reversalNowPct}%${reversalTiltNow > 0 ? "↑" : reversalTiltNow < 0 ? "↓" : ""}` : "";
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})${humanTag}${revTag}`);
+    const guardTag = btcGuardActive ? ` 🛡️BTC${btcChg1h!.toFixed(1)}%` : "";
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})${humanTag}${revTag}${guardTag}`);
     prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
     // ── Open position management ─────────────────────────────────────────────
@@ -1901,6 +1932,11 @@ async function engineTick() {
         addLog(`😴 Ludzie śpią (UTC ${utcHour}:xx, aktywność ${(act * 100).toFixed(0)}%) — bot odpoczywa z nimi`, "info");
         return;
       }
+    }
+    // ── 🛡️ BTC guard — while BTC is dumping, EVERYTHING falls harder; no new buys ──
+    if (btcGuardActive) {
+      addLog(`🛡️ Straż BTC: ${btcChg1h!.toFixed(1)}% w 1h — grawitacja w dół, wstrzymuję nowe zakupy (wyjścia działają normalnie)`, "info");
+      return;
     }
     // (🧠 learn-&-adapt gate is applied per-entry below, with EACH coin's own BB%B —
     //  a global gate here would judge alt entries by the primary symbol's context.)
@@ -2570,6 +2606,8 @@ router.get("/status", (_req, res) => {
         .filter(Boolean).sort((a: any, b: any) => b.pct - a.pct).slice(0, 3);
       return { nowPct: reversalNowPct, tilt: reversalTiltNow, avgPct: Math.round(m.avgHour * 100), bestHours: hours, bestDays: days };
     })(),
+    // BTC guard — gravity watch (pauses new buys while BTC dumps ≥2%/1h)
+    btcGuard: { active: btcGuardActive, chg1h: btcChg1h !== null ? parseFloat(btcChg1h.toFixed(2)) : null },
     // Parallel paper engine (independent from the real bot above)
     paper: {
       running: paperRunning,
