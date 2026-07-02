@@ -705,7 +705,7 @@ export default function TradingBot() {
           </button>
           <button onClick={() => setTab("advanced")}
             className={`flex-1 py-2.5 text-xs font-semibold transition-colors flex items-center justify-center gap-1 ${tab === "advanced" ? "bg-green-900/40 text-green-400" : "text-gray-500 hover:text-gray-300"}`}>
-            <span>Zaawansowane</span>
+            <span>📜 Nauka z historii</span>
             {activeFilters > 0 && (
               <span className="bg-purple-600 text-white text-[9px] rounded-full px-1.5 py-0.5 font-bold">{activeFilters}</span>
             )}
@@ -1307,7 +1307,7 @@ export default function TradingBot() {
 
             {activeFilters > 0 && (
               <div className="text-xs text-purple-400">
-                {activeFilters} filtrów aktywnych — <button onClick={() => setTab("advanced")} className="underline">Zaawansowane</button>
+                {activeFilters} filtrów do testów historycznych — <button onClick={() => setTab("advanced")} className="underline">📜 Nauka z historii</button>
               </div>
             )}
 
@@ -1395,6 +1395,16 @@ export default function TradingBot() {
                 </div>
               </div>
             )}
+          </div>
+
+        </>)}
+
+        {/* ════════════ 📜 NAUKA Z HISTORII — analizy przeszłości ════════════ */}
+        {tab === "advanced" && (<>
+
+          <div className="text-[11px] text-gray-500 px-1">
+            📜 Wszystko tutaj działa na DANYCH HISTORYCZNYCH — nie dotyka żywego bota ani symulacji na żywo.
+            To laboratorium: testuj pomysły za darmo, zanim trafią na ring.
           </div>
 
           {/* ── Seasonality / repeatability analysis ─────────────────────── */}
@@ -1671,6 +1681,11 @@ export default function TradingBot() {
             )}
           </div>
 
+        </>)}
+
+        {/* ════════════ PODSTAWOWE cd. — logi i historia na żywo ════════════ */}
+        {tab === "main" && (<>
+
           {/* ── Activity Log ─────────────────────────────────────────────── */}
           <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
@@ -1837,7 +1852,7 @@ export default function TradingBot() {
           </div>
 
           {/* ── Run sim with current filters ─────────────────────────────── */}
-          <button onClick={() => { setTab("main"); runSim(); }} disabled={simRunning}
+          <button onClick={() => runSim()} disabled={simRunning}
             className="w-full flex items-center justify-center gap-2 bg-green-800/40 hover:bg-green-800/60 border border-green-600/60 text-green-300 py-3 rounded-lg text-sm font-semibold disabled:opacity-50">
             <FlaskConical className="w-4 h-4" />
             {simRunning ? "Symulacja…" : `🔬 Symuluj z ${activeFilters} filtrami`}
