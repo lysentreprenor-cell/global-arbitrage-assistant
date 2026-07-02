@@ -827,6 +827,13 @@ async function closePosition(reason: string, pos: Position): Promise<boolean> {
         } catch { /* fall back to recorded qty */ }
       }
       if (volume <= 0) { addLog(`ℹ️ ${closeSym}: brak salda do sprzedania — uznaję za zamknięte`, "info"); return true; }
+      // Remainder below Kraken's minimum order size = unsellable dust. Retrying only
+      // spams "volume minimum not met" — drop tracking and move on.
+      const specMin = getKrakenSpec(closeSym).min;
+      if (effLev <= 1 && closeSide === "sell" && volume < specMin) {
+        addLog(`ℹ️ ${closeSym}: resztka ${volume} poniżej minimum zlecenia (${specMin}) — kurz, uznaję za zamknięte`, "info");
+        return true;
+      }
       const closeParams: Record<string, string> = {
         pair, type: closeSide, ordertype: "market", volume: String(volume),
       };
