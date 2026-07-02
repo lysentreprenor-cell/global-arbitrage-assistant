@@ -79,6 +79,7 @@ type BotConfig = {
   paperMode?: boolean;    // live paper trading — real prices, virtual money, no real orders
   humanRhythm?: boolean;  // "watch the people" — trade when humans are active, rest when they sleep
   learnAdapt?: boolean;   // ACT on the learning journal — skip conditions with proven negative E
+  bbMax?: number;         // BB%B entry threshold for longs (default 40; 25 = deep-dip only) — sim/paper for now
   apiKey: string; secret: string; testnet: boolean;
   platform: Platform;
   krakenFiat?: KrakenFiat; // auto-detected from balance: EUR or USD
@@ -1431,8 +1432,11 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
 
     const effLev = Math.max(1, cfg.leverage ?? 1);
     const spotOnly = cfg.platform === "kraken" && effLev <= 1;
-    const isLong  = bbPercB < 40 && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
-    const isShort = cfg.allowShorts && !spotOnly && bbPercB > 60 && price > vwap && topConfirmed;
+    // Entry depth: cfg.bbMax lets the paper engine demand DEEPER dips (e.g. 25)
+    // while the real bot (no bbMax set) keeps the default 40 — A/B experiment.
+    const bbEntry = cfg.bbMax ?? 40;
+    const isLong  = bbPercB < bbEntry && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
+    const isShort = cfg.allowShorts && !spotOnly && bbPercB > (100 - bbEntry) && price > vwap && topConfirmed;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
 
     const effSL    = Math.max(cfg.stopLoss,   atrPct * 1.5);
@@ -2253,6 +2257,7 @@ router.post("/paper/start", (req, res) => {
     volMultMin: b.volMultMin ?? 1.0, cooldownMin: b.cooldownMin ?? 30,
     maxHoldMin: b.maxHoldMin ?? 0, minVolume: b.minVolume ?? 0,
     maxPositions: Math.max(1, Math.min(5, Number(b.maxPositions) || 5)),
+    bbMax: Math.max(10, Math.min(40, Number(b.bbMax) || 40)), // sim-only entry depth (25 = master's deep dips)
     paperMode: true, humanRhythm: b.humanRhythm === true, learnAdapt: b.learnAdapt === true,
     apiKey: "", secret: "", testnet: false, platform: "kraken",
   };
@@ -2261,7 +2266,7 @@ router.post("/paper/start", (req, res) => {
   paperPnl = 0; paperWins = 0; paperLosses = 0;
   paperLastEntry = 0; paperScanCursor = 0;
   savePaper();
-  addLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji — działa RÓWNOLEGLE z botem`, "info");
+  addLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax} — działa RÓWNOLEGLE z botem`, "info");
   startPaperIntervals();
   res.json({ ok: true });
 });
@@ -2554,6 +2559,7 @@ router.post("/backtest", async (req, res) => {
       rsiMin, rsiMax, adxMin, confluenceMin, volMultMin, cooldownMin,
       stopLoss, takeProfit, trailPct, leverage, allowShorts,
       filters, baseMin: interval,
+      bbMax: Math.max(10, Math.min(40, Number(req.body?.bbMax) || 40)),
     });
 
     res.json({

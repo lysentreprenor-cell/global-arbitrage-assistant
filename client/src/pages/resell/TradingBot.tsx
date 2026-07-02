@@ -223,6 +223,7 @@ export default function TradingBot() {
   const [humanRhythm, setHumanRhythm] = useState<boolean>(saved.humanRhythm ?? false);
   const [learnAdapt, setLearnAdapt] = useState<boolean>(saved.learnAdapt ?? false);
   const [paperCapital, setPaperCapital] = useState<number>(saved.paperCapital ?? 100);
+  const [bbMax, setBbMax] = useState<number>(saved.bbMax ?? 25); // głębokość dołka — na razie tylko symulator
   const [simDays,    setSimDays]    = useState<number>(saved.simDays ?? 3); // okno symulacji w dniach
 
   const [price,    setPrice]    = useState(0);
@@ -278,9 +279,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital, bbMax })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital, bbMax]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -448,7 +449,7 @@ export default function TradingBot() {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
-        capital: amt, riskPct, maxHoldMin, minVolume, maxPositions, humanRhythm, learnAdapt,
+        capital: amt, riskPct, maxHoldMin, minVolume, maxPositions, humanRhythm, learnAdapt, bbMax,
         rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
         confluenceMin: p.confluenceMin, volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
         stopLoss: customSL > 0 ? customSL : p.stopLoss,
@@ -466,7 +467,7 @@ export default function TradingBot() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, leverage, allowShorts, days: simDays,
+          symbol, leverage, allowShorts, days: simDays, bbMax,
           rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
           confluenceMin: p.confluenceMin, volMultMin: p.volMultMin,
           cooldownMin: p.cooldownMin, stopLoss: p.stopLoss,
@@ -733,13 +734,36 @@ export default function TradingBot() {
             {botStatus?.paper?.running
               ? <div className="text-xs text-gray-500">działa równolegle z botem — zero ryzyka</div>
               : (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Wirtualny kapitał ($)</span>
-                  <input type="number" min={1} value={paperCapital}
-                    onChange={e => setPaperCapital(Number(e.target.value))}
-                    className="w-24 bg-[#1a2e1f] border border-blue-800/60 rounded-lg px-2 py-1 text-white text-sm" />
-                  <span className="text-[10px] text-gray-600">← ustaw i włącz suwakiem</span>
-                </div>
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Wirtualny kapitał ($)</span>
+                    <input type="number" min={1} value={paperCapital}
+                      onChange={e => setPaperCapital(Number(e.target.value))}
+                      className="w-24 bg-[#1a2e1f] border border-blue-800/60 rounded-lg px-2 py-1 text-white text-sm" />
+                    <span className="text-[10px] text-gray-600">← ustaw i włącz suwakiem</span>
+                  </div>
+                  {/* entry depth — SIMULATOR ONLY for now (real bot stays at 40) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-400">Głębokość dołka (BB%B) — tylko symulator</span>
+                      <span className="text-xs text-blue-300">&lt; {bbMax}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {[
+                        { v: 40, l: "40 luźny (jak bot)" }, { v: 30, l: "30 średni" },
+                        { v: 25, l: "25 🥋 mistrz" }, { v: 15, l: "15 ekstremalny" },
+                      ].map(({ v, l }) => (
+                        <button key={v} onClick={() => setBbMax(v)}
+                          className={`flex-1 text-[10px] py-1.5 rounded font-medium ${bbMax === v ? "bg-blue-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-gray-600 mt-0.5">
+                      Niżej = kupuje tylko GŁĘBOKIE wyprzedania. Bot zostaje na 40 — porównamy po tygodniu.
+                    </div>
+                  </div>
+                </>
               )}
 
             {/* paper engine live panel */}

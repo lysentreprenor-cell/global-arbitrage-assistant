@@ -10,6 +10,7 @@ export type SimParams = {
   volMultMin: number; cooldownMin: number; stopLoss: number; takeProfit: number;
   trailPct: number; leverage: number; allowShorts: boolean;
   baseMin?: number; // base candle interval in minutes (default 5); enables longer windows at 1h
+  bbMax?: number;   // BB%B entry threshold for longs (default 40; 25 = deep-dip only)
   filters?: {
     stochRsi80?: boolean;  bbPercB80?: boolean;  bodyQuality?: boolean;
     emaSlope?: boolean;    candleConfirm?: boolean; adxRising?: boolean;
@@ -207,8 +208,9 @@ export function simulate(raw: any[], raw4: any[], p: SimParams): SimResult {
     const lo = Math.min(...recent5), hi = Math.max(...recent5);
     const bottomConfirmed = recent5.indexOf(lo) < recent5.length - 1 && curClose > lo; // dip already formed
     const topConfirmed    = recent5.indexOf(hi) < recent5.length - 1 && curClose < hi; // peak already formed
-    const isLong  = bbPercB < 40 && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
-    const isShort = allowShorts && bbPercB > 60 && aboveVwap && topConfirmed;
+    const bbEntry = p.bbMax ?? 40;
+    const isLong  = bbPercB < bbEntry && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
+    const isShort = allowShorts && bbPercB > (100 - bbEntry) && aboveVwap && topConfirmed;
     const sig = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
     if (!isLong && !isShort) continue;
 
