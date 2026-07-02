@@ -1441,7 +1441,8 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
     const spotOnly = cfg.platform === "kraken" && effLev <= 1;
     // Entry depth: cfg.bbMax lets the paper engine demand DEEPER dips (e.g. 25)
     // while the real bot (no bbMax set) keeps the default 40 — A/B experiment.
-    const bbEntry = cfg.bbMax ?? 40;
+    // Both get the reversal-map tilt (±5) — statistically hot/cold reversal hours.
+    const bbEntry = Math.max(10, Math.min(45, (cfg.bbMax ?? 40) + reversalTiltNow));
     const isLong  = bbPercB < bbEntry && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
     const isShort = cfg.allowShorts && !spotOnly && bbPercB > (100 - bbEntry) && price > vwap && topConfirmed;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
@@ -1479,6 +1480,65 @@ function humanActivityLabel(w: number): string {
   return w >= 0.85 ? "🔥 szczyt" : w >= 0.6 ? "💼 praca" : w >= 0.4 ? "🌆 luz" : "😴 śpi";
 }
 const HUMAN_MIN_ACTIVITY = 0.40; // below this = world asleep → skip entries in human-rhythm mode
+
+// ── Reversal map (honest version of "when do dips turn into rises") ──────────
+// From REAL history we measure, per UTC hour and per weekday, how often a decline
+// flipped into a rise. No fortune-telling — just measured frequencies. The bot uses
+// it as a SOFT tilt: in statistically reversal-prone hours the BB%B entry threshold
+// loosens a little (+5), in reversal-poor hours it tightens (-5). Never a hard gate.
+type ReversalMap = {
+  byHour: (number | null)[];   // P(flip down→up) per UTC hour, from 30d of 1h candles
+  byDay: (number | null)[];    // P(down-day → up-day) per weekday, from ~2y of daily candles
+  avgHour: number;             // mean hourly flip rate (baseline)
+  at: number;                  // cache timestamp
+};
+let _reversalMap: ReversalMap | null = null;
+let reversalNowPct: number | null = null; // set each tick for logs/status
+let reversalTiltNow = 0;                  // -5 / 0 / +5 applied to BB entry threshold
+
+async function loadReversalMap(): Promise<ReversalMap | null> {
+  if (_reversalMap && Date.now() - _reversalMap.at < 12 * 3600_000) return _reversalMap;
+  try {
+    const pair = krakenPair(config?.symbol ?? "BTCUSDT"); // market proxy
+    // Hourly: flip = previous 3h net down AND next 3h net up, bucketed by hour
+    const hRaw = (await krakenOhlcFetch(pair, 60, Math.floor(Date.now() / 1000) - 30 * 24 * 3600)) ?? [];
+    const hc = hRaw.map((c: any) => parseFloat(c[4]));
+    const flips: number[] = Array(24).fill(0), opps: number[] = Array(24).fill(0);
+    for (let i = 3; i < hc.length - 3; i++) {
+      const prevDown = hc[i] < hc[i - 3];
+      if (!prevDown) continue;
+      const h = new Date(hRaw[i][0] * 1000).getUTCHours();
+      opps[h]++;
+      if (hc[i + 3] > hc[i]) flips[h]++;
+    }
+    const byHour = opps.map((n, h) => n >= 8 ? flips[h] / n : null);
+    // Daily: flip = down day followed by up day, bucketed by weekday
+    const dRaw = (await krakenOhlcFetch(pair, 1440, Math.floor(Date.now() / 1000) - 720 * 24 * 3600)) ?? [];
+    const dFlips: number[] = Array(7).fill(0), dOpps: number[] = Array(7).fill(0);
+    for (let i = 1; i < dRaw.length - 1; i++) {
+      const down = parseFloat(dRaw[i][4]) < parseFloat(dRaw[i][1]);
+      if (!down) continue;
+      const dow = new Date(dRaw[i + 1][0] * 1000).getUTCDay(); // weekday of the POTENTIAL flip day
+      dOpps[dow]++;
+      if (parseFloat(dRaw[i + 1][4]) > parseFloat(dRaw[i + 1][1])) dFlips[dow]++;
+    }
+    const byDay = dOpps.map((n, d) => n >= 10 ? dFlips[d] / n : null);
+    const hourVals = byHour.filter((v): v is number => v !== null);
+    const avgHour = hourVals.length ? hourVals.reduce((s, v) => s + v, 0) / hourVals.length : 0.5;
+    _reversalMap = { byHour, byDay, avgHour, at: Date.now() };
+    return _reversalMap;
+  } catch { return _reversalMap; }
+}
+
+// Refresh the "now" tilt from the map — called each engine tick.
+async function updateReversalTilt(utcHour: number) {
+  const m = await loadReversalMap();
+  if (!m) { reversalNowPct = null; reversalTiltNow = 0; return; }
+  const now = m.byHour[utcHour];
+  reversalNowPct = now !== null ? Math.round(now * 100) : null;
+  if (now === null) { reversalTiltNow = 0; return; }
+  reversalTiltNow = now >= m.avgHour + 0.10 ? 5 : now <= m.avgHour - 0.10 ? -5 : 0;
+}
 
 // Learned expectancy for a given context (human band + BB band), from the journal.
 // Returns null if too few samples to trust. Used by "learn & adapt" mode to skip
@@ -1740,6 +1800,8 @@ async function engineTick() {
     const warmedUp = tickCount > 3;
     const utcHour = new Date().getUTCHours();
     const lowLiqHour = utcHour >= TREND.LOW_LIQ_START && utcHour < TREND.LOW_LIQ_END;
+    // Reversal map — refresh the soft BB-threshold tilt for this hour (cached 12h)
+    await updateReversalTilt(utcHour).catch(() => {});
     // Daily loss tracking
     const todayStr = new Date().toISOString().slice(0, 10);
     if (dailyDate !== todayStr) { dailyDate = todayStr; dailyStartPnl = sessionPnl; }
@@ -1792,7 +1854,8 @@ async function engineTick() {
     const arrow = (t: "bull" | "bear" | "neutral") => t === "bull" ? "↑" : t === "bear" ? "↓" : "=";
     const stackLog = `1m${arrow(trendStack[1] ?? "neutral")}5m${arrow(trendStack[5] ?? "neutral")}15m${arrow(trendStack[15] ?? "neutral")}30m${arrow(trendStack[30] ?? "neutral")}1h${arrow(trendStack[60] ?? "neutral")}4h${arrow(trendStack[240] ?? "neutral")}`;
     const humanTag = config.humanRhythm ? ` 👁️${humanActivityLabel(humanActivity(utcHour))}(${(humanActivity(utcHour) * 100).toFixed(0)}%)` : "";
-    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})${humanTag}`);
+    const revTag = reversalNowPct !== null ? ` 🔄${reversalNowPct}%${reversalTiltNow > 0 ? "↑" : reversalTiltNow < 0 ? "↓" : ""}` : "";
+    addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})${humanTag}${revTag}`);
     prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
     // ── Open position management ─────────────────────────────────────────────
@@ -1864,8 +1927,11 @@ async function engineTick() {
     const hiBehind = recent5.indexOf(hi) < recent5.length - 1;  // the peak already formed
     const bottomConfirmed = loBehind && lastClose > lo;  // turned UP off a past low
     const topConfirmed    = hiBehind && lastClose < hi;  // turned DOWN off a past high
-    const isLong  = primaryFree && primaryLiquid && bbPercB < 40 && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
-    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > 60 && aboveVwap && topConfirmed;
+    // Reversal-map tilt: loosen the entry threshold a bit in hours where declines
+    // HISTORICALLY flipped to rises more often, tighten where they didn't.
+    const bbEntryLive = Math.max(10, Math.min(45, 40 + reversalTiltNow));
+    const isLong  = primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
+    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > (100 - bbEntryLive) && aboveVwap && topConfirmed;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -2493,6 +2559,17 @@ router.get("/status", (_req, res) => {
     paperMode: config?.paperMode ?? false,
     humanRhythm: config?.humanRhythm ?? false,
     learnAdapt: config?.learnAdapt ?? false,
+    // Reversal map — honest "when do declines flip to rises" frequencies
+    reversal: (() => {
+      const m = _reversalMap;
+      if (!m) return null;
+      const dayNames = ["Niedz", "Pon", "Wt", "Śr", "Czw", "Pt", "Sob"];
+      const hours = m.byHour.map((v, h) => v !== null ? { hour: h, pct: Math.round(v * 100) } : null)
+        .filter(Boolean).sort((a: any, b: any) => b.pct - a.pct).slice(0, 3);
+      const days = m.byDay.map((v, d) => v !== null ? { day: dayNames[d], pct: Math.round(v * 100) } : null)
+        .filter(Boolean).sort((a: any, b: any) => b.pct - a.pct).slice(0, 3);
+      return { nowPct: reversalNowPct, tilt: reversalTiltNow, avgPct: Math.round(m.avgHour * 100), bestHours: hours, bestDays: days };
+    })(),
     // Parallel paper engine (independent from the real bot above)
     paper: {
       running: paperRunning,

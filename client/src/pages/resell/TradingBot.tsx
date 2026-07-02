@@ -31,6 +31,10 @@ type BotStatus = {
   }[];
   maxPositions?: number;
   paperMode?: boolean;
+  reversal?: {
+    nowPct: number | null; tilt: number; avgPct: number;
+    bestHours: { hour: number; pct: number }[]; bestDays: { day: string; pct: number }[];
+  } | null;
   paper?: {
     running: boolean; capital: number; pnl: number; wins: number; losses: number;
     maxPositions: number;
@@ -1283,6 +1287,31 @@ export default function TradingBot() {
                       <div className="bg-[#111f10] rounded p-1.5 text-center col-span-2">
                         <div className="text-gray-500 text-[10px]">VWAP 4h</div>
                         <div className="font-bold text-white">${ind.vwap > 0 ? ind.vwap.toFixed(0) : "—"}</div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Reversal map — measured flip frequencies, not fortune-telling */}
+                  {botStatus?.reversal && (
+                    <div className="bg-[#0a140d] border border-[#1e3a28] rounded p-2 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-500">🔄 SZANSA ZWROTU spadki→wzrosty (z historii)</span>
+                        {botStatus.reversal.nowPct !== null && (
+                          <span className={`text-xs font-bold ${
+                            botStatus.reversal.tilt > 0 ? "text-emerald-300" : botStatus.reversal.tilt < 0 ? "text-orange-400" : "text-gray-300"}`}>
+                            teraz {botStatus.reversal.nowPct}%
+                            {botStatus.reversal.tilt > 0 ? " 🔥" : botStatus.reversal.tilt < 0 ? " ❄️" : ""}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-gray-500">
+                        najlepsze godz (UTC): {botStatus.reversal.bestHours.map(h => `${h.hour}:00 (${h.pct}%)`).join(" · ")}
+                      </div>
+                      <div className="text-[10px] text-gray-500">
+                        najlepsze dni: {botStatus.reversal.bestDays.map(d => `${d.day} (${d.pct}%)`).join(" · ")}
+                        <span className="text-gray-600"> · średnia {botStatus.reversal.avgPct}%</span>
+                      </div>
+                      <div className="text-[9px] text-gray-600">
+                        🔥 = bot śmielszy (próg BB +5) · ❄️ = ostrożniejszy (−5) · to statystyka, nie wróżba
                       </div>
                     </div>
                   )}
