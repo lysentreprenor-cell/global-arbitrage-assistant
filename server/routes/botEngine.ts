@@ -778,7 +778,10 @@ async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{
       }
     } catch (e: any) {
       // QueryOrders failed but AddOrder succeeded — proceed with tick price as entry
-      addLog(`⚠️ Nie zweryfikowano wypełnienia: ${e.message}`, "warn");
+      const hint = /Permission denied/i.test(e.message ?? "")
+        ? " — dodaj na kluczu API uprawnienie „Zapytania o otwarte zlecenia i transakcje” (Query open orders & trades), wtedy bot pozna dokładną cenę kupna. Do tego czasu używam ceny z chwili sygnału (różnica ułamki %)."
+        : "";
+      addLog(`⚠️ Nie zweryfikowano wypełnienia: ${e.message}${hint}`, "warn");
     }
     return { txid, fillPrice };
   }
