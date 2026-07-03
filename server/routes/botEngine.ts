@@ -831,7 +831,7 @@ async function closePosition(reason: string, pos: Position): Promise<boolean> {
       // spams "volume minimum not met" — drop tracking and move on.
       const specMin = getKrakenSpec(closeSym).min;
       if (effLev <= 1 && closeSide === "sell" && volume < specMin) {
-        addLog(`ℹ️ ${closeSym}: resztka ${volume} poniżej minimum zlecenia (${specMin}) — kurz, uznaję za zamknięte`, "info");
+        addLog(`ℹ️ ${closeSym}: saldo ${volume} poniżej minimum zlecenia (${specMin}) — NIE DA SIĘ sprzedać przez API. Moneta ZOSTAJE w portfelu: sprzedaj ręcznie (Konwertuj) albo dokup ułamek do minimum. Przestaję śledzić.`, "warn");
         return true;
       }
       const closeParams: Record<string, string> = {
@@ -1466,7 +1466,10 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
     const slForSizing  = effSL / 100;
     const atrScale     = slForSizing > 0 ? Math.min(1, (cfg.stopLoss / 100) / slForSizing) : 1;
     const positionUsdt = cfg.capital * perPosFraction * atrScale * effLev;
-    const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
+    // Fee buffer over the exchange minimum — fee is taken in coin; buying exactly the
+    // minimum leaves a balance just under it = unsellable (see AKT lesson in engineTick).
+    const minBufS = Math.ceil(spec.min * 1.01 * Math.pow(10, spec.dec)) / Math.pow(10, spec.dec);
+    const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), minBufS);
 
     return { sym, bbPercB, isLong, isShort, score, price, atrPct, effSL, effTP, effTrail, qty, spec };
   } catch { return null; }
@@ -2083,7 +2086,11 @@ async function engineTick() {
     // ATR scaling: if actual SL is 2× the configured SL, halve the size
     const atrScale     = slForSizing > 0 ? Math.min(1, (config.stopLoss / 100) / slForSizing) : 1;
     const positionUsdt = baseRisk * atrScale * effLev;
-    const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), spec.min);
+    // Fee buffer: Kraken takes the fee IN THE COIN, so buying exactly spec.min leaves
+    // (min − fee) — below the minimum SELL size → unsellable position (AKT lesson).
+    // Buy at least min × 1.01 so the post-fee balance still clears the minimum.
+    const minBuf = Math.ceil(spec.min * 1.01 * Math.pow(10, spec.dec)) / Math.pow(10, spec.dec);
+    const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), minBuf);
     addLog(`📐 Rozmiar: ${(perPosFraction * 100).toFixed(0)}% (×1/${maxPos()}) × ATR-scale ${atrScale.toFixed(2)} = $${positionUsdt.toFixed(2)} → qty=${qty}`);
 
     // Balance check (skipped in paper mode — virtual balance always sufficient)
