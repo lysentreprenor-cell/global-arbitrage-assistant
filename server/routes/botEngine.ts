@@ -1468,7 +1468,7 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
     const positionUsdt = cfg.capital * perPosFraction * atrScale * effLev;
     // Fee buffer over the exchange minimum — fee is taken in coin; buying exactly the
     // minimum leaves a balance just under it = unsellable (see AKT lesson in engineTick).
-    const minBufS = Math.ceil(spec.min * 1.01 * Math.pow(10, spec.dec)) / Math.pow(10, spec.dec);
+    const minBufS = Math.ceil(spec.min * 1.02 * Math.pow(10, spec.dec)) / Math.pow(10, spec.dec);
     const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), minBufS);
 
     return { sym, bbPercB, isLong, isShort, score, price, atrPct, effSL, effTP, effTrail, qty, spec };
@@ -2088,8 +2088,8 @@ async function engineTick() {
     const positionUsdt = baseRisk * atrScale * effLev;
     // Fee buffer: Kraken takes the fee IN THE COIN, so buying exactly spec.min leaves
     // (min − fee) — below the minimum SELL size → unsellable position (AKT lesson).
-    // Buy at least min × 1.01 so the post-fee balance still clears the minimum.
-    const minBuf = Math.ceil(spec.min * 1.01 * Math.pow(10, spec.dec)) / Math.pow(10, spec.dec);
+    // Buy at least min × 1.02 so the post-fee balance still clears the minimum.
+    const minBuf = Math.ceil(spec.min * 1.02 * Math.pow(10, spec.dec)) / Math.pow(10, spec.dec);
     const qty = Math.max(parseFloat((positionUsdt / price).toFixed(spec.dec)), minBuf);
     addLog(`📐 Rozmiar: ${(perPosFraction * 100).toFixed(0)}% (×1/${maxPos()}) × ATR-scale ${atrScale.toFixed(2)} = $${positionUsdt.toFixed(2)} → qty=${qty}`);
 
