@@ -104,7 +104,7 @@ type Position = {
 };
 
 type LogEntry = { time: string; msg: string; type: "info" | "buy" | "sell" | "warn" };
-type TradeRecord = { dir: Direction; entry: number; exit: number; pnlUsdt: number; pnlPct: number; reason: string; signal: string; time: string; durationH: number };
+type TradeRecord = { symbol?: string; dir: Direction; entry: number; exit: number; pnlUsdt: number; pnlPct: number; reason: string; signal: string; time: string; durationH: number };
 
 // ── Global state ──────────────────────────────────────────────────────────────
 
@@ -1292,6 +1292,7 @@ function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: 
   const dd = sessionPeakPnl > sessionPnl ? sessionPeakPnl - sessionPnl : 0;
   if (dd > sessionMaxDrawdown) sessionMaxDrawdown = dd;
   tradeHistory = [...tradeHistory.slice(-49), {
+    symbol: pos.symbol ?? config?.symbol,
     dir: pos.direction, entry: pos.entryPrice, exit: exitPrice,
     pnlUsdt, pnlPct: parseFloat(pnlPct.toFixed(3)),
     reason, signal: pos.signal ?? "unknown",
@@ -1994,7 +1995,10 @@ async function engineTick() {
       // (e.g. all 650 Kraken coins) gets fully covered over several ticks without
       // flooding the API in one burst.
       // Exclude the primary symbol and any coin we already hold from the scan list.
-      const allAlts = (config.symbols ?? []).filter(s => s !== config!.symbol && !holdsSymbol(s));
+      // BTCUSDT is ALWAYS in the scan set — BTC leads the market, so the bot never
+      // loses sight of it even if the user unchecks it from the watch-list.
+      const allAlts = Array.from(new Set(["BTCUSDT", ...(config.symbols ?? [])]))
+        .filter(s => s !== config!.symbol && !holdsSymbol(s));
       if (allAlts.length > 0 && cooldownOk) {
         if (scanCursor >= allAlts.length) scanCursor = 0;
         const altSymbols = allAlts.slice(scanCursor, scanCursor + MAX_SCAN_PER_TICK);

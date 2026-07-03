@@ -61,7 +61,7 @@ type BotStatus = {
 };
 
 type TradeRecord = {
-  dir: Direction; entry: number; exit: number;
+  symbol?: string; dir: Direction; entry: number; exit: number;
   pnlUsdt?: number; pnlPct: number; reason: string;
   signal?: string; time: string; durationH?: number;
 };
@@ -1767,16 +1767,30 @@ export default function TradingBot() {
             <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-white">Historia transakcji ({tradeHistory.length})</span>
-                <button onClick={() => { localStorage.removeItem(TRADES_KEY); setTradeHistory([]); }}
-                  className="text-xs text-gray-700 hover:text-red-400">Wyczyść</button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const text = tradeHistory.slice().reverse().map(t =>
+                        `${fmtDate(t.time)}\t${(t.symbol ?? "").replace("USDT", "")}\t${t.dir.toUpperCase()}\t$${fmtP(t.entry)} → $${fmtP(t.exit)}\t${fmtPct(t.pnlPct)}${t.pnlUsdt != null ? `\t${t.pnlUsdt >= 0 ? "+" : ""}$${t.pnlUsdt.toFixed(2)}` : ""}\t${t.reason ?? ""}`
+                      ).join("\n");
+                      navigator.clipboard.writeText(text).then(() => alert(`Skopiowano ${tradeHistory.length} transakcji!`));
+                    }}
+                    className="text-xs text-green-500 hover:text-green-300 border border-green-800 rounded px-2 py-0.5"
+                  >
+                    📋 Kopiuj
+                  </button>
+                  <button onClick={() => { localStorage.removeItem(TRADES_KEY); setTradeHistory([]); }}
+                    className="text-xs text-gray-700 hover:text-red-400">Wyczyść</button>
+                </div>
               </div>
               <div className="space-y-0.5 max-h-64 overflow-y-auto">
                 {tradeHistory.slice().reverse().map((t, i) => (
-                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-[#1a2e1f]">
+                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-[#1a2e1f] select-text">
                     <span className="text-gray-500 font-mono">{fmtDate(t.time)}</span>
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${t.dir === "long" ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"}`}>
                       {t.dir.toUpperCase()}
                     </span>
+                    {t.symbol && <span className="text-gray-400 font-semibold">{t.symbol.replace("USDT", "")}</span>}
                     <span className="text-gray-300">${fmtP(t.entry)}</span>
                     <span className="text-gray-600">→</span>
                     <span className="text-gray-300">${fmtP(t.exit)}</span>
