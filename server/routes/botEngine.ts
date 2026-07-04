@@ -4,6 +4,7 @@
  * Uses Binance for market data, Bybit for order execution.
  */
 import express from "express";
+import { execSync } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
@@ -11,6 +12,18 @@ import { bybitFetch as proxyFetch } from "../proxyDispatcher";
 import { calcRsi, calcEma, calcMacd, calcAdx, calcAtr, calcVolumeMult, calcStochRsi, calcBBPercB, calcRoc, TREND, calc4HTrend, calcRegime, MTF_WEIGHTS, MTF_STRONG_BEAR, trendStackScore, trendStackLabel } from "../lib/indicators";
 import { simulate } from "../lib/strategySim";
 import { nextKrakenNonce, krakenSerialize } from "../lib/krakenNonce";
+
+// Code-version stamp, logged at start/resume so a stale build (restart without
+// `git pull` + `npm run build`) is immediately visible in the logs.
+// BUILD_STAMP is baked in by script/build.ts at build time (truth for dist/);
+// the live-git fallback covers dev mode, where source == running code.
+let CODE_VERSION = process.env.BUILD_STAMP || "nieznana";
+if (!process.env.BUILD_STAMP) {
+  try {
+    CODE_VERSION = execSync('git log -1 --format="%h z %cd" --date=format-local:"%d.%m %H:%M"', { timeout: 3000 })
+      .toString().trim().replace(/"/g, "");
+  } catch { /* no git — keep fallback */ }
+}
 
 const router = express.Router();
 const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
@@ -206,7 +219,7 @@ function loadState() {
       ownMargin = Array.isArray(s.ownMargin) ? s.ownMargin : [];
       running = true;
       saveState();
-      addLog(`Auto-resume po restarcie${positions.length ? ` — przywrócono ${positions.length} pozycji` : ""}`, "info");
+      addLog(`Auto-resume po restarcie${positions.length ? ` — przywrócono ${positions.length} pozycji` : ""} | 🧬 kod: ${CODE_VERSION}`, "info");
       // Reconcile restored positions against the exchange — drop phantoms — then adopt
       // any other coins the account holds (up to maxPositions) from the real balance.
       // On spot (1x) also auto-close any leftover margin positions (orphan shorts that
@@ -2537,7 +2550,7 @@ router.post("/start", (req, res) => {
     ? `Kraken (${krakenLev > 1 ? `margin ${krakenLev}x` : "spot"} ${config.krakenFiat ?? "USD"})`
     : config.platform === "eu" ? "Bybit EU (spot margin)" : "Bybit Global (linear)";
   const capitalLabel = config.platform === "kraken" ? (config.krakenFiat ?? "USD") : "USDT";
-  addLog(`Bot started — ${config.paperMode ? "📝 SYMULACJA NA ŻYWO (wirtualne $)" : platformLabel} ${config.symbol} capital=${config.capital} ${capitalLabel} | TP=${config.takeProfit}% SL=${config.stopLoss}%`, "info");
+  addLog(`Bot started — ${config.paperMode ? "📝 SYMULACJA NA ŻYWO (wirtualne $)" : platformLabel} ${config.symbol} capital=${config.capital} ${capitalLabel} | TP=${config.takeProfit}% SL=${config.stopLoss}% | 🧬 kod: ${CODE_VERSION}`, "info");
   saveState();
 
   // If the account already holds the traded coin (e.g. a spot LONG from a previous
