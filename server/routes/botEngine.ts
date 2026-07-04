@@ -1454,8 +1454,12 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
     // while the real bot (no bbMax set) keeps the default 40 — A/B experiment.
     // Both get the reversal-map tilt (±5) — statistically hot/cold reversal hours.
     const bbEntry = Math.max(10, Math.min(45, (cfg.bbMax ?? 40) + reversalTiltNow));
-    const isLong  = bbPercB < bbEntry && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
-    const isShort = cfg.allowShorts && !spotOnly && bbPercB > (100 - bbEntry) && price > vwap && topConfirmed;
+    // Dead-coin filter: with ATR < 0.10%/candle the price can't plausibly reach TP
+    // (or even SL) within the max-hold window — the position just sits flat and
+    // bleeds the 0.52% round-trip fee at the time-limit exit (ADI lesson).
+    const alive   = atrPct >= 0.10;
+    const isLong  = alive && bbPercB < bbEntry && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
+    const isShort = alive && cfg.allowShorts && !spotOnly && bbPercB > (100 - bbEntry) && price > vwap && topConfirmed;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
 
     const effSL    = Math.max(cfg.stopLoss,   atrPct * 1.5);
