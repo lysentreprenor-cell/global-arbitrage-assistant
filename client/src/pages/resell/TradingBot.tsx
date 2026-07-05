@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Activity, FlaskConical, Zap } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { hasKrakenKeys, getKrakenKeys } from "@/lib/apiKeys";
+import { installPinFetch, getBotPin, setBotPin } from "@/lib/botPin";
+
+installPinFetch(); // every /api/bot call carries the PIN header from here on
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -228,6 +231,41 @@ export default function TradingBot() {
   const [paperHistOpen, setPaperHistOpen] = useState(false); // sim trade history collapsed by default
   const [paperLogsOpen, setPaperLogsOpen] = useState(false); // sim activity log collapsed by default
   const [paperCopied, setPaperCopied] = useState(false);     // transient "copied" feedback (popups are blocked in-app)
+  // PIN lock — server rejects bot routes with 401 until the right PIN is sent
+  const [pinLocked, setPinLocked] = useState(false);
+  const [pinIsSet, setPinIsSet] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinNewInput, setPinNewInput] = useState("");
+  const [pinOldInput, setPinOldInput] = useState("");
+  const [pinMsg, setPinMsg] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/bot/pin/status").then(r => r.json()).then(d => {
+      setPinIsSet(!!d.set);
+      if (d.set && !getBotPin()) setPinLocked(true);
+    }).catch(() => {});
+  }, []);
+  const unlockWithPin = async () => {
+    setBotPin(pinInput.trim());
+    const r = await fetch("/api/bot/status");
+    if (r.status === 401) { setPinMsg("⚠️ Zły PIN — spróbuj jeszcze raz"); return; }
+    setPinMsg(null); setPinInput(""); setPinLocked(false);
+    fetchStatus();
+  };
+  const savePin = async () => {
+    try {
+      const r = await fetch("/api/bot/pin/set", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinNewInput.trim(), oldPin: pinOldInput.trim() }),
+      });
+      const d = await r.json();
+      if (d.error) { setPinMsg("⚠️ " + d.error); return; }
+      setBotPin(pinNewInput.trim());
+      setPinIsSet(true); setPinNewInput(""); setPinOldInput("");
+      setPinMsg("✅ Kod ustawiony — aplikacja zamknięta na klucz");
+      setTimeout(() => setPinMsg(null), 4000);
+    } catch (e: any) { setPinMsg("⚠️ Błąd: " + e.message); }
+  };
+
   const [walletOpen, setWalletOpen] = useState(false);       // Kraken wallet snapshot panel
   const [wallet, setWallet] = useState<any>(null);
   const [walletBusy, setWalletBusy] = useState(false);
@@ -346,7 +384,9 @@ export default function TradingBot() {
   const fetchStatus = useCallback(async () => {
     try {
       const r = await fetch("/api/bot/status");
+      if (r.status === 401) { setPinLocked(true); return; }
       if (!r.ok) return;
+      setPinLocked(false);
       const s: BotStatus = await r.json();
       setBotStatus(s);
       // While the bot is RUNNING, the server config is the single source of truth
@@ -738,6 +778,32 @@ export default function TradingBot() {
   const activeFilters = (Object.values(indOpts) as boolean[]).filter(Boolean).length;
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  if (pinLocked) {
+    return (
+      <ResellLayout>
+        <div className="p-3 max-w-lg mx-auto pt-16">
+          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-6 space-y-4 text-center">
+            <div className="text-4xl">🔐</div>
+            <div className="text-white font-semibold">Aplikacja zamknięta kodem</div>
+            <div className="text-xs text-gray-500">Podaj PIN, żeby zobaczyć bota i portfel</div>
+            <input
+              type="password" inputMode="numeric" value={pinInput}
+              onChange={e => setPinInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") unlockWithPin(); }}
+              placeholder="PIN"
+              className="w-full bg-[#101d14] border border-[#1e3a28] rounded-lg px-3 py-2.5 text-white text-center text-lg tracking-widest"
+            />
+            <button onClick={unlockWithPin}
+              className="w-full py-2.5 rounded-lg bg-green-700 text-white font-semibold hover:bg-green-600">
+              Odblokuj
+            </button>
+            {pinMsg && <div className="text-xs text-red-400">{pinMsg}</div>}
+          </div>
+        </div>
+      </ResellLayout>
+    );
+  }
 
   return (
     <ResellLayout>
@@ -1203,6 +1269,33 @@ export default function TradingBot() {
                 {sweepResult}
               </div>
             )}
+
+            {/* PIN lock — set/change the app code */}
+            <div className="bg-[#0a140d] border border-[#1e3a28] rounded-lg p-3 space-y-2">
+              <div className="text-xs font-semibold text-gray-300">
+                🔐 Kod aplikacji {pinIsSet
+                  ? <span className="text-green-400 text-[10px] ml-1">✓ włączony</span>
+                  : <span className="text-amber-400 text-[10px] ml-1">wyłączony — każdy z linkiem ma dostęp</span>}
+              </div>
+              <div className="flex gap-2">
+                {pinIsSet && (
+                  <input type="password" inputMode="numeric" value={pinOldInput}
+                    onChange={e => setPinOldInput(e.target.value)} placeholder="obecny PIN"
+                    className="flex-1 bg-[#101d14] border border-[#1e3a28] rounded px-2 py-1.5 text-white text-xs" />
+                )}
+                <input type="password" inputMode="numeric" value={pinNewInput}
+                  onChange={e => setPinNewInput(e.target.value)} placeholder={pinIsSet ? "nowy PIN" : "PIN (min 4 znaki)"}
+                  className="flex-1 bg-[#101d14] border border-[#1e3a28] rounded px-2 py-1.5 text-white text-xs" />
+                <button onClick={savePin} disabled={pinNewInput.trim().length < 4}
+                  className="text-xs px-3 rounded bg-green-800/60 border border-green-700 text-green-200 disabled:opacity-40">
+                  {pinIsSet ? "Zmień" : "Ustaw"}
+                </button>
+              </div>
+              {pinMsg && <div className="text-[11px] text-gray-300">{pinMsg}</div>}
+              <div className="text-[10px] text-gray-600">
+                Po ustawieniu każde urządzenie musi podać PIN, żeby sterować botem. Zapamiętywany na telefonie — wpisujesz raz.
+              </div>
+            </div>
 
             {/* max hold time */}
             <div>

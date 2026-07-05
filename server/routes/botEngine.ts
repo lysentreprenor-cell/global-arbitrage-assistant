@@ -26,6 +26,48 @@ if (!process.env.BUILD_STAMP) {
 }
 
 const router = express.Router();
+
+// ── PIN lock ──────────────────────────────────────────────────────────────────
+// The workspace URL is technically reachable by anyone who knows it. Once a PIN
+// is set, EVERY /api/bot route (below this guard) requires the x-bot-pin header.
+// Only the salted hash is stored on disk; the PIN itself never leaves the browser.
+const PIN_FILE = path.resolve(process.cwd(), "data", "pin.json");
+function pinHash(pin: string): string {
+  return crypto.createHash("sha256").update("bot-pin-v1:" + pin).digest("hex");
+}
+function loadPinHash(): string | null {
+  try { return JSON.parse(fs.readFileSync(PIN_FILE, "utf8")).hash ?? null; } catch { return null; }
+}
+function pinOk(given: unknown, storedHash: string): boolean {
+  const a = Buffer.from(pinHash(String(given ?? "")), "hex");
+  const b = Buffer.from(storedHash, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Public: is a PIN configured? (the lock screen needs to know)
+router.get("/pin/status", (_req, res) => res.json({ set: !!loadPinHash() }));
+
+// Set/change the PIN — changing requires the current one, so this stays safe
+// to expose even though it sits above the guard.
+router.post("/pin/set", (req, res) => {
+  const { pin, oldPin } = req.body ?? {};
+  const cur = loadPinHash();
+  if (cur && !pinOk(oldPin, cur)) return res.status(403).json({ error: "Błędny obecny PIN" });
+  const clean = String(pin ?? "").trim();
+  if (clean.length < 4) return res.status(400).json({ error: "PIN musi mieć co najmniej 4 znaki" });
+  fs.mkdirSync(path.dirname(PIN_FILE), { recursive: true });
+  fs.writeFileSync(PIN_FILE, JSON.stringify({ hash: pinHash(clean) }), { mode: 0o600 });
+  res.json({ ok: true });
+});
+
+// Guard: everything registered AFTER this line requires the PIN (when one is set)
+router.use((req, res, next) => {
+  const cur = loadPinHash();
+  if (!cur) return next(); // no PIN configured — open, as before
+  if (pinOk(req.headers["x-bot-pin"], cur)) return next();
+  res.status(401).json({ error: "Wymagany PIN aplikacji" });
+});
+
 const STATE_FILE = path.resolve(process.cwd(), "bot_state.json");
 const KEY_FILE   = path.resolve(process.cwd(), ".bot_key");
 const KEYS_FILE  = path.resolve(process.cwd(), "api_keys.enc");

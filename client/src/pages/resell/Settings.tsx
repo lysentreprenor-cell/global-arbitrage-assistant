@@ -3,6 +3,9 @@ import { Settings as SettingsIcon, Key, Eye, EyeOff, Check, ExternalLink, Trash2
 import { loadEbayToken, saveEbayToken, clearEbayToken, isEbayConnected } from "@/lib/ebayAuth";
 import { saveEtsyToken, clearEtsyToken, isEtsyConnected } from "@/lib/etsyAuth";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { installPinFetch } from "@/lib/botPin";
+
+installPinFetch(); // /api/bot/keys wymaga PIN-u aplikacji, gdy jest ustawiony
 
 type ApiEntry = {
   id: string; name: string; logo: string; color: string;
