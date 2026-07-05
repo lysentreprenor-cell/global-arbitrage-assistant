@@ -410,6 +410,27 @@ export default function TradingBot() {
     } catch { /* ignore */ }
   };
 
+  const [sweepBusy, setSweepBusy] = useState(false);
+  const sweepDust = async () => {
+    if (!confirm("Wymieść kurz z portfela Krakena?\n\nBot sprzeda WSZYSTKIE monety, których sam nie prowadzi (resztki, airdropy, duchy sprzed poprawek). Monety poniżej minimum uwolni manewrem dokupka→sprzedaż (koszt: grosze opłat). Aktywne pozycje bota i staking są bezpieczne.")) return;
+    setSweepBusy(true);
+    try {
+      const r = await fetch("/api/bot/sweep-dust", { method: "POST" });
+      const d = await r.json();
+      if (d.error) alert("Nie udało się wymieść kurzu:\n" + d.error);
+      else alert(d.swept.length === 0
+        ? "Portfel czysty — nie znaleziono kurzu do sprzedania ✅"
+        : `🧹 Uwolniono ~${d.freed} ${d.fiat} z ${d.swept.length} monet:\n` +
+          d.swept.map((s: any) => `• ${s.coin}: ${s.value} (${s.mode})`).join("\n") +
+          (d.skipped.length ? `\n\nPominięto ${d.skipped.length}: ` + d.skipped.map((s: any) => s.coin).join(", ") : ""));
+      await fetchStatus();
+    } catch (e: any) {
+      alert("Błąd: " + e.message);
+    } finally {
+      setSweepBusy(false);
+    }
+  };
+
   const [learning, setLearning] = useState<any>(null);
   const [learnBusy, setLearnBusy] = useState(false);
   const runLearning = async () => {
@@ -1055,6 +1076,13 @@ export default function TradingBot() {
               className="w-full text-xs py-2 rounded-lg bg-red-900/30 border border-red-700/50 text-red-300 hover:bg-red-900/50 disabled:opacity-50">
               {marginBusy ? "Zamykam pozycje margin…" : "🧹 Zamknij sieroty margin (shorty + rollover)"}
             </button>
+
+            {/* sweep wallet dust — sell every coin the bot doesn't manage */}
+            <button onClick={sweepDust} disabled={sweepBusy || !running}
+              className="w-full text-xs py-2 rounded-lg bg-amber-900/30 border border-amber-700/50 text-amber-300 hover:bg-amber-900/50 disabled:opacity-50">
+              {sweepBusy ? "Wymiatam kurz…" : "🧹 Wymieć kurz z portfela (sprzedaj resztki → gotówka dla bota)"}
+            </button>
+            {!running && <div className="text-[10px] text-gray-600 -mt-2">Wymiatanie wymaga włączonego bota (używa jego kluczy API)</div>}
 
             {/* max hold time */}
             <div>

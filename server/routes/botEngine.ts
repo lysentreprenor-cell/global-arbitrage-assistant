@@ -2458,6 +2458,75 @@ router.post("/paper/stop", (_req, res) => {
   res.json({ ok: true, pnl: paperPnl, wins: paperWins, losses: paperLosses });
 });
 
+// POST /api/bot/sweep-dust — "wymieć kurz": sell every held coin that is NOT an
+// active bot position. Above the exchange minimum → direct market sell. Below it
+// → the AKT manoeuvre: buy the minimum (with buffer) first, then sell everything.
+// Staked balances are safe (they live under separate balance keys like SOL.S).
+let sweepBusy = false;
+router.post("/sweep-dust", async (_req, res) => {
+  if (!config || config.platform !== "kraken" || config.paperMode || !config.apiKey) {
+    return res.status(400).json({ error: "Uruchom bota w trybie realnym (Kraken), żeby wymieść kurz" });
+  }
+  if (sweepBusy) return res.status(409).json({ error: "Wymiatanie już trwa" });
+  sweepBusy = true;
+  try {
+    const MAX_TOPUP = 6;    // max fiat spent on a top-up buy to free one dust balance
+    const MIN_DUST  = 0.20; // below this the fees outweigh the recovery — leave it
+    const fiat = config.krakenFiat ?? "USD";
+    const symbols = await loadKrakenSymbols();
+    const bal = await krakenPrivate("/0/private/Balance") as Record<string, string>;
+    const swept: { coin: string; value: number; mode: string }[] = [];
+    const skipped: { coin: string; why: string }[] = [];
+    addLog(`🧹 Wymiatanie kurzu — przeglądam portfel…`, "info");
+
+    for (const info of symbols) {
+      const raw = parseFloat(bal[info.balanceKey] ?? "0");
+      if (raw <= 0) continue;
+      if (holdsSymbol(info.symbol) || ownedEntries[info.symbol]) continue; // bot's coin — not dust
+      const price = await fetchCurrentPrice(info.symbol, fiat);
+      if (!price) { skipped.push({ coin: info.name, why: "brak ceny" }); continue; }
+      const value = raw * price;
+      if (value < MIN_DUST) { skipped.push({ coin: info.name, why: `zbyt drobne (~${value.toFixed(2)})` }); continue; }
+      const pair = fiat === "EUR" && info.pairEUR ? info.pairEUR : info.pairUSD;
+      const pow = Math.pow(10, info.dec);
+      const sellable = Math.floor(raw * pow) / pow;
+      try {
+        if (sellable >= info.min) {
+          await krakenPrivate("/0/private/AddOrder", { pair, type: "sell", ordertype: "market", volume: String(sellable) });
+          addLog(`🧹 Kurz sprzedany: ${sellable} ${info.name} (~${value.toFixed(2)} ${fiat})`, "sell");
+          swept.push({ coin: info.name, value: parseFloat(value.toFixed(2)), mode: "sprzedaż" });
+        } else {
+          // Below the minimum — top up to the minimum (with buffer), then sell all
+          const topVol = Math.ceil(info.min * 1.02 * pow) / pow;
+          const cost = topVol * price;
+          if (cost > MAX_TOPUP) { skipped.push({ coin: info.name, why: `dokupka ~${cost.toFixed(2)} > limit ${MAX_TOPUP}` }); continue; }
+          await krakenPrivate("/0/private/AddOrder", { pair, type: "buy", ordertype: "market", volume: String(topVol) });
+          await new Promise(r => setTimeout(r, 1500)); // let the fill settle
+          const bal2 = await krakenPrivate("/0/private/Balance") as Record<string, string>;
+          const total = Math.floor(parseFloat(bal2[info.balanceKey] ?? "0") * pow) / pow;
+          if (total >= info.min) {
+            await krakenPrivate("/0/private/AddOrder", { pair, type: "sell", ordertype: "market", volume: String(total) });
+            addLog(`🧹 Kurz uwolniony (dokupka+sprzedaż): ${info.name} — dokupiono ${topVol}, sprzedano ${total} (~${(total * price).toFixed(2)} ${fiat})`, "sell");
+            swept.push({ coin: info.name, value: parseFloat((total * price).toFixed(2)), mode: "dokupka+sprzedaż" });
+          } else {
+            skipped.push({ coin: info.name, why: `po dokupce ${total} wciąż < min ${info.min}` });
+            addLog(`⚠️ Kurz ${info.name}: po dokupce ${total} < min ${info.min} — sprawdź ręcznie`, "warn");
+          }
+        }
+        await new Promise(r => setTimeout(r, 800)); // gentle on the rate limit
+      } catch (e: any) {
+        skipped.push({ coin: info.name, why: e.message });
+        addLog(`⚠️ Kurz ${info.name}: ${e.message}`, "warn");
+      }
+    }
+    const freed = swept.reduce((s, x) => s + x.value, 0);
+    addLog(`🧹 Wymiatanie zakończone — uwolniono ~${freed.toFixed(2)} ${fiat} z ${swept.length} monet${skipped.length ? `, pominięto ${skipped.length}` : ""}`, "info");
+    res.json({ ok: true, swept, skipped, freed: parseFloat(freed.toFixed(2)), fiat });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  } finally { sweepBusy = false; }
+});
+
 // GET /api/bot/keys — check if encrypted keys are saved (never returns actual keys)
 router.get("/keys", (_req, res) => {
   const keys = decryptApiKeys();
