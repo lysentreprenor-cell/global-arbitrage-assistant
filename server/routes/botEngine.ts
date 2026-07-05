@@ -1627,6 +1627,7 @@ let paperPositions: Position[] = [];
 let paperPnl = 0;
 let paperWins = 0;
 let paperLosses = 0;
+let paperHistory: TradeRecord[] = [];
 let paperLastEntry = 0;
 let paperScanCursor = 0;
 let paperTickBusy = false;
@@ -1639,7 +1640,7 @@ function savePaper() {
     const dir = path.dirname(PAPER_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const safeCfg = paperCfg ? { ...paperCfg, apiKey: "", secret: "" } : null;
-    fs.writeFileSync(PAPER_FILE, JSON.stringify({ running: paperRunning, config: safeCfg, positions: paperPositions, pnl: paperPnl, wins: paperWins, losses: paperLosses }));
+    fs.writeFileSync(PAPER_FILE, JSON.stringify({ running: paperRunning, config: safeCfg, positions: paperPositions, pnl: paperPnl, wins: paperWins, losses: paperLosses, history: paperHistory }));
   } catch { /* ignore */ }
 }
 
@@ -1667,6 +1668,7 @@ function loadPaper() {
       paperCfg = { ...s.config, apiKey: "", secret: "" };
       paperPositions = Array.isArray(s.positions) ? s.positions : [];
       paperPnl = s.pnl ?? 0; paperWins = s.wins ?? 0; paperLosses = s.losses ?? 0;
+      paperHistory = Array.isArray(s.history) ? s.history : [];
       paperRunning = true;
       addLog(`📝 Symulacja wznowiona po restarcie — ${paperPositions.length} pozycji, P&L ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)}`, "info");
       startPaperIntervals();
@@ -1777,6 +1779,12 @@ async function paperPriceCheck() {
         const pnl = pct / 100 * notional - fee;
         paperPnl += pnl;
         if (pnl > 0) paperWins++; else paperLosses++;
+        paperHistory = [...paperHistory.slice(-49), {
+          symbol: sym, dir: pos.direction, entry: pos.entryPrice, exit: price,
+          pnlUsdt: parseFloat(pnl.toFixed(2)), pnlPct: parseFloat(pct.toFixed(3)),
+          reason, signal: "paper", time: new Date().toISOString(),
+          durationH: parseFloat(((Date.now() - new Date(pos.entryTime).getTime()) / 3_600_000).toFixed(1)),
+        }];
         learningLog.push({
           time: new Date().toISOString(), symbol: sym, dir: pos.direction,
           pnlPct: parseFloat(pct.toFixed(3)), win: pnl > 0,
@@ -2436,6 +2444,7 @@ router.post("/paper/start", (req, res) => {
   paperRunning = true;
   paperPositions = [];
   paperPnl = 0; paperWins = 0; paperLosses = 0;
+  paperHistory = [];
   paperLastEntry = 0; paperScanCursor = 0;
   savePaper();
   addLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax} — działa RÓWNOLEGLE z botem`, "info");
@@ -2656,6 +2665,7 @@ router.get("/status", (_req, res) => {
       losses: paperLosses,
       positions: paperPositions,
       maxPositions: paperCfg?.maxPositions ?? 0,
+      tradeHistory: paperHistory.slice(-30),
     },
     sessionPnl,
     logs: logs.slice(-50),

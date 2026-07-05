@@ -40,6 +40,7 @@ type BotStatus = {
     running: boolean; capital: number; pnl: number; wins: number; losses: number;
     maxPositions: number;
     positions: { direction: Direction; entryPrice: number; qty: number; entryTime: string; slPct: number; tpPct: number; symbol?: string }[];
+    tradeHistory?: TradeRecord[];
   };
   logs: { time: string; msg: string; type: string }[];
   dipStats?: {
@@ -223,6 +224,7 @@ export default function TradingBot() {
     SYMBOLS_FALLBACK.map(s => ({ symbol: s, name: s.replace("USDT", "") }))
   );
   const [monitorOpen, setMonitorOpen] = useState(false); // coin grid collapsed by default
+  const [paperHistOpen, setPaperHistOpen] = useState(false); // sim trade history collapsed by default
   const [presetsOpen, setPresetsOpen] = useState(false); // risk preset tiles collapsed by default
   const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
@@ -829,6 +831,42 @@ export default function TradingBot() {
                     <span>SL {safe(pp.slPct)}% · TP {safe(pp.tpPct)}%</span>
                   </div>
                 ))}
+                {/* simulation trade history — mirror of the bot's, collapsible */}
+                {(botStatus.paper.tradeHistory?.length ?? 0) > 0 && (
+                  <div className="pt-1 border-t border-blue-800/40">
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setPaperHistOpen(o => !o)} className="text-[10px] text-blue-300 font-semibold">
+                        {paperHistOpen ? "▾" : "▸"} Historia symulacji ({botStatus.paper.tradeHistory!.length})
+                      </button>
+                      <button
+                        onClick={() => {
+                          const hist = botStatus.paper!.tradeHistory!;
+                          const text = hist.slice().reverse().map(t =>
+                            `${fmtDate(t.time)}\t${(t.symbol ?? "").replace("USDT", "")}\t${t.dir.toUpperCase()}\t$${fmtP(t.entry)} → $${fmtP(t.exit)}\t${fmtPct(t.pnlPct)}${t.pnlUsdt != null ? `\t${t.pnlUsdt >= 0 ? "+" : ""}$${t.pnlUsdt.toFixed(2)}` : ""}\t${t.reason ?? ""}`
+                          ).join("\n");
+                          navigator.clipboard.writeText(text).then(() => alert(`Skopiowano ${hist.length} transakcji symulacji!`));
+                        }}
+                        className="text-[10px] text-blue-400 hover:text-blue-200 border border-blue-800 rounded px-1.5 py-0.5"
+                      >
+                        📋 Kopiuj
+                      </button>
+                    </div>
+                    {paperHistOpen && (
+                      <div className="space-y-0.5 max-h-48 overflow-y-auto mt-1">
+                        {botStatus.paper.tradeHistory!.slice().reverse().map((t, i) => (
+                          <div key={i} className="flex justify-between items-center text-[10px] py-0.5 border-b border-blue-900/40 select-text">
+                            <span className="text-gray-500 font-mono">{fmtDate(t.time)}</span>
+                            <span className="text-blue-200 font-medium">{(t.symbol ?? "?").replace("USDT", "")}</span>
+                            <span className="text-gray-400">${fmtP(t.entry)}→${fmtP(t.exit)}</span>
+                            <span className={`font-semibold ${(t.pnlUsdt ?? 0) >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+                              {fmtPct(t.pnlPct)} · {(t.pnlUsdt ?? 0) >= 0 ? "+" : ""}${(t.pnlUsdt ?? 0).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
