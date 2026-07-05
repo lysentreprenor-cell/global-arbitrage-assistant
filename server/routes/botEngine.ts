@@ -199,6 +199,9 @@ type LearnRecord = {
   regime: string;      // market regime at entry
   reason: string;      // exit reason
   paper?: boolean;     // true = from live simulation (slightly optimistic), false = real
+  shadow?: boolean;    // true = "almost bought" — a REJECTED entry played out virtually.
+                       // These keep sampling vetoed conditions, so a bucket frozen at
+                       // negative E can recover if the market changes (self-healing gate).
 };
 let learningLog: LearnRecord[] = [];
 
@@ -1763,6 +1766,10 @@ async function paperTick() {
       const learned = learnedContextE(humanActivity(utcHour), best.bbPercB);
       if (learned && learned.E < 0) {
         addPaperLog(`📝🧠 SYM: warunek ${best.sym} traci (E ${learned.E.toFixed(2)}% z ${learned.n}) — pomijam`, "info");
+        recordShadowEntry(best.sym, best.isLong ? "long" : "short", best.price,
+          { slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, qty: best.qty },
+          `SYM dziennik E ${learned.E.toFixed(2)}% z ${learned.n}`,
+          { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime });
         return;
       }
     }
@@ -1857,6 +1864,120 @@ async function paperPriceCheck() {
     }
   }
 }
+
+// ── Shadow engine — "prawie kupione" ──────────────────────────────────────────
+// Every entry REJECTED by a gate (learning-journal veto etc.) is played out here
+// virtually: same SL/TP/trail/time-limit, honest fees. Answers the question no one
+// else asks: "were our refusals right?" — and feeds outcomes back to the journal
+// (marked shadow:true), so a condition vetoed at negative E keeps being sampled
+// and can recover if the market regime changes.
+const SHADOW_FILE = path.resolve(process.cwd(), "data", "shadow_state.json");
+let shadowPositions: Position[] = [];
+let shadowHistory: TradeRecord[] = [];
+let shadowLogs: LogEntry[] = [];
+let shadowPnl = 0, shadowWins = 0, shadowLosses = 0;
+let shadowClosing = new Set<string>();
+
+function addShadowLog(msg: string, type: LogEntry["type"] = "info") {
+  shadowLogs = [...shadowLogs.slice(-199), { time: new Date().toISOString(), msg, type }];
+  console.log(`[SHDW] ${msg}`);
+}
+function saveShadow() {
+  try {
+    fs.mkdirSync(path.dirname(SHADOW_FILE), { recursive: true });
+    fs.writeFileSync(SHADOW_FILE, JSON.stringify({ positions: shadowPositions, history: shadowHistory, pnl: shadowPnl, wins: shadowWins, losses: shadowLosses }));
+  } catch { /* ignore */ }
+}
+function loadShadow() {
+  try {
+    if (!fs.existsSync(SHADOW_FILE)) return;
+    const s = JSON.parse(fs.readFileSync(SHADOW_FILE, "utf8"));
+    shadowPositions = Array.isArray(s.positions) ? s.positions : [];
+    shadowHistory   = Array.isArray(s.history)   ? s.history   : [];
+    shadowPnl = s.pnl ?? 0; shadowWins = s.wins ?? 0; shadowLosses = s.losses ?? 0;
+    if (shadowPositions.length) addShadowLog(`🌗 Cień wznowiony po restarcie — ${shadowPositions.length} pozycji, P&L ${shadowPnl >= 0 ? "+" : ""}$${shadowPnl.toFixed(2)}`);
+  } catch { /* ignore */ }
+}
+
+// Register a rejected entry as a virtual "almost bought" position.
+function recordShadowEntry(sym: string, dir: Direction, price: number,
+  spec: { slPct: number; tpPct: number; trailPct: number; qty: number }, why: string,
+  ctx: { hour: number; human: number; bb: number; regime: string }) {
+  if (!price || price <= 0) return;
+  if (shadowPositions.length >= 10) return;                       // cap the fleet
+  if (shadowPositions.some(p => p.symbol === sym)) return;        // one shadow per coin
+  shadowPositions.push({
+    direction: dir, entryPrice: price, qty: spec.qty,
+    entryTime: new Date().toISOString(), trailRef: price,
+    slPct: spec.slPct, tpPct: spec.tpPct, trailPct: spec.trailPct,
+    breakEvenSet: false, signal: `shadow:${why}`, symbol: sym,
+    leverage: dir === "short" ? 2 : 1, fiat: config?.krakenFiat ?? "USD", ctx,
+  });
+  addShadowLog(`🌗 PRAWIE ${dir.toUpperCase()} ${sym} @ $${fmtPrice(price)} — odrzucone: ${why}`, "buy");
+  saveShadow();
+}
+
+// Exit check for shadow positions (TP/SL/trail/time-limit) — same rules, no orders.
+let shadowCheckBusy = false;
+async function shadowPriceCheck() {
+  if (shadowCheckBusy || shadowPositions.length === 0) return;
+  shadowCheckBusy = true;
+  try {
+    for (const pos of [...shadowPositions]) {
+      const sym = pos.symbol!;
+      if (shadowClosing.has(sym) || !shadowPositions.includes(pos)) continue;
+      const price = await fetchCurrentPrice(sym, pos.fiat);
+      if (!price) continue;
+      const pct = pos.direction === "long"
+        ? (price - pos.entryPrice) / pos.entryPrice * 100
+        : (pos.entryPrice - price) / pos.entryPrice * 100;
+      if (pos.direction === "long" && price > pos.trailRef)  pos.trailRef = price;
+      if (pos.direction === "short" && price < pos.trailRef) pos.trailRef = price;
+      const trailSL = pos.direction === "long" ? pos.trailRef * (1 - pos.trailPct / 100) : pos.trailRef * (1 + pos.trailPct / 100);
+      const initSL  = pos.direction === "long" ? pos.entryPrice * (1 - pos.slPct / 100)  : pos.entryPrice * (1 + pos.slPct / 100);
+      const holdMin = (Date.now() - new Date(pos.entryTime).getTime()) / 60_000;
+      const maxHold = (config?.maxHoldMin && config.maxHoldMin > 0) ? config.maxHoldMin
+                    : (paperCfg?.maxHoldMin && paperCfg.maxHoldMin > 0) ? paperCfg.maxHoldMin : 240;
+      let reason: string | null = null;
+      if (pct >= pos.tpPct) reason = `TP +${pct.toFixed(2)}%`;
+      else if (pos.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      else if (pos.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      else if (holdMin >= maxHold) reason = `Limit czasu (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+      if (!reason) continue;
+      shadowClosing.add(sym);
+      try {
+        const notional = pos.entryPrice * pos.qty;
+        let fee = notional * 0.0052;
+        if (pos.direction === "short" || (pos.leverage ?? 1) > 1) {
+          fee += notional * (0.0002 + 0.0002 * Math.max(1, Math.ceil(holdMin / 240)));
+        }
+        const pnl = pct / 100 * notional - fee;
+        shadowPnl += pnl;
+        if (pnl > 0) shadowWins++; else shadowLosses++;
+        shadowHistory = [...shadowHistory.slice(-49), {
+          symbol: sym, dir: pos.direction, entry: pos.entryPrice, exit: price,
+          pnlUsdt: parseFloat(pnl.toFixed(2)), pnlPct: parseFloat(pct.toFixed(3)),
+          reason, signal: pos.signal ?? "shadow", time: new Date().toISOString(),
+          durationH: parseFloat((holdMin / 60).toFixed(1)),
+        }];
+        learningLog.push({
+          time: new Date().toISOString(), symbol: sym, dir: pos.direction,
+          pnlPct: parseFloat(pct.toFixed(3)), win: pnl > 0,
+          hour: pos.ctx?.hour ?? new Date().getUTCHours(), human: pos.ctx?.human ?? 0.5,
+          bb: pos.ctx?.bb ?? 50, regime: pos.ctx?.regime ?? "?", reason,
+          paper: true, shadow: true,
+        });
+        saveLearning();
+        shadowPositions = shadowPositions.filter(p => p !== pos);
+        saveShadow();
+        const verdict = pnl > 0 ? "filtr się MYLIŁ (byłby zysk)" : "filtr miał RACJĘ (byłaby strata)";
+        addShadowLog(`🌗 CIEŃ CLOSE ${pos.direction.toUpperCase()} ${sym} — ${reason} | ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)} → ${verdict} (razem ${shadowPnl >= 0 ? "+" : ""}$${shadowPnl.toFixed(2)})`, pnl >= 0 ? "warn" : "sell");
+      } finally { shadowClosing.delete(sym); }
+    }
+  } catch { /* ignore */ } finally { shadowCheckBusy = false; }
+}
+setInterval(shadowPriceCheck, 7_000);
+setTimeout(loadShadow, 5_000);
 
 // ── Full indicator tick (every 5 min — 1h candles) ───────────────────────────
 async function engineTick() {
@@ -2103,6 +2224,11 @@ async function engineTick() {
             const learned = learnedContextE(humanActivity(new Date().getUTCHours()), best.bbPercB);
             if (learned && learned.E < 0) {
               addLog(`🧠 Dziennik: warunek ${best.sym} traci (E ${learned.E.toFixed(2)}% z ${learned.n} transakcji) — pomijam`, "info");
+              const h = new Date().getUTCHours();
+              recordShadowEntry(best.sym, altDir, best.price,
+                { slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, qty: best.qty },
+                `BOT dziennik E ${learned.E.toFixed(2)}% z ${learned.n}`,
+                { hour: h, human: humanActivity(h), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime });
               return;
             }
           }
@@ -2150,6 +2276,11 @@ async function engineTick() {
       const learned = learnedContextE(humanActivity(utcHour), bbPercB);
       if (learned && learned.E < 0) {
         addLog(`🧠 Dziennik: warunek ${config.symbol} traci (E ${learned.E.toFixed(2)}% z ${learned.n} transakcji) — pomijam`, "info");
+        recordShadowEntry(config.symbol, isLong ? "long" : "short", price,
+          { slPct: Math.max(config.stopLoss, atrPct * 1.5), tpPct: Math.max(config.takeProfit, atrPct * 2.5),
+            trailPct: Math.max(config.trailPct, atrPct * 0.8), qty: config.capital / Math.max(1, maxPos()) / price },
+          `BOT dziennik E ${learned.E.toFixed(2)}% z ${learned.n}`,
+          { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(bbPercB.toFixed(1)), regime: marketRegime });
         return;
       }
     }
@@ -2848,6 +2979,15 @@ router.get("/status", (_req, res) => {
       maxPositions: paperCfg?.maxPositions ?? 0,
       tradeHistory: paperHistory.slice(-30),
       logs: paperLogs.slice(-50),
+    },
+    // Shadow engine — "almost bought": rejected entries played out virtually
+    shadow: {
+      pnl: parseFloat(shadowPnl.toFixed(2)),
+      wins: shadowWins,
+      losses: shadowLosses,
+      positions: shadowPositions,
+      tradeHistory: shadowHistory.slice(-30),
+      logs: shadowLogs.slice(-50),
     },
     sessionPnl,
     logs: logs.slice(-50),

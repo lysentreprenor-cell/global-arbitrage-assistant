@@ -46,6 +46,12 @@ type BotStatus = {
     tradeHistory?: TradeRecord[];
     logs?: { time: string; msg: string; type: string }[];
   };
+  shadow?: {
+    pnl: number; wins: number; losses: number;
+    positions: { direction: Direction; entryPrice: number; qty: number; entryTime: string; slPct: number; tpPct: number; symbol?: string; signal?: string }[];
+    tradeHistory?: TradeRecord[];
+    logs?: { time: string; msg: string; type: string }[];
+  };
   logs: { time: string; msg: string; type: string }[];
   dipStats?: {
     fourHourTrend: string; rangeMode: boolean;
@@ -231,6 +237,9 @@ export default function TradingBot() {
   const [paperHistOpen, setPaperHistOpen] = useState(false); // sim trade history collapsed by default
   const [paperLogsOpen, setPaperLogsOpen] = useState(false); // sim activity log collapsed by default
   const [paperCopied, setPaperCopied] = useState(false);     // transient "copied" feedback (popups are blocked in-app)
+  const [shadowHistOpen, setShadowHistOpen] = useState(false); // "almost bought" trade history
+  const [shadowLogsOpen, setShadowLogsOpen] = useState(false); // "almost bought" activity log
+  const [shadowCopied, setShadowCopied] = useState<"hist" | "log" | null>(null);
   // PIN lock — server rejects bot routes with 401 until the right PIN is sent
   const [pinLocked, setPinLocked] = useState(false);
   const [pinIsSet, setPinIsSet] = useState(false);
@@ -1076,6 +1085,103 @@ export default function TradingBot() {
                           <div key={i} className="text-[10px] flex gap-1.5 select-text">
                             <span className="text-gray-600 shrink-0 font-mono">{fmtDate(l.time)}</span>
                             <span className={l.type === "buy" ? "text-emerald-300" : l.type === "sell" ? "text-red-300" : l.type === "warn" ? "text-yellow-300" : "text-gray-400"}>{l.msg}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* shadow engine — "almost bought": rejected entries played out virtually */}
+            {botStatus?.shadow && ((botStatus.shadow.positions?.length ?? 0) > 0 || (botStatus.shadow.tradeHistory?.length ?? 0) > 0 || (botStatus.shadow.logs?.length ?? 0) > 0) && (
+              <div className="bg-purple-950/20 border border-purple-700/40 rounded-lg p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-purple-300 font-semibold uppercase">🌗 Prawie kupione — symulacja odrzuconych</span>
+                  <span className={`text-sm font-bold ${botStatus.shadow.pnl >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+                    {botStatus.shadow.pnl >= 0 ? "+" : ""}${safe(botStatus.shadow.pnl, 2)}
+                  </span>
+                </div>
+                <div className="text-[10px] text-gray-400">
+                  {botStatus.shadow.wins}W / {botStatus.shadow.losses}L · śledzone: {botStatus.shadow.positions.length}
+                  <span className="text-gray-600"> · dodatni wynik = filtry były ZA ostre, ujemny = filtry miały rację</span>
+                </div>
+                {botStatus.shadow.positions.map((sp, i) => (
+                  <div key={(sp.symbol ?? "") + i} className="flex justify-between text-[10px] text-gray-400 bg-purple-950/40 rounded px-2 py-1">
+                    <span className="text-purple-200 font-medium">{(sp.symbol ?? "?").replace("USDT", "")} {sp.direction.toUpperCase()}</span>
+                    <span>@ ${fmtP(sp.entryPrice)}</span>
+                    <span>SL {safe(sp.slPct)}% · TP {safe(sp.tpPct)}%</span>
+                  </div>
+                ))}
+                {(botStatus.shadow.tradeHistory?.length ?? 0) > 0 && (
+                  <div className="pt-1 border-t border-purple-800/40">
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setShadowHistOpen(o => !o)} className="text-[10px] text-purple-300 font-semibold">
+                        {shadowHistOpen ? "▾" : "▸"} Historia prawie-kupionych ({botStatus.shadow.tradeHistory!.length})
+                      </button>
+                      <button
+                        onClick={() => {
+                          const hist = botStatus.shadow!.tradeHistory!;
+                          const text = hist.slice().reverse().map(t =>
+                            `${fmtDate(t.time)}\t${(t.symbol ?? "").replace("USDT", "")}\t${t.dir.toUpperCase()}\t$${fmtP(t.entry)} → $${fmtP(t.exit)}\t${fmtPct(t.pnlPct)}${t.pnlUsdt != null ? `\t${t.pnlUsdt >= 0 ? "+" : ""}$${t.pnlUsdt.toFixed(2)}` : ""}\t${t.reason ?? ""}`
+                          ).join("\n");
+                          navigator.clipboard.writeText(text).then(() => {
+                            setShadowCopied("hist");
+                            setTimeout(() => setShadowCopied(null), 2500);
+                          });
+                        }}
+                        className={`text-[10px] rounded px-1.5 py-0.5 border ${shadowCopied === "hist"
+                          ? "text-emerald-300 border-emerald-700 bg-emerald-950/40"
+                          : "text-purple-400 hover:text-purple-200 border-purple-800"}`}
+                      >
+                        {shadowCopied === "hist" ? "✅ Skopiowano!" : "📋 Kopiuj"}
+                      </button>
+                    </div>
+                    {shadowHistOpen && (
+                      <div className="space-y-0.5 max-h-48 overflow-y-auto mt-1">
+                        {botStatus.shadow.tradeHistory!.slice().reverse().map((t, i) => (
+                          <div key={i} className="flex justify-between items-center text-[10px] py-0.5 border-b border-purple-900/40 select-text">
+                            <span className="text-gray-500 font-mono">{fmtDate(t.time)}</span>
+                            <span className="text-purple-200 font-medium">{(t.symbol ?? "?").replace("USDT", "")}</span>
+                            <span className="text-gray-400">${fmtP(t.entry)}→${fmtP(t.exit)}</span>
+                            <span className={`font-semibold ${(t.pnlUsdt ?? 0) >= 0 ? "text-emerald-300" : "text-red-400"}`}>
+                              {fmtPct(t.pnlPct)} · {(t.pnlUsdt ?? 0) >= 0 ? "+" : ""}${(t.pnlUsdt ?? 0).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {(botStatus.shadow.logs?.length ?? 0) > 0 && (
+                  <div className="pt-1 border-t border-purple-800/40">
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setShadowLogsOpen(o => !o)} className="text-[10px] text-purple-300 font-semibold">
+                        {shadowLogsOpen ? "▾" : "▸"} Log prawie-kupionych ({botStatus.shadow.logs!.length})
+                      </button>
+                      <button
+                        onClick={() => {
+                          const ls = botStatus.shadow!.logs!;
+                          const text = ls.slice().reverse().map(l => `[${l.time}] ${l.msg}`).join("\n");
+                          navigator.clipboard.writeText(text).then(() => {
+                            setShadowCopied("log");
+                            setTimeout(() => setShadowCopied(null), 2500);
+                          });
+                        }}
+                        className={`text-[10px] rounded px-1.5 py-0.5 border ${shadowCopied === "log"
+                          ? "text-emerald-300 border-emerald-700 bg-emerald-950/40"
+                          : "text-purple-400 hover:text-purple-200 border-purple-800"}`}
+                      >
+                        {shadowCopied === "log" ? "✅ Skopiowano!" : "📋 Kopiuj"}
+                      </button>
+                    </div>
+                    {shadowLogsOpen && (
+                      <div className="space-y-0.5 max-h-48 overflow-y-auto mt-1">
+                        {botStatus.shadow.logs!.slice().reverse().map((l, i) => (
+                          <div key={i} className="text-[10px] flex gap-1.5 select-text">
+                            <span className="text-gray-600 shrink-0 font-mono">{fmtDate(l.time)}</span>
+                            <span className={l.type === "buy" ? "text-purple-200" : l.type === "sell" ? "text-emerald-300" : l.type === "warn" ? "text-red-300" : "text-gray-400"}>{l.msg}</span>
                           </div>
                         ))}
                       </div>
