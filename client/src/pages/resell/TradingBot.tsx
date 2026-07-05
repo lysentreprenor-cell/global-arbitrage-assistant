@@ -410,22 +410,33 @@ export default function TradingBot() {
     } catch { /* ignore */ }
   };
 
+  // No confirm()/alert() here — the in-app browser blocks popups (same as the old
+  // prompt() bug), so we confirm with a second tap and render the result inline.
   const [sweepBusy, setSweepBusy] = useState(false);
+  const [sweepArmed, setSweepArmed] = useState(false);
+  const [sweepResult, setSweepResult] = useState<string | null>(null);
   const sweepDust = async () => {
-    if (!confirm("Wymieść kurz z portfela Krakena?\n\nBot sprzeda WSZYSTKIE monety, których sam nie prowadzi (resztki, airdropy, duchy sprzed poprawek). Monety poniżej minimum uwolni manewrem dokupka→sprzedaż (koszt: grosze opłat). Aktywne pozycje bota i staking są bezpieczne.")) return;
+    if (!sweepArmed) {
+      setSweepArmed(true);
+      setSweepResult(null);
+      setTimeout(() => setSweepArmed(false), 6000); // disarm if not confirmed in 6s
+      return;
+    }
+    setSweepArmed(false);
     setSweepBusy(true);
+    setSweepResult(null);
     try {
       const r = await fetch("/api/bot/sweep-dust", { method: "POST" });
       const d = await r.json();
-      if (d.error) alert("Nie udało się wymieść kurzu:\n" + d.error);
-      else alert(d.swept.length === 0
-        ? "Portfel czysty — nie znaleziono kurzu do sprzedania ✅"
-        : `🧹 Uwolniono ~${d.freed} ${d.fiat} z ${d.swept.length} monet:\n` +
-          d.swept.map((s: any) => `• ${s.coin}: ${s.value} (${s.mode})`).join("\n") +
-          (d.skipped.length ? `\n\nPominięto ${d.skipped.length}: ` + d.skipped.map((s: any) => s.coin).join(", ") : ""));
+      if (d.error) setSweepResult("⚠️ " + d.error);
+      else setSweepResult(d.swept.length === 0
+        ? "✅ Portfel czysty — nie znaleziono kurzu do sprzedania"
+        : `🧹 Uwolniono ~${d.freed} ${d.fiat} z ${d.swept.length} monet: ` +
+          d.swept.map((s: any) => `${s.coin} ${s.value}`).join(", ") +
+          (d.skipped.length ? ` · pominięto: ${d.skipped.map((s: any) => s.coin).join(", ")}` : ""));
       await fetchStatus();
     } catch (e: any) {
-      alert("Błąd: " + e.message);
+      setSweepResult("⚠️ Błąd: " + e.message);
     } finally {
       setSweepBusy(false);
     }
@@ -1079,10 +1090,21 @@ export default function TradingBot() {
 
             {/* sweep wallet dust — sell every coin the bot doesn't manage */}
             <button onClick={sweepDust} disabled={sweepBusy || !running}
-              className="w-full text-xs py-2 rounded-lg bg-amber-900/30 border border-amber-700/50 text-amber-300 hover:bg-amber-900/50 disabled:opacity-50">
-              {sweepBusy ? "Wymiatam kurz…" : "🧹 Wymieć kurz z portfela (sprzedaj resztki → gotówka dla bota)"}
+              className={`w-full text-xs py-2 rounded-lg border disabled:opacity-50 ${sweepArmed
+                ? "bg-amber-700/60 border-amber-400 text-white font-semibold"
+                : "bg-amber-900/30 border-amber-700/50 text-amber-300 hover:bg-amber-900/50"}`}>
+              {sweepBusy ? "Wymiatam kurz… (patrz logi)" : sweepArmed
+                ? "⚠️ Na pewno? Kliknij jeszcze raz — bot SPRZEDA resztki spoza pozycji"
+                : "🧹 Wymieć kurz z portfela (sprzedaj resztki → gotówka dla bota)"}
             </button>
             {!running && <div className="text-[10px] text-gray-600 -mt-2">Wymiatanie wymaga włączonego bota (używa jego kluczy API)</div>}
+            {sweepResult && (
+              <div className={`text-[11px] rounded-lg px-3 py-2 border ${sweepResult.startsWith("⚠️")
+                ? "bg-red-950/40 border-red-800/50 text-red-300"
+                : "bg-emerald-950/40 border-emerald-800/50 text-emerald-300"}`}>
+                {sweepResult}
+              </div>
+            )}
 
             {/* max hold time */}
             <div>
