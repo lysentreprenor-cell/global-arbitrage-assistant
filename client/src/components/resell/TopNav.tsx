@@ -3,13 +3,14 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp,
   Camera, ListTodo, Search, Rocket, Bell, Copy, Flame, LineChart,
-  Truck, Crosshair, Megaphone, Bot, Activity,
+  Truck, Crosshair, Megaphone, Bot, Activity, Mic,
 } from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
 const NAV_ITEMS = [
   { href: "/resell",              label: "Dashboard",   icon: LayoutDashboard },
   { href: "/resell/agent",        label: "Agent AI",    icon: Bot },
+  { href: "/resell/assistant",    label: "🦯 Asystent", icon: Mic },
   { href: "/resell/marketing",    label: "Marketing",   icon: Megaphone },
   { href: "/resell/search",       label: "Szukaj",      icon: Search },
   { href: "/resell/saved",        label: "Pipeline",    icon: ListTodo },
