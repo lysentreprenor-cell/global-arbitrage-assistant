@@ -294,6 +294,7 @@ export default function TradingBot() {
   const [learnAdapt, setLearnAdapt] = useState<boolean>(saved.learnAdapt ?? false);
   const [paperCapital, setPaperCapital] = useState<number>(saved.paperCapital ?? 100);
   const [bbMax, setBbMax] = useState<number>(saved.bbMax ?? 25); // głębokość dołka — na razie tylko symulator
+  const [paperShorts, setPaperShorts] = useState<boolean>(saved.paperShorts ?? false); // shorty TYLKO w symulacji
   const [simDays,    setSimDays]    = useState<number>(saved.simDays ?? 3); // okno symulacji w dniach
 
   const [price,    setPrice]    = useState(0);
@@ -349,9 +350,9 @@ export default function TradingBot() {
   const p = PRESETS.find(x => x.id === preset)!;
 
   useEffect(() => {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital, bbMax })); }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital, bbMax, paperShorts })); }
     catch { /* ignore */ }
-  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital, bbMax]);
+  }, [preset, capital, riskPct, leverage, allowShorts, symbol, extraSymbols, maxHoldMin, customTP, customSL, minVolume, maxPositions, simDays, humanRhythm, learnAdapt, paperCapital, bbMax, paperShorts]);
 
   useEffect(() => {
     try { localStorage.setItem(IND_KEY, JSON.stringify(indOpts)); } catch { /* ignore */ }
@@ -561,6 +562,7 @@ export default function TradingBot() {
       body: JSON.stringify({
         symbol, symbols: Array.from(new Set([symbol, ...extraSymbols])),
         capital: amt, riskPct, maxHoldMin, minVolume, maxPositions, humanRhythm, learnAdapt, bbMax,
+        allowShorts: paperShorts,
         rsiMin: p.rsiMin, rsiMax: p.rsiMax, adxMin: p.adxMin,
         confluenceMin: p.confluenceMin, volMultMin: p.volMultMin, cooldownMin: p.cooldownMin,
         stopLoss: customSL > 0 ? customSL : p.stopLoss,
@@ -969,6 +971,23 @@ export default function TradingBot() {
                       Niżej = kupuje tylko GŁĘBOKIE wyprzedania. Bot zostaje na 40 — porównamy po tygodniu.
                     </div>
                   </div>
+                  {/* virtual shorts — SIM ONLY; real bot stays spot-long */}
+                  <button onClick={() => setPaperShorts(s => !s)}
+                    className="w-full flex items-center justify-between bg-[#101d1f] border border-blue-900/50 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-300">
+                      📉 Shorty w symulacji <span className="text-gray-600">(wirtualny margin 2x + rolowanie)</span>
+                    </span>
+                    <span className={`w-9 h-5 rounded-full relative transition ${paperShorts ? "bg-blue-600" : "bg-gray-700"}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${paperShorts ? "left-4.5 right-0.5" : "left-0.5"}`}
+                        style={{ left: paperShorts ? "18px" : "2px" }} />
+                    </span>
+                  </button>
+                  {paperShorts && (
+                    <div className="text-[10px] text-amber-300/90 -mt-1">
+                      Uczennica będzie grać też na spadki (górka potwierdzona, BB%B wysoko). Koszty margin
+                      liczone uczciwie: 0.02% otwarcie + 0.02%/4h rolowania. Prawdziwy bot NIE shortuje.
+                    </div>
+                  )}
                 </>
               )}
 

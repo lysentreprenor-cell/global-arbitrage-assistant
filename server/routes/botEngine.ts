@@ -1773,7 +1773,8 @@ async function paperTick() {
       direction: dir, entryPrice: px, qty: best.qty,
       entryTime: new Date().toISOString(), trailRef: px,
       slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
-      breakEvenSet: false, signal: "paper_scan", symbol: best.sym, leverage: 1,
+      breakEvenSet: false, signal: "paper_scan", symbol: best.sym,
+      leverage: dir === "short" ? Math.max(2, paperCfg.leverage ?? 2) : 1,
       fiat: config?.krakenFiat ?? "USD", // pin entry fiat (fetch above used the same via krakenPair)
       ctx: { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime },
     });
@@ -1825,7 +1826,14 @@ async function paperPriceCheck() {
       paperClosing.add(sym);
       try {
         const notional = pos.entryPrice * pos.qty;
-        const fee = notional * 0.0052; // same fee model as live
+        let fee = notional * 0.0052; // same taker fee model as live
+        // Margin costs for virtual shorts — Kraken reality: 0.02% opening fee
+        // + 0.02% rollover per (started) 4h. Without this the journal would
+        // learn shorts from rose-tinted numbers.
+        if (pos.direction === "short" || (pos.leverage ?? 1) > 1) {
+          const holdH = (Date.now() - new Date(pos.entryTime).getTime()) / 3_600_000;
+          fee += notional * (0.0002 + 0.0002 * Math.max(1, Math.ceil(holdH / 4)));
+        }
         const pnl = pct / 100 * notional - fee;
         paperPnl += pnl;
         if (pnl > 0) paperWins++; else paperLosses++;
@@ -2480,7 +2488,11 @@ router.post("/paper/start", (req, res) => {
     rsiMin: b.rsiMin ?? 35, rsiMax: b.rsiMax ?? 70,
     trailPct: b.trailPct ?? 0.6,
     stopLoss: b.stopLoss ?? 1.5, takeProfit: b.takeProfit ?? 3.0,
-    leverage: 1, allowShorts: false, // paper = spot longs (mirrors the real strategy under test)
+    // Shorts in the SIM only — virtual margin (2x) with rollover modelled in the
+    // close fee, so short lessons in the journal carry honest costs. The real bot
+    // stays spot-long until E>0 is proven on 50 short trades + capital $100+.
+    leverage: b.allowShorts === true ? 2 : 1,
+    allowShorts: b.allowShorts === true,
     capital: Math.max(1, Number(b.capital) || 100),
     riskPct: b.riskPct ?? 20,
     adxMin: b.adxMin ?? 15, confluenceMin: b.confluenceMin ?? 2,
@@ -2497,7 +2509,7 @@ router.post("/paper/start", (req, res) => {
   paperHistory = [];
   paperLastEntry = 0; paperScanCursor = 0;
   savePaper();
-  addPaperLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax} — działa RÓWNOLEGLE z botem | 🧬 kod: ${CODE_VERSION}`, "info");
+  addPaperLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax}${paperCfg.allowShorts ? ", SHORTY ON (wirtualny margin 2x + rolowanie)" : ""} — działa RÓWNOLEGLE z botem | 🧬 kod: ${CODE_VERSION}`, "info");
   startPaperIntervals();
   res.json({ ok: true });
 });
