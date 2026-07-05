@@ -1621,6 +1621,14 @@ function learnedContextE(human: number, bb: number): { n: number; E: number } | 
 // (quickScanSymbol) and the learning journal (records marked paper:true).
 const PAPER_FILE = path.resolve(process.cwd(), "data", "paper_state.json");
 
+// Simulation's own activity log — separate from the bot's so each can be read
+// (and copied) on its own. In-memory only, like the bot's log.
+let paperLogs: LogEntry[] = [];
+function addPaperLog(msg: string, type: LogEntry["type"] = "info") {
+  paperLogs = [...paperLogs.slice(-199), { time: new Date().toISOString(), msg, type }];
+  console.log(`[SYM] ${msg}`);
+}
+
 let paperRunning = false;
 let paperCfg: BotConfig | null = null;
 let paperPositions: Position[] = [];
@@ -1657,7 +1665,7 @@ function stopPaper() {
   if (paperIntervalId) { clearInterval(paperIntervalId); paperIntervalId = null; }
   if (paperPriceIntervalId) { clearInterval(paperPriceIntervalId); paperPriceIntervalId = null; }
   savePaper();
-  addLog(`📝 Symulacja zatrzymana — P&L ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)} (${paperWins}W/${paperLosses}L)`, "info");
+  addPaperLog(`📝 Symulacja zatrzymana — P&L ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)} (${paperWins}W/${paperLosses}L)`, "info");
 }
 
 function loadPaper() {
@@ -1670,7 +1678,7 @@ function loadPaper() {
       paperPnl = s.pnl ?? 0; paperWins = s.wins ?? 0; paperLosses = s.losses ?? 0;
       paperHistory = Array.isArray(s.history) ? s.history : [];
       paperRunning = true;
-      addLog(`📝 Symulacja wznowiona po restarcie — ${paperPositions.length} pozycji, P&L ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)}`, "info");
+      addPaperLog(`📝 Symulacja wznowiona po restarcie — ${paperPositions.length} pozycji, P&L ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)} | 🧬 kod: ${CODE_VERSION}`, "info");
       startPaperIntervals();
     }
   } catch { /* ignore */ }
@@ -1712,7 +1720,7 @@ async function paperTick() {
     if (paperCfg.learnAdapt) {
       const learned = learnedContextE(humanActivity(utcHour), best.bbPercB);
       if (learned && learned.E < 0) {
-        addLog(`📝🧠 SYM: warunek ${best.sym} traci (E ${learned.E.toFixed(2)}% z ${learned.n}) — pomijam`, "info");
+        addPaperLog(`📝🧠 SYM: warunek ${best.sym} traci (E ${learned.E.toFixed(2)}% z ${learned.n}) — pomijam`, "info");
         return;
       }
     }
@@ -1729,9 +1737,9 @@ async function paperTick() {
     });
     paperLastEntry = Date.now();
     savePaper();
-    addLog(`📝 SYM ${dir.toUpperCase()} ${best.sym} @ $${fmtPrice(px)} qty=${best.qty} BB%B=${best.bbPercB.toFixed(0)} (${paperPositions.length}/${maxP})`, "buy");
+    addPaperLog(`📝 SYM ${dir.toUpperCase()} ${best.sym} @ $${fmtPrice(px)} qty=${best.qty} BB%B=${best.bbPercB.toFixed(0)} (${paperPositions.length}/${maxP})`, "buy");
   } catch (e: any) {
-    addLog(`📝 SYM tick error: ${e.message}`, "warn");
+    addPaperLog(`📝 SYM tick error: ${e.message}`, "warn");
   } finally { paperTickBusy = false; }
 }
 
@@ -1794,7 +1802,7 @@ async function paperPriceCheck() {
         saveLearning();
         paperPositions = paperPositions.filter(p => p !== pos);
         savePaper();
-        addLog(`📝 SYM CLOSE ${pos.direction.toUpperCase()} ${sym} — ${reason} | ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)} (razem ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)})`, pnl >= 0 ? "sell" : "warn");
+        addPaperLog(`📝 SYM CLOSE ${pos.direction.toUpperCase()} ${sym} — ${reason} | ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)} (razem ${paperPnl >= 0 ? "+" : ""}$${paperPnl.toFixed(2)})`, pnl >= 0 ? "sell" : "warn");
       } finally { paperClosing.delete(sym); }
     }
   }
@@ -2447,7 +2455,7 @@ router.post("/paper/start", (req, res) => {
   paperHistory = [];
   paperLastEntry = 0; paperScanCursor = 0;
   savePaper();
-  addLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax} — działa RÓWNOLEGLE z botem`, "info");
+  addPaperLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax} — działa RÓWNOLEGLE z botem | 🧬 kod: ${CODE_VERSION}`, "info");
   startPaperIntervals();
   res.json({ ok: true });
 });
@@ -2735,6 +2743,7 @@ router.get("/status", (_req, res) => {
       positions: paperPositions,
       maxPositions: paperCfg?.maxPositions ?? 0,
       tradeHistory: paperHistory.slice(-30),
+      logs: paperLogs.slice(-50),
     },
     sessionPnl,
     logs: logs.slice(-50),

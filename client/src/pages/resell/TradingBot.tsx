@@ -41,6 +41,7 @@ type BotStatus = {
     maxPositions: number;
     positions: { direction: Direction; entryPrice: number; qty: number; entryTime: string; slPct: number; tpPct: number; symbol?: string }[];
     tradeHistory?: TradeRecord[];
+    logs?: { time: string; msg: string; type: string }[];
   };
   logs: { time: string; msg: string; type: string }[];
   dipStats?: {
@@ -225,6 +226,8 @@ export default function TradingBot() {
   );
   const [monitorOpen, setMonitorOpen] = useState(false); // coin grid collapsed by default
   const [paperHistOpen, setPaperHistOpen] = useState(false); // sim trade history collapsed by default
+  const [paperLogsOpen, setPaperLogsOpen] = useState(false); // sim activity log collapsed by default
+  const [paperCopied, setPaperCopied] = useState(false);     // transient "copied" feedback (popups are blocked in-app)
   const [presetsOpen, setPresetsOpen] = useState(false); // risk preset tiles collapsed by default
   const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
@@ -893,6 +896,41 @@ export default function TradingBot() {
                             <span className={`font-semibold ${(t.pnlUsdt ?? 0) >= 0 ? "text-emerald-300" : "text-red-400"}`}>
                               {fmtPct(t.pnlPct)} · {(t.pnlUsdt ?? 0) >= 0 ? "+" : ""}${(t.pnlUsdt ?? 0).toFixed(2)}
                             </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* simulation activity log — mirror of the bot's, collapsible + copyable */}
+                {(botStatus.paper.logs?.length ?? 0) > 0 && (
+                  <div className="pt-1 border-t border-blue-800/40">
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setPaperLogsOpen(o => !o)} className="text-[10px] text-blue-300 font-semibold">
+                        {paperLogsOpen ? "▾" : "▸"} Log symulacji ({botStatus.paper.logs!.length})
+                      </button>
+                      <button
+                        onClick={() => {
+                          const ls = botStatus.paper!.logs!;
+                          const text = ls.slice().reverse().map(l => `[${l.time}] ${l.msg}`).join("\n");
+                          navigator.clipboard.writeText(text).then(() => {
+                            setPaperCopied(true);
+                            setTimeout(() => setPaperCopied(false), 2500);
+                          });
+                        }}
+                        className={`text-[10px] rounded px-1.5 py-0.5 border ${paperCopied
+                          ? "text-emerald-300 border-emerald-700 bg-emerald-950/40"
+                          : "text-blue-400 hover:text-blue-200 border-blue-800"}`}
+                      >
+                        {paperCopied ? "✅ Skopiowano!" : "📋 Kopiuj"}
+                      </button>
+                    </div>
+                    {paperLogsOpen && (
+                      <div className="space-y-0.5 max-h-48 overflow-y-auto mt-1">
+                        {botStatus.paper.logs!.slice().reverse().map((l, i) => (
+                          <div key={i} className="text-[10px] flex gap-1.5 select-text">
+                            <span className="text-gray-600 shrink-0 font-mono">{fmtDate(l.time)}</span>
+                            <span className={l.type === "buy" ? "text-emerald-300" : l.type === "sell" ? "text-red-300" : l.type === "warn" ? "text-yellow-300" : "text-gray-400"}>{l.msg}</span>
                           </div>
                         ))}
                       </div>
