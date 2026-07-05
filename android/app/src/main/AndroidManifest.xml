@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- open_app: list installed apps to find one by spoken name -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- floating mic button over every app → works in the background -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:label="Gadacz"
@@ -22,6 +27,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Floating mic button + always-on brain: keeps Gadacz reachable from
+             inside ANY app, even when its own screen is closed. -->
+        <service
+            android:name=".GadaczOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- The one door Android opens for screen control — the user enables it
              manually in Settings → Accessibility → Gadacz -->
