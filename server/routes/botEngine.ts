@@ -717,9 +717,9 @@ async function bybitFetch(method: "GET" | "POST", path: string, params?: Record<
 
 // ── Kraken API ────────────────────────────────────────────────────────────────
 
-async function krakenPrivate(path: string, params: Record<string, any> = {}) {
-  if (!config) throw new Error("No config");
-  const cfg = config;
+async function krakenPrivate(path: string, params: Record<string, any> = {}, creds?: { apiKey: string; secret: string }) {
+  const cfg = creds ?? config;
+  if (!cfg?.apiKey) throw new Error("No config");
   // Serialize + monotonic nonce shared with the frontend Kraken routes so
   // concurrent calls never collide or arrive out of order ("Invalid nonce").
   return krakenSerialize(async () => {
@@ -2464,6 +2464,56 @@ router.post("/paper/start", (req, res) => {
 router.post("/paper/stop", (_req, res) => {
   stopPaper();
   res.json({ ok: true, pnl: paperPnl, wins: paperWins, losses: paperLosses });
+});
+
+// GET /api/bot/wallet — Kraken portfolio snapshot in-app (fiat + coins with values),
+// so the user never has to open Kraken just to check "what do I hold". Works with
+// the running bot's keys, or the saved encrypted keys when the bot is off.
+// Cached 60s — a quick re-open must not burn the private-API rate limit.
+let walletCache: { ts: number; data: any } | null = null;
+router.get("/wallet", async (req, res) => {
+  try {
+    if (walletCache && Date.now() - walletCache.ts < 60_000 && req.query.fresh !== "1") {
+      return res.json(walletCache.data);
+    }
+    const creds = config?.apiKey
+      ? undefined
+      : (() => { const k = decryptApiKeys(); return k ? { apiKey: k.apiKey, secret: k.secret } : null; })();
+    if (creds === null) return res.status(400).json({ error: "Brak kluczy API — uruchom bota raz albo zapisz klucze" });
+
+    const fiat = config?.krakenFiat ?? "USD";
+    const [symbols, bal] = await Promise.all([
+      loadKrakenSymbols(),
+      krakenPrivate("/0/private/Balance", {}, creds) as Promise<Record<string, string>>,
+    ]);
+
+    const fiatRows: { cur: string; amount: number }[] = [];
+    const coins: { name: string; qty: number; price: number; value: number; bot: boolean; staked: boolean }[] = [];
+    for (const [key, v] of Object.entries(bal)) {
+      const amount = parseFloat(v);
+      if (amount <= 0) continue;
+      // Fiat balances: ZUSD/ZEUR/USD/EUR…
+      const flatKey = key.replace(/^Z/, "");
+      if (["USD", "EUR", "GBP", "CHF", "PLN"].includes(flatKey)) { fiatRows.push({ cur: flatKey, amount }); continue; }
+      if (["USDT", "USDC", "DAI"].includes(flatKey)) { fiatRows.push({ cur: flatKey, amount }); continue; }
+      // Staked/earn balances live under suffixed keys: SOL.F, ETH2.S, XBT.M…
+      const staked = key.includes(".");
+      const baseKey = key.split(".")[0];
+      const info = symbols.find(s => s.balanceKey === baseKey || s.balanceKey === key);
+      const name = info?.name ?? baseKey.replace(/^X(?=[A-Z]{3})/, "");
+      const price = info ? (await fetchCurrentPrice(info.symbol, fiat)) ?? 0 : 0;
+      const value = price * amount;
+      const bot = !!info && (holdsSymbol(info.symbol) || !!ownedEntries[info.symbol]);
+      coins.push({ name, qty: amount, price, value: parseFloat(value.toFixed(2)), bot, staked });
+    }
+    coins.sort((a, b) => b.value - a.value);
+    const totalCrypto = parseFloat(coins.reduce((s, c) => s + c.value, 0).toFixed(2));
+    const data = { fiat: fiatRows, coins, totalCrypto, valuedIn: fiat, at: new Date().toISOString() };
+    walletCache = { ts: Date.now(), data };
+    res.json(data);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // POST /api/bot/sweep-dust — "wymieć kurz": sell every held coin that is NOT an

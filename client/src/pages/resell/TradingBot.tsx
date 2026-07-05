@@ -228,6 +228,24 @@ export default function TradingBot() {
   const [paperHistOpen, setPaperHistOpen] = useState(false); // sim trade history collapsed by default
   const [paperLogsOpen, setPaperLogsOpen] = useState(false); // sim activity log collapsed by default
   const [paperCopied, setPaperCopied] = useState(false);     // transient "copied" feedback (popups are blocked in-app)
+  const [walletOpen, setWalletOpen] = useState(false);       // Kraken wallet snapshot panel
+  const [wallet, setWallet] = useState<any>(null);
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [walletErr, setWalletErr] = useState<string | null>(null);
+  const fetchWallet = async (fresh: boolean) => {
+    setWalletBusy(true);
+    setWalletErr(null);
+    try {
+      const r = await fetch(`/api/bot/wallet${fresh ? "?fresh=1" : ""}`);
+      const d = await r.json();
+      if (d.error) setWalletErr(d.error);
+      else setWallet(d);
+    } catch (e: any) {
+      setWalletErr("Błąd: " + e.message);
+    } finally {
+      setWalletBusy(false);
+    }
+  };
   const [presetsOpen, setPresetsOpen] = useState(false); // risk preset tiles collapsed by default
   const [maxHoldMin, setMaxHoldMin] = useState<number>(saved.maxHoldMin ?? 0);
   const [customTP,   setCustomTP]   = useState<number>(saved.customTP ?? 0); // 0 = użyj presetu
@@ -799,6 +817,48 @@ export default function TradingBot() {
                 ))}
               </div>
             )}
+
+            {/* Kraken wallet snapshot — check holdings without opening Kraken */}
+            <div className="bg-[#0a140d] border border-[#1e3a28] rounded-lg overflow-hidden">
+              <button onClick={() => { setWalletOpen(o => !o); if (!walletOpen && !wallet) fetchWallet(false); }}
+                className="w-full flex items-center justify-between px-3 py-2.5">
+                <span className="text-xs text-gray-300 font-semibold">💼 Portfel Kraken {wallet ? `— ~${wallet.totalCrypto} ${wallet.valuedIn} w krypto` : ""}</span>
+                <span className="text-gray-500 text-xs">{walletOpen ? "▲" : "▼"}</span>
+              </button>
+              {walletOpen && (
+                <div className="px-3 pb-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-600">{walletBusy ? "Pobieram z Krakena…" : wallet ? `stan z ${fmtDate(wallet.at)}` : ""}</span>
+                    <button onClick={() => fetchWallet(true)} disabled={walletBusy}
+                      className="text-[10px] text-gray-400 hover:text-white border border-[#1e3a28] rounded px-1.5 py-0.5 disabled:opacity-50">🔄 Odśwież</button>
+                  </div>
+                  {walletErr && <div className="text-[11px] text-red-400">{walletErr}</div>}
+                  {wallet?.fiat?.map((f: any) => (
+                    <div key={f.cur} className="flex justify-between text-xs bg-[#101d14] rounded px-2 py-1.5">
+                      <span className="text-gray-300 font-medium">💵 {f.cur} <span className="text-gray-600">(gotówka)</span></span>
+                      <span className="text-white font-semibold">{f.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {wallet?.coins?.map((c: any, i: number) => (
+                    <div key={c.name + i} className="flex justify-between items-center text-xs bg-[#101d14] rounded px-2 py-1.5">
+                      <span className="text-gray-300 font-medium">
+                        {c.name}
+                        {c.bot && <span className="ml-1 text-[9px] text-green-400 bg-green-900/40 rounded px-1">🤖 bot</span>}
+                        {c.staked && <span className="ml-1 text-[9px] text-purple-300 bg-purple-900/40 rounded px-1">🔒 staking</span>}
+                        {!c.bot && !c.staked && <span className="ml-1 text-[9px] text-amber-300 bg-amber-900/30 rounded px-1">🧹 kurz</span>}
+                      </span>
+                      <span className="text-right">
+                        <span className="text-gray-500 mr-2">{c.qty < 1 ? c.qty : c.qty.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
+                        <span className="text-white font-semibold">{c.value.toFixed(2)} {wallet.valuedIn}</span>
+                      </span>
+                    </div>
+                  ))}
+                  {wallet && !wallet.coins?.length && !wallet.fiat?.length && (
+                    <div className="text-[11px] text-gray-600">Portfel pusty</div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* parallel paper engine — same header style as LIVE TRADING (dot + toggle) */}
             <div className="flex items-center justify-between">
