@@ -1768,7 +1768,7 @@ async function paperTick() {
         addPaperLog(`📝🧠 SYM: warunek ${best.sym} traci (E ${learned.E.toFixed(2)}% z ${learned.n}) — pomijam`, "info");
         recordShadowEntry(best.sym, best.isLong ? "long" : "short", best.price,
           { slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, qty: best.qty },
-          `SYM dziennik E ${learned.E.toFixed(2)}% z ${learned.n}`,
+          `dziennik-SYM (E ${learned.E.toFixed(2)}% z ${learned.n})`,
           { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime });
         return;
       }
@@ -2194,6 +2194,15 @@ async function engineTick() {
 
     if (!doLong && !doShort) {
       const coolLeft = cooldownOk ? "✓" : `${Math.ceil((cooldownMs - (Date.now() - lastEntryTime)) / 60000)}m`;
+      // Shadow: a primary signal killed ONLY by the cooldown — play it out virtually
+      // so the journal can measure what the cooldown actually costs (or saves).
+      if ((isLong || isShort) && !cooldownOk) {
+        recordShadowEntry(config.symbol, isLong ? "long" : "short", price,
+          { slPct: Math.max(config.stopLoss, atrPct * 1.5), tpPct: Math.max(config.takeProfit, atrPct * 2.5),
+            trailPct: Math.max(config.trailPct, atrPct * 0.8), qty: config.capital / Math.max(1, maxPos()) / price },
+          `cooldown (${coolLeft})`,
+          { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(bbPercB.toFixed(1)), regime: marketRegime });
+      }
       // Scan alternative symbols when primary has no signal and cooldown is OK.
       // Rotate through the watch-list in chunks of MAX_SCAN_PER_TICK so a huge list
       // (e.g. all 650 Kraken coins) gets fully covered over several ticks without
@@ -2227,7 +2236,7 @@ async function engineTick() {
               const h = new Date().getUTCHours();
               recordShadowEntry(best.sym, altDir, best.price,
                 { slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, qty: best.qty },
-                `BOT dziennik E ${learned.E.toFixed(2)}% z ${learned.n}`,
+                `dziennik-BOT (E ${learned.E.toFixed(2)}% z ${learned.n})`,
                 { hour: h, human: humanActivity(h), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime });
               return;
             }
@@ -2242,6 +2251,13 @@ async function engineTick() {
             const availUsd = config.krakenFiat === "EUR" ? eur * 1.08 : usd;
             if (availUsd < needUsd * 1.05) {
               addLog(`⏭ ${best.sym}: za mało wolnego ${config.krakenFiat} ($${availUsd.toFixed(2)} < $${(needUsd * 1.05).toFixed(2)}) — pomijam (kapitał w innych pozycjach)`, "info");
+              // Shadow: measure what the capital shortage costs — evidence for
+              // "should I top the account up?" decisions.
+              const hh = new Date().getUTCHours();
+              recordShadowEntry(best.sym, altDir, best.price,
+                { slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, qty: best.qty },
+                `saldo ($${availUsd.toFixed(2)} < $${(needUsd * 1.05).toFixed(2)})`,
+                { hour: hh, human: humanActivity(hh), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime });
               return;
             }
           } catch { /* proceed — order will fail gracefully if truly short */ }
@@ -2279,7 +2295,7 @@ async function engineTick() {
         recordShadowEntry(config.symbol, isLong ? "long" : "short", price,
           { slPct: Math.max(config.stopLoss, atrPct * 1.5), tpPct: Math.max(config.takeProfit, atrPct * 2.5),
             trailPct: Math.max(config.trailPct, atrPct * 0.8), qty: config.capital / Math.max(1, maxPos()) / price },
-          `BOT dziennik E ${learned.E.toFixed(2)}% z ${learned.n}`,
+          `dziennik-BOT (E ${learned.E.toFixed(2)}% z ${learned.n})`,
           { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(bbPercB.toFixed(1)), regime: marketRegime });
         return;
       }
@@ -2988,6 +3004,20 @@ router.get("/status", (_req, res) => {
       positions: shadowPositions,
       tradeHistory: shadowHistory.slice(-30),
       logs: shadowLogs.slice(-50),
+      // Per-gate scoreboard: which guard vetoed, how often, and was it right?
+      // (negative pnl = the rejected trades would have LOST → the guard saved money)
+      byGate: (() => {
+        const m: Record<string, { n: number; pnl: number; right: number }> = {};
+        for (const t of shadowHistory) {
+          const g = (t.signal ?? "shadow:?").replace(/^shadow:/, "").split(" ")[0];
+          const e = (m[g] ??= { n: 0, pnl: 0, right: 0 });
+          e.n++; e.pnl += t.pnlUsdt ?? 0;
+          if ((t.pnlUsdt ?? 0) <= 0) e.right++;
+        }
+        return Object.entries(m).map(([gate, v]) => ({
+          gate, n: v.n, pnl: parseFloat(v.pnl.toFixed(2)), rightPct: Math.round(v.right / v.n * 100),
+        })).sort((a, b) => b.n - a.n);
+      })(),
     },
     sessionPnl,
     logs: logs.slice(-50),

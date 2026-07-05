@@ -51,6 +51,7 @@ type BotStatus = {
     positions: { direction: Direction; entryPrice: number; qty: number; entryTime: string; slPct: number; tpPct: number; symbol?: string; signal?: string }[];
     tradeHistory?: TradeRecord[];
     logs?: { time: string; msg: string; type: string }[];
+    byGate?: { gate: string; n: number; pnl: number; rightPct: number }[];
   };
   logs: { time: string; msg: string; type: string }[];
   dipStats?: {
@@ -1107,6 +1108,20 @@ export default function TradingBot() {
                   {botStatus.shadow.wins}W / {botStatus.shadow.losses}L · śledzone: {botStatus.shadow.positions.length}
                   <span className="text-gray-600"> · dodatni wynik = filtry były ZA ostre, ujemny = filtry miały rację</span>
                 </div>
+                {/* per-guard scoreboard */}
+                {(botStatus.shadow.byGate?.length ?? 0) > 0 && (
+                  <div className="space-y-0.5">
+                    {botStatus.shadow.byGate!.map(g => (
+                      <div key={g.gate} className="flex justify-between items-center text-[10px] bg-purple-950/40 rounded px-2 py-1">
+                        <span className="text-purple-200 font-medium">🛡️ {g.gate}</span>
+                        <span className="text-gray-500">{g.n} wet · racja {g.rightPct}%</span>
+                        <span className={`font-semibold ${g.pnl <= 0 ? "text-emerald-300" : "text-amber-300"}`}>
+                          {g.pnl <= 0 ? `uratował $${Math.abs(g.pnl).toFixed(2)}` : `zablokował +$${g.pnl.toFixed(2)}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {botStatus.shadow.positions.map((sp, i) => (
                   <div key={(sp.symbol ?? "") + i} className="flex justify-between text-[10px] text-gray-400 bg-purple-950/40 rounded px-2 py-1">
                     <span className="text-purple-200 font-medium">{(sp.symbol ?? "?").replace("USDT", "")} {sp.direction.toUpperCase()}</span>
