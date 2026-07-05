@@ -1,13 +1,14 @@
 /**
- * 🦯 Asystent — voice assistant for blind and low-vision users (Etap 1: web).
+ * 🗣️ Gadacz — voice phone control for blind and low-vision users (Etap 1: web).
  *
- * Design rules (accessibility first):
- *  - ONE giant tap-to-talk button that fills most of the screen — impossible to miss
- *  - every state change is spoken aloud (TTS pl-PL) and signalled with vibration
- *  - high contrast (black background, yellow/white text), very large font
- *  - camera photo → AI describes the scene and reads out any visible text
+ * Speak a command → AI turns it into {say, action, args} → Gadacz reads "say"
+ * aloud and EXECUTES the action by launching the right system app:
+ *   call → dialer, sms → messages, maps → Google Maps, youtube/search/open → browser.
+ * Contacts live in a local voice-built address book (localStorage) — "zapisz
+ * kontakt mama numer pięćset..." → "zadzwoń do mamy" just works.
  *
- * Etap 2 (native Android + AccessibilityService) will reuse this conversation core.
+ * Full control INSIDE other apps (tapping their buttons, reading their screens)
+ * is impossible from a web page — that's Etap 2: native Android AccessibilityService.
  */
 import { useEffect, useRef, useState } from "react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
@@ -20,6 +21,28 @@ const SpeechRec: any =
 
 function vibrate(pattern: number | number[]) {
   try { navigator.vibrate?.(pattern); } catch { /* ignore */ }
+}
+
+// ── Voice-built local address book ─────────────────────────────────────────────
+const CONTACTS_KEY = "gadacz_contacts_v1";
+function loadContacts(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(CONTACTS_KEY) ?? "{}"); } catch { return {}; }
+}
+function saveContact(name: string, number: string) {
+  const c = loadContacts();
+  c[name.trim().toLowerCase()] = number.replace(/[^\d+]/g, "");
+  try { localStorage.setItem(CONTACTS_KEY, JSON.stringify(c)); } catch { /* ignore */ }
+}
+// "who" may be a saved name (fuzzy) or a spoken number
+function resolveContact(who: string): string | null {
+  const w = (who ?? "").trim().toLowerCase();
+  if (!w) return null;
+  const asNumber = w.replace(/[^\d+]/g, "");
+  if (asNumber.length >= 7) return asNumber;
+  const contacts = loadContacts();
+  if (contacts[w]) return contacts[w];
+  const hit = Object.keys(contacts).find(n => n.includes(w) || w.includes(n));
+  return hit ? contacts[hit] : null;
 }
 
 export default function AssistantPage() {
@@ -51,7 +74,60 @@ export default function AssistantPage() {
 
   useEffect(() => () => { try { window.speechSynthesis.cancel(); recRef.current?.abort?.(); } catch {} }, []);
 
-  // ── Ask the AI (text and/or image) ──────────────────────────────────────────
+  // ── Execute a phone action by launching the right system app ────────────────
+  const launch = (url: string) => { setTimeout(() => { window.location.href = url; }, 400); };
+  const executeAction = (action: string, args: any, say: string) => {
+    switch (action) {
+      case "call": {
+        const num = resolveContact(args?.who ?? "");
+        if (!num) { speak(`Nie znam numeru do: ${args?.who ?? "tej osoby"}. Powiedz: zapisz kontakt ${args?.who ?? ""}, numer, i podyktuj cyfry.`); return; }
+        speak(say || `Dzwonię.`);
+        launch(`tel:${num}`);
+        return;
+      }
+      case "sms": {
+        const num = resolveContact(args?.who ?? "");
+        if (!num) { speak(`Nie znam numeru do: ${args?.who ?? "tej osoby"}. Najpierw zapisz kontakt.`); return; }
+        speak(say || "Otwieram wiadomość.");
+        launch(`sms:${num}?body=${encodeURIComponent(args?.text ?? "")}`);
+        return;
+      }
+      case "save_contact": {
+        const name = String(args?.name ?? "").trim();
+        const number = String(args?.number ?? "").replace(/[^\d+]/g, "");
+        if (!name || number.length < 7) { speak("Nie zrozumiałem nazwy albo numeru. Powiedz na przykład: zapisz kontakt mama, numer pięćset sześćset siedemset osiemset dziewięćset."); return; }
+        saveContact(name, number);
+        speak(say || `Zapisałem kontakt ${name}.`);
+        return;
+      }
+      case "maps": {
+        speak(say || "Otwieram mapę.");
+        launch(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(args?.query ?? "")}`);
+        return;
+      }
+      case "youtube": {
+        speak(say || "Włączam YouTube.");
+        launch(`https://www.youtube.com/results?search_query=${encodeURIComponent(args?.query ?? "")}`);
+        return;
+      }
+      case "search": {
+        speak(say || "Szukam.");
+        launch(`https://www.google.com/search?q=${encodeURIComponent(args?.query ?? "")}`);
+        return;
+      }
+      case "open": {
+        const url = String(args?.url ?? "");
+        if (!/^https?:\/\//.test(url)) { speak("Nie mam poprawnego adresu strony."); return; }
+        speak(say || "Otwieram stronę.");
+        launch(url);
+        return;
+      }
+      default:
+        speak(say);
+    }
+  };
+
+  // ── Ask the AI (command, question and/or image) ─────────────────────────────
   const ask = async (question: string, imageBase64?: string) => {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -60,14 +136,12 @@ export default function AssistantPage() {
     vibrate(30);
     const key = getAnthropicKey();
     if (!key) {
-      const msg = "Brak klucza A I. Otwórz zakładkę A P I i dodaj klucz Anthropic.";
       setError("Brak klucza Anthropic — dodaj go w zakładce API");
-      speak(msg);
+      speak("Brak klucza A I. Otwórz zakładkę A P I i dodaj klucz Anthropic.");
       busyRef.current = false;
       return;
     }
-    const userMsg: Msg = { role: "user", content: question || "(zdjęcie)" };
-    setMessages(m => [...m, userMsg]);
+    setMessages(m => [...m, { role: "user", content: question || "(zdjęcie)" }]);
     try {
       const r = await fetch("/api/assistant/ask", {
         method: "POST",
@@ -77,19 +151,19 @@ export default function AssistantPage() {
           question,
           history: messagesRef.current.slice(-8),
           imageBase64,
+          clientTime: new Date().toLocaleString("pl-PL", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }),
         }),
       });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
-      const answer: string = d.text ?? "Nie mam odpowiedzi.";
-      setMessages(m => [...m, { role: "assistant", content: answer }]);
-      setLastAnswer(answer);
+      const say: string = d.say ?? "Nie mam odpowiedzi.";
+      setMessages(m => [...m, { role: "assistant", content: say }]);
+      setLastAnswer(say);
       vibrate([40, 60, 40]);
-      speak(answer);
+      executeAction(d.action ?? "none", d.args ?? {}, say);
     } catch (e: any) {
-      const msg = "Wystąpił błąd. " + (e.message ?? "");
       setError(e.message ?? "Błąd");
-      speak(msg);
+      speak("Wystąpił błąd. " + (e.message ?? ""));
     } finally {
       busyRef.current = false;
     }
@@ -116,10 +190,10 @@ export default function AssistantPage() {
         if (e.error === "not-allowed") {
           setError("Brak zgody na mikrofon — zezwól w ustawieniach przeglądarki");
           speak("Nie mam dostępu do mikrofonu. Zezwól na mikrofon w przeglądarce.");
-        } else if (e.error !== "aborted" && e.error !== "no-speech") {
-          setError("Błąd mikrofonu: " + e.error);
         } else if (e.error === "no-speech") {
           speak("Nic nie usłyszałem. Dotknij i powiedz jeszcze raz.");
+        } else if (e.error !== "aborted") {
+          setError("Błąd mikrofonu: " + e.error);
         }
       };
       rec.onresult = (ev: any) => {
@@ -160,11 +234,12 @@ export default function AssistantPage() {
     img.src = url;
   };
 
+  const contactCount = Object.keys(loadContacts()).length;
   const statusLabel =
     status === "listening" ? "🎤 SŁUCHAM… mów teraz" :
     status === "thinking"  ? "🧠 Myślę…" :
     status === "speaking"  ? "🔊 Mówię… (dotknij, żeby przerwać)" :
-    "DOTKNIJ I MÓW";
+    "DOTKNIJ I POWIEDZ CO ZROBIĆ";
 
   return (
     <ResellLayout>
@@ -173,15 +248,15 @@ export default function AssistantPage() {
         {/* giant tap-to-talk button */}
         <button
           onClick={startListening}
-          aria-label="Dotknij i mów"
+          aria-label="Dotknij i wydaj polecenie głosem"
           style={{
             minHeight: "38vh", borderRadius: 24, border: "4px solid #facc15",
             background: status === "listening" ? "#713f12" : status === "thinking" ? "#1e3a5f" : status === "speaking" ? "#14532d" : "#111",
-            color: "#facc15", fontSize: 34, fontWeight: 900, letterSpacing: 1,
+            color: "#facc15", fontSize: 30, fontWeight: 900, letterSpacing: 1,
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
           }}
         >
-          <span style={{ fontSize: 72 }}>{status === "listening" ? "🎤" : status === "thinking" ? "🧠" : status === "speaking" ? "🔊" : "🦯"}</span>
+          <span style={{ fontSize: 72 }}>{status === "listening" ? "🎤" : status === "thinking" ? "🧠" : status === "speaking" ? "🔊" : "🗣️"}</span>
           {statusLabel}
         </button>
 
@@ -218,14 +293,20 @@ export default function AssistantPage() {
               color: m.role === "assistant" ? "#dcfce7" : "#e7e5e4",
               borderRadius: 14, padding: "10px 14px", fontSize: 19, lineHeight: 1.45,
             }}>
-              <span style={{ fontWeight: 800 }}>{m.role === "assistant" ? "🦯 " : "🗣️ "}</span>{m.content}
+              <span style={{ fontWeight: 800 }}>{m.role === "assistant" ? "🗣️ " : "👤 "}</span>{m.content}
             </div>
           ))}
           {!messages.length && (
-            <div style={{ color: "#a8a29e", fontSize: 18, lineHeight: 1.5, padding: 8 }}>
-              Dotknij wielkiego żółtego przycisku i zadaj pytanie głosem — na przykład: „która jest godzina?",
-              „przeczytaj mi to" (po zrobieniu zdjęcia), „co widzisz przede mną?".
-              Odpowiedź zostanie przeczytana na głos.
+            <div style={{ color: "#a8a29e", fontSize: 18, lineHeight: 1.6, padding: 8 }}>
+              <b style={{ color: "#facc15" }}>Gadacz steruje telefonem głosem.</b> Dotknij żółtego przycisku i powiedz na przykład:<br /><br />
+              📞 „Zadzwoń do mamy"<br />
+              💬 „Napisz SMS do Anki, że będę za dziesięć minut"<br />
+              🗺️ „Nawiguj do najbliższej apteki"<br />
+              ▶️ „Włącz YouTube z disco polo"<br />
+              🔍 „Wyszukaj pogodę na jutro"<br />
+              📇 „Zapisz kontakt mama, numer pięćset sześćset..."<br />
+              📷 albo zrób zdjęcie — opiszę je i przeczytam tekst<br /><br />
+              {contactCount > 0 ? `Zapisane kontakty: ${contactCount}.` : "Książka kontaktów jest pusta — zacznij od: „zapisz kontakt...”"}
             </div>
           )}
         </div>
