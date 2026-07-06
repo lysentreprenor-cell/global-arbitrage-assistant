@@ -52,6 +52,22 @@ function saveMemory(list: string[]) {
   try { fs.mkdirSync(path.dirname(MEMORY_FILE), { recursive: true }); fs.writeFileSync(MEMORY_FILE, JSON.stringify(list.slice(-200))); } catch { /* ignore */ }
 }
 
+// ── Learning journal — Gadacz records every interaction (command → action →
+// outcome) so patterns of what confuses it surface. You (and the master) can
+// review it to improve how Gadacz helps. Kept last 300.
+const LEARN_FILE = path.resolve(process.cwd(), "data", "gadacz_learn.json");
+function loadLearn(): any[] { try { return JSON.parse(fs.readFileSync(LEARN_FILE, "utf8")); } catch { return []; } }
+function saveLearn(l: any[]) { try { fs.mkdirSync(path.dirname(LEARN_FILE), { recursive: true }); fs.writeFileSync(LEARN_FILE, JSON.stringify(l.slice(-300))); } catch {} }
+router.get("/log", (_req, res) => res.json({ log: loadLearn().slice(-100) }));
+router.post("/log", (req, res) => {
+  const { question, action, ok, note } = req.body ?? {};
+  const l = loadLearn();
+  l.push({ t: new Date().toISOString(), q: String(question ?? "").slice(0, 300), action: String(action ?? "none"), ok: ok !== false, note: String(note ?? "").slice(0, 300) });
+  saveLearn(l);
+  res.json({ ok: true });
+});
+router.post("/log/clear", (_req, res) => { saveLearn([]); res.json({ ok: true }); });
+
 // GET  /api/assistant/memory        → { memory: string[] }
 router.get("/memory", (_req, res) => res.json({ memory: loadMemory() }));
 // POST /api/assistant/memory {fact} → append
@@ -254,6 +270,17 @@ router.post("/ask", async (req: Request, res: Response) => {
         }
       }
     } catch { /* keep raw as say */ }
+
+    // 🧠 Learning journal — record every spoken command, what Gadacz did, and whether
+    // it seemed handled (action taken or a real answer). Text/voice only, not images.
+    if (!imageBase64) {
+      try {
+        const handled = action !== "none" || (say && say.length > 3 && !/nie zrozumia|nie rozumiem|przepraszam/i.test(say));
+        const l = loadLearn();
+        l.push({ t: new Date().toISOString(), q: String(question).slice(0, 300), action, ok: !!handled, note: say.slice(0, 200) });
+        saveLearn(l);
+      } catch { /* ignore */ }
+    }
 
     res.json({ say: say || "Przepraszam, nie zrozumiałem.", action, args });
   } catch (e: any) {
