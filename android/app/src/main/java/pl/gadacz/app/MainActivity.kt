@@ -70,13 +70,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val access = btn("♿  WŁĄCZ STEROWANIE EKRANEM", 0xFFE0F2FE.toInt(), 0xFF082F49.toInt(), 74) {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
+        val notif = btn("📢  CZYTAJ POWIADOMIENIA NA GŁOS", 0xFFFCE7F3.toInt(), 0xFF500724.toInt(), 74) {
+            Brain.prefs(this).edit().putBoolean("read_notifications", true).apply()
+            speak("Włącz Gadacza na liście dostępu do powiadomień.")
+            try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (_: Exception) {}
+        }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
         val update = btn("🔄  SPRAWDŹ AKTUALIZACJĘ (v${Updater.currentVersion(this)})", 0xFFCFFAFE.toInt(), 0xFF083344.toInt(), 66) { doUpdate(manual = true) }
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
         col.addView(talk); col.addView(status); col.addView(settings); col.addView(readScreen)
-        col.addView(bgOn); col.addView(access); col.addView(repeat); col.addView(update); col.addView(transcript)
+        col.addView(bgOn); col.addView(access); col.addView(notif); col.addView(repeat); col.addView(update); col.addView(transcript)
         setContentView(outer)
 
         // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).

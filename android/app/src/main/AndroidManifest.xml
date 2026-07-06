@@ -48,6 +48,18 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- Reads incoming notifications aloud (messages, calls) — the user grants it
+             in Settings → Notification access. Life-changing for blind users. -->
+        <service
+            android:name=".GadaczNotificationService"
+            android:exported="false"
+            android:label="Gadacz — czytanie powiadomień"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- The one door Android opens for screen control — the user enables it
              manually in Settings → Accessibility → Gadacz -->
         <service

@@ -125,9 +125,78 @@ object Brain {
             "quick_settings" -> { svc?.openQuickSettings() ?: return "Włącz sterowanie ekranem, żeby otworzyć szybkie ustawienia." }
             "notifications" -> { svc?.openNotifications() ?: return "Włącz sterowanie ekranem." }
             "settings" -> return openSettings(ctx, args.optString("what"))
+            "alarm" -> return setAlarm(ctx, args.optInt("hour", -1), args.optInt("minute", 0), args.optString("message"))
+            "timer" -> return setTimer(ctx, args.optInt("seconds", 0))
+            "status" -> return phoneStatus(ctx, args.optString("what"))
+            "read_notifications" -> return toggleNotifications(ctx, args.optString("on") != "false")
             else -> {}
         }
         return say
+    }
+
+    private fun setAlarm(ctx: Context, hour: Int, minute: Int, message: String): String {
+        if (hour < 0 || hour > 23) return "Powiedz godzinę, na przykład: ustaw budzik na siódmą."
+        return try {
+            val i = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                if (message.isNotBlank()) putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, message)
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            ctx.startActivity(i)
+            "Ustawiłem budzik na ${"%02d".format(hour)}:${"%02d".format(minute)}."
+        } catch (e: Exception) { "Nie udało się ustawić budzika." }
+    }
+    private fun setTimer(ctx: Context, seconds: Int): String {
+        if (seconds <= 0) return "Powiedz na ile, na przykład: minutnik na dziesięć minut."
+        return try {
+            ctx.startActivity(Intent(android.provider.AlarmClock.ACTION_SET_TIMER).apply {
+                putExtra(android.provider.AlarmClock.EXTRA_LENGTH, seconds)
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+            val m = seconds / 60; val s = seconds % 60
+            "Minutnik ustawiony na ${if (m > 0) "$m minut " else ""}${if (s > 0) "$s sekund" else ""}."
+        } catch (e: Exception) { "Nie udało się ustawić minutnika." }
+    }
+    private fun phoneStatus(ctx: Context, what: String): String {
+        val w = what.lowercase()
+        return try {
+            when {
+                w.contains("bater") -> {
+                    val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+                    val lvl = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                    val charging = bm.isCharging
+                    "Bateria $lvl procent${if (charging) ", ładuje się" else ""}."
+                }
+                w.contains("wifi") || w.contains("wi-fi") || w.contains("internet") || w.contains("sieć") -> {
+                    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                    val net = cm.activeNetwork; val caps = net?.let { cm.getNetworkCapabilities(it) }
+                    when {
+                        caps == null -> "Brak połączenia z internetem."
+                        caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "Połączony przez WiFi."
+                        caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "Połączony przez dane komórkowe."
+                        else -> "Połączony z internetem."
+                    }
+                }
+                w.contains("miejsc") || w.contains("pamię") -> {
+                    val stat = android.os.StatFs(ctx.filesDir.path)
+                    val freeGb = stat.availableBytes / (1024.0 * 1024 * 1024)
+                    "Wolnego miejsca około ${"%.1f".format(freeGb)} gigabajta."
+                }
+                else -> "Powiedz: ile baterii, czy mam WiFi, albo ile miejsca."
+            }
+        } catch (e: Exception) { "Nie mogę sprawdzić tej informacji." }
+    }
+    private fun toggleNotifications(ctx: Context, on: Boolean): String {
+        Brain.prefs(ctx).edit().putBoolean("read_notifications", on).apply()
+        // Ensure access is granted; if not, open the grant screen.
+        val enabled = android.provider.Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners")?.contains(ctx.packageName) == true
+        return if (on && !enabled) {
+            ctx.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            "Włącz Gadacza na liście, żeby czytał powiadomienia."
+        } else if (on) "Będę czytał powiadomienia na głos." else "Przestaję czytać powiadomienia."
     }
 
     /** Torch on/off via CameraManager (no extra permission on most phones). */
