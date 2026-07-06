@@ -150,6 +150,7 @@ type Position = {
   tpPct: number;        // effective take-profit %
   trailPct: number;     // effective trailing-stop %
   breakEvenSet: boolean; // true once SL has been moved to break-even
+  lastPrice?: number;          // last KNOWN good price for THIS symbol (SL fallback, never entry)
   signal?: string;             // which condition triggered entry (optional for restored positions)
   symbol?: string;             // which asset this position is for (defaults to config.symbol)
   leverage?: number;           // leverage this position was OPENED with (close with the same)
@@ -1370,9 +1371,12 @@ async function priceCheck() {
     // Fetch the price in the SAME fiat the entry was recorded in — a mid-session
     // USD→EUR auto-flip must never fake a "-8%" move on an open position.
     const live = await fetchCurrentPrice(sym, position.fiat);
-    if (!live && lastPrice <= 0) continue;
-    const price = live ?? position.entryPrice;             // fall back to entry if no price
-    if (live) lastPrice = live;
+    // NEVER fall back to entryPrice — that fakes a 0% move and silently disables SL
+    // exactly when the API struggles (i.e. during a crash). Use this symbol's last
+    // KNOWN price; if we've never had one, skip this pass rather than fake it.
+    const price = live ?? position.lastPrice ?? 0;
+    if (!price || price <= 0) continue;
+    if (live) { position.lastPrice = live; lastPrice = live; }
 
     const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
     const pct    = position.direction === "short" ? -rawPct : rawPct;
@@ -1381,16 +1385,22 @@ async function priceCheck() {
     if (position.direction === "long")  position.trailRef = Math.max(position.trailRef, price);
     if (position.direction === "short") position.trailRef = Math.min(position.trailRef, price);
 
-    // Break-even: once profit reaches 50% of TP, lock trail at entry + tighten trail (TP1)
+    // Break-even: once profit reaches 50% of TP, lock trail at TRUE break-even + tighten.
+    // TRUE break-even = entry + round-trip fee (0.52%), so an exit here nets ~zero,
+    // not −0.52%. Anchoring at bare entry was a systematic small bleed (TP1 fires often).
+    const FEE_RT = 0.0052;
     if (!position.breakEvenSet && pct >= position.tpPct * 0.5) {
       position.breakEvenSet = true;
       position.trailPct = Math.max(position.trailPct * 0.5, 0.08);
+      const beRef = position.direction === "long"
+        ? position.entryPrice * (1 + FEE_RT)   // long BE floor, fee-covered
+        : position.entryPrice * (1 - FEE_RT);  // short BE ceiling, fee-covered
       if (position.direction === "long") {
-        position.trailRef = Math.max(position.trailRef, position.entryPrice / (1 - position.trailPct / 100));
+        position.trailRef = Math.max(position.trailRef, beRef / (1 - position.trailPct / 100));
       } else {
-        position.trailRef = Math.min(position.trailRef, position.entryPrice / (1 + position.trailPct / 100));
+        position.trailRef = Math.min(position.trailRef, beRef / (1 + position.trailPct / 100));
       }
-      addLog(`🎯 TP1 ${sym} +${pct.toFixed(2)}% — break-even + trail ${position.trailPct.toFixed(2)}%`, "info");
+      addLog(`🎯 TP1 ${sym} +${pct.toFixed(2)}% — break-even (z opłatą) + trail ${position.trailPct.toFixed(2)}%`, "info");
     }
 
     const trailSL = position.direction === "long"
@@ -1819,8 +1829,9 @@ async function paperPriceCheck() {
     if (!pos.breakEvenSet && pct >= pos.tpPct * 0.5) {
       pos.breakEvenSet = true;
       pos.trailPct = Math.max(pos.trailPct * 0.5, 0.08);
-      if (pos.direction === "long") pos.trailRef = Math.max(pos.trailRef, pos.entryPrice / (1 - pos.trailPct / 100));
-      else pos.trailRef = Math.min(pos.trailRef, pos.entryPrice / (1 + pos.trailPct / 100));
+      const beRef = pos.direction === "long" ? pos.entryPrice * 1.0052 : pos.entryPrice * 0.9948;
+      if (pos.direction === "long") pos.trailRef = Math.max(pos.trailRef, beRef / (1 - pos.trailPct / 100));
+      else pos.trailRef = Math.min(pos.trailRef, beRef / (1 + pos.trailPct / 100));
     }
 
     const trailSL = pos.direction === "long" ? pos.trailRef * (1 - pos.trailPct / 100) : pos.trailRef * (1 + pos.trailPct / 100);
@@ -2860,8 +2871,10 @@ router.post("/start", (req, res) => {
     trailPct:   trailPct   ?? 1.50, // 1.5% trail — sprawdzony w grid-search
     stopLoss:   stopLoss   ?? 1.50, // SL 1.5% — powyżej opłaty 0.52%
     takeProfit: takeProfit ?? 5.00, // TP 5% — R/R > 3:1
-    leverage:   leverage   ?? 10,
-    allowShorts: allowShorts ?? true,
+    // SAFE defaults: spot 1x, no shorts. Margin 10x + shorts must be an EXPLICIT
+    // request, never a fallback — a missing field must not silently open leverage.
+    leverage:   leverage   ?? 1,
+    allowShorts: allowShorts ?? false,
     capital: capital ?? 9,
     riskPct: riskPct ?? 100,  // default 100% for backward compat; UI sends 20%
     adxMin:        adxMin        ?? 18,  // ADX > 18 — działa w obecnym rynku (BTC ADX ~18-22)
