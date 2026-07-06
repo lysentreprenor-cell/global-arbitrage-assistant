@@ -40,14 +40,20 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      - name: Zmień nazwę na Gadacz.apk
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Gadacz.apk
+      - name: Zmień nazwę na Gadacz.apk + zapisz wersję
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Gadacz.apk
+          # version.txt pozwala aplikacji wykryć nowszą wersję (auto-aktualizacja)
+          grep -m1 'versionName' android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/' > version.txt
+          echo "Opublikowana wersja: $(cat version.txt)"
 
       - name: Opublikuj APK jako Release (łatwe pobranie z telefonu)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: gadacz-latest
           name: "Gadacz — najnowsza wersja"
-          body: "Aplikacja Gadacz na Androida. Pobierz plik Gadacz.apk poniżej i zainstaluj na telefonie."
-          files: Gadacz.apk
+          body: "Aplikacja Gadacz na Androida. Pobierz plik Gadacz.apk poniżej i zainstaluj na telefonie. Kolejne aktualizacje zrobisz jednym dotknięciem w samej aplikacji."
+          files: |
+            Gadacz.apk
+            version.txt
           make_latest: true

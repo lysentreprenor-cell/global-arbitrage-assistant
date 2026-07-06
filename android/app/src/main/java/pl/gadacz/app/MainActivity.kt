@@ -71,12 +71,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
+        val update = btn("🔄  SPRAWDŹ AKTUALIZACJĘ (v${Updater.currentVersion(this)})", 0xFFCFFAFE.toInt(), 0xFF083344.toInt(), 66) { doUpdate(manual = true) }
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
         col.addView(talk); col.addView(status); col.addView(settings); col.addView(readScreen)
-        col.addView(bgOn); col.addView(access); col.addView(repeat); col.addView(transcript)
+        col.addView(bgOn); col.addView(access); col.addView(repeat); col.addView(update); col.addView(transcript)
         setContentView(outer)
+
+        // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).
+        Thread {
+            val latest = Updater.checkLatest()
+            if (latest != null && latest != Updater.currentVersion(this)) {
+                runOnUiThread { promptUpdate(latest) }
+            }
+        }.start()
 
         // Ask for mic up front (clearing data revokes it) so voice works after setup.
         try {
@@ -144,6 +153,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val svc = Intent(this, GadaczOverlayService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
         speak("Pływający przycisk włączony. Znajdziesz go w rogu ekranu, w każdej aplikacji.")
+    }
+
+    // ── Auto-update ──────────────────────────────────────────────────────────
+    private fun doUpdate(manual: Boolean) {
+        setStatus("🔄 Sprawdzam aktualizację…")
+        Thread {
+            val latest = Updater.checkLatest()
+            val cur = Updater.currentVersion(this)
+            if (latest == null) { runOnUiThread { if (manual) speak("Nie mogę sprawdzić aktualizacji.") ; setStatus("Gotowy") }; return@Thread }
+            if (latest == cur) { runOnUiThread { if (manual) speak("Masz najnowszą wersję."); setStatus("Gotowy") }; return@Thread }
+            runOnUiThread { promptUpdate(latest) }
+        }.start()
+    }
+    private fun promptUpdate(latest: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Nowa wersja Gadacza: $latest")
+            .setMessage("Pobrać i zainstalować teraz? Ustawienia zostaną zachowane.")
+            .setPositiveButton("Aktualizuj") { _, _ -> startDownload() }
+            .setNegativeButton("Później", null).show()
+    }
+    private fun startDownload() {
+        speak("Pobieram aktualizację, chwileczkę.")
+        Thread {
+            Updater.downloadAndInstall(this,
+                onProgress = { p -> runOnUiThread { setStatus("⬇️ Pobieram… $p%") } },
+                onError = { e -> runOnUiThread { setStatus("Gotowy"); speak("Błąd aktualizacji. $e") } })
+        }.start()
     }
 
     private fun speak(text: String) { setStatus("🔊 $text"); tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "g") }
