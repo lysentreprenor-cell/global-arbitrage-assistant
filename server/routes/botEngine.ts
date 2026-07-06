@@ -1613,6 +1613,12 @@ async function loadReversalMap(): Promise<ReversalMap | null> {
 // falling everywhere. Exits are never blocked.
 let _btcHist: { t: number; p: number }[] = [];
 let btcGuardActive = false;
+// 🌡️ Market overheat — the mirror of the dump guard. When BTC sits at the very top
+// of its range (high RSI + top of the band + stretched StochRSI), a pullback is
+// likely, so opening NEW longs — even a dip-buy on an alt — is buying into a top.
+// Longs pause; exits and (sim) shorts still work, because a top is short territory.
+let marketOverheated = false;
+let overheatScore = 0; // 0..100, how hot right now (for display)
 let btcChg1h: number | null = null;
 
 async function updateBtcGuard(): Promise<void> {
@@ -2107,6 +2113,18 @@ async function engineTick() {
     addLog(`Tick: ${config.symbol} $${price.toFixed(0)} RSI=${rsi.toFixed(1)}${rsiRecovering?"↑":rsiDivBull?"⬆":""}(prev=${prevRsi.toFixed(1)}) MACD=${macdLine.toFixed(1)} ADX=${adx.toFixed(0)}${rangeMode?"[range]":""} Trend[${stackLog}]=${trendScore >= 0 ? "+" : ""}${trendScore.toFixed(2)} ATR=${atrPct.toFixed(2)}% StochRSI=${stochRsi.toFixed(0)} BB%B=${bbPercB.toFixed(0)} VWAP=$${vwap.toFixed(0)}${belowVwap?"↓":aboveVwap?"↑":""} Dip=${dipFromHigh.toFixed(1)}% Reżim=${marketRegime}(${regimeCandidateCount}/${TREND.REGIME_HYSTERESIS})${humanTag}${revTag}${guardTag}`);
     prevRsi = rsi; // update after log so (prev=) shows last tick's RSI
 
+    // 🌡️ Overheat thermometer from the primary (BTC) indicators. Score blends the
+    // three "toppy" signals; overheated when clearly stretched at the top.
+    overheatScore = Math.round(
+      0.4 * Math.min(100, Math.max(0, (rsi - 50) * 2)) +      // RSI 50→0, 100→100
+      0.4 * Math.min(100, Math.max(0, bbPercB)) +             // BB%B already 0..100+
+      0.2 * Math.min(100, Math.max(0, stochRsi))              // StochRSI 0..100
+    );
+    marketOverheated = rsi >= 75 && (bbPercB >= 95 || stochRsi >= 92);
+    if (marketOverheated) {
+      addLog(`🌡️ Rynek PRZEGRZANY (RSI ${rsi.toFixed(0)}, BB%B ${bbPercB.toFixed(0)}, StochRSI ${stochRsi.toFixed(0)}) — szczyt fali, wstrzymuję nowe LONG-i (wyjścia i shorty działają)`, "info");
+    }
+
     // ── Open position management ─────────────────────────────────────────────
     // ── Manage positions ──────────────────────────────────────────────────────
     // priceCheck() (every 5s) already handles SL/TP/trail/time for EVERY position
@@ -2184,7 +2202,9 @@ async function engineTick() {
     // Reversal-map tilt: loosen the entry threshold a bit in hours where declines
     // HISTORICALLY flipped to rises more often, tighten where they didn't.
     const bbEntryLive = Math.max(10, Math.min(45, 40 + reversalTiltNow));
-    const isLong  = primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
+    // 🌡️ Overheat blocks NEW longs (buying a top), but shorts stay open — a top is
+    // exactly where a short belongs.
+    const isLong  = !marketOverheated && primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
     const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > (100 - bbEntryLive) && aboveVwap && topConfirmed;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
@@ -2224,8 +2244,11 @@ async function engineTick() {
           addLog(`🔎 Skan ${altSymbols.length}/${allAlts.length} monet (rotacja ${scanCursor > allAlts.length ? allAlts.length : scanCursor}/${allAlts.length})`);
         }
         const scans = await scanInBatches(altSymbols);
-        // Pick the best signal among coins we don't already hold
-        const best = scans.filter(s => (s.isLong || s.isShort) && !holdsSymbol(s.sym)).sort((a, b) => b.score - a.score)[0];
+        // Pick the best signal among coins we don't already hold.
+        // 🌡️ When the market is overheated, ignore alt LONGs too — only shorts pass.
+        const best = scans
+          .filter(s => ((s.isLong && !marketOverheated) || s.isShort) && !holdsSymbol(s.sym))
+          .sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
           // 🧠 Learn & adapt — judge THIS coin's context (its own BB%B), not the primary's
@@ -2984,6 +3007,8 @@ router.get("/status", (_req, res) => {
     })(),
     // BTC guard — gravity watch (pauses new buys while BTC dumps ≥2%/1h)
     btcGuard: { active: btcGuardActive, chg1h: btcChg1h !== null ? parseFloat(btcChg1h.toFixed(2)) : null },
+    // 🌡️ Overheat thermometer — 0..100; overheated pauses new longs
+    overheat: { score: overheatScore, hot: marketOverheated },
     // Parallel paper engine (independent from the real bot above)
     paper: {
       running: paperRunning,

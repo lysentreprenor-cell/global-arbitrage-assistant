@@ -39,6 +39,7 @@ type BotStatus = {
     bestHours: { hour: number; pct: number }[]; bestDays: { day: string; pct: number }[];
   } | null;
   btcGuard?: { active: boolean; chg1h: number | null };
+  overheat?: { score: number; hot: boolean };
   paper?: {
     running: boolean; capital: number; pnl: number; wins: number; losses: number;
     maxPositions: number;
@@ -1716,6 +1717,14 @@ export default function TradingBot() {
                       🛡️ Straż BTC: {botStatus.btcGuard.active
                         ? `AKTYWNA — BTC ${botStatus.btcGuard.chg1h}%/1h, zakupy wstrzymane`
                         : `czuwa (BTC ${botStatus.btcGuard.chg1h >= 0 ? "+" : ""}${botStatus.btcGuard.chg1h}%/1h)`}
+                    </div>
+                  )}
+                  {/* Overheat thermometer — mirror of the dump guard */}
+                  {botStatus?.overheat && (
+                    <div className={`text-xs ${botStatus.overheat.hot ? "text-orange-400 font-semibold" : "text-gray-500"}`}>
+                      🌡️ Termometr rynku: {botStatus.overheat.score}/100 {botStatus.overheat.hot
+                        ? "— PRZEGRZANY, nowe longi wstrzymane (szczyt fali)"
+                        : botStatus.overheat.score >= 70 ? "— gorąco, ostrożnie z górą" : "— w normie"}
                     </div>
                   )}
                   {/* Reversal map — measured flip frequencies, not fortune-telling */}
