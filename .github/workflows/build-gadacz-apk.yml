@@ -8,6 +8,9 @@ on:
     branches: [ claude/teraz-YKMDA ]
     paths: [ "android/**", ".github/workflows/build-gadacz-apk.yml" ]
 
+permissions:
+  contents: write   # pozwól opublikować APK jako Release do bezpośredniego pobrania
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,3 +39,15 @@ jobs:
           name: Gadacz-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Zmień nazwę na Gadacz.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Gadacz.apk
+
+      - name: Opublikuj APK jako Release (łatwe pobranie z telefonu)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-latest
+          name: "Gadacz — najnowsza wersja"
+          body: "Aplikacja Gadacz na Androida. Pobierz plik Gadacz.apk poniżej i zainstaluj na telefonie."
+          files: Gadacz.apk
+          make_latest: true
