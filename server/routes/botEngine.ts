@@ -2161,13 +2161,17 @@ async function engineTick() {
       addLog(`⏸ Niska płynność UTC ${utcHour}:xx (02-06) — pomijam sygnał`, "info");
       return;
     }
-    // ── "Watch the people" — rest when the world sleeps ─────────────────────
-    if (config.humanRhythm) {
-      const act = humanActivity(utcHour);
-      if (act < HUMAN_MIN_ACTIVITY) {
-        addLog(`😴 Ludzie śpią (UTC ${utcHour}:xx, aktywność ${(act * 100).toFixed(0)}%) — bot odpoczywa z nimi`, "info");
-        return;
-      }
+    // ── "Watch the people" — rest from BUYING when the world sleeps ─────────
+    // Asymmetric on purpose: with people asleep there's no crowd to push prices UP,
+    // so dip-buys (longs) rest. But panic DROPS cluster at night (thin books,
+    // liquidation cascades) — exactly short territory — so shorts stay awake.
+    const peopleSleeping = config.humanRhythm && humanActivity(utcHour) < HUMAN_MIN_ACTIVITY;
+    if (peopleSleeping && !config.allowShorts) {
+      addLog(`😴 Ludzie śpią (UTC ${utcHour}:xx, aktywność ${(humanActivity(utcHour) * 100).toFixed(0)}%) — brak shortów, bot odpoczywa`, "info");
+      return;
+    }
+    if (peopleSleeping) {
+      addLog(`🌙 Ludzie śpią — longi odpoczywają, ale CZUWAM na nocne spadki (shorty aktywne)`, "info");
     }
     // ── 🛡️ BTC guard — while BTC is dumping, EVERYTHING falls harder; no new buys ──
     if (btcGuardActive) {
@@ -2202,10 +2206,13 @@ async function engineTick() {
     // Reversal-map tilt: loosen the entry threshold a bit in hours where declines
     // HISTORICALLY flipped to rises more often, tighten where they didn't.
     const bbEntryLive = Math.max(10, Math.min(45, 40 + reversalTiltNow));
-    // 🌡️ Overheat blocks NEW longs (buying a top), but shorts stay open — a top is
-    // exactly where a short belongs.
-    const isLong  = !marketOverheated && primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
-    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > (100 - bbEntryLive) && aboveVwap && topConfirmed;
+    // 🌡️ Overheat / 🌙 night both block NEW longs (buying a top / thin-book dip),
+    // but shorts stay open — a top and a night dump are exactly where shorts belong.
+    // When overheated, loosen the short threshold: the whole market is a top, so a
+    // coin needs less individual overbought to be worth shorting.
+    const shortBar = marketOverheated ? (100 - bbEntryLive) - 8 : (100 - bbEntryLive);
+    const isLong  = !marketOverheated && !peopleSleeping && primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
+    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > shortBar && aboveVwap && topConfirmed;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -2245,9 +2252,10 @@ async function engineTick() {
         }
         const scans = await scanInBatches(altSymbols);
         // Pick the best signal among coins we don't already hold.
-        // 🌡️ When the market is overheated, ignore alt LONGs too — only shorts pass.
+        // 🌡️ overheat / 🌙 night: ignore alt LONGs too — only shorts pass.
+        const longsBlocked = marketOverheated || peopleSleeping;
         const best = scans
-          .filter(s => ((s.isLong && !marketOverheated) || s.isShort) && !holdsSymbol(s.sym))
+          .filter(s => ((s.isLong && !longsBlocked) || s.isShort) && !holdsSymbol(s.sym))
           .sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
