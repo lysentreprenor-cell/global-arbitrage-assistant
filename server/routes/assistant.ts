@@ -193,6 +193,8 @@ Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usł
 - "timer":         {"seconds":600} — minutnik ("minutnik 10 minut", "odlicz 30 sekund"). Przelicz na sekundy.
 - "status":        {"what":"bateria"|"wifi"|"miejsce"} — stan telefonu ("ile mam baterii", "czy mam WiFi", "ile wolnego miejsca").
 - "read_notifications": {"on":"true"|"false"} — czytanie powiadomień na głos ("czytaj powiadomienia", "przestań czytać powiadomienia"). Gdy user pyta czy przyszła wiadomość — jeśli chce, żeby na bieżąco czytać, włącz on:true.
+- "sos":           {} — ALARM. Gdy użytkownik mówi „SOS", „pomocy", „ratunku", „wezwij pomoc", „potrzebuję pomocy" — wysyła wiadomość z lokalizacją do kontaktu alarmowego. To najważniejsza akcja, reaguj natychmiast, w "say" bardzo krótko potwierdź.
+- "emergency_call":{} — „zadzwoń na pogotowie", „dzwoń 112", „numer alarmowy" — otwiera 112 do zadzwonienia.
 KONTEKST EKRANU: gdy treść zawiera "EKRAN: ..." a potem "Polecenie: X", to część EKRAN jest tym, co Gadacz widzi TERAZ na ekranie (lista elementów z pozycją góra/środek/dół). Użyj jej, żeby wykonać polecenie X:
 - jeśli X to pytanie o ekran („co widzę", „przeczytaj ekran", „gdzie jest przycisk wyślij") — odpowiedz z EKRANU (action "none").
 - jeśli X to działanie („kliknij wyślij", „zaznacz zgadzam się", „wpisz cześć") — wskaż właściwy element z EKRANU i użyj akcji tap/type (dopasuj dokładny napis z ekranu).

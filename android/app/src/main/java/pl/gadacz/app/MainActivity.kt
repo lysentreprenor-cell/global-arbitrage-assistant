@@ -92,11 +92,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
         }.start()
 
-        // Ask for mic up front (clearing data revokes it) so voice works after setup.
+        // Ask for mic (and location for SOS) up front.
         try {
-            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 1)
-            }
+            val need = ArrayList<String>()
+            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(android.Manifest.permission.RECORD_AUDIO)
+            if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            if (need.isNotEmpty()) requestPermissions(need.toTypedArray(), 1)
         } catch (_: Exception) {}
 
         if (!Brain.isConfigured(this)) showSettings()
@@ -195,14 +196,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val keyIn = EditText(this).apply { hint = "Klucz Anthropic sk-ant-..."; setText(Brain.anthropicKey(this@MainActivity)) }
         val pinIn = EditText(this).apply { hint = "PIN aplikacji (np. 0905)"; inputType = android.text.InputType.TYPE_CLASS_NUMBER; setText(Brain.pin(this@MainActivity)) }
         val wakeIn = EditText(this).apply { hint = "Słowo-budzik (domyślnie Gadacz, np. Neo)"; setText(Brain.wakeWord(this@MainActivity)) }
-        box.addView(urlIn); box.addView(keyIn); box.addView(pinIn); box.addView(wakeIn)
+        val sosIn = EditText(this).apply { hint = "Kontakt alarmowy — numer SOS"; inputType = android.text.InputType.TYPE_CLASS_PHONE; setText(Brain.prefs(this@MainActivity).getString("sos_number", "")) }
+        box.addView(urlIn); box.addView(keyIn); box.addView(pinIn); box.addView(wakeIn); box.addView(sosIn)
         AlertDialog.Builder(this).setTitle("Ustaw Gadacza").setView(box)
             .setPositiveButton("Zapisz") { _, _ ->
                 Brain.prefs(this).edit()
                     .putString("server_url", urlIn.text.toString().trim())
                     .putString("anthropic_key", keyIn.text.toString().trim())
                     .putString("app_pin", pinIn.text.toString().trim())
-                    .putString("wake_word", wakeIn.text.toString().trim()).apply()
+                    .putString("wake_word", wakeIn.text.toString().trim())
+                    .putString("sos_number", sosIn.text.toString().trim()).apply()
                 speak("Zapisane. Dotknij dużego przycisku i mów.")
             }.setNegativeButton("Anuluj", null).show()
     }

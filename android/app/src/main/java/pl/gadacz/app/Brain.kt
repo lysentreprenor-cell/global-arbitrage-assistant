@@ -129,9 +129,36 @@ object Brain {
             "timer" -> return setTimer(ctx, args.optInt("seconds", 0))
             "status" -> return phoneStatus(ctx, args.optString("what"))
             "read_notifications" -> return toggleNotifications(ctx, args.optString("on") != "false")
+            "sos" -> return sos(ctx)
+            "emergency_call" -> { web(ctx, ""); ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return "Otwieram numer alarmowy 112. Dotknij zielonej słuchawki, aby zadzwonić." }
             else -> {}
         }
         return say
+    }
+
+    /** Emergency: text the saved contact with a live location link (opens SMS to confirm send). */
+    private fun sos(ctx: Context): String {
+        val num = (prefs(ctx).getString("sos_number", "") ?: "").replace(Regex("[^\\d+]"), "")
+        val loc = lastLocation(ctx)
+        val where = if (loc != null) " Jestem tu: https://maps.google.com/?q=${loc.first},${loc.second}" else " Nie mam lokalizacji."
+        val msg = "POMOCY! Potrzebuję pomocy.$where"
+        if (num.length < 7) {
+            ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return "Nie masz zapisanego kontaktu alarmowego. Otwieram 112 — dotknij słuchawki. Kontakt alarmowy ustawisz w ustawieniach Gadacza."
+        }
+        ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$num")).putExtra("sms_body", msg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return "Otwieram wiadomość SOS z Twoją lokalizacją. Dotknij wyślij, żeby wezwać pomoc. Mogę też zadzwonić na 112."
+    }
+    private fun lastLocation(ctx: Context): Pair<Double, Double>? {
+        return try {
+            if (ctx.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                && ctx.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) return null
+            val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+            val provs = lm.getProviders(true)
+            var best: android.location.Location? = null
+            for (p in provs) { val l = lm.getLastKnownLocation(p) ?: continue; if (best == null || l.accuracy < best!!.accuracy) best = l }
+            best?.let { Pair(it.latitude, it.longitude) }
+        } catch (e: Exception) { null }
     }
 
     private fun setAlarm(ctx: Context, hour: Int, minute: Int, message: String): String {
