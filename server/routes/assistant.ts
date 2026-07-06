@@ -183,7 +183,12 @@ Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usł
 - "tap":          {"text":"napis na przycisku lub elemencie"} — kliknij element o tym tekście
 - "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole
 - "open_app":     {"name":"nazwa aplikacji"} — otwórz zainstalowaną aplikację (np. Messenger, WhatsApp)
-- "back":         {} — cofnij / "home": {} — ekran główny
+- "back":         {} — cofnij / "home": {} — ekran główny / "recents": {} — ostatnie aplikacje
+- "flashlight":    {"on":"true"|"false"} — latarka włącz/wyłącz ("włącz latarkę", "zgaś latarkę")
+- "volume":        {"dir":"up"|"down"|"mute"|"max"} — głośność ("głośniej", "ciszej", "wycisz", "na maksa")
+- "quick_settings":{} — otwórz szybkie ustawienia (kafelki WiFi/Bluetooth itd.) ("szybkie ustawienia", "kafelki")
+- "notifications": {} — otwórz powiadomienia ("pokaż powiadomienia")
+- "settings":      {"what":"wifi"|"bluetooth"|"dane"|"lokalizacja"|"dźwięk"|"ekran"|"bateria"|"samolot"} — otwórz dany ekran ustawień. UWAGA: Android nie pozwala samemu przełączyć WiFi/Bluetooth — otwórz panel akcją settings, a potem użytkownik/Ty użyj "tap" na przełączniku ("włącz WiFi" → settings wifi, potem powiedz że można kliknąć przełącznik). Do włączenia WiFi/Bluetooth: settings {what:...} a następnie tap na nazwie.
 KONTEKST EKRANU: gdy treść zawiera "EKRAN: ..." a potem "Polecenie: X", to część EKRAN jest tym, co Gadacz widzi TERAZ na ekranie (lista elementów z pozycją góra/środek/dół). Użyj jej, żeby wykonać polecenie X:
 - jeśli X to pytanie o ekran („co widzę", „przeczytaj ekran", „gdzie jest przycisk wyślij") — odpowiedz z EKRANU (action "none").
 - jeśli X to działanie („kliknij wyślij", „zaznacz zgadzam się", „wpisz cześć") — wskaż właściwy element z EKRANU i użyj akcji tap/type (dopasuj dokładny napis z ekranu).

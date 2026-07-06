@@ -117,6 +117,14 @@ class GadaczAccessibilityService : AccessibilityService() {
 
     fun goBack() { performGlobalAction(GLOBAL_ACTION_BACK) }
     fun goHome() { performGlobalAction(GLOBAL_ACTION_HOME) }
+    fun recents() { performGlobalAction(GLOBAL_ACTION_RECENTS) }
+    fun openQuickSettings() {
+        if (android.os.Build.VERSION.SDK_INT >= 31) performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+        else performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+    }
+    fun openNotifications() { performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) }
+    /** Toggle an on-screen switch by its label — for Wi-Fi/Bluetooth panels etc. */
+    fun toggleByText(label: String): Boolean = tapByText(label)
     fun scroll(forward: Boolean) {
         val root = rootInActiveWindow ?: return
         val s = findScrollable(root) ?: return

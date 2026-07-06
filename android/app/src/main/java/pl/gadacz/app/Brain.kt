@@ -78,11 +78,62 @@ object Brain {
             }
             "back" -> svc?.goBack()
             "home" -> svc?.goHome()
+            "recents" -> svc?.recents()
             "scroll" -> svc?.scroll(args.optString("dir") != "up")
             "app_action" -> return appAction(ctx, args)
+            // ── System control ──────────────────────────────────────────────
+            "flashlight" -> return flashlight(ctx, args.optString("on") != "false")
+            "volume" -> return volume(ctx, args.optString("dir"))
+            "quick_settings" -> { svc?.openQuickSettings() ?: return "Włącz sterowanie ekranem, żeby otworzyć szybkie ustawienia." }
+            "notifications" -> { svc?.openNotifications() ?: return "Włącz sterowanie ekranem." }
+            "settings" -> return openSettings(ctx, args.optString("what"))
             else -> {}
         }
         return say
+    }
+
+    /** Torch on/off via CameraManager (no extra permission on most phones). */
+    private fun flashlight(ctx: Context, on: Boolean): String {
+        return try {
+            val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            val id = cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
+                ?: return "Ten telefon nie ma latarki."
+            cm.setTorchMode(id, on)
+            if (on) "Latarka włączona." else "Latarka wyłączona."
+        } catch (e: Exception) { "Nie udało się z latarką." }
+    }
+
+    private fun volume(ctx: Context, dir: String): String {
+        val am = ctx.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        val flag = android.media.AudioManager.FLAG_SHOW_UI
+        return when {
+            dir == "up" || dir.contains("głoś") || dir.contains("wię") -> { am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_RAISE, flag); "Głośniej." }
+            dir == "down" || dir.contains("cisz") || dir.contains("mniej") -> { am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, flag); "Ciszej." }
+            dir == "mute" || dir.contains("wycisz") -> { am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, flag); "Wyciszone." }
+            dir == "max" -> { am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC), flag); "Maksymalna głośność." }
+            else -> "Powiedz: głośniej, ciszej albo wycisz."
+        }
+    }
+
+    /** Open a system settings screen/panel; accessibility can then flip the switch. */
+    private fun openSettings(ctx: Context, what: String): String {
+        val w = what.lowercase()
+        val action = when {
+            w.contains("wifi") || w.contains("wi-fi") -> if (android.os.Build.VERSION.SDK_INT >= 29) android.provider.Settings.Panel.ACTION_WIFI else android.provider.Settings.ACTION_WIFI_SETTINGS
+            w.contains("bluetooth") -> android.provider.Settings.ACTION_BLUETOOTH_SETTINGS
+            w.contains("dane") || w.contains("internet") || w.contains("sieć") -> if (android.os.Build.VERSION.SDK_INT >= 29) android.provider.Settings.Panel.ACTION_INTERNET_CONNECTIVITY else android.provider.Settings.ACTION_WIRELESS_SETTINGS
+            w.contains("lokaliz") || w.contains("gps") -> android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+            w.contains("dźwięk") || w.contains("głoś") -> android.provider.Settings.ACTION_SOUND_SETTINGS
+            w.contains("ekran") || w.contains("jasn") || w.contains("wyświetl") -> android.provider.Settings.ACTION_DISPLAY_SETTINGS
+            w.contains("bater") -> android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS
+            w.contains("samolot") -> android.provider.Settings.ACTION_AIRPLANE_MODE_SETTINGS
+            w.contains("aplikac") -> android.provider.Settings.ACTION_APPLICATION_SETTINGS
+            else -> android.provider.Settings.ACTION_SETTINGS
+        }
+        return try {
+            ctx.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            "Otwieram ustawienia. Powiedz „kliknij” i nazwę przełącznika, żeby go włączyć."
+        } catch (e: Exception) { "Nie mogę otworzyć tych ustawień." }
     }
 
     /** Server-backed info/controls: BTC, weather, bot status, wallet, stop, sweep. */
