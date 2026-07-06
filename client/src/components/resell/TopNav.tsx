@@ -10,7 +10,6 @@ import { triggeredAlertsCount } from "@/lib/priceAlerts";
 const NAV_ITEMS = [
   { href: "/resell",              label: "Dashboard",   icon: LayoutDashboard },
   { href: "/resell/agent",        label: "Agent AI",    icon: Bot },
-  { href: "/resell/assistant",    label: "🗣️ Gadacz",   icon: Mic },
   { href: "/resell/marketing",    label: "Marketing",   icon: Megaphone },
   { href: "/resell/search",       label: "Szukaj",      icon: Search },
   { href: "/resell/saved",        label: "Pipeline",    icon: ListTodo },
@@ -27,7 +26,7 @@ const NAV_ITEMS = [
   { href: "/resell/autopilot",    label: "Autopilot",   icon: Rocket },
   { href: "/resell/trading-bot",  label: "Trading Bot", icon: Activity },
   { href: "/resell/settings",     label: "API",         icon: Settings },
-  { href: "/resell/transport",    label: "Transport",   icon: Truck },
+  { href: "/resell/assistant",    label: "🗣️ Gadacz",   icon: Mic },
 ];
 
 export function TopNav() {
