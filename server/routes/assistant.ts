@@ -227,6 +227,12 @@ Akcje PAMIĘCI (Gadacz uczy się użytkownika — działa zawsze):
 Poniżej PAMIĘĆ o użytkowniku (co Gadacz już zapamiętał). Korzystaj z niej, żeby lepiej rozumieć polecenia i odpowiadać osobiście:
 {USER_MEMORY}
 
+DOŚWIADCZENIE — jak TEN użytkownik zwykle mówi i co wtedy działa. Ucz się z tego jego stylu (te same słowa → ta sama akcja). Jeśli obecne polecenie brzmi podobnie do udanego przykładu, wybierz tę samą akcję:
+{EXAMPLES}
+Jeśli w doświadczeniu widać polecenia, których NIE udało się zrozumieć (oznaczone [nieudane]), a teraz brzmią podobnie — postaraj się je tym razem obsłużyć albo dopytaj konkretnie, czego użytkownik chce.
+
+Gdy użytkownik POPRAWIA Cię („nie o to chodziło", „źle", „miałem na myśli...") — potraktuj to jako naukę: w "say" potwierdź, a jeśli podał regułę (np. „jak mówię X to znaczy Y"), użyj akcji "remember", żeby zapamiętać to na przyszłość.
+
 Aktualny czas lokalny użytkownika: {CLIENT_TIME}. Korzystaj z niego przy pytaniach o godzinę i datę.`;
 
 router.post("/ask", async (req: Request, res: Response) => {
@@ -237,6 +243,19 @@ router.post("/ask", async (req: Request, res: Response) => {
     const memText = memory.length
       ? memory.slice(-40).map((m, i) => `${i + 1}. ${String(m).slice(0, 200)}`).join("\n")
       : "(pamięć pusta — nic jeszcze nie zapamiętano)";
+
+    // 🧠 Learn from the journal: feed recent successful command→action patterns (and a
+    // few failures) so the AI few-shot-adapts to how THIS user speaks. This is the
+    // learning loop — the journal stops being write-only and starts making Gadacz smarter.
+    let examplesText = "(brak doświadczenia — jeszcze się uczy)";
+    try {
+      const jr = loadLearn();
+      const good = jr.filter(e => e.ok && e.action && e.action !== "none").slice(-14)
+        .map(e => `„${e.q}” → ${e.action}`);
+      const bad = jr.filter(e => !e.ok).slice(-4).map(e => `„${e.q}” → [nieudane]`);
+      const lines = [...good, ...bad];
+      if (lines.length) examplesText = lines.join("\n");
+    } catch { /* ignore */ }
     const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
     if (!key) return res.status(400).json({ error: "Brak klucza Anthropic — dodaj go w zakładce API (Ustawienia)" });
 
@@ -264,7 +283,8 @@ router.post("/ask", async (req: Request, res: Response) => {
         max_tokens: 700,
         system: SYSTEM
           .replace("{CLIENT_TIME}", String(clientTime).slice(0, 100) || "nieznany")
-          .replace("{USER_MEMORY}", memText),
+          .replace("{USER_MEMORY}", memText)
+          .replace("{EXAMPLES}", examplesText),
         messages,
       }),
       signal: AbortSignal.timeout(60_000),
