@@ -250,9 +250,21 @@ router.post("/ask", async (req: Request, res: Response) => {
     let examplesText = "(brak doświadczenia — jeszcze się uczy)";
     try {
       const jr = loadLearn();
-      const good = jr.filter(e => e.ok && e.action && e.action !== "none").slice(-14)
-        .map(e => `„${e.q}” → ${e.action}`);
-      const bad = jr.filter(e => !e.ok).slice(-4).map(e => `„${e.q}” → [nieudane]`);
+      // Frequency-weight: the more often a phrasing worked, the stronger the pattern.
+      const goodMap = new Map<string, { action: string; n: number }>();
+      for (const e of jr) {
+        if (!(e.ok && e.action && e.action !== "none")) continue;
+        const kk = String(e.q ?? "").toLowerCase().trim();
+        if (!kk) continue;
+        const cur = goodMap.get(kk);
+        if (cur) cur.n++; else goodMap.set(kk, { action: e.action, n: 1 });
+      }
+      const good = [...goodMap.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 16)
+        .map(([qq, v]) => `„${qq}” → ${v.action}${v.n > 1 ? ` (działało ${v.n} razy)` : ""}`);
+      // Failures worth learning from — the frequent ones first.
+      const badMap = new Map<string, number>();
+      for (const e of jr) if (!e.ok) { const kk = String(e.q ?? "").toLowerCase().trim(); if (kk) badMap.set(kk, (badMap.get(kk) ?? 0) + 1); }
+      const bad = [...badMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([qq]) => `„${qq}” → [nieudane]`);
       const lines = [...good, ...bad];
       if (lines.length) examplesText = lines.join("\n");
     } catch { /* ignore */ }
@@ -265,6 +277,23 @@ router.post("/ask", async (req: Request, res: Response) => {
     }
     const q = String(question ?? "").trim() || (imageBase64 ? "Opisz dokładnie, co widzisz na tym obrazie, i przeczytaj cały widoczny tekst." : "");
     if (!q) return res.status(400).json({ error: "Puste polecenie" });
+
+    // 👍👎 Explicit feedback — a real learning signal. If the user just says "dobrze"
+    // or "źle", grade the PREVIOUS interaction in the journal (no AI call needed).
+    if (!imageBase64) {
+      const fb = q.toLowerCase().replace(/[.!]/g, "").trim();
+      const isGood = /^(dobrze|dobra|tak jest|super|świetnie|brawo|idealnie|zgadza się|o to chodziło)$/.test(fb);
+      const isBad  = /^(źle|nie o to|nie tak|pomyli|błąd|niedobrze|nie to)/.test(fb);
+      if (isGood || isBad) {
+        try {
+          const jr = loadLearn();
+          for (let i = jr.length - 1; i >= 0; i--) { if (!jr[i].graded) { jr[i].ok = isGood; jr[i].graded = true; break; } }
+          saveLearn(jr);
+        } catch { /* ignore */ }
+        return res.json({ say: isGood ? "Dobrze, zapamiętam że to było trafne." : "Rozumiem, następnym razem inaczej. Powiedz jak powinno być, to się nauczę.", action: "none", args: {}, next: false });
+      }
+    }
+
     content.push({ type: "text", text: q.slice(0, 4000) });
 
     const messages = [
