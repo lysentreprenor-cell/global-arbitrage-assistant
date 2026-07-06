@@ -1068,6 +1068,25 @@ async function fetchCurrentPrice(symbol: string, fiatOverride?: KrakenFiat): Pro
   } catch { return null; }
 }
 
+// Bid/ask spread at the moment of entry. A market-buy on a coin with a wide spread
+// pays that spread on the way in AND out — on thin alts it can exceed the whole TP,
+// making the trade a guaranteed loser before the market even moves. Gate on it.
+async function fetchSpreadPct(symbol: string, fiat?: KrakenFiat): Promise<number | null> {
+  const pair = fiat ? getKrakenPairName(symbol, fiat) : krakenPair(symbol);
+  try {
+    const r = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const d = await r.json() as any;
+    const key = Object.keys(d.result ?? {})[0];
+    if (!key) return null;
+    const ask = parseFloat(d.result[key].a?.[0] ?? "0");
+    const bid = parseFloat(d.result[key].b?.[0] ?? "0");
+    if (ask <= 0 || bid <= 0) return null;
+    return (ask - bid) / ((ask + bid) / 2) * 100; // spread as % of mid
+  } catch { return null; }
+}
+const MAX_SPREAD_PCT = 0.4; // skip entries where bid-ask spread > 0.4% of price
+
 /** Trend on a single Kraken interval (minutes) via EMA9 vs EMA21. Cached/queued by krakenOhlcFetch. */
 async function fetchTfTrend(symbol: string, interval: number): Promise<"bull" | "bear" | "neutral"> {
   const pair = krakenPair(symbol);
@@ -1629,6 +1648,7 @@ let btcGuardActive = false;
 // Longs pause; exits and (sim) shorts still work, because a top is short territory.
 let marketOverheated = false;
 let overheatScore = 0; // 0..100, how hot right now (for display)
+let marketBearish = false; // higher-TF trend clearly down → block new longs
 let btcChg1h: number | null = null;
 
 async function updateBtcGuard(): Promise<void> {
@@ -2135,6 +2155,13 @@ async function engineTick() {
     if (marketOverheated) {
       addLog(`🌡️ Rynek PRZEGRZANY (RSI ${rsi.toFixed(0)}, BB%B ${bbPercB.toFixed(0)}, StochRSI ${stochRsi.toFixed(0)}) — szczyt fali, wstrzymuję nowe LONG-i (wyjścia i shorty działają)`, "info");
     }
+    // 📉 Higher-TF trend gate: trendScore blends 1m→4h. When it's clearly bearish,
+    // dip-buys are catching a falling knife across the whole market (the mid-June
+    // −12% losses). Block new longs; shorts and exits stay open.
+    marketBearish = trendScore < -0.4;
+    if (marketBearish) {
+      addLog(`📉 Trend wyraźnie spadkowy (stos MTF ${trendScore.toFixed(2)}) — nie łapię noża, wstrzymuję nowe LONG-i (shorty działają)`, "info");
+    }
 
     // ── Open position management ─────────────────────────────────────────────
     // ── Manage positions ──────────────────────────────────────────────────────
@@ -2222,7 +2249,7 @@ async function engineTick() {
     // When overheated, loosen the short threshold: the whole market is a top, so a
     // coin needs less individual overbought to be worth shorting.
     const shortBar = marketOverheated ? (100 - bbEntryLive) - 8 : (100 - bbEntryLive);
-    const isLong  = !marketOverheated && !peopleSleeping && primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
+    const isLong  = !marketOverheated && !marketBearish && !peopleSleeping && primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
     const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > shortBar && aboveVwap && topConfirmed;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
@@ -2263,8 +2290,8 @@ async function engineTick() {
         }
         const scans = await scanInBatches(altSymbols);
         // Pick the best signal among coins we don't already hold.
-        // 🌡️ overheat / 🌙 night: ignore alt LONGs too — only shorts pass.
-        const longsBlocked = marketOverheated || peopleSleeping;
+        // 🌡️ overheat / 🌙 night / 📉 bearish trend: ignore alt LONGs too — only shorts pass.
+        const longsBlocked = marketOverheated || peopleSleeping || marketBearish;
         const best = scans
           .filter(s => ((s.isLong && !longsBlocked) || s.isShort) && !holdsSymbol(s.sym))
           .sort((a, b) => b.score - a.score)[0];
@@ -2280,6 +2307,15 @@ async function engineTick() {
                 { slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, qty: best.qty },
                 `dziennik-BOT (E ${learned.E.toFixed(2)}% z ${learned.n})`,
                 { hour: h, human: humanActivity(h), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime });
+              return;
+            }
+          }
+          // 📏 Spread filter — a wide bid-ask makes a market-buy a guaranteed loser
+          // on thin alts (pays the spread in and out, often > TP). Skip it.
+          if (!config.paperMode) {
+            const sp = await fetchSpreadPct(best.sym, config.krakenFiat);
+            if (sp !== null && sp > MAX_SPREAD_PCT) {
+              addLog(`📏 ${best.sym}: spread ${sp.toFixed(2)}% > ${MAX_SPREAD_PCT}% — za drogo wejść, pomijam`, "info");
               return;
             }
           }
@@ -2404,6 +2440,15 @@ async function engineTick() {
         }
       }
     } catch { /* proceed anyway */ }
+
+    // 📏 Spread filter on the primary symbol too — skip if bid-ask too wide
+    if (!config.paperMode) {
+      const sp = await fetchSpreadPct(config.symbol, config.krakenFiat);
+      if (sp !== null && sp > MAX_SPREAD_PCT) {
+        addLog(`📏 ${config.symbol}: spread ${sp.toFixed(2)}% > ${MAX_SPREAD_PCT}% — za drogo wejść, pomijam`, "info");
+        return;
+      }
+    }
 
     addLog(`🎯 SYGNAŁ ${direction.toUpperCase()} [${lastEntrySignal}] RSI=${rsi.toFixed(1)} MACD${macdBull ? "↑" : "↓"} ADX=${adx.toFixed(0)} 4H:${fourHourTrend} ATR=${atrPct.toFixed(2)}% → SL=${effSL.toFixed(2)}% TP=${effTP.toFixed(2)}% qty=${qty} lev=${effLev}x`, "info");
     try {
@@ -3030,6 +3075,8 @@ router.get("/status", (_req, res) => {
     btcGuard: { active: btcGuardActive, chg1h: btcChg1h !== null ? parseFloat(btcChg1h.toFixed(2)) : null },
     // 🌡️ Overheat thermometer — 0..100; overheated pauses new longs
     overheat: { score: overheatScore, hot: marketOverheated },
+    // 📉 Higher-TF trend gate — bearish pauses new longs
+    trendGate: { bearish: marketBearish, score: parseFloat(trendScore.toFixed(2)) },
     // Parallel paper engine (independent from the real bot above)
     paper: {
       running: paperRunning,

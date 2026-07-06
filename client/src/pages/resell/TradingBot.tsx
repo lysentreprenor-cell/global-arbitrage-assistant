@@ -40,6 +40,7 @@ type BotStatus = {
   } | null;
   btcGuard?: { active: boolean; chg1h: number | null };
   overheat?: { score: number; hot: boolean };
+  trendGate?: { bearish: boolean; score: number };
   paper?: {
     running: boolean; capital: number; pnl: number; wins: number; losses: number;
     maxPositions: number;
@@ -1725,6 +1726,14 @@ export default function TradingBot() {
                       🌡️ Termometr rynku: {botStatus.overheat.score}/100 {botStatus.overheat.hot
                         ? "— PRZEGRZANY, nowe longi wstrzymane (szczyt fali)"
                         : botStatus.overheat.score >= 70 ? "— gorąco, ostrożnie z górą" : "— w normie"}
+                    </div>
+                  )}
+                  {/* Higher-TF trend gate */}
+                  {botStatus?.trendGate && (
+                    <div className={`text-xs ${botStatus.trendGate.bearish ? "text-red-400 font-semibold" : "text-gray-500"}`}>
+                      📉 Trend MTF: {botStatus.trendGate.score >= 0 ? "+" : ""}{botStatus.trendGate.score} {botStatus.trendGate.bearish
+                        ? "— SPADKOWY, nowe longi wstrzymane (nie łapię noża)"
+                        : "— w porządku"}
                     </div>
                   )}
                   {/* Reversal map — measured flip frequencies, not fortune-telling */}
