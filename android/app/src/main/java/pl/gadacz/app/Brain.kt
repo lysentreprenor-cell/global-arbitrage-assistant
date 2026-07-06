@@ -58,7 +58,7 @@ object Brain {
      */
     fun runTask(ctx: Context, goal: String, history: ArrayList<Pair<String, String>>, speak: (String) -> Unit) {
         var step = 0
-        while (step < 8) {
+        while (step < 14) {
             val screen = GadaczAccessibilityService.instance?.readScreen()
             val resp = try { ask(ctx, goal, history, screen) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
             val say = resp.optString("say", "")
@@ -66,10 +66,20 @@ object Brain {
             val args = resp.optJSONObject("args") ?: JSONObject()
             val next = resp.optBoolean("next", false)
             history.add("user" to goal); history.add("assistant" to say)
+            // Speak intermediate steps only briefly (keep it snappy); full result spoken at the end.
+            if (say.isNotBlank() && next) speak(say)
             val spoken = execute(ctx, action, args, say) { s -> speak(s) }
-            if (spoken.isNotBlank()) speak(spoken)
-            if (!next || action == "none") return
-            try { Thread.sleep(1300) } catch (_: Exception) {}  // let the screen settle
+            if (!next || action == "none") { if (spoken.isNotBlank()) speak(spoken); return }
+            // Adaptive settle — wait only as long as each action needs, so it's fast.
+            val settle = when (action) {
+                "open_app", "open" -> 1900L
+                "tap" -> 850L
+                "scroll" -> 450L
+                "type", "write" -> 400L
+                "back", "home", "recents" -> 650L
+                else -> 800L
+            }
+            try { Thread.sleep(settle) } catch (_: Exception) {}
             step++
         }
         speak("Zrobiłem kilka kroków. Powiedz, co dalej.")

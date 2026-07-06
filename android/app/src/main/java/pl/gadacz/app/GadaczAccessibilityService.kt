@@ -43,8 +43,16 @@ class GadaczAccessibilityService : AccessibilityService() {
         val out = ArrayList<String>()
         val screenH = resources.displayMetrics.heightPixels.coerceAtLeast(1)
         collect(root, out, screenH)
-        sb.append(out.take(120).joinToString(" | "))
+        sb.append(out.take(140).joinToString(" | "))
+        if (hasScrollable(root)) sb.append(" || (można PRZEWIJAĆ — jest więcej treści poza ekranem; użyj scroll aby zobaczyć)")
         return sb.toString()
+    }
+
+    private fun hasScrollable(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        if (node.isScrollable) return true
+        for (i in 0 until node.childCount) if (hasScrollable(node.getChild(i))) return true
+        return false
     }
 
     private fun collect(node: AccessibilityNodeInfo?, out: ArrayList<String>, screenH: Int) {
