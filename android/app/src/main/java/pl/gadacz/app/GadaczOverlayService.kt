@@ -178,6 +178,8 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         if (tts.isSpeaking) { tts.stop(); return }
         if (!Brain.isConfigured(this)) { speak("Najpierw otwórz Gadacza i podaj adres serwera oraz klucz."); return }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { speak("Brak rozpoznawania mowy na tym telefonie."); return }
+        // Pause the wake-word recognizer so two mics don't fight (it resumes after handle()).
+        try { wakeRec?.cancel(); wakeRec?.destroy() } catch (_: Exception) {}; wakeRec = null
         busy = true
         setBubble("🎤")
         recognizer?.destroy()
@@ -207,6 +209,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
 
     private fun handle(text: String) {
         setBubble("🧠")
+        try { tts.stop() } catch (_: Exception) {}   // clear old speech, then QUEUE step announcements
         Thread {
             try {
                 // Full task loop — Gadacz drives across screens until the goal is done.
@@ -221,7 +224,9 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         }.start()
     }
 
-    private fun speak(text: String) { tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "gadacz") }
+    // QUEUE_ADD so step announcements ("Otwieram…", "Wpisuję…") play in sequence
+    // instead of cutting each other off. handle() flushes once at the start.
+    private fun speak(text: String) { tts.speak(text, TextToSpeech.QUEUE_ADD, null, "gadacz") }
     private fun setBubble(emoji: String) { bubble?.post { bubble?.text = emoji } }
 
     override fun onDestroy() {

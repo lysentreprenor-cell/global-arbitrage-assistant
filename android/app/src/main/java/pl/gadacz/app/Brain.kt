@@ -57,6 +57,8 @@ object Brain {
      * phone across many screens, not just the current one. Call off the main thread.
      */
     fun runTask(ctx: Context, goal: String, history: ArrayList<Pair<String, String>>, speak: (String) -> Unit) {
+        // Keep conversation memory bounded — a long multi-step task must not grow it forever.
+        while (history.size > 16) history.removeAt(0)
         var step = 0
         while (step < 14) {
             val screen = GadaczAccessibilityService.instance?.readScreen()

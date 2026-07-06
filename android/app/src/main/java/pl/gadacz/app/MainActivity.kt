@@ -119,10 +119,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun handleCommand(text: String) {
         appendLine("👤 $text"); setStatus("🧠 Myślę…")
+        try { tts.stop() } catch (_: Exception) {}   // flush old speech, then queue step announcements
         Thread {
             try {
                 // Full multi-step task loop — drives across screens toward the goal.
-                Brain.runTask(this, text, history) { s -> lastAnswer = s; appendLine("🗣️ $s"); speak(s) }
+                Brain.runTask(this, text, history) { s ->
+                    lastAnswer = s; appendLine("🗣️ $s")
+                    runOnUiThread { status.text = "🔊 $s" }
+                    tts.speak(s, TextToSpeech.QUEUE_ADD, null, "g")   // ADD so steps don't cut each other
+                }
             } catch (e: Exception) { speak("Błąd połączenia. ${e.message}") }
         }.start()
     }
