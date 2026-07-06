@@ -27,6 +27,7 @@ object Brain {
     fun prefs(ctx: Context) = ctx.getSharedPreferences("gadacz", Context.MODE_PRIVATE)
     fun serverUrl(ctx: Context) = prefs(ctx).getString("server_url", "") ?: ""
     fun anthropicKey(ctx: Context) = prefs(ctx).getString("anthropic_key", "") ?: ""
+    fun pin(ctx: Context) = prefs(ctx).getString("app_pin", "") ?: ""
     fun isConfigured(ctx: Context) = serverUrl(ctx).isNotBlank() && anthropicKey(ctx).isNotBlank()
 
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
@@ -43,6 +44,7 @@ object Brain {
         }
         val req = Request.Builder()
             .url(serverUrl(ctx).trimEnd('/') + "/api/assistant/ask")
+            .header("x-bot-pin", pin(ctx))   // app PIN — required when the server is locked
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
         http.newCall(req).execute().use { r -> return JSONObject(r.body?.string() ?: "{}") }

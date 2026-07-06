@@ -142,12 +142,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 20, 40, 0) }
         val urlIn = EditText(this).apply { hint = "Adres serwera, np. https://twoj.repl.co"; setText(Brain.serverUrl(this@MainActivity)) }
         val keyIn = EditText(this).apply { hint = "Klucz Anthropic sk-ant-..."; setText(Brain.anthropicKey(this@MainActivity)) }
-        box.addView(urlIn); box.addView(keyIn)
+        val pinIn = EditText(this).apply { hint = "PIN aplikacji (np. 0905)"; inputType = android.text.InputType.TYPE_CLASS_NUMBER; setText(Brain.pin(this@MainActivity)) }
+        box.addView(urlIn); box.addView(keyIn); box.addView(pinIn)
         AlertDialog.Builder(this).setTitle("Ustaw Gadacza").setView(box)
             .setPositiveButton("Zapisz") { _, _ ->
                 Brain.prefs(this).edit()
                     .putString("server_url", urlIn.text.toString().trim())
-                    .putString("anthropic_key", keyIn.text.toString().trim()).apply()
+                    .putString("anthropic_key", keyIn.text.toString().trim())
+                    .putString("app_pin", pinIn.text.toString().trim()).apply()
                 speak("Zapisane. Dotknij dużego przycisku i mów.")
             }.setNegativeButton("Anuluj", null).show()
     }

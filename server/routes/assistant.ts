@@ -11,11 +11,36 @@
  * apps) needs the native Android AccessibilityService — that is Etap 2; here we
  * launch the system apps the web is allowed to: dialer, SMS, maps, browser.
  */
-import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 const router = Router();
+
+// ── PIN lock — same 0905 PIN as the bot, same pin.json. Once a PIN is set, every
+// Gadacz route requires the x-bot-pin header, so nobody with the URL can read or
+// wipe your memory or run the assistant on your Anthropic key.
+const PIN_FILE = path.resolve(process.cwd(), "data", "pin.json");
+function pinHash(pin: string): string {
+  return crypto.createHash("sha256").update("bot-pin-v1:" + pin).digest("hex");
+}
+function loadPinHash(): string | null {
+  try { return JSON.parse(fs.readFileSync(PIN_FILE, "utf8")).hash ?? null; } catch { return null; }
+}
+function pinOk(given: unknown, storedHash: string): boolean {
+  try {
+    const a = Buffer.from(pinHash(String(given ?? "")), "hex");
+    const b = Buffer.from(storedHash, "hex");
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch { return false; }
+}
+router.use((req: Request, res: Response, next: NextFunction) => {
+  const cur = loadPinHash();
+  if (!cur) return next(); // no PIN configured — open, as before
+  if (pinOk(req.headers["x-bot-pin"], cur)) return next();
+  res.status(401).json({ error: "Wymagany PIN aplikacji" });
+});
 
 // ── Gadacz's memory — lives IN THE APP (on the server), not just the phone.
 // Survives browser clears, shared across devices. Plain JSON list of facts.

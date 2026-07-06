@@ -20,7 +20,7 @@ export function installPinFetch() {
   const raw = window.fetch.bind(window);
   window.fetch = ((input: any, init: any = {}) => {
     const url = typeof input === "string" ? input : (input?.url ?? "");
-    if (typeof url === "string" && url.startsWith("/api/bot")) {
+    if (typeof url === "string" && (url.startsWith("/api/bot") || url.startsWith("/api/assistant"))) {
       init = { ...init, headers: { ...(init.headers || {}), "x-bot-pin": getBotPin() } };
     }
     return raw(input, init);

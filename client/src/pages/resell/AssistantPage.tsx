@@ -14,6 +14,9 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+import { installPinFetch } from "@/lib/botPin";
+
+installPinFetch(); // Gadacz endpoints require the app PIN — attach it to every call
 
 // Gadacz's map of our own app — voice command → route. This is how Gadacz first
 // learns to operate ResellAssist itself before it ever touches other apps.
