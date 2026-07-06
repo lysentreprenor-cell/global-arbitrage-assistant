@@ -130,7 +130,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private fun toggleWake() {
         wakeMode = !wakeMode
         Brain.prefs(this).edit().putBoolean("wake_mode", wakeMode).apply()
-        if (wakeMode) { speak("Nasłuchuję. Powiedz Gadacz i polecenie."); startWakeLoop() }
+        if (wakeMode) { speak("Nasłuchuję. Powiedz ${Brain.wakeWord(this)} i polecenie."); startWakeLoop() }
         else { speak("Przestaję nasłuchiwać."); stopWakeLoop() }
     }
     private fun stopWakeLoop() { wakeStopping = true; try { wakeRec?.destroy() } catch (_: Exception) {}; wakeRec = null; setBubble("🗣️") }
@@ -144,9 +144,10 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             setRecognitionListener(object : RecognitionListener {
                 override fun onResults(results: Bundle?) {
                     val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.lowercase() ?: ""
-                    val i = text.indexOf("gadacz")
+                    val word = Brain.wakeWord(this@GadaczOverlayService)
+                    val i = text.indexOf(word)
                     if (i >= 0) {
-                        val cmd = text.substring(i + 6).trim().trimStart(',', '.', ' ')
+                        val cmd = text.substring(i + word.length).trim().trimStart(',', '.', ' ')
                         if (cmd.isNotBlank()) { handle(cmd) ; return } // handle() restarts wake loop when done
                     }
                     restartWake(300)

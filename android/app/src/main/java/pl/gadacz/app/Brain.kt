@@ -28,6 +28,7 @@ object Brain {
     fun serverUrl(ctx: Context) = prefs(ctx).getString("server_url", "") ?: ""
     fun anthropicKey(ctx: Context) = prefs(ctx).getString("anthropic_key", "") ?: ""
     fun pin(ctx: Context) = prefs(ctx).getString("app_pin", "") ?: ""
+    fun wakeWord(ctx: Context) = (prefs(ctx).getString("wake_word", "") ?: "").lowercase().trim().ifBlank { "gadacz" }
     fun isConfigured(ctx: Context) = serverUrl(ctx).isNotBlank() && anthropicKey(ctx).isNotBlank()
 
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
