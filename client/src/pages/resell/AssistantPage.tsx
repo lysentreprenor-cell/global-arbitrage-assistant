@@ -192,6 +192,14 @@ export default function AssistantPage() {
         appAction(String(args?.do ?? ""), say);
         return;
       }
+      case "write": {
+        const text = String(args?.text ?? "").trim();
+        if (!text) { speak("Nie zrozumiałem, co mam napisać."); return; }
+        setMessages(m => [...m, { role: "assistant", content: "✍️ " + text }]);
+        navigator.clipboard?.writeText(text).catch(() => {});
+        speak(say || `Napisałem, czytam: ${text}`);
+        return;
+      }
       case "remember": {
         const fact = String(args?.fact ?? "").trim();
         if (!fact) { speak("Nie zrozumiałem, co mam zapamiętać."); return; }
@@ -473,6 +481,8 @@ export default function AssistantPage() {
               ▶️ „Włącz YouTube z disco polo"<br />
               🔍 „Wyszukaj pogodę na jutro"<br />
               📇 „Zapisz kontakt mama, numer pięćset sześćset..."<br />
+              ✍️ „Napisz email do szefa, że jestem chory" · „napisz listę zakupów: chleb, mleko" (redaguję i kopiuję do schowka)<br />
+              📖 „Przeczytaj mi to" (po zdjęciu) — czytam cały tekst<br />
               📷 albo zrób zdjęcie — opiszę je i przeczytam tekst<br /><br />
               <span style={{ color: "#818cf8" }}>📱 Tylko w aplikacji APK: sterowanie ekranem innych aplikacji, „co jest na ekranie", oraz działanie w tle nad wszystkim. W przeglądarce Gadacz robi to, co powyżej.</span><br /><br />
               {contactCount > 0 ? `Zapisane kontakty: ${contactCount}.` : "Książka kontaktów jest pusta — zacznij od: „zapisz kontakt...”"}

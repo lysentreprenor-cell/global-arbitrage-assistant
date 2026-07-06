@@ -65,6 +65,15 @@ object Brain {
             "read_screen" -> { readScreenAsync(ctx, speak); return "" }
             "tap" -> { if (svc?.tapByText(args.optString("text")) != true) return "Nie znalazłem na ekranie: ${args.optString("text")}." }
             "type" -> { if (svc?.typeText(args.optString("text")) != true) return "Nie ma pola do wpisania." }
+            "write" -> {
+                // Write the composed text into the focused field; if none, copy to clipboard.
+                val text = args.optString("text")
+                if (svc?.typeText(text) != true) {
+                    val cb = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cb.setPrimaryClip(android.content.ClipData.newPlainText("Gadacz", text))
+                    return "$say. Skopiowałem do schowka — wklej, gdzie chcesz."
+                }
+            }
             "back" -> svc?.goBack()
             "home" -> svc?.goHome()
             "scroll" -> svc?.scroll(args.optString("dir") != "up")
