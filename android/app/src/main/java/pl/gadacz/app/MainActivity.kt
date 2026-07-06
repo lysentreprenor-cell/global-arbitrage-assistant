@@ -121,15 +121,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         appendLine("👤 $text"); setStatus("🧠 Myślę…")
         Thread {
             try {
-                val screen = GadaczAccessibilityService.instance?.readScreen()
-                val resp = Brain.ask(this, text, history, screen)
-                val say = resp.optString("say", "Nie zrozumiałem.")
-                val action = resp.optString("action", "none")
-                val args = resp.optJSONObject("args") ?: JSONObject()
-                history.add("user" to text); history.add("assistant" to say)
-                lastAnswer = say; appendLine("🗣️ $say")
-                val spoken = Brain.execute(this, action, args, say) { s -> speak(s) }
-                if (spoken.isNotBlank()) speak(spoken)
+                // Full multi-step task loop — drives across screens toward the goal.
+                Brain.runTask(this, text, history) { s -> lastAnswer = s; appendLine("🗣️ $s"); speak(s) }
             } catch (e: Exception) { speak("Błąd połączenia. ${e.message}") }
         }.start()
     }

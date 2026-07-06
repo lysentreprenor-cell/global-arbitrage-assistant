@@ -51,6 +51,31 @@ object Brain {
     }
 
     /**
+     * Run a whole task, not just one screen. Loops: read screen → ask AI for the
+     * next single step → do it → re-read → repeat, until the AI says it's done
+     * (next=false) or a safety cap. This is what makes Gadacz drive the WHOLE
+     * phone across many screens, not just the current one. Call off the main thread.
+     */
+    fun runTask(ctx: Context, goal: String, history: ArrayList<Pair<String, String>>, speak: (String) -> Unit) {
+        var step = 0
+        while (step < 8) {
+            val screen = GadaczAccessibilityService.instance?.readScreen()
+            val resp = try { ask(ctx, goal, history, screen) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
+            val say = resp.optString("say", "")
+            val action = resp.optString("action", "none")
+            val args = resp.optJSONObject("args") ?: JSONObject()
+            val next = resp.optBoolean("next", false)
+            history.add("user" to goal); history.add("assistant" to say)
+            val spoken = execute(ctx, action, args, say) { s -> speak(s) }
+            if (spoken.isNotBlank()) speak(spoken)
+            if (!next || action == "none") return
+            try { Thread.sleep(1300) } catch (_: Exception) {}  // let the screen settle
+            step++
+        }
+        speak("Zrobiłem kilka kroków. Powiedz, co dalej.")
+    }
+
+    /**
      * Execute an action. Returns a spoken confirmation/erratum string.
      * `speak` lets the caller stream a follow-up (e.g. screen summary) asynchronously.
      */

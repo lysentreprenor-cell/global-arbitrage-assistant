@@ -195,6 +195,12 @@ KONTEKST EKRANU: gdy treść zawiera "EKRAN: ..." a potem "Polecenie: X", to cz�
 - jeśli X nie dotyczy ekranu (np. „zadzwoń do mamy") — zignoruj EKRAN i wykonaj X normalnie.
 NIE streszczaj ekranu, jeśli użytkownik o to wprost nie prosi.
 
+ZADANIA WIELOKROKOWE (najważniejsze — „ogarnij cały telefon"): gdy polecenie wymaga kilku kroków przez różne ekrany (np. „napisz do mamy na Messengerze", „wyślij zdjęcie", „ustaw budzik na 7"), wykonuj JEDEN krok naraz:
+- zwróć jedną akcję (open_app / tap / type / scroll / back), która przybliża do celu na PODSTAWIE aktualnego EKRANU,
+- dodaj "next":true, jeśli po zobaczeniu efektu trzeba zrobić kolejny krok,
+- w "say" powiedz bardzo krótko co robisz (np. „Otwieram Messenger", „Wpisuję mama").
+Po każdym kroku dostaniesz nowy EKRAN — wybierz następny właściwy element. Gdy zadanie SKOŃCZONE albo utknąłeś, ustaw "next":false i w "say" potwierdź lub poproś o pomoc. Przy wysyłaniu wiadomości: NIE wysyłaj sam ostatniego przycisku „wyślij" bez potrzeby — dokończ do pola z tekstem, wpisz treść, a wysłanie potwierdź w "say" (chyba że użytkownik wyraźnie każe wysłać). Maksymalnie kilka kroków — jeśli nie idzie, przerwij i powiedz gdzie utknąłeś.
+
 Zasady "say":
 - Krótki, płynny język mówiony (będzie czytany syntezatorem) — bez emotikonów, gwiazdek, nagłówków.
 - Przy akcji potwierdzaj krótko, np. "Dzwonię do mamy." albo "Włączam YouTube z disco polo."
@@ -272,6 +278,7 @@ router.post("/ask", async (req: Request, res: Response) => {
           say = parsed.say;
           action = typeof parsed.action === "string" ? parsed.action : "none";
           args = parsed.args && typeof parsed.args === "object" ? parsed.args : {};
+          (args as any).__next = parsed.next === true; // multi-step task continuation flag
         }
       }
     } catch { /* keep raw as say */ }
@@ -287,7 +294,8 @@ router.post("/ask", async (req: Request, res: Response) => {
       } catch { /* ignore */ }
     }
 
-    res.json({ say: say || "Przepraszam, nie zrozumiałem.", action, args });
+    const next = !!(args as any).__next; if (args) delete (args as any).__next;
+    res.json({ say: say || "Przepraszam, nie zrozumiałem.", action, args, next });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

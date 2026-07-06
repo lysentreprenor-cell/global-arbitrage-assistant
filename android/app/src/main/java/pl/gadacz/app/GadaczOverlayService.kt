@@ -209,15 +209,8 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         setBubble("🧠")
         Thread {
             try {
-                // Attach what Gadacz SEES right now, so every command is screen-aware.
-                val screen = GadaczAccessibilityService.instance?.readScreen()
-                val resp = Brain.ask(this, text, history, screen)
-                val say = resp.optString("say", "Nie zrozumiałem.")
-                val action = resp.optString("action", "none")
-                val args = resp.optJSONObject("args") ?: JSONObject()
-                history.add("user" to text); history.add("assistant" to say)
-                val spoken = Brain.execute(this, action, args, say) { s -> speak(s) }
-                if (spoken.isNotBlank()) speak(spoken)
+                // Full task loop — Gadacz drives across screens until the goal is done.
+                Brain.runTask(this, text, history) { s -> speak(s) }
             } catch (e: Exception) {
                 speak("Błąd połączenia z serwerem.")
             } finally {
