@@ -45,33 +45,45 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onCreate(savedInstanceState)
         tts = TextToSpeech(this, this)
 
-        val root = LinearLayout(this).apply {
+        // Everything lives in a ScrollView so NO button is ever cut off, on any screen.
+        val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(0xFF000000.toInt()); setPadding(24, 24, 24, 24)
         }
+        val outer = ScrollView(this).apply { setBackgroundColor(0xFF000000.toInt()); addView(col) }
 
-        val talk = bigBtn("🗣️\nDOTKNIJ I POWIEDZ", 0xFFFACC15.toInt(), 0xFF111111.toInt(), 3f) { onTalk() }
-        status = TextView(this).apply {
-            text = "Gotowy"; textSize = 19f; setTextColor(0xFFFFFFFF.toInt()); gravity = Gravity.CENTER; setPadding(0, 16, 0, 16)
+        // Fixed-height buttons (dp→px), never zero-height.
+        fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+        fun btn(label: String, fg: Int, bg: Int, h: Int, onClick: () -> Unit) = Button(this).apply {
+            text = label; textSize = 18f; setTextColor(fg); setBackgroundColor(bg); isAllCaps = false
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(h)).apply { topMargin = dp(8) }
+            setOnClickListener { onClick() }
         }
-        val readScreen = bigBtn("👀 CO JEST NA EKRANIE", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 1f) { readScreen() }
-        val bgOn = bigBtn("🟢 WŁĄCZ PŁYWAJĄCY PRZYCISK\n(działa w każdej aplikacji)", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 1.4f) { enableOverlay() }
-        val access = bigBtn("♿ WŁĄCZ STEROWANIE EKRANEM", 0xFFE0F2FE.toInt(), 0xFF082F49.toInt(), 1f) {
+
+        val talk = btn("🗣️  DOTKNIJ I POWIEDZ", 0xFFFACC15.toInt(), 0xFF111111.toInt(), 190) { onTalk() }
+        status = TextView(this).apply {
+            text = "Gotowy"; textSize = 19f; setTextColor(0xFFFFFFFF.toInt()); gravity = Gravity.CENTER; setPadding(0, dp(10), 0, dp(10))
+        }
+        // Settings FIRST after the talk button — always visible, impossible to miss.
+        val settings = btn("⚙  USTAWIENIA (adres i klucz)", 0xFFFDE68A.toInt(), 0xFF422006.toInt(), 74) { showSettings() }
+        val readScreen = btn("👀  CO JEST NA EKRANIE", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
+        val bgOn = btn("🟢  WŁĄCZ PŁYWAJĄCY PRZYCISK", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 74) { enableOverlay() }
+        val access = btn("♿  WŁĄCZ STEROWANIE EKRANEM", 0xFFE0F2FE.toInt(), 0xFF082F49.toInt(), 74) {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val repeat = bigBtn("🔁 POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 1f) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
-        val settings = bigBtn("⚙ USTAWIENIA", 0xFFE0F2FE.toInt(), 0xFF082F49.toInt(), 1f) { showSettings() }
-        row.addView(repeat.also { (it.layoutParams as LinearLayout.LayoutParams).apply { width = 0; weight = 1f } })
-        row.addView(settings.also { (it.layoutParams as LinearLayout.LayoutParams).apply { width = 0; weight = 1f } })
+        val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
 
-        transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, 12, 0, 0) }
-        val scroll = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 2f); addView(transcript)
-        }
+        transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        root.addView(talk); root.addView(status); root.addView(readScreen)
-        root.addView(bgOn); root.addView(access); root.addView(row); root.addView(scroll)
-        setContentView(root)
+        col.addView(talk); col.addView(status); col.addView(settings); col.addView(readScreen)
+        col.addView(bgOn); col.addView(access); col.addView(repeat); col.addView(transcript)
+        setContentView(outer)
+
+        // Ask for mic up front (clearing data revokes it) so voice works after setup.
+        try {
+            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 1)
+            }
+        } catch (_: Exception) {}
 
         if (!Brain.isConfigured(this)) showSettings()
     }

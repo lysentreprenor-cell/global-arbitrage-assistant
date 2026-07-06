@@ -39,11 +39,24 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // START_NOT_STICKY: don't let Android auto-restart us after the app is killed or
+    // data is cleared — a restart with no mic permission would crash-loop.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
+
     override fun onCreate() {
         super.onCreate()
-        tts = TextToSpeech(this, this)
-        startForeground(1, buildNotification())
-        addBubble()
+        try {
+            tts = TextToSpeech(this, this)
+            // Foreground with a microphone-typed service needs RECORD_AUDIO. If it was
+            // revoked (e.g. after "clear data"), don't crash — just stop cleanly.
+            val micOk = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!micOk) { stopSelf(); return }
+            startForeground(1, buildNotification())
+            addBubble()
+        } catch (e: Exception) {
+            try { stopSelf() } catch (_: Exception) {}
+        }
     }
 
     override fun onInit(status: Int) {
