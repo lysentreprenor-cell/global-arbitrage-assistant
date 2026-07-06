@@ -240,6 +240,7 @@ export default function TradingBot() {
   const [paperHistOpen, setPaperHistOpen] = useState(false); // sim trade history collapsed by default
   const [paperLogsOpen, setPaperLogsOpen] = useState(false); // sim activity log collapsed by default
   const [paperCopied, setPaperCopied] = useState(false);     // transient "copied" feedback (popups are blocked in-app)
+  const [shadowPosOpen, setShadowPosOpen] = useState(false); // "almost bought" tracked positions
   const [shadowHistOpen, setShadowHistOpen] = useState(false); // "almost bought" trade history
   const [shadowLogsOpen, setShadowLogsOpen] = useState(false); // "almost bought" activity log
   const [shadowCopied, setShadowCopied] = useState<"hist" | "log" | null>(null);
@@ -1124,13 +1125,24 @@ export default function TradingBot() {
                     ))}
                   </div>
                 )}
-                {botStatus.shadow.positions.map((sp, i) => (
-                  <div key={(sp.symbol ?? "") + i} className="flex justify-between text-[10px] text-gray-400 bg-purple-950/40 rounded px-2 py-1">
-                    <span className="text-purple-200 font-medium">{(sp.symbol ?? "?").replace("USDT", "")} {sp.direction.toUpperCase()}</span>
-                    <span>@ ${fmtP(sp.entryPrice)}</span>
-                    <span>SL {safe(sp.slPct)}% · TP {safe(sp.tpPct)}%</span>
+                {botStatus.shadow.positions.length > 0 && (
+                  <div className="pt-1 border-t border-purple-800/40">
+                    <button onClick={() => setShadowPosOpen(o => !o)} className="text-[10px] text-purple-300 font-semibold">
+                      {shadowPosOpen ? "▾" : "▸"} Śledzone teraz ({botStatus.shadow.positions.length})
+                    </button>
+                    {shadowPosOpen && (
+                      <div className="space-y-0.5 max-h-48 overflow-y-auto mt-1">
+                        {botStatus.shadow.positions.map((sp, i) => (
+                          <div key={(sp.symbol ?? "") + i} className="flex justify-between text-[10px] text-gray-400 bg-purple-950/40 rounded px-2 py-1">
+                            <span className="text-purple-200 font-medium">{(sp.symbol ?? "?").replace("USDT", "")} {sp.direction.toUpperCase()}</span>
+                            <span>@ ${fmtP(sp.entryPrice)}</span>
+                            <span>SL {safe(sp.slPct)}% · TP {safe(sp.tpPct)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
                 {(botStatus.shadow.tradeHistory?.length ?? 0) > 0 && (
                   <div className="pt-1 border-t border-purple-800/40">
                     <div className="flex items-center justify-between">
