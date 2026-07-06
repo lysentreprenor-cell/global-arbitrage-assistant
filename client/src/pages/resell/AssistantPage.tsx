@@ -81,6 +81,17 @@ export default function AssistantPage() {
   const [memory, setMemory] = useState<string[]>([]);
   const refreshMemory = () => fetch("/api/assistant/memory").then(r => r.json()).then(d => setMemory(d.memory ?? [])).catch(() => {});
   useEffect(() => { refreshMemory(); }, []);
+  // Hands-free continuous mode: after each answer, auto-listen again (while tab is open).
+  const [continuous, setContinuous] = useState<boolean>(() => { try { return localStorage.getItem("gadacz_continuous") === "1"; } catch { return false; } });
+  const continuousRef = useRef(continuous);
+  continuousRef.current = continuous;
+  const toggleContinuous = () => {
+    const next = !continuous;
+    setContinuous(next);
+    try { localStorage.setItem("gadacz_continuous", next ? "1" : "0"); } catch {}
+    if (next) { speak("Tryb ciągły włączony. Mów, a ja słucham."); }
+    else { speak("Tryb ciągły wyłączony."); }
+  };
   const recRef = useRef<any>(null);
   const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -96,11 +107,19 @@ export default function AssistantPage() {
       u.rate = 1.0;
       const plVoice = window.speechSynthesis.getVoices().find(v => v.lang?.startsWith("pl"));
       if (plVoice) u.voice = plVoice;
-      u.onend = () => { setStatus("idle"); onDone?.(); };
+      u.onend = () => {
+        setStatus("idle");
+        onDone?.();
+        // Hands-free: after speaking, listen again automatically (tab must stay open)
+        if (continuousRef.current && !busyRef.current) {
+          setTimeout(() => { if (continuousRef.current) startListenRef.current?.(); }, 600);
+        }
+      };
       setStatus("speaking");
       window.speechSynthesis.speak(u);
     } catch { setStatus("idle"); onDone?.(); }
   };
+  const startListenRef = useRef<(() => void) | null>(null);
   const stopSpeaking = () => { try { window.speechSynthesis.cancel(); } catch {} setStatus("idle"); };
 
   useEffect(() => () => { try { window.speechSynthesis.cancel(); recRef.current?.abort?.(); } catch {} }, []);
@@ -331,6 +350,7 @@ export default function AssistantPage() {
       setError("Nie udało się uruchomić mikrofonu: " + e.message);
     }
   };
+  startListenRef.current = startListening;
 
   // ── Camera → downscale → describe ───────────────────────────────────────────
   const onPhoto = (f: File | null) => {
@@ -382,6 +402,20 @@ export default function AssistantPage() {
           <span style={{ fontSize: 72 }}>{status === "listening" ? "🎤" : status === "thinking" ? "🧠" : status === "speaking" ? "🔊" : "🗣️"}</span>
           {statusLabel}
         </button>
+
+        {/* continuous hands-free toggle — on/off like the bot */}
+        <button onClick={toggleContinuous} aria-label="Tryb ciągły — słuchaj bez dotykania"
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 64, borderRadius: 16,
+            border: `3px solid ${continuous ? "#4ade80" : "#52525b"}`, background: continuous ? "#052e16" : "#18181b",
+            color: continuous ? "#bbf7d0" : "#a1a1aa", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+          <span>{continuous ? "🟢 TRYB CIĄGŁY: WŁĄCZONY" : "⚪ TRYB CIĄGŁY: wyłączony"}</span>
+          <span style={{ width: 52, height: 28, borderRadius: 14, background: continuous ? "#22c55e" : "#3f3f46", position: "relative", flexShrink: 0 }}>
+            <span style={{ position: "absolute", top: 3, left: continuous ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: "#fff", transition: "left .15s" }} />
+          </span>
+        </button>
+        <div style={{ color: "#71717a", fontSize: 13, marginTop: -4 }}>
+          Włączony = Gadacz słucha bez dotykania (dopóki ta karta jest otwarta). Prawdziwe działanie w tle daje aplikacja Gadacz z pliku APK.
+        </div>
 
         {/* action row — big, high-contrast */}
         <div style={{ display: "flex", gap: 10 }}>
