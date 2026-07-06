@@ -74,6 +74,41 @@ router.post("/memory/delete", (req, res) => {
 // POST /api/assistant/memory/clear → wipe
 router.post("/memory/clear", (_req, res) => { saveMemory([]); res.json({ ok: true, memory: [] }); });
 
+// GET /api/assistant/info?do=btc | weather&city=... → spoken-ready { say }
+// Live facts Gadacz can read aloud: BTC price (Kraken public) and weather (open-meteo, no key).
+router.get("/info", async (req: Request, res: Response) => {
+  const doWhat = String(req.query.do ?? "");
+  try {
+    if (doWhat === "btc") {
+      const r = await fetch("https://api.kraken.com/0/public/Ticker?pair=XBTUSD", { signal: AbortSignal.timeout(8000) });
+      const d = await r.json() as any;
+      const k = Object.keys(d.result ?? {})[0];
+      const last = parseFloat(d.result?.[k]?.c?.[0] ?? "0");
+      const open = parseFloat(d.result?.[k]?.o ?? "0");
+      const chg = open > 0 ? (last - open) / open * 100 : 0;
+      const dir = chg >= 0 ? "w górę" : "w dół";
+      return res.json({ say: `Bitcoin kosztuje ${Math.round(last)} dolarów, ${dir} ${Math.abs(chg).toFixed(1)} procent od północy.` });
+    }
+    if (doWhat === "weather") {
+      const city = String(req.query.city ?? "").trim() || "Warszawa";
+      const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=pl`, { signal: AbortSignal.timeout(8000) })).json() as any;
+      const loc = g.results?.[0];
+      if (!loc) return res.json({ say: `Nie znalazłem miasta ${city}.` });
+      const w = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`, { signal: AbortSignal.timeout(8000) })).json() as any;
+      const t = Math.round(w.current?.temperature_2m ?? 0);
+      const wind = Math.round(w.current?.wind_speed_10m ?? 0);
+      const tmax = Math.round(w.daily?.temperature_2m_max?.[0] ?? 0);
+      const tmin = Math.round(w.daily?.temperature_2m_min?.[0] ?? 0);
+      const code = w.current?.weather_code ?? 0;
+      const sky = code === 0 ? "bezchmurnie" : code < 4 ? "częściowe zachmurzenie" : code < 50 ? "pochmurno" : code < 70 ? "deszcz" : code < 80 ? "śnieg" : "przelotne opady";
+      return res.json({ say: `W ${loc.name}: ${t} stopni, ${sky}, wiatr ${wind} kilometrów na godzinę. Dziś od ${tmin} do ${tmax} stopni.` });
+    }
+    res.status(400).json({ error: "Nieznane zapytanie" });
+  } catch (e: any) {
+    res.json({ say: "Nie udało mi się sprawdzić tej informacji." });
+  }
+});
+
 const SYSTEM = `Jesteś "Gadacz" — głosowy asystent sterujący telefonem, zbudowany dla osób niewidomych i słabowidzących. Mówisz po polsku.
 
 ZAWSZE odpowiadasz WYŁĄCZNIE poprawnym JSON, bez żadnego tekstu przed ani po, bez markdown:
@@ -123,6 +158,8 @@ Akcja STEROWANIA FUNKCJAMI aplikacji (działa zawsze, także w przeglądarce):
   shadow — wynik prawie-kupionych i ocena filtrów ("jak filtry", "prawie kupione")
   bot_stop — WYŁĄCZ bota ("wyłącz bota", "zatrzymaj bota", "stop bot")
   sweep_dust — wymieć kurz z portfela ("wymieć kurz", "sprzedaj resztki")
+  btc — aktualna cena bitcoina ("ile kosztuje bitcoin", "jaki kurs btc", "ile bitcoin")
+  weather — pogoda ("jaka pogoda", "pogoda w Krakowie", "ile stopni") — jeśli użytkownik poda miasto, dodaj je: {"do":"weather","city":"Kraków"}; bez miasta domyślnie Warszawa
 Uwaga: WŁĄCZENIE bota wymaga ustawień z ekranu — na „włącz bota" odpowiedz w "say", że otwierasz zakładkę bota (użyj navigate bot) i użytkownik ma dotknąć dużego przycisku. Nie próbuj włączać bota przez app_action.
 
 Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usługą dostępności; w wersji przeglądarkowej odpowiedz w "say", że potrzebna jest aplikacja Gadacz):

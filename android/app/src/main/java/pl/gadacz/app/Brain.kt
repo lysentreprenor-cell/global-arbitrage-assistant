@@ -79,9 +79,33 @@ object Brain {
             "back" -> svc?.goBack()
             "home" -> svc?.goHome()
             "scroll" -> svc?.scroll(args.optString("dir") != "up")
+            "app_action" -> return appAction(ctx, args)
             else -> {}
         }
         return say
+    }
+
+    /** Server-backed info/controls: BTC, weather, bot status, wallet, stop, sweep. */
+    private fun appAction(ctx: Context, args: JSONObject): String {
+        val base = serverUrl(ctx).trimEnd('/')
+        fun get(path: String): JSONObject = http.newCall(Request.Builder().url(base + path).header("x-bot-pin", pin(ctx)).build())
+            .execute().use { JSONObject(it.body?.string() ?: "{}") }
+        fun post(path: String) = http.newCall(Request.Builder().url(base + path).header("x-bot-pin", pin(ctx))
+            .post("".toRequestBody("application/json".toMediaType())).build()).execute().close()
+        return try {
+            when (args.optString("do")) {
+                "btc" -> get("/api/assistant/info?do=btc").optString("say", "Brak danych.")
+                "weather" -> {
+                    val c = if (args.optString("city").isNotBlank()) "&city=" + Uri.encode(args.optString("city")) else ""
+                    get("/api/assistant/info?do=weather$c").optString("say", "Brak pogody.")
+                }
+                "bot_status" -> { val s = get("/api/bot/status"); "Bot: ${s.optDouble("sessionPnl", 0.0)} dolara, ${s.optJSONArray("positions")?.length() ?: 0} pozycji." }
+                "wallet" -> { val w = get("/api/bot/wallet"); "W portfelu około ${w.optDouble("totalCrypto", 0.0)} ${w.optString("valuedIn", "USD")} w krypto." }
+                "bot_stop" -> { post("/api/bot/stop"); "Bot zatrzymany." }
+                "sweep_dust" -> { post("/api/bot/sweep-dust"); "Wymiatam kurz z portfela." }
+                else -> "Nie znam tej funkcji."
+            }
+        } catch (e: Exception) { "Nie udało się połączyć z serwerem." }
     }
 
     /** Read the live screen, send it back to the AI for a blind-friendly summary, speak it. */

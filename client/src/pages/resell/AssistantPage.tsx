@@ -131,7 +131,7 @@ export default function AssistantPage() {
   const launch = (url: string) => { setTimeout(() => { window.location.href = url; }, 400); };
   // Voice-drive the app's own functions: report status / wallet / market, or control
   // the bot. All reads speak a spoken summary; controls confirm out loud.
-  const appAction = async (doWhat: string, say: string) => {
+  const appAction = async (doWhat: string, say: string, args: any = {}) => {
     const fmt$ = (n: number) => `${n >= 0 ? "plus " : "minus "}${Math.abs(n).toFixed(2)} dolara`;
     try {
       if (doWhat === "bot_status" || doWhat === "sim_status" || doWhat === "market" || doWhat === "shadow") {
@@ -164,6 +164,12 @@ export default function AssistantPage() {
         speak(`Portfel: gotówka ${cash || "zero"}. Krypto razem około ${w.totalCrypto} ${w.valuedIn}. Największe: ${top || "brak"}.`);
         return;
       }
+      if (doWhat === "btc" || doWhat === "weather") {
+        const city = (args?.city ? `&city=${encodeURIComponent(args.city)}` : "");
+        const r = await fetch(`/api/assistant/info?do=${doWhat}${city}`); const d = await r.json();
+        speak(d.say ?? "Nie mam tej informacji.");
+        return;
+      }
       if (doWhat === "bot_stop") {
         await fetch("/api/bot/stop", { method: "POST" });
         speak("Bot zatrzymany.");
@@ -192,7 +198,7 @@ export default function AssistantPage() {
         return;
       }
       case "app_action": {
-        appAction(String(args?.do ?? ""), say);
+        appAction(String(args?.do ?? ""), say, args);
         return;
       }
       case "write": {
