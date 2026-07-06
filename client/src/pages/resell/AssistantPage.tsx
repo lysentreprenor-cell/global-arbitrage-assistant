@@ -403,18 +403,24 @@ export default function AssistantPage() {
           {statusLabel}
         </button>
 
-        {/* continuous hands-free toggle — on/off like the bot */}
+        {/* continuous hands-free toggle — on/off like the bot; TRUE background only in APP */}
         <button onClick={toggleContinuous} aria-label="Tryb ciągły — słuchaj bez dotykania"
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 64, borderRadius: 16,
             border: `3px solid ${continuous ? "#4ade80" : "#52525b"}`, background: continuous ? "#052e16" : "#18181b",
             color: continuous ? "#bbf7d0" : "#a1a1aa", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
-          <span>{continuous ? "🟢 TRYB CIĄGŁY: WŁĄCZONY" : "⚪ TRYB CIĄGŁY: wyłączony"}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, textAlign: "left" }}>
+            {continuous ? "🟢 TRYB CIĄGŁY: WŁĄCZONY" : "⚪ TRYB CIĄGŁY: wyłączony"}
+          </span>
           <span style={{ width: 52, height: 28, borderRadius: 14, background: continuous ? "#22c55e" : "#3f3f46", position: "relative", flexShrink: 0 }}>
             <span style={{ position: "absolute", top: 3, left: continuous ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: "#fff", transition: "left .15s" }} />
           </span>
         </button>
-        <div style={{ color: "#71717a", fontSize: 13, marginTop: -4 }}>
-          Włączony = Gadacz słucha bez dotykania (dopóki ta karta jest otwarta). Prawdziwe działanie w tle daje aplikacja Gadacz z pliku APK.
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#1e1b4b", border: "2px solid #4338ca", borderRadius: 12, padding: "10px 14px", marginTop: -4 }}>
+          <span style={{ background: "#4338ca", color: "#fff", fontSize: 12, fontWeight: 900, borderRadius: 8, padding: "3px 8px", flexShrink: 0 }}>📱 APP</span>
+          <span style={{ color: "#c7d2fe", fontSize: 13 }}>
+            Tu (w przeglądarce) tryb ciągły działa <b>tylko gdy ta karta jest otwarta</b>.
+            Działanie <b>w tle nad każdą aplikacją</b> — jak bot — ma tylko aplikacja Gadacz z pliku APK.
+          </span>
         </div>
 
         {/* action row — big, high-contrast */}
@@ -468,6 +474,7 @@ export default function AssistantPage() {
               🔍 „Wyszukaj pogodę na jutro"<br />
               📇 „Zapisz kontakt mama, numer pięćset sześćset..."<br />
               📷 albo zrób zdjęcie — opiszę je i przeczytam tekst<br /><br />
+              <span style={{ color: "#818cf8" }}>📱 Tylko w aplikacji APK: sterowanie ekranem innych aplikacji, „co jest na ekranie", oraz działanie w tle nad wszystkim. W przeglądarce Gadacz robi to, co powyżej.</span><br /><br />
               {contactCount > 0 ? `Zapisane kontakty: ${contactCount}.` : "Książka kontaktów jest pusta — zacznij od: „zapisz kontakt...”"}
             </div>
           )}
