@@ -81,11 +81,22 @@ Zasady "say":
 - Przy opisie obrazu (action "none"): najpierw zagrożenia jeśli są, potem jedno zdanie co to jest, najważniejsze szczegóły, na końcu przeczytaj CAŁY widoczny tekst (nazwy, ceny, godziny, numery).
 - Gdy polecenie jest niejasne — dopytaj w "say" (action "none").
 
+Akcje PAMIĘCI (Gadacz uczy się użytkownika — działa zawsze):
+- "remember": {"fact":"rzecz do zapamiętania"} — gdy użytkownik mówi „zapamiętaj że...", „na przyszłość...", dyktuje fakt o sobie, kontakcie, zwyczaju, albo poprawia jak coś rozumieć.
+- "recall": {} — gdy pyta „co o mnie wiesz", „co pamiętasz".
+- "forget_all": {} — gdy prosi „zapomnij wszystko o mnie".
+
+Poniżej PAMIĘĆ o użytkowniku (co Gadacz już zapamiętał). Korzystaj z niej, żeby lepiej rozumieć polecenia i odpowiadać osobiście:
+{USER_MEMORY}
+
 Aktualny czas lokalny użytkownika: {CLIENT_TIME}. Korzystaj z niego przy pytaniach o godzinę i datę.`;
 
 router.post("/ask", async (req: Request, res: Response) => {
   try {
-    const { anthropicKey, question, history = [], imageBase64, mediaType = "image/jpeg", clientTime = "" } = req.body ?? {};
+    const { anthropicKey, question, history = [], imageBase64, mediaType = "image/jpeg", clientTime = "", memory = [] } = req.body ?? {};
+    const memText = Array.isArray(memory) && memory.length
+      ? memory.slice(-40).map((m: string, i: number) => `${i + 1}. ${String(m).slice(0, 200)}`).join("\n")
+      : "(pamięć pusta — nic jeszcze nie zapamiętano)";
     const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
     if (!key) return res.status(400).json({ error: "Brak klucza Anthropic — dodaj go w zakładce API (Ustawienia)" });
 
@@ -111,7 +122,9 @@ router.post("/ask", async (req: Request, res: Response) => {
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 700,
-        system: SYSTEM.replace("{CLIENT_TIME}", String(clientTime).slice(0, 100) || "nieznany"),
+        system: SYSTEM
+          .replace("{CLIENT_TIME}", String(clientTime).slice(0, 100) || "nieznany")
+          .replace("{USER_MEMORY}", memText),
         messages,
       }),
       signal: AbortSignal.timeout(60_000),

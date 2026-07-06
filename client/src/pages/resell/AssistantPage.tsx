@@ -58,6 +58,20 @@ function saveContact(name: string, number: string) {
   c[name.trim().toLowerCase()] = number.replace(/[^\d+]/g, "");
   try { localStorage.setItem(CONTACTS_KEY, JSON.stringify(c)); } catch { /* ignore */ }
 }
+// ── Gadacz's own learning memory — grows with the user, sent as context each turn ──
+const MEMORY_KEY = "gadacz_memory_v1";
+function loadMemory(): string[] {
+  try { return JSON.parse(localStorage.getItem(MEMORY_KEY) ?? "[]"); } catch { return []; }
+}
+function addMemory(fact: string) {
+  const f = fact.trim();
+  if (!f) return;
+  const m = loadMemory();
+  if (!m.some(x => x.toLowerCase() === f.toLowerCase())) m.push(f);
+  try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m.slice(-100))); } catch { /* ignore */ }
+}
+function clearMemory() { try { localStorage.removeItem(MEMORY_KEY); } catch { /* ignore */ } }
+
 // "who" may be a saved name (fuzzy) or a spoken number
 function resolveContact(who: string): string | null {
   const w = (who ?? "").trim().toLowerCase();
@@ -168,6 +182,22 @@ export default function AssistantPage() {
         appAction(String(args?.do ?? ""), say);
         return;
       }
+      case "remember": {
+        const fact = String(args?.fact ?? "").trim();
+        if (fact) { addMemory(fact); speak(say || `Zapamiętałem: ${fact}.`); }
+        else speak("Nie zrozumiałem, co mam zapamiętać.");
+        return;
+      }
+      case "recall": {
+        const m = loadMemory();
+        speak(m.length ? `Pamiętam ${m.length} rzeczy. ${m.join(". ")}.` : "Jeszcze nic o Tobie nie pamiętam. Powiedz: zapamiętaj, że...");
+        return;
+      }
+      case "forget_all": {
+        clearMemory();
+        speak("Wyczyściłem całą pamięć o Tobie.");
+        return;
+      }
       case "call": {
         const num = resolveContact(args?.who ?? "");
         if (!num) { speak(`Nie znam numeru do: ${args?.who ?? "tej osoby"}. Powiedz: zapisz kontakt ${args?.who ?? ""}, numer, i podyktuj cyfry.`); return; }
@@ -241,6 +271,7 @@ export default function AssistantPage() {
           question,
           history: messagesRef.current.slice(-8),
           imageBase64,
+          memory: loadMemory(),
           clientTime: new Date().toLocaleString("pl-PL", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }),
         }),
       });
@@ -398,6 +429,7 @@ export default function AssistantPage() {
               🧭 „Otwórz trading bota" · „pokaż zyski" · „wróć do pulpitu"<br />
               🤖 „Ile bot zarobił?" · „co w portfelu?" · „jak rynek?" · „jak filtry?"<br />
               🎛️ „Wyłącz bota" · „wymieć kurz"<br />
+              🧠 „Zapamiętaj, że..." · „co o mnie wiesz?" (Gadacz uczy się Ciebie)<br />
               ❓ „Co potrafi ta aplikacja?"<br />
               📞 „Zadzwoń do mamy"<br />
               💬 „Napisz SMS do Anki, że będę za dziesięć minut"<br />
