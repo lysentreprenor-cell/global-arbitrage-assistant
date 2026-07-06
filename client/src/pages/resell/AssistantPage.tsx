@@ -58,19 +58,7 @@ function saveContact(name: string, number: string) {
   c[name.trim().toLowerCase()] = number.replace(/[^\d+]/g, "");
   try { localStorage.setItem(CONTACTS_KEY, JSON.stringify(c)); } catch { /* ignore */ }
 }
-// ── Gadacz's own learning memory — grows with the user, sent as context each turn ──
-const MEMORY_KEY = "gadacz_memory_v1";
-function loadMemory(): string[] {
-  try { return JSON.parse(localStorage.getItem(MEMORY_KEY) ?? "[]"); } catch { return []; }
-}
-function addMemory(fact: string) {
-  const f = fact.trim();
-  if (!f) return;
-  const m = loadMemory();
-  if (!m.some(x => x.toLowerCase() === f.toLowerCase())) m.push(f);
-  try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m.slice(-100))); } catch { /* ignore */ }
-}
-function clearMemory() { try { localStorage.removeItem(MEMORY_KEY); } catch { /* ignore */ } }
+// Gadacz's learning memory now lives on the SERVER (in the app), see /api/assistant/memory.
 
 // "who" may be a saved name (fuzzy) or a spoken number
 function resolveContact(who: string): string | null {
@@ -90,6 +78,9 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [lastAnswer, setLastAnswer] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [memory, setMemory] = useState<string[]>([]);
+  const refreshMemory = () => fetch("/api/assistant/memory").then(r => r.json()).then(d => setMemory(d.memory ?? [])).catch(() => {});
+  useEffect(() => { refreshMemory(); }, []);
   const recRef = useRef<any>(null);
   const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -184,18 +175,24 @@ export default function AssistantPage() {
       }
       case "remember": {
         const fact = String(args?.fact ?? "").trim();
-        if (fact) { addMemory(fact); speak(say || `Zapamiętałem: ${fact}.`); }
-        else speak("Nie zrozumiałem, co mam zapamiętać.");
+        if (!fact) { speak("Nie zrozumiałem, co mam zapamiętać."); return; }
+        fetch("/api/assistant/memory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fact }) })
+          .then(() => { refreshMemory(); speak(say || `Zapamiętałem: ${fact}.`); })
+          .catch(() => speak("Nie udało się zapisać."));
         return;
       }
       case "recall": {
-        const m = loadMemory();
-        speak(m.length ? `Pamiętam ${m.length} rzeczy. ${m.join(". ")}.` : "Jeszcze nic o Tobie nie pamiętam. Powiedz: zapamiętaj, że...");
+        fetch("/api/assistant/memory").then(r => r.json()).then(d => {
+          const m: string[] = d.memory ?? [];
+          setMemory(m);
+          speak(m.length ? `Pamiętam ${m.length} rzeczy. ${m.join(". ")}.` : "Jeszcze nic o Tobie nie pamiętam. Powiedz: zapamiętaj, że...");
+        }).catch(() => speak("Nie udało się odczytać pamięci."));
         return;
       }
       case "forget_all": {
-        clearMemory();
-        speak("Wyczyściłem całą pamięć o Tobie.");
+        fetch("/api/assistant/memory/clear", { method: "POST" })
+          .then(() => { refreshMemory(); speak("Wyczyściłem całą pamięć o Tobie."); })
+          .catch(() => speak("Nie udało się wyczyścić."));
         return;
       }
       case "call": {
@@ -271,7 +268,6 @@ export default function AssistantPage() {
           question,
           history: messagesRef.current.slice(-8),
           imageBase64,
-          memory: loadMemory(),
           clientTime: new Date().toLocaleString("pl-PL", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }),
         }),
       });
@@ -441,6 +437,32 @@ export default function AssistantPage() {
               {contactCount > 0 ? `Zapisane kontakty: ${contactCount}.` : "Książka kontaktów jest pusta — zacznij od: „zapisz kontakt...”"}
             </div>
           )}
+        </div>
+
+        {/* 🧠 Gadacz's memory — what it has learned about you (lives in the app) */}
+        <div style={{ background: "#0a0a0a", border: "2px solid #3f3f46", borderRadius: 14, padding: 12, marginTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ color: "#facc15", fontSize: 16, fontWeight: 800 }}>🧠 Pamięć Gadacza ({memory.length})</span>
+            {memory.length > 0 && (
+              <button onClick={() => { if (confirm("Wyczyścić całą pamięć Gadacza?")) fetch("/api/assistant/memory/clear", { method: "POST" }).then(() => refreshMemory()); }}
+                style={{ fontSize: 13, color: "#f87171", background: "transparent", border: "1px solid #7f1d1d", borderRadius: 8, padding: "4px 10px" }}>
+                Wyczyść
+              </button>
+            )}
+          </div>
+          {memory.length === 0
+            ? <div style={{ color: "#71717a", fontSize: 15 }}>Powiedz „zapamiętaj, że..." — Gadacz zapisze to tutaj na trwałe.</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {memory.map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "#18181b", borderRadius: 10, padding: "8px 12px" }}>
+                    <span style={{ color: "#e4e4e7", fontSize: 15 }}>{m}</span>
+                    <button aria-label="Zapomnij to"
+                      onClick={() => fetch("/api/assistant/memory/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: i }) }).then(() => refreshMemory())}
+                      style={{ color: "#a1a1aa", background: "transparent", border: "none", fontSize: 18, fontWeight: 800, flexShrink: 0 }}>×</button>
+                  </div>
+                ))}
+              </div>
+          }
         </div>
       </div>
     </ResellLayout>

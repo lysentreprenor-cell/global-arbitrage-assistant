@@ -12,8 +12,42 @@
  * launch the system apps the web is allowed to: dialer, SMS, maps, browser.
  */
 import { Router, type Request, type Response } from "express";
+import fs from "fs";
+import path from "path";
 
 const router = Router();
+
+// ── Gadacz's memory — lives IN THE APP (on the server), not just the phone.
+// Survives browser clears, shared across devices. Plain JSON list of facts.
+const MEMORY_FILE = path.resolve(process.cwd(), "data", "gadacz_memory.json");
+function loadMemory(): string[] {
+  try { return JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); } catch { return []; }
+}
+function saveMemory(list: string[]) {
+  try { fs.mkdirSync(path.dirname(MEMORY_FILE), { recursive: true }); fs.writeFileSync(MEMORY_FILE, JSON.stringify(list.slice(-200))); } catch { /* ignore */ }
+}
+
+// GET  /api/assistant/memory        → { memory: string[] }
+router.get("/memory", (_req, res) => res.json({ memory: loadMemory() }));
+// POST /api/assistant/memory {fact} → append
+router.post("/memory", (req, res) => {
+  const fact = String(req.body?.fact ?? "").trim();
+  if (!fact) return res.status(400).json({ error: "Pusty fakt" });
+  const m = loadMemory();
+  if (!m.some(x => x.toLowerCase() === fact.toLowerCase())) m.push(fact);
+  saveMemory(m);
+  res.json({ ok: true, memory: m });
+});
+// POST /api/assistant/memory/delete {index} → remove one
+router.post("/memory/delete", (req, res) => {
+  const i = Number(req.body?.index);
+  const m = loadMemory();
+  if (Number.isInteger(i) && i >= 0 && i < m.length) m.splice(i, 1);
+  saveMemory(m);
+  res.json({ ok: true, memory: m });
+});
+// POST /api/assistant/memory/clear → wipe
+router.post("/memory/clear", (_req, res) => { saveMemory([]); res.json({ ok: true, memory: [] }); });
 
 const SYSTEM = `Jesteś "Gadacz" — głosowy asystent sterujący telefonem, zbudowany dla osób niewidomych i słabowidzących. Mówisz po polsku.
 
@@ -93,9 +127,11 @@ Aktualny czas lokalny użytkownika: {CLIENT_TIME}. Korzystaj z niego przy pytani
 
 router.post("/ask", async (req: Request, res: Response) => {
   try {
-    const { anthropicKey, question, history = [], imageBase64, mediaType = "image/jpeg", clientTime = "", memory = [] } = req.body ?? {};
-    const memText = Array.isArray(memory) && memory.length
-      ? memory.slice(-40).map((m: string, i: number) => `${i + 1}. ${String(m).slice(0, 200)}`).join("\n")
+    const { anthropicKey, question, history = [], imageBase64, mediaType = "image/jpeg", clientTime = "" } = req.body ?? {};
+    // Memory lives on the server — read it here so it's the single source of truth.
+    const memory = loadMemory();
+    const memText = memory.length
+      ? memory.slice(-40).map((m, i) => `${i + 1}. ${String(m).slice(0, 200)}`).join("\n")
       : "(pamięć pusta — nic jeszcze nie zapamiętano)";
     const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
     if (!key) return res.status(400).json({ error: "Brak klucza Anthropic — dodaj go w zakładce API (Ustawienia)" });
