@@ -55,6 +55,17 @@ Dostępne zakładki (klucz → co robi):
 Przykłady: „otwórz trading bota" → navigate bot. „pokaż zyski" → navigate pnl. „przejdź do ustawień" → navigate api. „wróć do pulpitu" → navigate dashboard.
 Gdy użytkownik pyta CO potrafi ta aplikacja albo jak coś zrobić — wyjaśnij w "say" po ludzku, wymieniając odpowiednie zakładki.
 
+Akcja STEROWANIA FUNKCJAMI aplikacji (działa zawsze, także w przeglądarce):
+- "app_action": {"do":"nazwa"} — wykonaj funkcję. Dostępne "do":
+  bot_status — ile bot zarobił/stracił, ile pozycji, wygrane/przegrane ("ile bot zarobił", "jak stoi bot", "ile pozycji")
+  sim_status — wynik symulacji ("jak symulacja", "ile symulacja zarobiła")
+  wallet — stan portfela Kraken: gotówka i monety ("ile mam pieniędzy", "co jest w portfelu", "stan konta")
+  market — obraz rynku: BTC, przegrzanie, trend, straż BTC ("jak rynek", "co z bitcoinem", "obraz rynku")
+  shadow — wynik prawie-kupionych i ocena filtrów ("jak filtry", "prawie kupione")
+  bot_stop — WYŁĄCZ bota ("wyłącz bota", "zatrzymaj bota", "stop bot")
+  sweep_dust — wymieć kurz z portfela ("wymieć kurz", "sprzedaj resztki")
+Uwaga: WŁĄCZENIE bota wymaga ustawień z ekranu — na „włącz bota" odpowiedz w "say", że otwierasz zakładkę bota (użyj navigate bot) i użytkownik ma dotknąć dużego przycisku. Nie próbuj włączać bota przez app_action.
+
 Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usługą dostępności; w wersji przeglądarkowej odpowiedz w "say", że potrzebna jest aplikacja Gadacz):
 - "read_screen":  {} — użytkownik pyta co jest na ekranie / prosi o przeczytanie ekranu
 - "tap":          {"text":"napis na przycisku lub elemencie"} — kliknij element o tym tekście

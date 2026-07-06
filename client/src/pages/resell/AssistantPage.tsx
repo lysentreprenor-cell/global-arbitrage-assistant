@@ -102,6 +102,59 @@ export default function AssistantPage() {
 
   // ── Execute a phone action by launching the right system app ────────────────
   const launch = (url: string) => { setTimeout(() => { window.location.href = url; }, 400); };
+  // Voice-drive the app's own functions: report status / wallet / market, or control
+  // the bot. All reads speak a spoken summary; controls confirm out loud.
+  const appAction = async (doWhat: string, say: string) => {
+    const fmt$ = (n: number) => `${n >= 0 ? "plus " : "minus "}${Math.abs(n).toFixed(2)} dolara`;
+    try {
+      if (doWhat === "bot_status" || doWhat === "sim_status" || doWhat === "market" || doWhat === "shadow") {
+        const r = await fetch("/api/bot/status"); const s = await r.json();
+        if (doWhat === "bot_status") {
+          const p = s.positions?.length ?? 0;
+          speak(`Bot: ${fmt$(s.sessionPnl ?? 0)}. ${s.sessionStats?.wins ?? 0} wygranych, ${s.sessionStats?.losses ?? 0} przegranych. ${p} otwartych pozycji.`);
+        } else if (doWhat === "sim_status") {
+          const sp = s.paper;
+          speak(sp?.running ? `Symulacja: ${fmt$(sp.pnl ?? 0)}. ${sp.wins} wygranych, ${sp.losses} przegranych.` : "Symulacja jest wyłączona.");
+        } else if (doWhat === "market") {
+          const bt = s.btcGuard, oh = s.overheat, tg = s.trendGate;
+          let m = "";
+          if (bt?.chg1h != null) m += `Bitcoin ${bt.chg1h >= 0 ? "rośnie" : "spada"} ${Math.abs(bt.chg1h)} procent na godzinę. `;
+          if (oh) m += oh.hot ? "Rynek przegrzany, longi wstrzymane. " : `Termometr ${oh.score} na sto. `;
+          if (tg?.bearish) m += "Trend spadkowy, nie kupuję. ";
+          if (bt?.active) m += "Straż Bitcoina aktywna, zakupy wstrzymane. ";
+          speak(m || "Rynek w normie.");
+        } else {
+          const sh = s.shadow;
+          speak(sh ? `Prawie kupione: ${fmt$(sh.pnl ?? 0)}. ${sh.wins} wygranych, ${sh.losses} przegranych. Ujemny wynik znaczy, że filtry słusznie odrzucały.` : "Brak danych.");
+        }
+        return;
+      }
+      if (doWhat === "wallet") {
+        const r = await fetch("/api/bot/wallet"); const w = await r.json();
+        if (w.error) { speak("Nie mam dostępu do portfela. " + w.error); return; }
+        const cash = (w.fiat ?? []).map((f: any) => `${f.amount.toFixed(2)} ${f.cur}`).join(", ");
+        const top = (w.coins ?? []).slice(0, 4).map((c: any) => `${c.name} ${c.value.toFixed(2)}`).join(", ");
+        speak(`Portfel: gotówka ${cash || "zero"}. Krypto razem około ${w.totalCrypto} ${w.valuedIn}. Największe: ${top || "brak"}.`);
+        return;
+      }
+      if (doWhat === "bot_stop") {
+        await fetch("/api/bot/stop", { method: "POST" });
+        speak("Bot zatrzymany.");
+        return;
+      }
+      if (doWhat === "sweep_dust") {
+        speak(say || "Wymiatam kurz z portfela.");
+        const r = await fetch("/api/bot/sweep-dust", { method: "POST" }); const d = await r.json();
+        if (d.error) speak("Nie udało się: " + d.error);
+        else speak(d.swept?.length ? `Uwolniono około ${d.freed} ${d.fiat} z ${d.swept.length} monet.` : "Portfel czysty, nie było kurzu.");
+        return;
+      }
+      speak(say || "Nie znam tej funkcji.");
+    } catch (e: any) {
+      speak("Wystąpił błąd przy odczycie. " + (e.message ?? ""));
+    }
+  };
+
   const executeAction = (action: string, args: any, say: string) => {
     switch (action) {
       case "navigate": {
@@ -109,6 +162,10 @@ export default function AssistantPage() {
         if (!tab) { speak(say || "Nie znam takiej zakładki."); return; }
         speak(say || `Otwieram: ${tab.name}.`);
         setTimeout(() => setLocation(tab.path), 300);
+        return;
+      }
+      case "app_action": {
+        appAction(String(args?.do ?? ""), say);
         return;
       }
       case "call": {
@@ -338,7 +395,9 @@ export default function AssistantPage() {
           {!messages.length && (
             <div style={{ color: "#a8a29e", fontSize: 18, lineHeight: 1.6, padding: 8 }}>
               <b style={{ color: "#facc15" }}>Gadacz steruje aplikacją i telefonem głosem.</b> Dotknij żółtego przycisku i powiedz na przykład:<br /><br />
-              🧭 „Otwórz trading bota" · „pokaż zyski" · „przejdź do ustawień" · „wróć do pulpitu"<br />
+              🧭 „Otwórz trading bota" · „pokaż zyski" · „wróć do pulpitu"<br />
+              🤖 „Ile bot zarobił?" · „co w portfelu?" · „jak rynek?" · „jak filtry?"<br />
+              🎛️ „Wyłącz bota" · „wymieć kurz"<br />
               ❓ „Co potrafi ta aplikacja?"<br />
               📞 „Zadzwoń do mamy"<br />
               💬 „Napisz SMS do Anki, że będę za dziesięć minut"<br />
