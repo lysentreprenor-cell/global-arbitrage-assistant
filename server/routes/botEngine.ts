@@ -236,9 +236,14 @@ function forgetBuy(sym: string) {
 
 function saveState() {
   try {
-    // Never persist API keys to disk
+    // Never persist API keys to disk. Persist the CUMULATIVE record (trade history +
+    // win/loss + P&L) so turning the bot off never loses data — only an explicit
+    // Reset clears it.
     const safeCfg = config ? { ...config, apiKey: "", secret: "" } : null;
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ running, config: safeCfg, positions, sessionPnl, ownedEntries, ownMargin }));
+    fs.writeFileSync(STATE_FILE, JSON.stringify({
+      running, config: safeCfg, positions, sessionPnl, ownedEntries, ownMargin,
+      tradeHistory, sessionWins, sessionLosses, sessionPeakPnl, sessionMaxDrawdown,
+    }));
   } catch { /* ignore */ }
 }
 
@@ -263,6 +268,12 @@ function loadState() {
       sessionPnl = s.sessionPnl ?? 0;
       ownedEntries = s.ownedEntries ?? {};
       ownMargin = Array.isArray(s.ownMargin) ? s.ownMargin : [];
+      // Restore the cumulative record so history survives restarts
+      tradeHistory = Array.isArray(s.tradeHistory) ? s.tradeHistory : [];
+      sessionWins = s.sessionWins ?? 0;
+      sessionLosses = s.sessionLosses ?? 0;
+      sessionPeakPnl = s.sessionPeakPnl ?? 0;
+      sessionMaxDrawdown = s.sessionMaxDrawdown ?? 0;
       running = true;
       saveState();
       addLog(`Auto-resume po restarcie${positions.length ? ` — przywrócono ${positions.length} pozycji` : ""} | 🧬 kod: ${CODE_VERSION}`, "info");
@@ -2739,11 +2750,11 @@ router.post("/paper/start", (req, res) => {
   };
   paperRunning = true;
   paperPositions = [];
-  paperPnl = 0; paperWins = 0; paperLosses = 0;
-  paperHistory = [];
+  // Preserve the simulation's cumulative record across on/off — only reset:true wipes.
+  if (b.reset === true) { paperPnl = 0; paperWins = 0; paperLosses = 0; paperHistory = []; }
   paperLastEntry = 0; paperScanCursor = 0;
   savePaper();
-  addPaperLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax}${paperCfg.allowShorts ? ", SHORTY ON (wirtualny margin 2x + rolowanie)" : ""} — działa RÓWNOLEGLE z botem | 🧬 kod: ${CODE_VERSION}`, "info");
+  addPaperLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax}${paperCfg.allowShorts ? ", SHORTY ON (wirtualny margin 2x + rolowanie)" : ""}${b.reset === true ? " [wyzerowano]" : " [kontynuacja]"} — działa RÓWNOLEGLE z botem | 🧬 kod: ${CODE_VERSION}`, "info");
   startPaperIntervals();
   res.json({ ok: true });
 });
@@ -2891,7 +2902,19 @@ router.post("/keys", (req, res) => {
 router.post("/start", (req, res) => {
   let { apiKey, secret, testnet, platform } = req.body;
   const { symbol, symbols, rsiMin, rsiMax, trailPct, stopLoss, takeProfit, leverage, allowShorts, capital, riskPct, adxMin,
-          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions, paperMode, humanRhythm, learnAdapt } = req.body;
+          confluenceMin, volMultMin, cooldownMin, maxHoldMin, minVolume, maxPositions, paperMode, humanRhythm, learnAdapt, reset } = req.body;
+  // Preserve the cumulative record across on/off. Only an explicit reset:true wipes it.
+  let keepStats = { tradeHistory: [] as TradeRecord[], sessionPnl: 0, sessionWins: 0, sessionLosses: 0, sessionPeakPnl: 0, sessionMaxDrawdown: 0 };
+  if (reset !== true) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+      keepStats = {
+        tradeHistory: Array.isArray(prev.tradeHistory) ? prev.tradeHistory : [],
+        sessionPnl: prev.sessionPnl ?? 0, sessionWins: prev.sessionWins ?? 0, sessionLosses: prev.sessionLosses ?? 0,
+        sessionPeakPnl: prev.sessionPeakPnl ?? 0, sessionMaxDrawdown: prev.sessionMaxDrawdown ?? 0,
+      };
+    } catch { /* no prior state — start clean */ }
+  }
 
   // If keys not provided, try to load saved encrypted keys.
   // Paper mode needs only PUBLIC data (prices/candles) → runs even without keys.
@@ -2941,7 +2964,7 @@ router.post("/start", (req, res) => {
 
   running = true;
   positions = [];
-  sessionPnl = 0;
+  sessionPnl = keepStats.sessionPnl;
   closeFailCount = 0;
   lastEntryTime = 0;
   lastPrice = 0;
@@ -2956,14 +2979,15 @@ router.post("/start", (req, res) => {
   adxLowCount = 0;
   rangeMode = false;
   dailyDate = "";
-  dailyStartPnl = 0;
-  tradeHistory = [];
-  sessionWins = 0;
-  sessionLosses = 0;
+  dailyStartPnl = keepStats.sessionPnl; // day starts flat from the preserved P&L (not -X%)
+  // Cumulative record preserved across on/off (only reset:true wipes it)
+  tradeHistory = keepStats.tradeHistory;
+  sessionWins = keepStats.sessionWins;
+  sessionLosses = keepStats.sessionLosses;
   consecutiveLosses = 0;
   lossPauseUntil = 0;
-  sessionPeakPnl = 0;
-  sessionMaxDrawdown = 0;
+  sessionPeakPnl = keepStats.sessionPeakPnl;
+  sessionMaxDrawdown = keepStats.sessionMaxDrawdown;
   fourHourTrend = "neutral";
   regimeCandidate = "neutral";
   regimeCandidateCount = 0;
