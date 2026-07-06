@@ -11,8 +11,33 @@
  * is impossible from a web page — that's Etap 2: native Android AccessibilityService.
  */
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+
+// Gadacz's map of our own app — voice command → route. This is how Gadacz first
+// learns to operate ResellAssist itself before it ever touches other apps.
+const APP_TABS: Record<string, { path: string; name: string }> = {
+  dashboard:   { path: "/resell",              name: "Pulpit" },
+  agent:       { path: "/resell/agent",        name: "Agent AI" },
+  marketing:   { path: "/resell/marketing",    name: "Marketing" },
+  search:      { path: "/resell/search",       name: "Szukaj" },
+  pipeline:    { path: "/resell/saved",        name: "Pipeline" },
+  pnl:         { path: "/resell/pnl",          name: "Zyski i straty" },
+  alerts:      { path: "/resell/alerts",       name: "Alerty" },
+  trends:      { path: "/resell/trends",       name: "Trendy" },
+  competitors: { path: "/resell/competitors",  name: "Rywale" },
+  compare:     { path: "/resell/compare",      name: "Porównaj" },
+  markets:     { path: "/resell/market-scan",  name: "Rynki" },
+  dropship:    { path: "/resell/dropship",     name: "Dropshipping" },
+  suppliers:   { path: "/resell/suppliers",    name: "Dostawcy" },
+  photo:       { path: "/resell/photo",        name: "Ze zdjęcia" },
+  copy:        { path: "/resell/quick-list",   name: "Kopiuj" },
+  autopilot:   { path: "/resell/autopilot",    name: "Autopilot" },
+  bot:         { path: "/resell/trading-bot",  name: "Trading Bot" },
+  api:         { path: "/resell/settings",     name: "Ustawienia API" },
+  gadacz:      { path: "/resell/assistant",    name: "Gadacz" },
+};
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -46,6 +71,7 @@ function resolveContact(who: string): string | null {
 }
 
 export default function AssistantPage() {
+  const [, setLocation] = useLocation();
   const [status, setStatus] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [lastAnswer, setLastAnswer] = useState("");
@@ -78,6 +104,13 @@ export default function AssistantPage() {
   const launch = (url: string) => { setTimeout(() => { window.location.href = url; }, 400); };
   const executeAction = (action: string, args: any, say: string) => {
     switch (action) {
+      case "navigate": {
+        const tab = APP_TABS[String(args?.tab ?? "").toLowerCase()];
+        if (!tab) { speak(say || "Nie znam takiej zakładki."); return; }
+        speak(say || `Otwieram: ${tab.name}.`);
+        setTimeout(() => setLocation(tab.path), 300);
+        return;
+      }
       case "call": {
         const num = resolveContact(args?.who ?? "");
         if (!num) { speak(`Nie znam numeru do: ${args?.who ?? "tej osoby"}. Powiedz: zapisz kontakt ${args?.who ?? ""}, numer, i podyktuj cyfry.`); return; }
@@ -304,7 +337,9 @@ export default function AssistantPage() {
           ))}
           {!messages.length && (
             <div style={{ color: "#a8a29e", fontSize: 18, lineHeight: 1.6, padding: 8 }}>
-              <b style={{ color: "#facc15" }}>Gadacz steruje telefonem głosem.</b> Dotknij żółtego przycisku i powiedz na przykład:<br /><br />
+              <b style={{ color: "#facc15" }}>Gadacz steruje aplikacją i telefonem głosem.</b> Dotknij żółtego przycisku i powiedz na przykład:<br /><br />
+              🧭 „Otwórz trading bota" · „pokaż zyski" · „przejdź do ustawień" · „wróć do pulpitu"<br />
+              ❓ „Co potrafi ta aplikacja?"<br />
               📞 „Zadzwoń do mamy"<br />
               💬 „Napisz SMS do Anki, że będę za dziesięć minut"<br />
               🗺️ „Nawiguj do najbliższej apteki"<br />
