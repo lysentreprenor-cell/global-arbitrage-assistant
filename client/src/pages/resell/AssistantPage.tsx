@@ -154,6 +154,12 @@ export default function AssistantPage() {
           clientTime: new Date().toLocaleString("pl-PL", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }),
         }),
       });
+      // If the server returns HTML (not JSON), the assistant route isn't running yet
+      // → the server needs a rebuild + restart. Turn the cryptic JSON error into help.
+      const ct = r.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        throw new Error("Serwer nieaktualny — w Shell zrób: git pull, npm run build, a potem Stop i Run.");
+      }
       const d = await r.json();
       if (d.error) throw new Error(d.error);
       const say: string = d.say ?? "Nie mam odpowiedzi.";
