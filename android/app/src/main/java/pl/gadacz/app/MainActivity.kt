@@ -100,7 +100,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         appendLine("👤 $text"); setStatus("🧠 Myślę…")
         Thread {
             try {
-                val resp = Brain.ask(this, text, history)
+                val screen = GadaczAccessibilityService.instance?.readScreen()
+                val resp = Brain.ask(this, text, history, screen)
                 val say = resp.optString("say", "Nie zrozumiałem.")
                 val action = resp.optString("action", "none")
                 val args = resp.optJSONObject("args") ?: JSONObject()

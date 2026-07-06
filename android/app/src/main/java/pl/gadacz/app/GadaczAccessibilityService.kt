@@ -30,19 +30,24 @@ class GadaczAccessibilityService : AccessibilityService() {
     // We don't react to every event — MainActivity pulls the screen on demand.
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 
-    /** Flatten the active window into a readable text summary for the AI/TTS. */
+    /**
+     * Flatten the active window into a readable summary for the AI/TTS. Captures
+     * EVERYTHING visible — text, buttons, input fields, checked state, and a rough
+     * top/middle/bottom position — so Gadacz truly "sees" the whole screen.
+     */
     fun readScreen(): String {
         val root = rootInActiveWindow ?: return "Nie widzę żadnego ekranu."
         val sb = StringBuilder()
         val pkg = root.packageName?.toString() ?: "?"
-        sb.append("EKRAN aplikacji: ").append(pkg).append(". Elementy: ")
+        sb.append("EKRAN aplikacji: ").append(pkg).append(". Elementy (od góry): ")
         val out = ArrayList<String>()
-        collect(root, out)
-        sb.append(out.take(60).joinToString(" | "))
+        val screenH = resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        collect(root, out, screenH)
+        sb.append(out.take(120).joinToString(" | "))
         return sb.toString()
     }
 
-    private fun collect(node: AccessibilityNodeInfo?, out: ArrayList<String>) {
+    private fun collect(node: AccessibilityNodeInfo?, out: ArrayList<String>, screenH: Int) {
         if (node == null) return
         val text = node.text?.toString()?.trim()
         val desc = node.contentDescription?.toString()?.trim()
@@ -51,11 +56,19 @@ class GadaczAccessibilityService : AccessibilityService() {
             !desc.isNullOrEmpty() -> desc
             else -> null
         }
-        if (label != null && label.length in 1..80) {
-            val kind = if (node.isClickable) "[przycisk] " else if (node.isEditable) "[pole] " else ""
-            out.add(kind + label)
+        if (label != null && label.length in 1..120) {
+            val kind = when {
+                node.isEditable -> "[pole" + (if (!text.isNullOrEmpty()) "=\"$text\"" else "") + "] "
+                node.isClickable -> "[przycisk] "
+                node.isCheckable -> if (node.isChecked) "[✓zaznaczone] " else "[☐puste] "
+                else -> ""
+            }
+            // rough vertical position for "gdzie jest..."
+            val r = Rect(); node.getBoundsInScreen(r)
+            val pos = when { r.centerY() < screenH / 3 -> "góra" ; r.centerY() > 2 * screenH / 3 -> "dół" ; else -> "środek" }
+            out.add("$kind$label ($pos)")
         }
-        for (i in 0 until node.childCount) collect(node.getChild(i), out)
+        for (i in 0 until node.childCount) collect(node.getChild(i), out, screenH)
     }
 
     /** Tap the first clickable node whose text/description matches (case-insensitive). */
