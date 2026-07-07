@@ -105,15 +105,31 @@ class GadaczAccessibilityService : AccessibilityService() {
         return null
     }
 
-    /** Type into the currently focused editable field. */
+    /**
+     * Type into the focused editable field. Two methods, tried in order, so it works
+     * across far more apps (standard fields AND WebView/chat/custom inputs):
+     *  1) ACTION_SET_TEXT — clean, works for normal EditText.
+     *  2) clipboard + ACTION_PASTE — the universal fallback for fields that reject #1
+     *     (web inputs, many chat apps). This is why "write to Claude" failed before.
+     */
     fun typeText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val field = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             ?: findEditable(root) ?: return false
+        // Make sure the field is focused/active first.
+        field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        field.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         val args = android.os.Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
         }
-        return field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        if (field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return true
+        // Fallback — paste from clipboard (reaches WebViews and custom inputs).
+        return try {
+            val cb = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cb.setPrimaryClip(android.content.ClipData.newPlainText("Gadacz", text))
+            field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            field.performAction(0x00008000) // ACTION_PASTE (int id, works on all API levels)
+        } catch (e: Exception) { false }
     }
 
     private fun findEditable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
