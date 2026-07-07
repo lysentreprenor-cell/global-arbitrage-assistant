@@ -78,11 +78,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (_: Exception) {}
         }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
+        val ready = btn("✅  CO JESZCZE ZOSTAŁO (gotowość)", 0xFFD1FAE5.toInt(), 0xFF064E3B.toInt(), 66) {
+            val s = readinessSummary(false); appendLine("✅ $s"); speak(s)
+        }
         val update = btn("🔄  SPRAWDŹ AKTUALIZACJĘ (v${Updater.currentVersion(this)})", 0xFFCFFAFE.toInt(), 0xFF083344.toInt(), 66) { doUpdate(manual = true) }
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        col.addView(talk); col.addView(status); col.addView(settings); col.addView(readScreen)
+        col.addView(talk); col.addView(status); col.addView(ready); col.addView(settings); col.addView(readScreen)
         col.addView(bgOn); col.addView(access); col.addView(unblock); col.addView(notif); col.addView(repeat); col.addView(update); col.addView(transcript)
         setContentView(outer)
 
@@ -103,6 +106,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         } catch (_: Exception) {}
 
         if (!Brain.isConfigured(this)) showSettings()
+        else status.postDelayed({ val s = readinessSummary(true); status.text = s; speak(s) }, 1200)
     }
 
     private fun bigBtn(label: String, fg: Int, bg: Int, weight: Float, onClick: () -> Unit): Button =
@@ -138,6 +142,26 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             } catch (e: Exception) { speak("Błąd połączenia. ${e.message}") }
         }.start()
+    }
+
+    // One clear readiness check — tells the user exactly what's still needed, so setup
+    // is a short guided list, not endless fiddling. Essential vs optional is spelled out.
+    private fun readinessSummary(spokenIntro: Boolean): String {
+        val mic = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val acc = isAccessibilityOn()
+        val cfg = Brain.isConfigured(this)
+        val essentialLeft = ArrayList<String>()
+        if (!cfg) essentialLeft.add("adres serwera i klucz — kliknij Ustawienia")
+        if (!mic) essentialLeft.add("mikrofon")
+        val optionalLeft = ArrayList<String>()
+        if (!acc) optionalLeft.add("sterowanie ekranem")
+        val notif = try { Settings.Secure.getString(contentResolver, "enabled_notification_listeners")?.contains(packageName) == true } catch (e: Exception) { false }
+        if (!notif) optionalLeft.add("czytanie powiadomień")
+        return if (essentialLeft.isEmpty() && optionalLeft.isEmpty()) "Wszystko gotowe. Gadacz działa w pełni."
+        else buildString {
+            if (essentialLeft.isEmpty()) append("Gadacz działa. ") else append("Do działania brakuje: ${essentialLeft.joinToString(", ")}. ")
+            if (optionalLeft.isNotEmpty()) append("Dodatkowo (opcjonalnie) możesz włączyć: ${optionalLeft.joinToString(", ")}.")
+        }
     }
 
     private fun isAccessibilityOn(): Boolean = try {
