@@ -67,8 +67,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val settings = btn("⚙  USTAWIENIA (adres i klucz)", 0xFFFDE68A.toInt(), 0xFF422006.toInt(), 74) { showSettings() }
         val readScreen = btn("👀  CO JEST NA EKRANIE", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
         val bgOn = btn("🟢  WŁĄCZ PŁYWAJĄCY PRZYCISK", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 74) { enableOverlay() }
-        val access = btn("♿  WŁĄCZ STEROWANIE EKRANEM", 0xFFE0F2FE.toInt(), 0xFF082F49.toInt(), 74) {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        val access = btn("♿  WŁĄCZ STEROWANIE EKRANEM", 0xFFE0F2FE.toInt(), 0xFF082F49.toInt(), 74) { enableAccessibilityFlow() }
+        val unblock = btn("🔓  ODBLOKUJ (jeśli szare) — 3 kropki", 0xFFFEF3C7.toInt(), 0xFF451A03.toInt(), 66) {
+            speak("Naciśnij trzy kropki w prawym górnym rogu i wybierz: Zezwól na ustawienia z ograniczeniami. Potem wróć i włącz sterowanie ekranem.")
+            try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
         }
         val notif = btn("📢  CZYTAJ POWIADOMIENIA NA GŁOS", 0xFFFCE7F3.toInt(), 0xFF500724.toInt(), 74) {
             Brain.prefs(this).edit().putBoolean("read_notifications", true).apply()
@@ -81,7 +83,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
         col.addView(talk); col.addView(status); col.addView(settings); col.addView(readScreen)
-        col.addView(bgOn); col.addView(access); col.addView(notif); col.addView(repeat); col.addView(update); col.addView(transcript)
+        col.addView(bgOn); col.addView(access); col.addView(unblock); col.addView(notif); col.addView(repeat); col.addView(update); col.addView(transcript)
         setContentView(outer)
 
         // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).
@@ -136,6 +138,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             } catch (e: Exception) { speak("Błąd połączenia. ${e.message}") }
         }.start()
+    }
+
+    private fun isAccessibilityOn(): Boolean = try {
+        Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)?.contains(packageName) == true
+    } catch (e: Exception) { false }
+
+    private fun enableAccessibilityFlow() {
+        if (isAccessibilityOn()) { speak("Sterowanie ekranem jest już włączone."); return }
+        speak("Wejdź w Zainstalowane aplikacje, dotknij Gadacz i włącz suwak. Jeśli suwak jest szary, użyj przycisku Odblokuj poniżej.")
+        try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } catch (_: Exception) {}
     }
 
     private fun readScreen() {
