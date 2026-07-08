@@ -227,11 +227,16 @@ KONTEKST EKRANU: gdy treść zawiera "EKRAN: ..." a potem "Polecenie: X", to cz�
 - jeśli X nie dotyczy ekranu (np. „zadzwoń do mamy") — zignoruj EKRAN i wykonaj X normalnie.
 NIE streszczaj ekranu, jeśli użytkownik o to wprost nie prosi.
 
-ZADANIA WIELOKROKOWE (najważniejsze — „ogarnij cały telefon"): gdy polecenie wymaga kilku kroków przez różne ekrany (np. „napisz do mamy na Messengerze", „wyślij zdjęcie", „ustaw budzik na 7"), wykonuj JEDEN krok naraz:
+ZADANIA WIELOKROKOWE (najważniejsze — „ogarnij cały telefon"): gdy polecenie wymaga kilku kroków przez różne ekrany (np. „napisz do mamy na Messengerze", „wyślij zdjęcie"), wykonuj JEDEN krok naraz:
 - zwróć jedną akcję (open_app / tap / type / scroll / back), która przybliża do celu na PODSTAWIE aktualnego EKRANU,
 - dodaj "next":true, jeśli po zobaczeniu efektu trzeba zrobić kolejny krok,
 - w "say" powiedz bardzo krótko co robisz (np. „Otwieram Messenger", „Wpisuję mama").
-Po każdym kroku dostaniesz nowy EKRAN — wybierz następny właściwy element. Gdy zadanie SKOŃCZONE albo utknąłeś, ustaw "next":false i w "say" potwierdź lub poproś o pomoc. Przy wysyłaniu wiadomości: NIE wysyłaj sam ostatniego przycisku „wyślij" bez potrzeby — dokończ do pola z tekstem, wpisz treść, a wysłanie potwierdź w "say" (chyba że użytkownik wyraźnie każe wysłać).
+Po każdym kroku dostaniesz nowy EKRAN — wybierz następny właściwy element. Gdy zadanie SKOŃCZONE albo utknąłeś, ustaw "next":false i w "say" potwierdź lub poproś o pomoc.
+PLANOWANIE (myśl zanim ruszysz): oceń, ile zadanie potrzebuje etapów.
+- Zadanie PROSTE (ma gotową akcję albo jeden ruch): ŻADNEGO planu — jedna akcja, "next":false. Nie komplikuj.
+- Zadanie ZŁOŻONE (2 lub więcej kroków przez ekrany): w PIERWSZEJ odpowiedzi dodaj pole "plan" — krótki, numerowany plan 2-5 etapów, np. "plan":"1. Otwórz Messenger. 2. Znajdź rozmowę z mamą. 3. Wpisz wiadomość. 4. Potwierdź." Razem z planem zwróć już PIERWSZĄ akcję (etap 1) i "next":true.
+- W kolejnych krokach dostaniesz w treści "PLAN ZADANIA: ..." i numer kroku — TRZYMAJ SIĘ PLANU, sprawdzaj na EKRANIE, czy etap się udał, i przechodź do następnego. Nie porzucaj planu, chyba że ekran pokazuje, że droga jest inna — wtedy dokończ cel najkrótszą drogą.
+- Zadanie skończone dopiero, gdy OSTATNI etap planu jest zrobiony i widać to na ekranie — dopiero wtedy "next":false. Przy wysyłaniu wiadomości: NIE wysyłaj sam ostatniego przycisku „wyślij" bez potrzeby — dokończ do pola z tekstem, wpisz treść, a wysłanie potwierdź w "say" (chyba że użytkownik wyraźnie każe wysłać).
 
 DZIAŁAJ SZYBKO I MĄDRZE (kluczowe):
 - NAJPIERW akcja gotowa, POTEM ekran: jeśli cel ma swoją dedykowaną akcję (alarm, timer, call, sms, flashlight, volume, settings, maps, youtube, sos), użyj JEJ — jednym krokiem, "next":false. Klikanie po ekranie zostaw na zadania, które gotowej akcji nie mają (pisanie w aplikacjach, szukanie, przewijanie).
@@ -360,7 +365,7 @@ router.post("/ask", async (req: Request, res: Response) => {
     const raw = (d.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join(" ").trim();
 
     // Parse the strict-JSON contract; if the model slipped, degrade to plain speech
-    let say = raw, action = "none", args: any = {};
+    let say = raw, action = "none", args: any = {}, plan = "";
     try {
       const jsonStr = raw.replace(/^```(json)?/m, "").replace(/```$/m, "").trim();
       const start = jsonStr.indexOf("{");
@@ -372,6 +377,7 @@ router.post("/ask", async (req: Request, res: Response) => {
           action = typeof parsed.action === "string" ? parsed.action : "none";
           args = parsed.args && typeof parsed.args === "object" ? parsed.args : {};
           (args as any).__next = parsed.next === true; // multi-step task continuation flag
+          if (typeof parsed.plan === "string") plan = parsed.plan.slice(0, 600); // task plan (complex tasks only)
         }
       }
     } catch { /* keep raw as say */ }
@@ -388,7 +394,7 @@ router.post("/ask", async (req: Request, res: Response) => {
     }
 
     const next = !!(args as any).__next; if (args) delete (args as any).__next;
-    res.json({ say: say || "Przepraszam, nie zrozumiałem.", action, args, next });
+    res.json({ say: say || "Przepraszam, nie zrozumiałem.", action, args, next, plan });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

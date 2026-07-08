@@ -61,13 +61,21 @@ object Brain {
         // Keep conversation memory bounded — a long multi-step task must not grow it forever.
         while (history.size > 16) history.removeAt(0)
         var step = 0
-        while (step < 14) {
+        // 🗺️ Plan zadania: przy złożonym zadaniu AI w 1. kroku układa plan (2-5 etapów).
+        // Trzymamy go i doklejamy do każdego kolejnego pytania, żeby AI nie gubiło drogi
+        // w połowie — proste zadania planu nie mają i kończą się jednym strzałem.
+        var plan = ""
+        while (step < if (plan.isBlank()) 14 else 20) {
             val screen = GadaczAccessibilityService.instance?.readScreen()
-            val resp = try { ask(ctx, goal, history, screen) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
+            val question = if (plan.isBlank()) goal
+                else "$goal\n\nPLAN ZADANIA (trzymaj się go): $plan\nWykonano już kroków: $step. Sprawdź na EKRANIE, który etap jest zrobiony, i wykonaj następny."
+            val resp = try { ask(ctx, question, history, screen) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
             val say = resp.optString("say", "")
             val action = resp.optString("action", "none")
             val args = resp.optJSONObject("args") ?: JSONObject()
             val next = resp.optBoolean("next", false)
+            val newPlan = resp.optString("plan", "")
+            if (newPlan.isNotBlank() && plan.isBlank()) { plan = newPlan; speak("Plan: $plan") }
             history.add("user" to goal); history.add("assistant" to say)
             // Speak intermediate steps only briefly (keep it snappy); full result spoken at the end.
             if (say.isNotBlank() && next) speak(say)
@@ -96,7 +104,8 @@ object Brain {
             try { Thread.sleep(settle) } catch (_: Exception) {}
             step++
         }
-        speak("Zrobiłem kilka kroków. Powiedz, co dalej.")
+        speak(if (plan.isBlank()) "Zrobiłem kilka kroków. Powiedz, co dalej."
+              else "Wyczerpałem kroki planu. Powiedz, co dalej, albo dokończ ostatni etap ręcznie.")
     }
 
     /**
