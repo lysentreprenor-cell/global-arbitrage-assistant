@@ -72,7 +72,18 @@ object Brain {
             // Speak intermediate steps only briefly (keep it snappy); full result spoken at the end.
             if (say.isNotBlank() && next) speak(say)
             val spoken = execute(ctx, action, args, say) { s -> speak(s) }
-            if (!next || action == "none") { if (spoken.isNotBlank()) speak(spoken); return }
+            // Akcje JEDNORAZOWE robią się w całości za jednym razem (budzik, minutnik,
+            // telefon, SMS, latarka, głośność, SOS, otwarcie ustawień, pytania...). Po nich
+            // KOŃCZYMY — nawet gdy AI błędnie poprosi o kolejny krok — inaczej budzik
+            // ustawiałby się 4 razy, bo ekran się nie zmienia i AI próbuje w kółko.
+            val terminal = action in setOf(
+                "none", "alarm", "timer", "call", "sms", "save_contact", "flashlight",
+                "volume", "quick_settings", "notifications", "settings", "status",
+                "read_notifications", "sos", "emergency_call", "app_action",
+                "maps", "search", "open", "youtube", "navigate",
+                "remember", "recall", "forget_all"
+            )
+            if (!next || terminal) { if (spoken.isNotBlank()) speak(spoken); return }
             // Adaptive settle — wait only as long as each action needs, so it's fast.
             val settle = when (action) {
                 "open_app", "open" -> 1900L

@@ -214,8 +214,8 @@ Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usł
 - "quick_settings":{} — otwórz szybkie ustawienia (kafelki WiFi/Bluetooth itd.) ("szybkie ustawienia", "kafelki")
 - "notifications": {} — otwórz powiadomienia ("pokaż powiadomienia")
 - "settings":      {"what":"wifi"|"bluetooth"|"dane"|"lokalizacja"|"dźwięk"|"ekran"|"bateria"|"samolot"} — otwórz dany ekran ustawień. UWAGA: Android nie pozwala samemu przełączyć WiFi/Bluetooth — otwórz panel akcją settings, a potem użytkownik/Ty użyj "tap" na przełączniku ("włącz WiFi" → settings wifi, potem powiedz że można kliknąć przełącznik). Do włączenia WiFi/Bluetooth: settings {what:...} a następnie tap na nazwie.
-- "alarm":         {"hour":7,"minute":0,"message":"leki"} — ustaw budzik ("ustaw budzik na siódmą", "budzik na 6:30", "obudź mnie o 7"). Podaj godzinę 0-23 i minuty. message opcjonalny.
-- "timer":         {"seconds":600} — minutnik ("minutnik 10 minut", "odlicz 30 sekund"). Przelicz na sekundy.
+- "alarm":         {"hour":7,"minute":0,"message":"leki"} — ustaw budzik ("ustaw budzik na siódmą", "budzik na 6:30", "obudź mnie o 7"). Podaj godzinę 0-23 i minuty. message opcjonalny. To akcja JEDNORAZOWA — ustawia budzik od razu w jednym kroku. ZAWSZE "next":false. NIE powtarzaj, NIE otwieraj zegara ręcznie.
+- "timer":         {"seconds":600} — minutnik ("minutnik 10 minut", "odlicz 30 sekund"). Przelicz na sekundy. Też JEDNORAZOWA — "next":false, jeden krok.
 - "status":        {"what":"bateria"|"wifi"|"miejsce"} — stan telefonu ("ile mam baterii", "czy mam WiFi", "ile wolnego miejsca").
 - "read_notifications": {"on":"true"|"false"} — czytanie powiadomień na głos ("czytaj powiadomienia", "przestań czytać powiadomienia"). Gdy user pyta czy przyszła wiadomość — jeśli chce, żeby na bieżąco czytać, włącz on:true.
 - "sos":           {} — ALARM. Gdy użytkownik mówi „SOS", „pomocy", „ratunku", „wezwij pomoc", „potrzebuję pomocy" — wysyła wiadomość z lokalizacją do kontaktu alarmowego. To najważniejsza akcja, reaguj natychmiast, w "say" bardzo krótko potwierdź.
