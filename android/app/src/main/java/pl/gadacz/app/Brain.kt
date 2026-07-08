@@ -101,10 +101,10 @@ object Brain {
             "youtube" -> web(ctx, "https://www.youtube.com/results?search_query=" + Uri.encode(args.optString("query")))
             "search" -> web(ctx, "https://www.google.com/search?q=" + Uri.encode(args.optString("query")))
             "open" -> web(ctx, args.optString("url"))
-            "open_app" -> openApp(ctx, args.optString("name"))?.let { return it }
+            "open_app" -> openApp(ctx, args.optString("name"))?.let { learnFail(ctx); return it }
             "read_screen" -> { readScreenAsync(ctx, speak); return "" }
-            "tap" -> { if (svc?.tapByText(args.optString("text")) != true) return "Nie znalazłem na ekranie: ${args.optString("text")}." }
-            "type" -> { if (svc?.typeText(args.optString("text")) != true) return "Nie ma pola do wpisania." }
+            "tap" -> { if (svc?.tapByText(args.optString("text")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
+            "type" -> { if (svc?.typeText(args.optString("text")) != true) { learnFail(ctx); return "Nie ma pola do wpisania." } }
             "write" -> {
                 // Write the composed text into the focused field; if none, copy to clipboard.
                 val text = args.optString("text")
@@ -291,6 +291,23 @@ object Brain {
                 else -> "Nie znam tej funkcji."
             }
         } catch (e: Exception) { "Nie udało się połączyć z serwerem." }
+    }
+
+    /**
+     * Tell the server the LAST action failed on the real screen, so it learns from reality
+     * (marks that phrasing [nieudane] in the journal). Fire-and-forget, off the caller's path.
+     */
+    private fun learnFail(ctx: Context) {
+        Thread {
+            try {
+                val base = serverUrl(ctx).trimEnd('/')
+                val body = JSONObject().put("ok", false)
+                http.newCall(Request.Builder().url("$base/api/assistant/log/last-outcome")
+                    .header("x-bot-pin", pin(ctx))
+                    .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                    .execute().close()
+            } catch (_: Exception) { /* learning is best-effort */ }
+        }.start()
     }
 
     /** Read the live screen, send it back to the AI for a blind-friendly summary, speak it. */

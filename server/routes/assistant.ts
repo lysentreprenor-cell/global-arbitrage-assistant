@@ -57,7 +57,7 @@ function saveMemory(list: string[]) {
 // review it to improve how Gadacz helps. Kept last 300.
 const LEARN_FILE = path.resolve(process.cwd(), "data", "gadacz_learn.json");
 function loadLearn(): any[] { try { return JSON.parse(fs.readFileSync(LEARN_FILE, "utf8")); } catch { return []; } }
-function saveLearn(l: any[]) { try { fs.mkdirSync(path.dirname(LEARN_FILE), { recursive: true }); fs.writeFileSync(LEARN_FILE, JSON.stringify(l.slice(-300))); } catch {} }
+function saveLearn(l: any[]) { try { fs.mkdirSync(path.dirname(LEARN_FILE), { recursive: true }); fs.writeFileSync(LEARN_FILE, JSON.stringify(l.slice(-800))); } catch {} }
 router.get("/log", (_req, res) => res.json({ log: loadLearn().slice(-100) }));
 router.post("/log", (req, res) => {
   const { question, action, ok, note } = req.body ?? {};
@@ -67,6 +67,19 @@ router.post("/log", (req, res) => {
   res.json({ ok: true });
 });
 router.post("/log/clear", (_req, res) => { saveLearn([]); res.json({ ok: true }); });
+// POST /api/assistant/log/last-outcome {ok} — the PHONE reports whether the last
+// action actually succeeded on the real screen (tap found the button? field accepted
+// text? app launched?). This turns the guess-based journal into ground-truth learning:
+// a command that FAILED on the device is marked [nieudane], so next time the AI tries
+// a different approach or asks. This is what makes Gadacz learn from reality all the time.
+router.post("/log/last-outcome", (req, res) => {
+  const ok = req.body?.ok !== false;
+  try {
+    const l = loadLearn();
+    if (l.length) { l[l.length - 1].ok = ok; saveLearn(l); }
+  } catch { /* ignore */ }
+  res.json({ ok: true });
+});
 
 // GET  /api/assistant/memory        → { memory: string[] }
 router.get("/memory", (_req, res) => res.json({ memory: loadMemory() }));
@@ -178,11 +191,23 @@ Akcja STEROWANIA FUNKCJAMI aplikacji (działa zawsze, także w przeglądarce):
   weather — pogoda ("jaka pogoda", "pogoda w Krakowie", "ile stopni") — jeśli użytkownik poda miasto, dodaj je: {"do":"weather","city":"Kraków"}; bez miasta domyślnie Warszawa
 Uwaga: WŁĄCZENIE bota wymaga ustawień z ekranu — na „włącz bota" odpowiedz w "say", że otwierasz zakładkę bota (użyj navigate bot) i użytkownik ma dotknąć dużego przycisku. Nie próbuj włączać bota przez app_action.
 
+URUCHAMIANIE APLIKACJI (działa w aplikacji Gadacz na telefonie, NIE wymaga usługi dostępności — więc możesz z tego korzystać zawsze na telefonie):
+- "open_app": {"name":"nazwa aplikacji"} — otwórz / włącz / uruchom / odpal DOWOLNĄ zainstalowaną aplikację.
+  Używaj tego ZAWSZE, gdy użytkownik mówi „włącz", „otwórz", „uruchom", „odpal", „wejdź w" i nazwę aplikacji. Przykłady:
+  „włącz Facebooka" → open_app {"name":"Facebook"}
+  „otwórz Messenger" / „wejdź w Messengera" → open_app {"name":"Messenger"}
+  „uruchom aparat" / „włącz aparat" → open_app {"name":"aparat"}
+  „odpal WhatsApp" → open_app {"name":"WhatsApp"}
+  „włącz Spotify" → open_app {"name":"Spotify"}
+  „otwórz galerię / zdjęcia" → open_app {"name":"Galeria"}
+  „otwórz ustawienia telefonu" → open_app {"name":"Ustawienia"}
+  Podaj nazwę tak, jak brzmi w telefonie (Gadacz sam dopasuje najbliższą zainstalowaną aplikację).
+  WYJĄTKI — to NIE aplikacje, użyj innej akcji: „włącz muzykę/film na YouTube" → youtube; „pokaż na mapie / nawiguj" → maps; „włącz latarkę" → flashlight; „włącz WiFi / Bluetooth" → settings.
+
 Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usługą dostępności; w wersji przeglądarkowej odpowiedz w "say", że potrzebna jest aplikacja Gadacz):
 - "read_screen":  {} — użytkownik pyta co jest na ekranie / prosi o przeczytanie ekranu
 - "tap":          {"text":"napis na przycisku lub elemencie"} — kliknij element o tym tekście
 - "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole
-- "open_app":     {"name":"nazwa aplikacji"} — otwórz zainstalowaną aplikację (np. Messenger, WhatsApp)
 - "back":         {} — cofnij / "home": {} — ekran główny / "recents": {} — ostatnie aplikacje
 - "flashlight":    {"on":"true"|"false"} — latarka włącz/wyłącz ("włącz latarkę", "zgaś latarkę")
 - "volume":        {"dir":"up"|"down"|"mute"|"max"} — głośność ("głośniej", "ciszej", "wycisz", "na maksa")
@@ -214,8 +239,12 @@ DZIAŁAJ SZYBKO I MĄDRZE (kluczowe):
 - Wybieraj NAJKRÓTSZĄ drogę do celu — minimum kroków. Nie klikaj rzeczy niepotrzebnych.
 - Masz do 14 kroków. Jeśli po kilku próbach coś nie działa, ustaw "next":false i krótko powiedz, gdzie utknąłeś.
 
-Zasady "say":
-- Krótki, płynny język mówiony (będzie czytany syntezatorem) — bez emotikonów, gwiazdek, nagłówków.
+Zasady "say" — POPRAWNY, NATURALNY POLSKI (ważne, bo to czyta osoba niewidoma):
+- Mów jak życzliwy, spokojny człowiek — ciepło i prosto, nie jak robot. Krótkie, płynne zdania.
+- Nienaganna polszczyzna: właściwa odmiana przez przypadki i rodzaje („otwieram Facebooka", „dzwonię do mamy", „ustawiłem budzik na siódmą", „włączam aparat"). Zgadzaj rodzaj i liczbę.
+- Nie używaj angielskich słów, gdy istnieje polskie: mów „wiadomość" (nie „message"), „ustawienia" (nie „settings"), „aplikacja" (nie „app").
+- Nie czytaj skrótów ani znaków, które źle brzmią: zamiast „5 zł" powiedz „pięć złotych", zamiast „godz. 7" — „siódma", zamiast „ok." — „dobrze". Rozwijaj skróty w pełne słowa.
+- Bez emotikonów, gwiazdek, nagłówków, cudzysłowów wokół całej wypowiedzi.
 - Przy akcji potwierdzaj krótko, np. "Dzwonię do mamy." albo "Włączam YouTube z disco polo."
 - Numery telefonów wymawiaj cyframi z przerwami, np. "pięćset, sześćset, siedemset".
 - Przy opisie obrazu (action "none"): najpierw zagrożenia jeśli są, potem jedno zdanie co to jest, najważniejsze szczegóły, na końcu przeczytaj CAŁY widoczny tekst (nazwy, ceny, godziny, numery).
@@ -265,7 +294,7 @@ router.post("/ask", async (req: Request, res: Response) => {
         const cur = goodMap.get(kk);
         if (cur) cur.n++; else goodMap.set(kk, { action: e.action, n: 1 });
       }
-      const good = [...goodMap.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 16)
+      const good = [...goodMap.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 24)
         .map(([qq, v]) => `„${qq}” → ${v.action}${v.n > 1 ? ` (działało ${v.n} razy)` : ""}`);
       // Failures worth learning from — the frequent ones first.
       const badMap = new Map<string, number>();
