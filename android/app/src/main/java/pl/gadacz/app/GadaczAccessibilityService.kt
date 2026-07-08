@@ -149,10 +149,34 @@ class GadaczAccessibilityService : AccessibilityService() {
     fun openNotifications() { performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) }
     /** Toggle an on-screen switch by its label — for Wi-Fi/Bluetooth panels etc. */
     fun toggleByText(label: String): Boolean = tapByText(label)
+    /**
+     * Przewijanie dwiema metodami, próbowane po kolei — działa i na listach, i na
+     * pełnoekranowych odtwarzaczach filmów:
+     *  1) ACTION_SCROLL — dla zwykłych list (ściana Facebooka, ustawienia, czaty).
+     *  2) gest przesunięcia palcem — dla TikToka, Reelsów, Stories i Shortsów, które
+     *     NIE słuchają ACTION_SCROLL, bo czekają na fizyczny swipe.
+     */
     fun scroll(forward: Boolean) {
         val root = rootInActiveWindow ?: return
-        val s = findScrollable(root) ?: return
-        s.performAction(if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+        val s = findScrollable(root)
+        if (s != null && s.performAction(
+                if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) return
+        // Fallback — przeciągnij palcem po środku ekranu (TikTok, Reelsy, Stories).
+        swipeGesture(forward)
+    }
+
+    /** Fizyczny swipe: w górę = następny film (forward), w dół = poprzedni. */
+    private fun swipeGesture(forward: Boolean) {
+        val h = resources.displayMetrics.heightPixels
+        val x = resources.displayMetrics.widthPixels / 2f
+        // Przeciągamy w pionie w bezpiecznym środkowym pasie ekranu.
+        val startY = if (forward) h * 0.75f else h * 0.30f
+        val endY = if (forward) h * 0.30f else h * 0.75f
+        val path = Path().apply { moveTo(x, startY); lineTo(x, endY) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 250)).build()
+        dispatchGesture(gesture, null, null)
     }
     private fun findScrollable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (node == null) return null
