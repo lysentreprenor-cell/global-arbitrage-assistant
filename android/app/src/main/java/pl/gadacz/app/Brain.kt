@@ -127,7 +127,18 @@ object Brain {
             "tap" -> { if (svc?.tapByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
             "long_press" -> { if (svc?.longPressByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
             "enter" -> { if (svc?.pressEnter() != true) { learnFail(ctx); return "Nie mam czego zatwierdzić." } }
-            "type" -> { if (svc?.typeText(args.optString("text")) != true) { learnFail(ctx); return "Nie ma pola do wpisania." } }
+            "type" -> {
+                if (svc?.typeText(args.optString("text")) != true) {
+                    // Pole nie daje się chwycić (aplikacja rysuje ekran po swojemu) —
+                    // plan awaryjny: schowek + instrukcja, zamiast bezradnego „nie da się".
+                    try {
+                        val cb = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cb.setPrimaryClip(android.content.ClipData.newPlainText("Gadacz", args.optString("text")))
+                        learnFail(ctx)
+                        return "To pole nie daje się obsłużyć. Skopiowałem tekst do schowka — przytrzymaj pole palcem i wybierz Wklej."
+                    } catch (_: Exception) { learnFail(ctx); return "Nie ma pola do wpisania." }
+                }
+            }
             "write" -> {
                 // Write the composed text into the focused field; if none, copy to clipboard.
                 val text = args.optString("text")
