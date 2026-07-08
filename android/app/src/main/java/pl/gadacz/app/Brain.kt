@@ -172,19 +172,48 @@ object Brain {
         } catch (e: Exception) { null }
     }
 
+    /**
+     * Ustaw budzik NIEZAWODNIE na każdym telefonie.
+     *
+     * Cichy tryb (EXTRA_SKIP_UI) jest ignorowany przez część telefonów (Xiaomi/Redmi/
+     * POCO, Huawei) — przyjmują polecenie i nic nie tworzą. Dlatego gdy mamy sterowanie
+     * ekranem, otwieramy edytor budzika WIDOCZNIE i sami dotykamy „Zapisz". Gdy dostępności
+     * nie ma, próbujemy trybu cichego (najlepsze, co się da bez rąk na ekranie).
+     */
     private fun setAlarm(ctx: Context, hour: Int, minute: Int, message: String): String {
         if (hour < 0 || hour > 23) return "Powiedz godzinę, na przykład: ustaw budzik na siódmą."
+        val hhmm = "${"%02d".format(hour)}:${"%02d".format(minute)}"
+        val svc = GadaczAccessibilityService.instance
         return try {
             val i = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
                 putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
                 putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
                 if (message.isNotBlank()) putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, message)
-                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                // Cichy tryb TYLKO gdy nie mamy jak dotknąć „Zapisz" sami.
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, svc == null)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             ctx.startActivity(i)
-            "Ustawiłem budzik na ${"%02d".format(hour)}:${"%02d".format(minute)}."
-        } catch (e: Exception) { "Nie udało się ustawić budzika." }
+            if (svc == null) {
+                "Ustawiłem budzik na $hhmm. Jeśli się nie pojawił, włącz sterowanie ekranem, a zapiszę go sam."
+            } else {
+                // Zegar potrzebuje chwili, żeby się otworzyć — potem szukamy przycisku zapisu.
+                Thread {
+                    try {
+                        var saved = false
+                        // Kilka podejść — zegar może się otwierać z opóźnieniem.
+                        for (attempt in 0 until 4) {
+                            Thread.sleep(if (attempt == 0) 1600L else 800L)
+                            saved = listOf("Zapisz", "Save", "Gotowe", "Done", "Ustaw", "Zapisano", "OK")
+                                .any { GadaczAccessibilityService.instance?.tapByText(it) == true }
+                            if (saved) break
+                        }
+                        if (!saved) learnFail(ctx)
+                    } catch (_: Exception) {}
+                }.start()
+                "Ustawiam budzik na $hhmm i zapisuję."
+            }
+        } catch (e: Exception) { "Nie udało się ustawić budzika. Powiedz, jaki masz telefon, to poprawię." }
     }
     private fun setTimer(ctx: Context, seconds: Int): String {
         if (seconds <= 0) return "Powiedz na ile, na przykład: minutnik na dziesięć minut."
