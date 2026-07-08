@@ -206,8 +206,10 @@ URUCHAMIANIE APLIKACJI (działa w aplikacji Gadacz na telefonie, NIE wymaga usł
 
 Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usługą dostępności; w wersji przeglądarkowej odpowiedz w "say", że potrzebna jest aplikacja Gadacz):
 - "read_screen":  {} — użytkownik pyta co jest na ekranie / prosi o przeczytanie ekranu
-- "tap":          {"text":"napis na przycisku lub elemencie"} — kliknij element o tym tekście
-- "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole
+- "tap":          {"text":"napis na przycisku lub elemencie","pos":"góra"|"środek"|"dół"} — kliknij element o tym tekście; "pos" OPCJONALNIE, gdy ten sam napis jest kilka razy (wybierz strefę z EKRANU). Dopasowanie jest odporne na polskie znaki i wybiera najlepszy element, więc podawaj napis dokładnie z EKRANU.
+- "long_press":   {"text":"napis","pos":"opcjonalnie"} — PRZYTRZYMAJ element (menu kontekstowe, usuwanie, dodatkowe opcje). Gdy zwykły klik nie daje opcji — spróbuj przytrzymania.
+- "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole. Puste pola pokazują na EKRANIE swoją podpowiedź (np. [pole] Wpisz wiadomość) — najpierw tap w to pole, potem type.
+- "enter":        {} — zatwierdź aktywne pole (wyślij wiadomość, uruchom szukanie) — jak naciśnięcie Enter. Po type w pole szukania/czatu często to jest ostatni krok.
 - "back":         {} — cofnij / "home": {} — ekran główny / "recents": {} — ostatnie aplikacje
 - "flashlight":    {"on":"true"|"false"} — latarka włącz/wyłącz ("włącz latarkę", "zgaś latarkę")
 - "volume":        {"dir":"up"|"down"|"mute"|"max"} — głośność ("głośniej", "ciszej", "wycisz", "na maksa")
@@ -241,6 +243,7 @@ PLANOWANIE (myśl zanim ruszysz): oceń, ile zadanie potrzebuje etapów.
 DZIAŁAJ SZYBKO I MĄDRZE (kluczowe):
 - NAJPIERW akcja gotowa, POTEM ekran: jeśli cel ma swoją dedykowaną akcję (alarm, timer, call, sms, flashlight, volume, settings, maps, youtube, sos), użyj JEJ — jednym krokiem, "next":false. Klikanie po ekranie zostaw na zadania, które gotowej akcji nie mają (pisanie w aplikacjach, szukanie, przewijanie).
 - Jeśli szukanego elementu NIE MA na aktualnym EKRANIE, a ekran ma dopisek „(można PRZEWIJAĆ...)" — użyj akcji "scroll" {"dir":"down"} żeby odsłonić więcej, i szukaj dalej. Nie poddawaj się, że czegoś nie widać — przewiń.
+- "scroll" ma kierunki: "down" (dalej/następny film), "up" (wstecz), "left" (następny w bok — stories, karuzele, zdjęcia), "right" (poprzedni w bok). Na TikToku/Reels "down" = następny film.
 - Możesz przełączać aplikacje: "open_app" {"name":"..."} otwiera inną aplikację, "recents" pokazuje ostatnie, "home" ekran główny. Używaj tego, żeby przejść między aplikacjami w trakcie zadania.
 - Bądź zwięzły: w "say" podczas kroków tylko 2-4 słowa (np. „Otwieram Messenger", „Przewijam", „Wpisuję tekst"). Pełne wyjaśnienie tylko na końcu.
 - Wybieraj NAJKRÓTSZĄ drogę do celu — minimum kroków. Nie klikaj rzeczy niepotrzebnych.
@@ -339,7 +342,7 @@ router.post("/ask", async (req: Request, res: Response) => {
     content.push({ type: "text", text: q.slice(0, 4000) });
 
     const messages = [
-      ...(Array.isArray(history) ? history : []).slice(-8).map((m: any) => ({
+      ...(Array.isArray(history) ? history : []).slice(-12).map((m: any) => ({
         role: m.role === "assistant" ? "assistant" : "user",
         content: String(m.content ?? "").slice(0, 2000),
       })),

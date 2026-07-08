@@ -200,7 +200,12 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     // wtedy cisza kończy rozmowę po cichu (bez „nie usłyszałem") i wraca nasłuch słowa-klucza.
     private fun startListening(auto: Boolean = false) {
         if (busy) return
-        if (tts.isSpeaking) { if (!auto) tts.stop(); return }
+        // Dotknięcie w trakcie mówienia = PRZERWIJ i słuchaj od razu (jak przerywa się
+        // człowiekowi) — zamiast wymagać drugiego dotknięcia.
+        if (tts.isSpeaking) {
+            if (auto) return
+            try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}
+        }
         if (!Brain.isConfigured(this)) { speak("Najpierw otwórz Gadacza i podaj adres serwera oraz klucz."); return }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { speak("Brak rozpoznawania mowy na tym telefonie."); return }
         // Pause the wake-word recognizer so two mics don't fight (it resumes after handle()).
@@ -233,6 +238,9 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL")
+            // Cierpliwość: nie ucinaj w pół zdania, gdy użytkownik zbiera myśli.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1600L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1600L)
         }
         try { recognizer?.startListening(intent) } catch (e: Exception) { busy = false; setBubble("🗣️"); speak("Błąd mikrofonu.") }
     }

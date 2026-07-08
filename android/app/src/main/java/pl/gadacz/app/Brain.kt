@@ -34,7 +34,7 @@ object Brain {
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
     fun ask(ctx: Context, question: String, history: List<Pair<String, String>>, screenDump: String? = null): JSONObject {
         val msgs = JSONArray()
-        history.takeLast(8).forEach { (role, content) ->
+        history.takeLast(12).forEach { (role, content) ->
             msgs.put(JSONObject().put("role", role).put("content", content))
         }
         val body = JSONObject().apply {
@@ -95,7 +95,8 @@ object Brain {
             // Adaptive settle — wait only as long as each action needs, so it's fast.
             val settle = when (action) {
                 "open_app", "open" -> 1900L
-                "tap" -> 850L
+                "tap", "enter" -> 850L
+                "long_press" -> 1000L
                 "scroll" -> 450L
                 "type", "write" -> 400L
                 "back", "home", "recents" -> 650L
@@ -123,7 +124,9 @@ object Brain {
             "open" -> web(ctx, args.optString("url"))
             "open_app" -> openApp(ctx, args.optString("name"))?.let { learnFail(ctx); return it }
             "read_screen" -> { readScreenAsync(ctx, speak); return "" }
-            "tap" -> { if (svc?.tapByText(args.optString("text")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
+            "tap" -> { if (svc?.tapByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
+            "long_press" -> { if (svc?.longPressByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
+            "enter" -> { if (svc?.pressEnter() != true) { learnFail(ctx); return "Nie mam czego zatwierdzić." } }
             "type" -> { if (svc?.typeText(args.optString("text")) != true) { learnFail(ctx); return "Nie ma pola do wpisania." } }
             "write" -> {
                 // Write the composed text into the focused field; if none, copy to clipboard.
@@ -137,7 +140,7 @@ object Brain {
             "back" -> svc?.goBack()
             "home" -> svc?.goHome()
             "recents" -> svc?.recents()
-            "scroll" -> svc?.scroll(args.optString("dir") != "up")
+            "scroll" -> svc?.scroll(args.optString("dir", "down"))
             "app_action" -> return appAction(ctx, args)
             // ── System control ──────────────────────────────────────────────
             "flashlight" -> return flashlight(ctx, args.optString("on") != "false")

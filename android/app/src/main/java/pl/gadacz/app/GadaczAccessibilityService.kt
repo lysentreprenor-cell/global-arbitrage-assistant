@@ -59,9 +59,13 @@ class GadaczAccessibilityService : AccessibilityService() {
         if (node == null) return
         val text = node.text?.toString()?.trim()
         val desc = node.contentDescription?.toString()?.trim()
+        // Puste pole tekstowe zdradza się podpowiedzią (hint) — „Wpisz wiadomość",
+        // „Szukaj"... — bez tego AI nie wie, do czego pole służy.
+        val hint = node.hintText?.toString()?.trim()
         val label = when {
             !text.isNullOrEmpty() -> text
             !desc.isNullOrEmpty() -> desc
+            node.isEditable && !hint.isNullOrEmpty() -> hint
             else -> null
         }
         if (label != null && label.length in 1..120) {
@@ -79,30 +83,91 @@ class GadaczAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) collect(node.getChild(i), out, screenH)
     }
 
-    /** Tap the first clickable node whose text/description matches (case-insensitive). */
-    fun tapByText(query: String): Boolean {
-        val root = rootInActiveWindow ?: return false
-        val target = findClickable(root, query.lowercase()) ?: return false
-        // Prefer the semantic click; fall back to a gesture on its bounds.
-        if (target.isClickable && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-        val rect = Rect(); target.getBoundsInScreen(rect)
+    /** Bez polskich znaków i wielkości liter — „Wyślij" trafia w „wyslij" i odwrotnie. */
+    private fun norm(s: String): String {
+        val map = mapOf('ą' to 'a', 'ć' to 'c', 'ę' to 'e', 'ł' to 'l', 'ń' to 'n',
+            'ó' to 'o', 'ś' to 's', 'ź' to 'z', 'ż' to 'z')
+        return s.lowercase().map { map[it] ?: it }.joinToString("")
+    }
+
+    private fun zoneOf(node: AccessibilityNodeInfo, screenH: Int): String {
+        val r = Rect(); node.getBoundsInScreen(r)
+        return when { r.centerY() < screenH / 3 -> "góra"; r.centerY() > 2 * screenH / 3 -> "dół"; else -> "środek" }
+    }
+
+    /** Zbierz WSZYSTKIE pasujące elementy z oceną trafności — nie pierwszy z brzegu. */
+    private fun scoreNodes(node: AccessibilityNodeInfo?, q: String, out: ArrayList<Pair<Int, AccessibilityNodeInfo>>) {
+        if (node == null) return
+        val label = ((node.text?.toString() ?: "") + " " + (node.contentDescription?.toString() ?: "")).trim()
+        if (label.isNotEmpty()) {
+            val t = norm(label)
+            var score = when {
+                t == q -> 100                 // dokładnie ten napis
+                t.startsWith(q) -> 60         // zaczyna się od szukanego
+                t.contains(q) -> 40           // zawiera szukane
+                else -> {
+                    val words = q.split(" ").filter { it.length > 2 }
+                    if (words.isNotEmpty() && words.all { t.contains(it) }) 25 else 0
+                }
+            }
+            if (score > 0) {
+                if (node.isClickable) score += 10   // klikane elementy przed ozdobnikami
+                out.add(score to node)
+            }
+        }
+        for (i in 0 until node.childCount) scoreNodes(node.getChild(i), q, out)
+    }
+
+    private fun bestMatch(query: String, pos: String): AccessibilityNodeInfo? {
+        val root = rootInActiveWindow ?: return null
+        val q = norm(query)
+        if (q.isBlank()) return null
+        val matches = ArrayList<Pair<Int, AccessibilityNodeInfo>>()
+        scoreNodes(root, q, matches)
+        if (matches.isEmpty()) return null
+        val screenH = resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        // Gdy AI mówi „ten na dole" — zawęź do strefy, o ile coś tam pasuje.
+        val pool = if (pos.isNotBlank()) matches.filter { zoneOf(it.second, screenH) == pos }.ifEmpty { matches } else matches
+        return pool.maxByOrNull { it.first }?.second
+    }
+
+    /** Tap the BEST matching node (score, diacritics-proof), optionally in a screen zone. */
+    fun tapByText(query: String, pos: String = ""): Boolean {
+        val found = bestMatch(query, pos) ?: return false
+        // Prefer the semantic click on the nearest clickable ancestor; else gesture.
+        var n: AccessibilityNodeInfo? = found
+        while (n != null && !n.isClickable) n = n.parent
+        if (n?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) return true
+        return gestureAt(found, 60)
+    }
+
+    /** Przytrzymaj element (menu kontekstowe, kasowanie wiadomości, ikony...). */
+    fun longPressByText(query: String, pos: String = ""): Boolean {
+        val found = bestMatch(query, pos) ?: return false
+        var n: AccessibilityNodeInfo? = found
+        while (n != null && !n.isLongClickable) n = n.parent
+        if (n?.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK) == true) return true
+        return gestureAt(found, 700)   // przytrzymanie palcem
+    }
+
+    private fun gestureAt(node: AccessibilityNodeInfo, holdMs: Long): Boolean {
+        val rect = Rect(); node.getBoundsInScreen(rect)
         if (rect.width() <= 0 || rect.height() <= 0) return false
         val path = Path().apply { moveTo(rect.exactCenterX(), rect.exactCenterY()) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 60)).build()
-        dispatchGesture(gesture, null, null)
+        dispatchGesture(GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, holdMs)).build(), null, null)
         return true
     }
 
-    private fun findClickable(node: AccessibilityNodeInfo?, q: String): AccessibilityNodeInfo? {
-        if (node == null) return null
-        val t = (node.text?.toString() ?: "") + " " + (node.contentDescription?.toString() ?: "")
-        if (t.lowercase().contains(q)) {
-            var n: AccessibilityNodeInfo? = node
-            while (n != null) { if (n.isClickable) return n; n = n.parent }
+    /** Enter/wyślij w aktywnym polu — zatwierdza wyszukiwanie, wysyła wiadomość. */
+    fun pressEnter(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val field = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: findEditable(root) ?: return false
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            if (field.performAction(android.R.id.accessibilityActionImeEnter)) return true
         }
-        for (i in 0 until node.childCount) findClickable(node.getChild(i), q)?.let { return it }
-        return null
+        // Starsze Androidy: spróbuj klawisza „Wyślij/Szukaj" na ekranie.
+        return tapByText("Wyślij").let { if (it) true else tapByText("Szukaj") }
     }
 
     /**
@@ -150,33 +215,42 @@ class GadaczAccessibilityService : AccessibilityService() {
     /** Toggle an on-screen switch by its label — for Wi-Fi/Bluetooth panels etc. */
     fun toggleByText(label: String): Boolean = tapByText(label)
     /**
-     * Przewijanie dwiema metodami, próbowane po kolei — działa i na listach, i na
-     * pełnoekranowych odtwarzaczach filmów:
+     * Przewijanie w KAŻDĄ stronę, dwiema metodami próbowanymi po kolei:
      *  1) ACTION_SCROLL — dla zwykłych list (ściana Facebooka, ustawienia, czaty).
      *  2) gest przesunięcia palcem — dla TikToka, Reelsów, Stories i Shortsów, które
      *     NIE słuchają ACTION_SCROLL, bo czekają na fizyczny swipe.
+     * dir: "down" (dalej/następny), "up" (wstecz), "left"/"right" (karuzele, stories).
      */
-    fun scroll(forward: Boolean) {
-        val root = rootInActiveWindow ?: return
-        val s = findScrollable(root)
-        if (s != null && s.performAction(
-                if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-                else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) return
-        // Fallback — przeciągnij palcem po środku ekranu (TikTok, Reelsy, Stories).
-        swipeGesture(forward)
+    fun scroll(dir: String) {
+        when (dir) {
+            "left", "right" -> swipeGesture(dir)
+            else -> {
+                val forward = dir != "up"
+                val root = rootInActiveWindow
+                val s = root?.let { findScrollable(it) }
+                if (s != null && s.performAction(
+                        if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                        else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) return
+                // Fallback — przeciągnij palcem po środku ekranu (TikTok, Reelsy, Stories).
+                swipeGesture(if (forward) "down" else "up")
+            }
+        }
     }
 
-    /** Fizyczny swipe: w górę = następny film (forward), w dół = poprzedni. */
-    private fun swipeGesture(forward: Boolean) {
+    /** Fizyczny swipe. "down"=palec w górę (następny), "up"=palec w dół, "left"/"right" w bok. */
+    private fun swipeGesture(dir: String) {
+        val w = resources.displayMetrics.widthPixels
         val h = resources.displayMetrics.heightPixels
-        val x = resources.displayMetrics.widthPixels / 2f
-        // Przeciągamy w pionie w bezpiecznym środkowym pasie ekranu.
-        val startY = if (forward) h * 0.75f else h * 0.30f
-        val endY = if (forward) h * 0.30f else h * 0.75f
-        val path = Path().apply { moveTo(x, startY); lineTo(x, endY) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 250)).build()
-        dispatchGesture(gesture, null, null)
+        val cx = w / 2f; val cy = h / 2f
+        val path = Path()
+        when (dir) {
+            "up"    -> { path.moveTo(cx, h * 0.30f); path.lineTo(cx, h * 0.75f) }
+            "left"  -> { path.moveTo(w * 0.80f, cy); path.lineTo(w * 0.20f, cy) }  // następny w bok
+            "right" -> { path.moveTo(w * 0.20f, cy); path.lineTo(w * 0.80f, cy) }  // poprzedni w bok
+            else    -> { path.moveTo(cx, h * 0.75f); path.lineTo(cx, h * 0.30f) }  // "down"
+        }
+        dispatchGesture(GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 250)).build(), null, null)
     }
     private fun findScrollable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (node == null) return null
