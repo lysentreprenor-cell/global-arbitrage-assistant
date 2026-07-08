@@ -173,12 +173,11 @@ object Brain {
     }
 
     /**
-     * Ustaw budzik NIEZAWODNIE na każdym telefonie.
-     *
-     * Cichy tryb (EXTRA_SKIP_UI) jest ignorowany przez część telefonów (Xiaomi/Redmi/
-     * POCO, Huawei) — przyjmują polecenie i nic nie tworzą. Dlatego gdy mamy sterowanie
-     * ekranem, otwieramy edytor budzika WIDOCZNIE i sami dotykamy „Zapisz". Gdy dostępności
-     * nie ma, próbujemy trybu cichego (najlepsze, co się da bez rąk na ekranie).
+     * Ustaw budzik ZAWSZE w trybie widocznym — zegar otwiera się z gotowym budzikiem
+     * na ekranie. Tryb cichy (EXTRA_SKIP_UI) wyleciał całkiem: część telefonów
+     * (Xiaomi/Redmi/POCO, Huawei) ignoruje go i budzik w ogóle nie powstaje.
+     * Gdy sterowanie ekranem jest włączone, Gadacz sam dotyka „Zapisz";
+     * bez niego prosi użytkownika o jedno dotknięcie.
      */
     private fun setAlarm(ctx: Context, hour: Int, minute: Int, message: String): String {
         if (hour < 0 || hour > 23) return "Powiedz godzinę, na przykład: ustaw budzik na siódmą."
@@ -189,13 +188,13 @@ object Brain {
                 putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
                 putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
                 if (message.isNotBlank()) putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, message)
-                // Cichy tryb TYLKO gdy nie mamy jak dotknąć „Zapisz" sami.
-                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, svc == null)
+                // ZAWSZE widocznie — nigdy SKIP_UI (bywa ignorowany i budzik nie powstaje).
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             ctx.startActivity(i)
             if (svc == null) {
-                "Ustawiłem budzik na $hhmm. Jeśli się nie pojawił, włącz sterowanie ekranem, a zapiszę go sam."
+                "Otwieram zegar z budzikiem na $hhmm. Dotknij Zapisz. Włącz sterowanie ekranem, a następnym razem zapiszę sam."
             } else {
                 // Zegar potrzebuje chwili, żeby się otworzyć — potem szukamy przycisku zapisu.
                 Thread {
@@ -217,14 +216,33 @@ object Brain {
     }
     private fun setTimer(ctx: Context, seconds: Int): String {
         if (seconds <= 0) return "Powiedz na ile, na przykład: minutnik na dziesięć minut."
+        val svc = GadaczAccessibilityService.instance
         return try {
             ctx.startActivity(Intent(android.provider.AlarmClock.ACTION_SET_TIMER).apply {
                 putExtra(android.provider.AlarmClock.EXTRA_LENGTH, seconds)
-                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                // Jak przy budziku: ZAWSZE widocznie, bo cichy tryb bywa ignorowany.
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             })
             val m = seconds / 60; val s = seconds % 60
-            "Minutnik ustawiony na ${if (m > 0) "$m minut " else ""}${if (s > 0) "$s sekund" else ""}."
+            val czas = "${if (m > 0) "$m minut " else ""}${if (s > 0) "$s sekund" else ""}".trim()
+            if (svc == null) {
+                "Otwieram minutnik na $czas. Dotknij Start."
+            } else {
+                Thread {
+                    try {
+                        var started = false
+                        for (attempt in 0 until 4) {
+                            Thread.sleep(if (attempt == 0) 1600L else 800L)
+                            started = listOf("Start", "Rozpocznij", "Uruchom", "Włącz")
+                                .any { GadaczAccessibilityService.instance?.tapByText(it) == true }
+                            if (started) break
+                        }
+                        if (!started) learnFail(ctx)
+                    } catch (_: Exception) {}
+                }.start()
+                "Włączam minutnik na $czas."
+            }
         } catch (e: Exception) { "Nie udało się ustawić minutnika." }
     }
     private fun phoneStatus(ctx: Context, what: String): String {
