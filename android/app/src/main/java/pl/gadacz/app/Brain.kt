@@ -145,7 +145,7 @@ object Brain {
             "quick_settings" -> { svc?.openQuickSettings() ?: return "Włącz sterowanie ekranem, żeby otworzyć szybkie ustawienia." }
             "notifications" -> { svc?.openNotifications() ?: return "Włącz sterowanie ekranem." }
             "settings" -> return openSettings(ctx, args.optString("what"))
-            "alarm" -> return setAlarm(ctx, args.optInt("hour", -1), args.optInt("minute", 0), args.optString("message"))
+            "alarm" -> return setAlarm(ctx, args.optInt("hour", -1), args.optInt("minute", 0), args.optString("message"), speak)
             "timer" -> return setTimer(ctx, args.optInt("seconds", 0))
             "status" -> return phoneStatus(ctx, args.optString("what"))
             "read_notifications" -> return toggleNotifications(ctx, args.optString("on") != "false")
@@ -182,45 +182,68 @@ object Brain {
     }
 
     /**
-     * Ustaw budzik ZAWSZE w trybie widocznym — zegar otwiera się z gotowym budzikiem
-     * na ekranie. Tryb cichy (EXTRA_SKIP_UI) wyleciał całkiem: część telefonów
-     * (Xiaomi/Redmi/POCO, Huawei) ignoruje go i budzik w ogóle nie powstaje.
-     * Gdy sterowanie ekranem jest włączone, Gadacz sam dotyka „Zapisz";
-     * bez niego prosi użytkownika o jedno dotknięcie.
+     * Ustaw budzik z WERYFIKACJĄ — nie wierzymy zegarowi na słowo.
+     *
+     * 1) Cichy strzał (SKIP_UI) — standard Androida.
+     * 2) Po 2,5 s pytamy SYSTEM (AlarmManager.nextAlarmClock), czy najbliższy budzik
+     *    dzwoni o żądanej godzinie. To jest prawda objawiona — nie zgadywanie.
+     * 3) Jeśli NIE: otwieramy zegar widocznie i — tylko gdy na ekranie WIDAĆ właściwą
+     *    godzinę — dotykamy „Zapisz". Gdy godziny nie widać, NIE klikamy na ślepo
+     *    (żeby nie zapisać budzika na 06:00) — mówimy, co zrobić.
+     * 4) Na końcu znów pytamy system i mówimy użytkownikowi PRAWDĘ: jest albo nie ma.
      */
-    private fun setAlarm(ctx: Context, hour: Int, minute: Int, message: String): String {
+    private fun alarmConfirmed(ctx: Context, hour: Int, minute: Int): Boolean = try {
+        val am = ctx.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val nxt = am.nextAlarmClock
+        if (nxt == null) false else {
+            val c = java.util.Calendar.getInstance().apply { timeInMillis = nxt.triggerTime }
+            c.get(java.util.Calendar.HOUR_OF_DAY) == hour && c.get(java.util.Calendar.MINUTE) == minute
+        }
+    } catch (_: Exception) { false }
+
+    private fun setAlarm(ctx: Context, hour: Int, minute: Int, message: String, speak: (String) -> Unit): String {
         if (hour < 0 || hour > 23) return "Powiedz godzinę, na przykład: ustaw budzik na siódmą."
         val hhmm = "${"%02d".format(hour)}:${"%02d".format(minute)}"
-        val svc = GadaczAccessibilityService.instance
+        val hh = "%02d".format(hour)
+        fun fire(skipUi: Boolean) = ctx.startActivity(Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+            putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+            if (message.isNotBlank()) putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, message)
+            putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, skipUi)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
         return try {
-            val i = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
-                putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
-                putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
-                if (message.isNotBlank()) putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, message)
-                // ZAWSZE widocznie — nigdy SKIP_UI (bywa ignorowany i budzik nie powstaje).
-                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            ctx.startActivity(i)
-            if (svc == null) {
-                "Otwieram zegar z budzikiem na $hhmm. Dotknij Zapisz. Włącz sterowanie ekranem, a następnym razem zapiszę sam."
-            } else {
-                // Zegar potrzebuje chwili, żeby się otworzyć — potem szukamy przycisku zapisu.
-                Thread {
-                    try {
-                        var saved = false
-                        // Kilka podejść — zegar może się otwierać z opóźnieniem.
-                        for (attempt in 0 until 4) {
-                            Thread.sleep(if (attempt == 0) 1600L else 800L)
-                            saved = listOf("Zapisz", "Save", "Gotowe", "Done", "Ustaw", "Zapisano", "OK")
+            fire(true)  // najpierw po cichu
+            Thread {
+                try {
+                    Thread.sleep(2500)
+                    if (alarmConfirmed(ctx, hour, minute)) { speak("Sprawdziłem — budzik na $hhmm jest ustawiony."); return@Thread }
+                    // Cichy tryb zawiódł → widocznie, ale z głową.
+                    fire(false)
+                    Thread.sleep(2000)
+                    val svc = GadaczAccessibilityService.instance
+                    if (svc == null) { speak("Otworzyłem zegar. Sprawdź godzinę i dotknij Zapisz."); return@Thread }
+                    var saved = false
+                    for (attempt in 0 until 3) {
+                        val dump = svc.readScreen()
+                        // Klikamy Zapisz TYLKO gdy edytor pokazuje żądaną godzinę.
+                        if (dump.contains(hh)) {
+                            saved = listOf("Zapisz", "Save", "Gotowe", "Done", "OK")
                                 .any { GadaczAccessibilityService.instance?.tapByText(it) == true }
                             if (saved) break
                         }
-                        if (!saved) learnFail(ctx)
-                    } catch (_: Exception) {}
-                }.start()
-                "Ustawiam budzik na $hhmm i zapisuję."
-            }
+                        Thread.sleep(900)
+                    }
+                    Thread.sleep(1200)
+                    if (alarmConfirmed(ctx, hour, minute)) speak("Budzik na $hhmm zapisany. Sprawdziłem — zadzwoni.")
+                    else {
+                        learnFail(ctx)
+                        speak(if (saved) "Zapisałem, ale nie mogę potwierdzić budzika na $hhmm — możliwe, że wcześniejszy budzik dzwoni pierwszy. Sprawdź w zegarze."
+                              else "Zegar nie przyjął godziny $hhmm. Na ekranie jest edytor — ustaw godzinę i dotknij Zapisz.")
+                    }
+                } catch (_: Exception) {}
+            }.start()
+            "Ustawiam budzik na $hhmm."
         } catch (e: Exception) { "Nie udało się ustawić budzika. Powiedz, jaki masz telefon, to poprawię." }
     }
     private fun setTimer(ctx: Context, seconds: Int): String {
