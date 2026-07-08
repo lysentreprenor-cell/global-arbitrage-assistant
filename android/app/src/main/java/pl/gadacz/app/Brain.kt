@@ -127,6 +127,7 @@ object Brain {
             "tap" -> { if (svc?.tapByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
             "long_press" -> { if (svc?.longPressByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
             "enter" -> { if (svc?.pressEnter() != true) { learnFail(ctx); return "Nie mam czego zatwierdzić." } }
+            "paste" -> { if (svc?.pasteFocused() != true) { learnFail(ctx); return "Nie udało się wkleić. Dotknij pola, żeby zamigał kursor, i powiedz: wklej." } }
             "type" -> {
                 if (svc?.typeText(args.optString("text")) != true) {
                     // Pole nie daje się chwycić (aplikacja rysuje ekran po swojemu) —

@@ -210,6 +210,7 @@ Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usł
 - "long_press":   {"text":"napis","pos":"opcjonalnie"} — PRZYTRZYMAJ element (menu kontekstowe, usuwanie, dodatkowe opcje). Gdy zwykły klik nie daje opcji — spróbuj przytrzymania.
 - "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole. Puste pola pokazują na EKRANIE swoją podpowiedź (np. [pole] Wpisz wiadomość) — najpierw tap w to pole, potem type.
 - "enter":        {} — zatwierdź aktywne pole (wyślij wiadomość, uruchom szukanie) — jak naciśnięcie Enter. Po type w pole szukania/czatu często to jest ostatni krok.
+- "paste":        {} — WKLEJ zawartość schowka w aktywne pole (tam gdzie miga kursor). Gdy użytkownik mówi „wklej", „wklej to", „wklej tekst". Przepływ dla opornych aplikacji: 1) „napisz [treść]" → akcja write układa tekst i kopiuje do schowka, 2) użytkownik dotyka pola, 3) „wklej" → paste. Jeśli type zawiedzie w zadaniu wielokrokowym, spróbuj paste zanim się poddasz.
 - "back":         {} — cofnij / "home": {} — ekran główny / "recents": {} — ostatnie aplikacje
 - "flashlight":    {"on":"true"|"false"} — latarka włącz/wyłącz ("włącz latarkę", "zgaś latarkę")
 - "volume":        {"dir":"up"|"down"|"mute"|"max"} — głośność ("głośniej", "ciszej", "wycisz", "na maksa")

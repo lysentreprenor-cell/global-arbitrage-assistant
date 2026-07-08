@@ -159,6 +159,20 @@ class GadaczAccessibilityService : AccessibilityService() {
         return true
     }
 
+    /**
+     * Wklej schowek w AKTYWNE pole (to, którego dotknął użytkownik — kursor miga).
+     * Działa też tam, gdzie pola nie widać jako „editable" — wystarczy, że aplikacja
+     * zgłasza fokus. Ostatnia deska ratunku przed ręcznym przytrzymaniem.
+     */
+    fun pasteFocused(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val field = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+            ?: findEditable(root) ?: return false
+        field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        return field.performAction(0x00008000) // ACTION_PASTE
+    }
+
     /** Enter/wyślij w aktywnym polu — zatwierdza wyszukiwanie, wysyła wiadomość. */
     fun pressEnter(): Boolean {
         val root = rootInActiveWindow ?: return false
