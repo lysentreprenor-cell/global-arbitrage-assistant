@@ -36,6 +36,11 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private var recognizer: SpeechRecognizer? = null
     private val history = ArrayList<Pair<String, String>>()
     private var busy = false
+    // 💬 Tryb ROZMOWY: po skończeniu mówienia Gadacz sam otwiera mikrofon na kolejne
+    // zdanie — bez dotykania przycisku. Cisza (brak mowy) zamyka rozmowę.
+    private var convPending = false
+    private val pendingSpeech = java.util.concurrent.atomic.AtomicInteger(0)
+    private var uttSeq = 0
     // Wake-word: continuously listen; act only when speech starts with "Gadacz".
     private var wakeMode = false
     private var wakeRec: SpeechRecognizer? = null
@@ -64,7 +69,24 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     }
 
     override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) tts.language = Locale("pl", "PL")
+        if (status == TextToSpeech.SUCCESS) {
+            tts.language = Locale("pl", "PL")
+            // Wiemy, KIEDY Gadacz skończył mówić — wtedy (w trybie rozmowy) sam
+            // otwieramy mikrofon na odpowiedź użytkownika.
+            tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) maybeContinueConversation() }
+                @Deprecated("api") override fun onError(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) maybeContinueConversation() }
+            })
+        }
+    }
+
+    /** Po ostatnim wypowiedzianym zdaniu — jeśli trwa rozmowa — słuchaj dalej sam. */
+    private fun maybeContinueConversation() {
+        if (!convPending || busy) return
+        bubble?.postDelayed({
+            if (convPending && !busy) { convPending = false; startListening(auto = true) }
+        }, 350)
     }
 
     private fun buildNotification(): Notification {
@@ -174,9 +196,11 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     }
 
     // ── Voice in (SpeechRecognizer works from a service, unlike the Activity flow) ──
-    private fun startListening() {
+    // auto=true → mikrofon otwarty przez TRYB ROZMOWY (po odpowiedzi), nie dotknięciem:
+    // wtedy cisza kończy rozmowę po cichu (bez „nie usłyszałem") i wraca nasłuch słowa-klucza.
+    private fun startListening(auto: Boolean = false) {
         if (busy) return
-        if (tts.isSpeaking) { tts.stop(); return }
+        if (tts.isSpeaking) { if (!auto) tts.stop(); return }
         if (!Brain.isConfigured(this)) { speak("Najpierw otwórz Gadacza i podaj adres serwera oraz klucz."); return }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { speak("Brak rozpoznawania mowy na tym telefonie."); return }
         // Pause the wake-word recognizer so two mics don't fight (it resumes after handle()).
@@ -190,8 +214,13 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                     val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     busy = false; setBubble("🗣️")
                     if (!text.isNullOrBlank()) handle(text)
+                    else if (auto) endConversation()
                 }
-                override fun onError(error: Int) { busy = false; setBubble("🗣️"); if (error == SpeechRecognizer.ERROR_NO_MATCH) speak("Nie usłyszałem. Dotknij i powiedz jeszcze raz.") }
+                override fun onError(error: Int) {
+                    busy = false; setBubble("🗣️")
+                    if (auto) { endConversation(); return }  // cisza = koniec rozmowy, bez marudzenia
+                    if (error == SpeechRecognizer.ERROR_NO_MATCH) speak("Nie usłyszałem. Dotknij i powiedz jeszcze raz.")
+                }
                 override fun onReadyForSpeech(p0: Bundle?) {}
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(p0: Float) {}
@@ -208,9 +237,23 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         try { recognizer?.startListening(intent) } catch (e: Exception) { busy = false; setBubble("🗣️"); speak("Błąd mikrofonu.") }
     }
 
+    /** Cisza albo pożegnanie — rozmowa skończona; wraca zwykły czuwający stan. */
+    private fun endConversation() {
+        convPending = false
+        if (wakeMode) restartWake(800)
+    }
+
     private fun handle(text: String) {
+        convPending = false  // nowe polecenie zamyka poprzednie okno rozmowy
+        // Pożegnanie kończy rozmowę od razu — bez pytania serwera.
+        val bye = text.lowercase().trim().trim('.', ',', '!')
+        if (Regex("^(koniec|dość|dosyć|dziękuję|dzięki|nic|to wszystko|stop|cicho|do widzenia|na razie|dobranoc)$").matches(bye)) {
+            speak("Dobrze, jestem w pobliżu.")
+            if (wakeMode) restartWake(1500)
+            return
+        }
         setBubble("🧠")
-        try { tts.stop() } catch (_: Exception) {}   // clear old speech, then QUEUE step announcements
+        try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}   // clear old speech, then QUEUE step announcements
         Thread {
             try {
                 // Full task loop — Gadacz drives across screens until the goal is done.
@@ -219,15 +262,21 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                 speak("Błąd połączenia z serwerem.")
             } finally {
                 setBubble(if (wakeMode) "👂" else "🗣️")
-                // After a wake-word command, resume listening for the next "Gadacz".
-                if (wakeMode) restartWake(1200)
+                // 💬 Tryb rozmowy: gdy Gadacz skończy mówić odpowiedź, sam otworzy
+                // mikrofon na Twoje kolejne zdanie (maybeContinueConversation).
+                convPending = true
+                if (pendingSpeech.get() <= 0) maybeContinueConversation()
             }
         }.start()
     }
 
     // QUEUE_ADD so step announcements ("Otwieram…", "Wpisuję…") play in sequence
     // instead of cutting each other off. handle() flushes once at the start.
-    private fun speak(text: String) { tts.speak(text, TextToSpeech.QUEUE_ADD, null, "gadacz") }
+    // Unikalne id + licznik: wiemy, kiedy OSTATNIE zdanie wybrzmiało → tryb rozmowy.
+    private fun speak(text: String) {
+        pendingSpeech.incrementAndGet()
+        tts.speak(text, TextToSpeech.QUEUE_ADD, null, "g${uttSeq++}")
+    }
     private fun setBubble(emoji: String) { bubble?.post { bubble?.text = emoji } }
 
     override fun onDestroy() {
