@@ -450,7 +450,8 @@ router.post("/ask", async (req: Request, res: Response) => {
     // 🧠 Learning journal — record every spoken command, what Gadacz did, and whether
     // it seemed handled. Screen-task steps carry a screenshot, so log whenever there
     // is a real question (skip only pure image-description requests).
-    if (!imageBase64 || String(question ?? "").trim()) {
+    // Włącznik nauki: telefon przysyła learn:false → nic nie zapisujemy.
+    if (req.body?.learn !== false && (!imageBase64 || String(question ?? "").trim())) {
       try {
         const handled = action !== "none" || (say && say.length > 3 && !/nie zrozumia|nie rozumiem|przepraszam/i.test(say));
         const l = loadLearn();

@@ -69,6 +69,36 @@ object Brain {
     fun anthropicKey(ctx: Context) = prefs(ctx).getString("anthropic_key", "") ?: ""
     fun pin(ctx: Context) = prefs(ctx).getString("app_pin", "") ?: ""
     fun wakeWord(ctx: Context) = (prefs(ctx).getString("wake_word", "") ?: "").lowercase().trim().ifBlank { "gadacz" }
+    /** 🧠 Włącznik nauki — użytkownik panuje nad tym, czy Gadacz zapisuje nowe doświadczenia. */
+    fun learningOn(ctx: Context) = prefs(ctx).getBoolean("learning_enabled", true)
+
+    /** Pobierz WSZYSTKIE nauczone dane z serwera (pamięć, dziennik, przepisy) jako czytelny JSON. */
+    fun fetchLearnedData(ctx: Context): String {
+        val base = serverUrl(ctx).trimEnd('/')
+        fun get(path: String): String = try {
+            http.newCall(Request.Builder().url(base + path).header("x-bot-pin", pin(ctx)).build())
+                .execute().use { it.body?.string() ?: "{}" }
+        } catch (_: Exception) { "{}" }
+        return try {
+            JSONObject()
+                .put("pamięć_faktów", JSONObject(get("/api/assistant/memory")).opt("memory"))
+                .put("dziennik_nauki", JSONObject(get("/api/assistant/log")).opt("log"))
+                .put("przepisy_dróg", JSONObject(get("/api/assistant/recipes")).opt("recipes"))
+                .toString(2)
+        } catch (_: Exception) { "Nie udało się pobrać danych." }
+    }
+
+    /** Skasuj nauczone dane (dziennik + przepisy). Pamięci faktów celowo NIE rusza. */
+    fun clearLearnedData(ctx: Context): Boolean {
+        val base = serverUrl(ctx).trimEnd('/')
+        fun post(path: String) = try {
+            http.newCall(Request.Builder().url(base + path).header("x-bot-pin", pin(ctx))
+                .post("".toRequestBody("application/json".toMediaType())).build()).execute().close(); true
+        } catch (_: Exception) { false }
+        val a = post("/api/assistant/log/clear")
+        val b = post("/api/assistant/recipes/clear")
+        return a && b
+    }
     fun isConfigured(ctx: Context) = serverUrl(ctx).isNotBlank() && anthropicKey(ctx).isNotBlank()
 
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
@@ -82,6 +112,7 @@ object Brain {
             put("question", if (screenDump != null) "EKRAN: $screenDump\n\nPolecenie: $question" else question)
             put("history", msgs)
             put("clientTime", SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale("pl", "PL")).format(Date()))
+            put("learn", learningOn(ctx))   // 🧠 serwer nie zapisuje dziennika, gdy nauka wyłączona
             // 📸 Zrzut ekranu — AI widzi ekran naprawdę, nie tylko listę napisów.
             if (imageBase64 != null) { put("imageBase64", imageBase64); put("mediaType", "image/jpeg") }
         }
@@ -485,6 +516,7 @@ object Brain {
 
     /** 🧭 Wyślij UDANĄ drogę zadania na serwer — buduje przepisy obsługi telefonu. */
     private fun saveRecipe(ctx: Context, goal: String, steps: List<String>) {
+        if (!learningOn(ctx)) return   // 🧠 włącznik nauki
         Thread {
             try {
                 val body = JSONObject().put("goal", goal).put("steps", JSONArray(steps.toList()))
@@ -501,6 +533,7 @@ object Brain {
      * (marks that phrasing [nieudane] in the journal). Fire-and-forget, off the caller's path.
      */
     private fun learnFail(ctx: Context) {
+        if (!learningOn(ctx)) return   // 🧠 włącznik nauki
         Thread {
             try {
                 val base = serverUrl(ctx).trimEnd('/')

@@ -82,11 +82,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val s = readinessSummary(false); appendLine("✅ $s"); speak(s)
         }
         val update = btn("🔄  SPRAWDŹ AKTUALIZACJĘ (v${Updater.currentVersion(this)})", 0xFFCFFAFE.toInt(), 0xFF083344.toInt(), 66) { doUpdate(manual = true) }
+        val learn = btn("🧠  NAUKA (włącz/wyłącz · kopiuj · kasuj)", 0xFFE9D5FF.toInt(), 0xFF312E81.toInt(), 66) { showLearning() }
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
         col.addView(talk); col.addView(status); col.addView(ready); col.addView(settings); col.addView(readScreen)
-        col.addView(bgOn); col.addView(access); col.addView(unblock); col.addView(notif); col.addView(repeat); col.addView(update); col.addView(transcript)
+        col.addView(bgOn); col.addView(access); col.addView(unblock); col.addView(notif); col.addView(repeat); col.addView(update); col.addView(learn); col.addView(transcript)
         setContentView(outer)
 
         // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).
@@ -223,6 +224,56 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 onProgress = { p -> runOnUiThread { setStatus("⬇️ Pobieram… $p%") } },
                 onError = { e -> runOnUiThread { setStatus("Gotowy"); speak("Błąd aktualizacji. $e") } })
         }.start()
+    }
+
+    /**
+     * 🧠 Panel nauki — właściciel panuje nad tym, czego Gadacz się uczy:
+     * włącz/wyłącz zapisywanie, skopiuj wszystko do schowka, skasuj i zacznij od zera.
+     */
+    private fun showLearning() {
+        val on = Brain.learningOn(this)
+        val items = arrayOf(
+            if (on) "⏸  Wyłącz uczenie się" else "▶️  Włącz uczenie się",
+            "📋  Skopiuj nauczone dane (do schowka)",
+            "🗑  Skasuj nauczone dane",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Nauka Gadacza — teraz: ${if (on) "WŁĄCZONA" else "WYŁĄCZONA"}")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        Brain.prefs(this).edit().putBoolean("learning_enabled", !on).apply()
+                        speak(if (!on) "Uczenie włączone. Zapisuję udane drogi i poprawki."
+                              else "Uczenie wyłączone. Korzystam z tego, co już umiem, ale nowego nie zapisuję.")
+                    }
+                    1 -> {
+                        setStatus("📋 Pobieram nauczone dane…")
+                        Thread {
+                            val data = Brain.fetchLearnedData(this)
+                            runOnUiThread {
+                                try {
+                                    val cb = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    cb.setPrimaryClip(android.content.ClipData.newPlainText("Gadacz — nauka", data))
+                                    speak("Skopiowane do schowka. Wklej w notatkę albo wiadomość, gdzie chcesz.")
+                                } catch (_: Exception) { speak("Nie udało się skopiować.") }
+                            }
+                        }.start()
+                    }
+                    2 -> {
+                        AlertDialog.Builder(this)
+                            .setTitle("Skasować nauczone dane?")
+                            .setMessage("Usunie dziennik nauki i przepisy dróg. Pamięć faktów (to, co kazałeś zapamiętać) zostaje — kasujesz ją osobno, mówiąc: zapomnij wszystko.")
+                            .setPositiveButton("Kasuj") { _, _ ->
+                                Thread {
+                                    val ok = Brain.clearLearnedData(this)
+                                    runOnUiThread { speak(if (ok) "Skasowane. Zaczynam naukę od zera." else "Nie udało się skasować. Sprawdź połączenie z serwerem.") }
+                                }.start()
+                            }
+                            .setNegativeButton("Anuluj", null).show()
+                    }
+                }
+            }
+            .setNegativeButton("Zamknij", null).show()
     }
 
     private fun speak(text: String) { setStatus("🔊 $text"); tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "g") }
