@@ -150,6 +150,7 @@ type Position = {
   tpPct: number;        // effective take-profit %
   trailPct: number;     // effective trailing-stop %
   breakEvenSet: boolean; // true once SL has been moved to break-even
+  runner?: boolean;      // TP touched once → wide-trail runner mode (let winners run)
   lastPrice?: number;          // last KNOWN good price for THIS symbol (SL fallback, never entry)
   signal?: string;             // which condition triggered entry (optional for restored positions)
   symbol?: string;             // which asset this position is for (defaults to config.symbol)
@@ -1445,12 +1446,33 @@ async function priceCheck() {
     const timeLabel = maxHoldMin >= 60 ? `${(maxHoldMin / 60).toFixed(0)}h` : `${maxHoldMin}m`;
 
     let reason: string | null = null;
-    if (pct >= position.tpPct) reason = `TP +${pct.toFixed(2)}%`;
-    else if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-    else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-    else if (holdMin >= maxHoldMin) reason = `Limit czasu ${timeLabel} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    if (pct >= position.tpPct) {
+      if (position.runner) reason = `TP +${pct.toFixed(2)}%`;
+      else {
+        // 🏃 RUNNER: pierwszy dotyk TP NIE ścina zysku — poszerzamy trail i cel.
+        // Lekcja z lipca: prawdziwe pieniądze leżały w +14/+19%, nie w +3%.
+        position.runner = true;
+        position.trailPct = Math.max(position.trailPct, position.tpPct * 0.35);
+        position.tpPct = position.tpPct * 2.5;
+        addLog(`🏃 RUNNER ${sym} +${pct.toFixed(2)}% — nie ścinam na TP; trail ${position.trailPct.toFixed(2)}%, nowy cel +${position.tpPct.toFixed(2)}%`, "info");
+      }
+    }
+    if (!reason) {
+      if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      // 💰 Limit czasu wychodzi TYLKO powyżej progu opłacalności (+1.2% > prowizja).
+      // Koniec z „+0.33% → -$0.99”: remis na papierze to strata w kieszeni.
+      else if (holdMin >= maxHoldMin && pct >= 1.2) reason = `Limit czasu ${timeLabel} (+${pct.toFixed(2)}%)`;
+      // Twardy kres 3× limitu — pozycja nie może wisieć wiecznie.
+      else if (holdMin >= maxHoldMin * 3) reason = `Limit czasu (twardy) (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    }
 
     if (reason) {
+      // ⚫ Cena przeskoczyła SL o >1%? Coin za rzadki — czarna lista.
+      if (reason.startsWith("SL/Trail") && pct <= -(position.slPct + 1)) {
+        slippageBlacklist.add(sym);
+        addLog(`⚫ ${sym}: poślizg ${pct.toFixed(2)}% przy SL ${position.slPct.toFixed(2)}% — czarna lista do restartu`, "warn");
+      }
       closingSymbols.add(sym);
       try { await finalizeClose(position, price, pct, reason); }
       finally { closingSymbols.delete(sym); }
@@ -1488,6 +1510,31 @@ type QuickSignal = {
   spec: { dec: number; min: number };
 };
 
+// 🛡️ Shorty TYLKO na płynnych gigantach. Lekcja z 6-9.07: wszystkie katastrofy to
+// shorty na low-capach (ALLO -18.5% = -$76, BLUAI -8.7% = -$37) — mały coin potrafi
+// urosnąć +20% w godzinę i short nie ma gdzie uciec. Giganci takich wyskoków nie robią.
+const SHORTABLE_MAJORS = new Set([
+  "BTC", "XBT", "ETH", "SOL", "XRP", "ADA", "DOGE", "LTC", "BCH", "DOT", "AVAX",
+  "LINK", "ATOM", "XLM", "ETC", "FIL", "UNI", "NEAR", "ARB", "OP", "POL", "MATIC", "TRX", "APT",
+]);
+const canShortSym = (sym: string) => SHORTABLE_MAJORS.has(sym.toUpperCase().replace(/USDT$/, ""));
+
+// ⚫ Czarna lista poślizgu: coin, którego cena PRZESKOCZYŁA stop o >1% (SL -2% zamknięty
+// na -3%+), jest za rzadki, by mu ufać — nie handlujemy nim do restartu serwera.
+const slippageBlacklist = new Set<string>();
+
+// 🧯 Strażnik paczki — nie dokładaj pozycji w kierunku, w którym DWIE już krwawią.
+// Lekcja z 06.07 23:14: trzy shorty ścięte jedną świecą; skorelowana paczka umiera razem.
+function pctOfPos(p: Position): number | null {
+  if (!p.lastPrice || !p.entryPrice) return null;
+  const raw = (p.lastPrice - p.entryPrice) / p.entryPrice * 100;
+  return p.direction === "short" ? -raw : raw;
+}
+function packTooHot(list: Position[], dir: Direction): boolean {
+  return list.filter(p => p.direction === dir)
+    .map(pctOfPos).filter((x): x is number => x !== null && x < -0.3).length >= 2;
+}
+
 // Approximate 24h turnover (in quote currency) from the 5m candle volumes the bot
 // already fetched. 150 candles × 5m = 12.5h of data; scale up to a 24h estimate.
 function estimate24hTurnover(volumes: number[], price: number): number {
@@ -1500,6 +1547,7 @@ function estimate24hTurnover(volumes: number[], price: number): number {
 async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSignal | null> {
   const cfg = cfgIn ?? config;
   if (!cfg) return null;
+  if (slippageBlacklist.has(sym)) return null; // ⚫ przeskoczył SL — niehandlowalny
   try {
     const candles = await fetchCandles(sym);
     if (!candles) return null;
@@ -1557,7 +1605,7 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
     // bleeds the 0.52% round-trip fee at the time-limit exit (ADI lesson).
     const alive   = atrPct >= 0.10;
     const isLong  = alive && bbPercB < bbEntry && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
-    const isShort = alive && cfg.allowShorts && !spotOnly && bbPercB > (100 - bbEntry) && price > vwap && topConfirmed;
+    const isShort = alive && cfg.allowShorts && !spotOnly && canShortSym(sym) && bbPercB > (100 - bbEntry) && price > vwap && topConfirmed;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
 
     const effSL    = Math.max(cfg.stopLoss,   atrPct * 1.5);
@@ -1807,6 +1855,11 @@ async function paperTick() {
     const scans = await scanInBatches(batch, paperCfg);
     const best = scans.filter(s => s.isLong || s.isShort).sort((a, b) => b.score - a.score)[0];
     if (!best) return;
+    // 🧯 Strażnik paczki — dwie pozycje w tym kierunku już krwawią? Nie dokładamy.
+    if (packTooHot(paperPositions, best.isLong ? "long" : "short")) {
+      addPaperLog(`🧯 SYM: 2 pozycje ${best.isLong ? "LONG" : "SHORT"} na minusie — nie dokładam trzeciej (${best.sym} pominięty)`, "info");
+      return;
+    }
 
     // 🧠 learn & adapt — same journal as the real bot, judged on THIS coin's context
     if (paperCfg.learnAdapt) {
@@ -1853,6 +1906,7 @@ async function paperPriceCheck() {
 
     const rawPct = (price - pos.entryPrice) / pos.entryPrice * 100;
     const pct    = pos.direction === "short" ? -rawPct : rawPct;
+    pos.lastPrice = price; // strażnik paczki liczy z tego bieżący wynik pozycji
 
     if (pos.direction === "long")  pos.trailRef = Math.max(pos.trailRef, price);
     if (pos.direction === "short") pos.trailRef = Math.min(pos.trailRef, price);
@@ -1872,10 +1926,25 @@ async function paperPriceCheck() {
     const timeLabel = maxHold >= 60 ? `${(maxHold / 60).toFixed(0)}h` : `${maxHold}m`;
 
     let reason: string | null = null;
-    if (pct >= pos.tpPct) reason = `TP +${pct.toFixed(2)}%`;
-    else if (pos.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-    else if (pos.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-    else if (holdMin >= maxHold) reason = `Limit czasu ${timeLabel} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    if (pct >= pos.tpPct) {
+      if (pos.runner) reason = `TP +${pct.toFixed(2)}%`;
+      else {
+        pos.runner = true;
+        pos.trailPct = Math.max(pos.trailPct, pos.tpPct * 0.35);
+        pos.tpPct = pos.tpPct * 2.5;
+        addPaperLog(`🏃 SYM RUNNER ${sym} +${pct.toFixed(2)}% — trail ${pos.trailPct.toFixed(2)}%, cel +${pos.tpPct.toFixed(2)}%`, "info");
+      }
+    }
+    if (!reason) {
+      if (pos.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      else if (pos.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      else if (holdMin >= maxHold && pct >= 1.2) reason = `Limit czasu ${timeLabel} (+${pct.toFixed(2)}%)`;
+      else if (holdMin >= maxHold * 3) reason = `Limit czasu (twardy) (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    }
+    if (reason?.startsWith("SL/Trail") && pct <= -(pos.slPct + 1)) {
+      slippageBlacklist.add(sym);
+      addPaperLog(`⚫ SYM ${sym}: poślizg ${pct.toFixed(2)}% przy SL ${pos.slPct.toFixed(2)}% — czarna lista`, "warn");
+    }
 
     if (reason) {
       paperClosing.add(sym);
@@ -1990,7 +2059,8 @@ async function shadowPriceCheck() {
       if (pct >= pos.tpPct) reason = `TP +${pct.toFixed(2)}%`;
       else if (pos.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
       else if (pos.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-      else if (holdMin >= maxHold) reason = `Limit czasu (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+      else if (holdMin >= maxHold && pct >= 1.2) reason = `Limit czasu (+${pct.toFixed(2)}%)`;
+      else if (holdMin >= maxHold * 3) reason = `Limit czasu (twardy) (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
       if (!reason) continue;
       shadowClosing.add(sym);
       try {
@@ -2308,6 +2378,11 @@ async function engineTick() {
           .sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
+          // 🧯 Strażnik paczki — nie dokładaj do krwawiącego kierunku (lekcja 06.07 23:14)
+          if (packTooHot(positions, altDir)) {
+            addLog(`🧯 2 pozycje ${altDir.toUpperCase()} na minusie — nie dokładam trzeciej (${best.sym} pominięty)`, "info");
+            return;
+          }
           // 🧠 Learn & adapt — judge THIS coin's context (its own BB%B), not the primary's
           if (config.learnAdapt) {
             const learned = learnedContextE(humanActivity(new Date().getUTCHours()), best.bbPercB);
@@ -2392,6 +2467,11 @@ async function engineTick() {
     lastEntrySignal = isLong ? (bbPercB < 0 ? "BB_extreme_long" : "BB_dip_long") : "BB_top_short";
 
     const direction: Direction = doLong ? "long" : "short";
+    // 🧯 Strażnik paczki — także dla wejścia na głównej monecie
+    if (packTooHot(positions, direction)) {
+      addLog(`🧯 2 pozycje ${direction.toUpperCase()} na minusie — wstrzymuję kolejne wejście`, "info");
+      return;
+    }
 
     // ATR-based dynamic TP/SL — use whichever is wider to avoid being stopped by noise
     // 1h BTC ATR is typically 0.5–1.5%; fixed 0.6% TP would be too tight
@@ -2948,13 +3028,16 @@ router.post("/start", (req, res) => {
     adxMin:        adxMin        ?? 18,  // ADX > 18 — działa w obecnym rynku (BTC ADX ~18-22)
     confluenceMin: confluenceMin ?? 1,   // 1 z 3 wskaźników — MACD lub wolumen lub trend
     volMultMin:    volMultMin    ?? 0.8, // wolumen 0.8× — prawie zawsze spełniony
-    cooldownMin:   cooldownMin   ?? 20,  // 20 min między wejściami — ~3-6 transakcji/dzień
+    cooldownMin:   cooldownMin   ?? 45,  // 45 min między wejściami — mniej strzałów, grubsze strzały
     maxHoldMin:    maxHoldMin    ?? 0,   // 0 = domyślne 48h; >0 = limit czasu trzymania (scalping)
     minVolume:     minVolume     ?? 0,   // 0 = filtr płynności wyłączony; >0 = min. obrót 24h
     maxPositions:  Math.max(1, Math.min(5, Number(maxPositions) || 5)), // 1-5 pozycji naraz (domyślnie 5)
     paperMode:     paperMode === true, // symulacja na żywo — wirtualne pieniądze
     humanRhythm:   humanRhythm === true, // patrz na ludzi — handluj gdy aktywni
-    learnAdapt:    learnAdapt === true,  // działaj na dzienniku — omijaj przegrywające warunki
+    learnAdapt:    learnAdapt !== false, // DOMYŚLNIE WŁĄCZONE — dziennik omija przegrywające warunki
+    // Głębokość wejścia BB%B: 30 zamiast 40 — kupuj głębsze dołki. Mniej transakcji,
+    // wyższa jakość (werdykt A/B 9.07: płytkie wejścia mieliły prowizję).
+    bbMax:         Number(req.body?.bbMax) > 0 ? Number(req.body.bbMax) : 30,
     apiKey, secret, testnet: testnet === true,
     platform: platform === "eu" ? "eu" : platform === "kraken" ? "kraken" : "global",
   };
