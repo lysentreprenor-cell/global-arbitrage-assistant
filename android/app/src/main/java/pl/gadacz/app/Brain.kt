@@ -69,7 +69,7 @@ object Brain {
     fun isConfigured(ctx: Context) = serverUrl(ctx).isNotBlank() && anthropicKey(ctx).isNotBlank()
 
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
-    fun ask(ctx: Context, question: String, history: List<Pair<String, String>>, screenDump: String? = null): JSONObject {
+    fun ask(ctx: Context, question: String, history: List<Pair<String, String>>, screenDump: String? = null, imageBase64: String? = null): JSONObject {
         val msgs = JSONArray()
         history.takeLast(12).forEach { (role, content) ->
             msgs.put(JSONObject().put("role", role).put("content", content))
@@ -79,6 +79,8 @@ object Brain {
             put("question", if (screenDump != null) "EKRAN: $screenDump\n\nPolecenie: $question" else question)
             put("history", msgs)
             put("clientTime", SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale("pl", "PL")).format(Date()))
+            // 📸 Zrzut ekranu — AI widzi ekran naprawdę, nie tylko listę napisów.
+            if (imageBase64 != null) { put("imageBase64", imageBase64); put("mediaType", "image/jpeg") }
         }
         val req = Request.Builder()
             .url(serverUrl(ctx).trimEnd('/') + "/api/assistant/ask")
@@ -106,13 +108,16 @@ object Brain {
         // do AI — inaczej AI nie wie, że krok nie wyszedł, błądzi i porzuca zadanie.
         var lastError = ""
         while (step < if (plan.isBlank()) 14 else 20) {
-            val screen = GadaczAccessibilityService.instance?.readScreen()
+            val svcNow = GadaczAccessibilityService.instance
+            val screen = svcNow?.readScreen()
+            // 📸 Oko: przy pracy na ekranie doklejamy zrzut — AI widzi ikony i układ.
+            val shot = svcNow?.screenshotBase64()
             val question = buildString {
                 append(goal)
                 if (plan.isNotBlank()) append("\n\nPLAN ZADANIA (trzymaj się go): $plan\nWykonano już kroków: $step. Sprawdź na EKRANIE, który etap jest zrobiony, i wykonaj następny.")
                 if (lastError.isNotBlank()) append("\n\nUWAGA: poprzedni krok NIE WYSZEDŁ: $lastError Spróbuj INACZEJ — inny dokładny napis z EKRANU, scroll żeby odsłonić element, paste zamiast type, albo inna droga do celu. Nie przerywaj zadania.")
             }
-            val resp = try { ask(ctx, question, history, screen) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
+            val resp = try { ask(ctx, question, history, screen, shot) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
             lastError = ""
             val say = resp.optString("say", "")
             val action = resp.optString("action", "none")
@@ -143,7 +148,7 @@ object Brain {
             // Adaptive settle — wait only as long as each action needs, so it's fast.
             val settle = when (action) {
                 "open_app", "open" -> 1900L
-                "tap", "enter" -> 850L
+                "tap", "tap_at", "enter" -> 850L
                 "long_press" -> 1000L
                 "scroll" -> 450L
                 "type", "write" -> 400L
@@ -173,6 +178,7 @@ object Brain {
             "open_app" -> openApp(ctx, args.optString("name"))?.let { learnFail(ctx); return it }
             "read_screen" -> { readScreenAsync(ctx, speak); return "" }
             "tap" -> { if (svc?.tapByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
+            "tap_at" -> { if (svc?.tapAt(args.optDouble("x", -1.0), args.optDouble("y", -1.0)) != true) { learnFail(ctx); return "Nie mogę dotknąć tego miejsca." } }
             "long_press" -> { if (svc?.longPressByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
             "enter" -> { if (svc?.pressEnter() != true) { learnFail(ctx); return "Nie mam czego zatwierdzić." } }
             "paste" -> { if (svc?.pasteFocused() != true) { learnFail(ctx); return "Nie udało się wkleić. Dotknij pola, żeby zamigał kursor, i powiedz: wklej." } }

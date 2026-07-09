@@ -218,6 +218,53 @@ class GadaczAccessibilityService : AccessibilityService() {
         return null
     }
 
+    /**
+     * 📸 OKO GADACZA — zrzut aktualnego ekranu jako JPEG w base64 (Android 11+).
+     * To zmienia wszystko: AI WIDZI ekran jak człowiek — ikony bez podpisów, układ,
+     * obrazki — zamiast zgadywać z listy napisów. Zmniejszamy do 720 px szerokości
+     * i ściskamy, żeby nie tuczyć zapytań.
+     */
+    fun screenshotBase64(): String? {
+        if (android.os.Build.VERSION.SDK_INT < 30) return null
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var result: String? = null
+        try {
+            takeScreenshot(android.view.Display.DEFAULT_DISPLAY, mainExecutor,
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(shot: ScreenshotResult) {
+                        try {
+                            val hw = android.graphics.Bitmap.wrapHardwareBuffer(shot.hardwareBuffer, shot.colorSpace)
+                            shot.hardwareBuffer.close()
+                            val bmp = hw?.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                            if (bmp != null) {
+                                val scale = 720f / bmp.width
+                                val small = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(
+                                    bmp, 720, (bmp.height * scale).toInt().coerceAtLeast(1), true) else bmp
+                                val bos = java.io.ByteArrayOutputStream()
+                                small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 55, bos)
+                                result = android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP)
+                            }
+                        } catch (_: Exception) {}
+                        latch.countDown()
+                    }
+                    override fun onFailure(code: Int) { latch.countDown() }
+                })
+        } catch (_: Exception) { latch.countDown() }
+        try { latch.await(3, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
+        return result
+    }
+
+    /** 👉 Dotknij PUNKT ekranu podany w procentach (x od lewej, y od góry). Dla ikon bez nazw. */
+    fun tapAt(xPct: Double, yPct: Double): Boolean {
+        if (xPct !in 0.0..100.0 || yPct !in 0.0..100.0) return false
+        val w = resources.displayMetrics.widthPixels
+        val h = resources.displayMetrics.heightPixels
+        val path = Path().apply { moveTo((w * xPct / 100.0).toFloat(), (h * yPct / 100.0).toFloat()) }
+        dispatchGesture(GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 60)).build(), null, null)
+        return true
+    }
+
     fun goBack() { performGlobalAction(GLOBAL_ACTION_BACK) }
     fun goHome() { performGlobalAction(GLOBAL_ACTION_HOME) }
     fun recents() { performGlobalAction(GLOBAL_ACTION_RECENTS) }

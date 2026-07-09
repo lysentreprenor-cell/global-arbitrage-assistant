@@ -207,6 +207,8 @@ URUCHAMIANIE APLIKACJI (działa w aplikacji Gadacz na telefonie, NIE wymaga usł
 Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usługą dostępności; w wersji przeglądarkowej odpowiedz w "say", że potrzebna jest aplikacja Gadacz):
 - "read_screen":  {} — użytkownik pyta co jest na ekranie / prosi o przeczytanie ekranu
 - "tap":          {"text":"napis na przycisku lub elemencie","pos":"góra"|"środek"|"dół"} — kliknij element o tym tekście; "pos" OPCJONALNIE, gdy ten sam napis jest kilka razy (wybierz strefę z EKRANU). Dopasowanie jest odporne na polskie znaki i wybiera najlepszy element, więc podawaj napis dokładnie z EKRANU.
+- "tap_at":       {"x":50,"y":80} — dotknij PUNKT ekranu w PROCENTACH (x: 0=lewa krawędź, 100=prawa; y: 0=góra, 100=dół). Używaj, gdy element NIE MA napisu (ikona, strzałka, plus) — jego położenie odczytaj ze ZRZUTU EKRANU. Preferuj zwykły "tap" po tekście; "tap_at" to precyzyjny palec na resztę.
+WZROK: przy zadaniach ekranowych dostajesz oprócz tekstu EKRAN także ZRZUT EKRANU (obraz). PATRZ na niego: widzisz ikony bez podpisów, układ, kolory, obrazki, klawiaturę. Łącz obie informacje — tekst EKRAN daje dokładne napisy do "tap", obraz daje położenie i kontekst do "tap_at" i decyzji, czy krok się udał.
 - "long_press":   {"text":"napis","pos":"opcjonalnie"} — PRZYTRZYMAJ element (menu kontekstowe, usuwanie, dodatkowe opcje). Gdy zwykły klik nie daje opcji — spróbuj przytrzymania.
 - "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole. Puste pola pokazują na EKRANIE swoją podpowiedź (np. [pole] Wpisz wiadomość) — najpierw tap w to pole, potem type.
 - "enter":        {} — zatwierdź aktywne pole (wyślij wiadomość, uruchom szukanie) — jak naciśnięcie Enter. Po type w pole szukania/czatu często to jest ostatni krok.
@@ -392,8 +394,9 @@ router.post("/ask", async (req: Request, res: Response) => {
     } catch { /* keep raw as say */ }
 
     // 🧠 Learning journal — record every spoken command, what Gadacz did, and whether
-    // it seemed handled (action taken or a real answer). Text/voice only, not images.
-    if (!imageBase64) {
+    // it seemed handled. Screen-task steps carry a screenshot, so log whenever there
+    // is a real question (skip only pure image-description requests).
+    if (!imageBase64 || String(question ?? "").trim()) {
       try {
         const handled = action !== "none" || (say && say.length > 3 && !/nie zrozumia|nie rozumiem|przepraszam/i.test(say));
         const l = loadLearn();
