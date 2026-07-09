@@ -186,6 +186,201 @@ object Brain {
     }
     fun isConfigured(ctx: Context) = serverUrl(ctx).isNotBlank() && anthropicKey(ctx).isNotBlank()
 
+    // ─── ⚡ PIĘTRO 1: ODRUCHY ────────────────────────────────────────────────
+    // Proste, jednoznaczne polecenia wykonywane BEZ pytania AI: natychmiast (~0,2 s),
+    // za darmo i bez internetu. Zasada żelazna: odruch strzela tylko przy pewności —
+    // wszystko wątpliwe przepuszczamy do mózgu. Nietrafiony odruch niczego nie psuje.
+
+    private fun normPl(s: String): String {
+        val map = mapOf('ą' to 'a', 'ć' to 'c', 'ę' to 'e', 'ł' to 'l', 'ń' to 'n',
+            'ó' to 'o', 'ś' to 's', 'ź' to 'z', 'ż' to 'z')
+        return s.lowercase().map { map[it] ?: it }.joinToString("")
+            .replace(Regex("[!?.,;]"), " ").replace(Regex("\\s+"), " ").trim()
+    }
+
+    private val NUM_WORDS = mapOf(
+        "jeden" to 1, "dwa" to 2, "trzy" to 3, "cztery" to 4, "piec" to 5, "szesc" to 6,
+        "siedem" to 7, "osiem" to 8, "dziewiec" to 9, "dziesiec" to 10, "jedenascie" to 11, "dwanascie" to 12)
+
+    // Godziny słowami (rdzenie odmiany: „siódma/siódmej/siódmą" → "siodm").
+    private val HOUR_WORDS = listOf(
+        "dwunast" to 12, "jedenast" to 11, "dziesiat" to 10, "dziewiat" to 9, "osm" to 8,
+        "siodm" to 7, "szost" to 6, "piat" to 5, "czwart" to 4, "trzeci" to 3, "drug" to 2, "pierwsz" to 1)
+
+    private fun fixPm(n: String, h: Int, m: Int): Pair<Int, Int> =
+        if ((n.contains("wieczor") || n.contains("po poludniu")) && h in 1..11) (h + 12) to m else h to m
+
+    /** „na 7:30" / „na 9" / „na dziewiątą" / „wpół do ósmej" → (godzina, minuty). */
+    private fun parseTimePl(n: String): Pair<Int, Int>? {
+        if (n.contains("wpol do")) {
+            val tail = n.substringAfter("wpol do")
+            for ((stem, h) in HOUR_WORDS) if (tail.contains(stem)) return fixPm(n, if (h == 1) 0 else h - 1, 30)
+            Regex("\\b(\\d{1,2})\\b").find(tail)?.let { val h = it.groupValues[1].toInt(); if (h in 1..24) return fixPm(n, h - 1, 30) }
+            return null
+        }
+        Regex("(\\d{1,2})[:.](\\d{2})").find(n)?.let {
+            val h = it.groupValues[1].toInt(); val m = it.groupValues[2].toInt()
+            if (h in 0..23 && m in 0..59) return fixPm(n, h, m)
+        }
+        Regex("\\b(\\d{1,2})\\b").find(n)?.let { val h = it.groupValues[1].toInt(); if (h in 0..23) return fixPm(n, h, 0) }
+        for ((stem, h) in HOUR_WORDS) if (n.contains(stem)) return fixPm(n, h, 0)
+        return null
+    }
+
+    /** „5 minut" / „30 sekund" / „pół godziny" / „kwadrans" → sekundy (0 = nie wiem). */
+    private fun parseDurationPl(n: String): Int {
+        if (n.contains("pol godziny")) return 1800
+        if (n.contains("kwadrans")) return 900
+        Regex("(\\d+)\\s*godzin").find(n)?.let { return it.groupValues[1].toInt() * 3600 }
+        if (n.contains("godzin")) return 3600
+        Regex("(\\d+)\\s*min").find(n)?.let { return it.groupValues[1].toInt() * 60 }
+        Regex("(\\d+)\\s*sek").find(n)?.let { return it.groupValues[1].toInt() }
+        for ((w, v) in mapOf("pietnascie" to 15, "dwadziescia" to 20, "dziesiec" to 10, "piec" to 5,
+            "cztery" to 4, "trzy" to 3, "dwie" to 2, "jedna" to 1))
+            if (n.contains("$w minut")) return v * 60
+        return 0
+    }
+
+    /** Rdzeń kręgowy Gadacza. true = obsłużone odruchem (AI nie jest budzone). */
+    fun reflex(ctx: Context, raw: String, speak: (String) -> Unit): Boolean {
+        val n = normPl(raw)
+        if (n.isBlank()) return false
+        val svc = GadaczAccessibilityService.instance
+        fun done(s: String): Boolean { if (s.isNotBlank()) speak(s); return true }
+
+        // 🚨 SOS — najważniejszy odruch: zero zwłoki, działa bez internetu.
+        if (Regex("\\b(sos|pomocy|ratunku|wezwij pomoc)\\b").containsMatchIn(n)) return done(sos(ctx))
+
+        // Sprzęt: latarka, głośność, panele
+        if (n.contains("latark")) return done(flashlight(ctx, !Regex("zgas|wylacz").containsMatchIn(n)))
+        if (Regex("^(zrob )?glosniej( troche)?$").matches(n)) return done(volume(ctx, "up"))
+        if (Regex("^(zrob )?ciszej( troche)?$").matches(n)) return done(volume(ctx, "down"))
+        if (Regex("^wycisz( telefon| dzwiek)?$").matches(n)) return done(volume(ctx, "mute"))
+        if (n == "na maksa" || n == "maksymalna glosnosc" || n == "najglosniej") return done(volume(ctx, "max"))
+        if (Regex("szybkie ustawienia|kafelki").containsMatchIn(n))
+            return done(if (svc != null) { svc.openQuickSettings(); "Szybkie ustawienia." } else "Włącz sterowanie ekranem.")
+        if (Regex("^(pokaz|otworz) powiadomienia$").matches(n))
+            return done(if (svc != null) { svc.openNotifications(); "Powiadomienia." } else "Włącz sterowanie ekranem.")
+
+        // Godzina i data — telefon wie sam, bez sieci.
+        if (Regex("^(ktora( jest)?( teraz)? godzina|godzina|ktora teraz)$").matches(n) || n.startsWith("ktora godzina"))
+            return done("Jest " + SimpleDateFormat("HH:mm", Locale("pl", "PL")).format(Date()) + ".")
+        if (Regex("jaki (dzis|dzisiaj)( jest)? dzien|jaka (jest )?data|ktorego (dzis|dzisiaj)").containsMatchIn(n))
+            return done("Dziś jest " + SimpleDateFormat("EEEE, d MMMM yyyy", Locale("pl", "PL")).format(Date()) + ".")
+
+        // Stan telefonu
+        if (Regex("ile (mam )?baterii|stan baterii|poziom baterii").containsMatchIn(n)) return done(phoneStatus(ctx, "bateria"))
+        if (Regex("czy mam (wifi|internet|siec|zasieg)|jaki mam internet").containsMatchIn(n)) return done(phoneStatus(ctx, "wifi"))
+        if (Regex("ile (mam )?(wolnego )?miejsca").containsMatchIn(n)) return done(phoneStatus(ctx, "miejsce"))
+
+        // Ekran: czytanie i nawigacja
+        if (Regex("co (jest|widac|widzisz) na ekranie|przeczytaj ekran|co widze").containsMatchIn(n)) { readScreenAsync(ctx, speak); return true }
+        if (n == "cofnij" || n == "wstecz") return done(if (svc != null) { svc.goBack(); "Cofam." } else "Włącz sterowanie ekranem.")
+        if (n == "ekran glowny" || n == "pulpit" || n == "wroc na pulpit") return done(if (svc != null) { svc.goHome(); "Pulpit." } else "Włącz sterowanie ekranem.")
+        if (n == "ostatnie aplikacje" || n == "ostatnie") return done(if (svc != null) { svc.recents(); "Ostatnie aplikacje." } else "Włącz sterowanie ekranem.")
+        Regex("^przewin( w| do)? ?(dol|gore|gora|lewo|prawo)( .*)?$").find(n)?.let {
+            if (svc == null) return done("Włącz sterowanie ekranem.")
+            val dir = when (it.groupValues[2]) { "gore", "gora" -> "up"; "lewo" -> "left"; "prawo" -> "right"; else -> "down" }
+            svc.scroll(dir); return done("Przewijam.")
+        }
+
+        // 🔢 TRYB NUMERKÓW — sterowanie KAŻDYM ekranem bez rozumienia (Ty jesteś mózgiem).
+        if (Regex("^(numerki|ponumeruj( ekran)?|pokaz numery|jakie sa numery)$").matches(n))
+            return done(svc?.listNumbered() ?: "Włącz sterowanie ekranem.")
+        Regex("^(kliknij |dotknij )?(numer )?(\\d{1,2}|jeden|dwa|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|jedenascie|dwanascie)$").find(n)?.let { m ->
+            if (svc?.hasNumbered() == true) {
+                val tok = m.groupValues[3]
+                val num = tok.toIntOrNull() ?: NUM_WORDS[tok] ?: 0
+                return if (num > 0 && svc.tapNumber(num)) done("Klikam $num.") else done("Nie ma takiego numeru. Powiedz: numerki.")
+            }
+        }
+
+        // Budzik i minutnik — rozbiór czasu zwykłym kodem
+        if (n.contains("budzik") || n.contains("obudz mnie")) {
+            val hm = parseTimePl(n) ?: return false   // niejasna godzina → mózg
+            return done(setAlarm(ctx, hm.first, hm.second, "", speak))
+        }
+        if (n.contains("minutnik") || n.contains("czasomierz")) {
+            val secs = parseDurationPl(n)
+            return if (secs > 0) done(setTimer(ctx, secs)) else false
+        }
+
+        // Telefon na podyktowany numer / numer alarmowy
+        Regex("^zadzwon (na |pod |do )?([\\d ]{3,15})$").find(n)?.let {
+            val num = it.groupValues[2].replace(" ", "")
+            if (num.length >= 3) {
+                ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$num")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return done("Wybieram $num. Dotknij zielonej słuchawki.")
+            }
+        }
+        if (Regex("zadzwon na (pogotowie|policje|straz|numer alarmowy|sto dwanascie)").containsMatchIn(n)) {
+            ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return done("Otwieram numer alarmowy sto dwanaście. Dotknij słuchawki.")
+        }
+
+        // Otwieranie aplikacji — z bezpiecznikami na dwuznaczności („włącz muzykę" ≠ apka)
+        Regex("^(otworz|uruchom|odpal|wlacz|wejdz w)\\s+(.{2,40})$").find(n)?.let { m ->
+            val nameN = m.groupValues[2]
+            val banned = listOf("latark", "muzyk", "piosenk", "film", "czuwanie", "nasluch", "budzik", "minutnik",
+                "wifi", "wi fi", "bluetooth", "swiatlo", "glos", "tryb", "dane", "lokalizacj", "powiadomieni",
+                "sterowanie", "czytanie", "nagrywanie")
+            if (banned.none { nameN.contains(it) }) {
+                // nazwa z ORYGINALNĄ pisownią — polskie znaki ważne przy dopasowaniu etykiet
+                val rawName = raw.trim().replace(
+                    Regex("^(otwórz|otworz|uruchom|odpal|włącz|wlacz|wejdź w|wejdz w)\\s+", RegexOption.IGNORE_CASE), "")
+                    .trim(' ', '.', '!')
+                if (openApp(ctx, rawName) == null) return done("Otwieram $rawName.")
+            }
+        }
+        return false
+    }
+
+    // ─── 🧭 PIĘTRO 2: AUTOPILOT PRZEPISÓW ───────────────────────────────────
+    // Zadanie prawie identyczne z już UDANYM (przepis, podobieństwo ≥ 0,75) i złożone
+    // wyłącznie z bezpiecznych kroków nawigacyjnych → jedzie BEZ AI, po pamięci mięśniowej.
+    // Kroki z pisaniem treści (type/write) wymagają myślenia — zostają przy AI.
+    private val AUTOPILOT_SAFE = setOf("open_app", "tap", "scroll", "back", "home", "recents", "enter")
+
+    private fun tryAutopilot(ctx: Context, goal: String, speak: (String) -> Unit): Boolean {
+        val svc = GadaczAccessibilityService.instance
+        return try {
+            val base = serverUrl(ctx).trimEnd('/')
+            val resp = http.newCall(Request.Builder()
+                .url("$base/api/assistant/recipe/match?goal=" + Uri.encode(goal))
+                .header("x-bot-pin", pin(ctx)).build())
+                .execute().use { r -> if (!r.isSuccessful) return false; JSONObject(r.body?.string() ?: "{}") }
+            if (!resp.optBoolean("found", false) || resp.optDouble("score", 0.0) < 0.75) return false
+            val arr = resp.optJSONArray("steps") ?: return false
+            val steps = ArrayList<Pair<String, String>>()
+            for (i in 0 until arr.length()) {
+                val s = arr.optString(i)
+                val action = s.substringBefore(":").trim()
+                if (action !in AUTOPILOT_SAFE) return false   // przepis wymaga myślenia → AI
+                steps.add(action to s.substringAfter(":", "").trim())
+            }
+            if (steps.isEmpty()) return false
+            if (steps.any { it.first != "open_app" } && svc == null) return false
+            speak("Znam tę drogę — robię z pamięci.")
+            for ((action, arg) in steps) {
+                if (cancelRequested) { cancelRequested = false; speak("Przerwane."); return true }
+                val ok = when (action) {
+                    "open_app" -> openApp(ctx, arg) == null
+                    "tap" -> svc?.tapByText(arg) == true
+                    "scroll" -> { svc?.scroll(arg.ifBlank { "down" }); true }
+                    "back" -> { svc?.goBack(); true }
+                    "home" -> { svc?.goHome(); true }
+                    "recents" -> { svc?.recents(); true }
+                    "enter" -> svc?.pressEnter() == true
+                    else -> false
+                }
+                if (!ok) { speak("Ekran się zmienił — włączam myślenie."); return false }
+                Thread.sleep(when (action) { "open_app" -> 1900L; "tap", "enter" -> 850L; "scroll" -> 450L; else -> 650L })
+            }
+            speak("Zrobione, po znanej drodze.")
+            true
+        } catch (_: Exception) { false }
+    }
+
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
     fun ask(ctx: Context, question: String, history: List<Pair<String, String>>, screenDump: String? = null, imageBase64: String? = null): JSONObject {
         val msgs = JSONArray()
@@ -216,6 +411,11 @@ object Brain {
      * phone across many screens, not just the current one. Call off the main thread.
      */
     fun runTask(ctx: Context, goal: String, history: ArrayList<Pair<String, String>>, speak: (String) -> Unit) {
+        // ⚡ Piętro 1: ODRUCHY — jednoznaczne komendy bez AI (natychmiast, 0 zł, offline).
+        if (reflex(ctx, goal, speak)) return
+        // 🧭 Piętro 2: AUTOPILOT — znana droga z przepisów bez AI; przy zgrzycie spada niżej.
+        if (tryAutopilot(ctx, goal, speak)) return
+        // 🧠 Piętro 3: AI — pełne rozumienie (poniżej).
         // Keep conversation memory bounded — a long multi-step task must not grow it forever.
         while (history.size > 16) history.removeAt(0)
         var step = 0

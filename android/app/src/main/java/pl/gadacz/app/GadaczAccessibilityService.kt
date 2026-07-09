@@ -291,6 +291,47 @@ class GadaczAccessibilityService : AccessibilityService() {
         return true
     }
 
+    // ─── 🔢 TRYB NUMERKÓW ────────────────────────────────────────────────────
+    // Sterowanie KAŻDYM ekranem bez rozumienia: numerujemy klikalne elementy,
+    // użytkownik mówi numer — my klikamy. Użytkownik jest mózgiem, my palcem.
+    private var numberedEls: List<Pair<String, Rect>> = emptyList()
+
+    /** Ponumeruj klikalne/edytowalne elementy i zwróć listę do przeczytania na głos. */
+    fun listNumbered(): String {
+        val root = rootInActiveWindow ?: return "Nie widzę ekranu."
+        val out = ArrayList<Pair<String, Rect>>()
+        collectInteractive(root, out)
+        numberedEls = out
+        if (numberedEls.isEmpty()) return "Nie widzę nic do kliknięcia na tym ekranie."
+        val list = numberedEls.mapIndexed { i, p -> "${i + 1}: ${p.first}" }.joinToString(". ")
+        return "$list. Powiedz numer, aby kliknąć."
+    }
+
+    fun hasNumbered() = numberedEls.isNotEmpty()
+
+    fun tapNumber(num: Int): Boolean {
+        val el = numberedEls.getOrNull(num - 1) ?: return false
+        numberedEls = emptyList()   // ekran zaraz się zmieni — stare numery tracą ważność
+        val path = Path().apply { moveTo(el.second.exactCenterX(), el.second.exactCenterY()) }
+        dispatchGesture(GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 60)).build(), null, null)
+        return true
+    }
+
+    private fun collectInteractive(node: AccessibilityNodeInfo?, out: ArrayList<Pair<String, Rect>>) {
+        if (node == null || out.size >= 12) return
+        if (node.isClickable || node.isEditable) {
+            val label = node.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: node.contentDescription?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: node.hintText?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+            if (label != null && label.length in 1..40) {
+                val r = Rect(); node.getBoundsInScreen(r)
+                if (r.width() > 0 && r.height() > 0) out.add(label to r)
+            }
+        }
+        for (i in 0 until node.childCount) collectInteractive(node.getChild(i), out)
+    }
+
     fun goBack() { performGlobalAction(GLOBAL_ACTION_BACK) }
     fun goHome() { performGlobalAction(GLOBAL_ACTION_HOME) }
     fun recents() { performGlobalAction(GLOBAL_ACTION_RECENTS) }

@@ -123,6 +123,20 @@ router.post("/recipe", (req, res) => {
   res.json({ ok: true, recipes: all.length });
 });
 router.get("/recipes", (_req, res) => res.json({ recipes: loadRecipes() }));
+// GET /api/assistant/recipe/match?goal=... — 🧭 AUTOPILOT: telefon pyta, czy zna już
+// drogę dla tego celu. Zwracamy najlepszy przepis Z WYNIKIEM podobieństwa — telefon
+// wykona go BEZ pytania AI, jeśli podobieństwo jest wysokie, a kroki bezpieczne.
+router.get("/recipe/match", (req, res) => {
+  const goal = String(req.query.goal ?? "").trim();
+  if (!goal) return res.json({ found: false });
+  let best: Recipe | null = null; let bestScore = 0;
+  for (const r of loadRecipes()) {
+    const s = goalSimilarity(r.goal, goal);
+    if (s > bestScore) { bestScore = s; best = r; }
+  }
+  if (!best || bestScore < 0.45) return res.json({ found: false });
+  res.json({ found: true, score: bestScore, goal: best.goal, steps: best.steps, uses: best.uses });
+});
 router.post("/recipes/clear", (_req, res) => { saveRecipes([]); res.json({ ok: true }); });
 // Najlepszy przepis dla celu (podobieństwo słów; przy remisie częściej używany).
 function bestRecipe(goal: string): Recipe | null {
@@ -209,6 +223,30 @@ router.get("/info", async (req: Request, res: Response) => {
     res.json({ say: "Nie udało mi się sprawdzić tej informacji." });
   }
 });
+
+// 📱 ŚCIĄGI O APLIKACJACH — wiedza "od środka" o aplikacjach użytkownika. Gdy Gadacz
+// pracuje na ekranie znanej aplikacji (poznajemy po nazwie pakietu w zrzucie EKRAN),
+// doklejamy mu krótką mapę: jak ta aplikacja jest zbudowana, jak się nazywają kluczowe
+// przyciski, jaki jest typowy przepływ. AI przestaje zgadywać — zna teren.
+const APP_GUIDES: Record<string, string> = {
+  "com.facebook.orca": "Messenger — lista rozmów: dotknij nazwę osoby. W rozmowie pole tekstowe na dole (podpowiedź „Aa”), wyślij = strzałka po prawej od pola. Szukanie osób: lupa na górze.",
+  "com.whatsapp": "WhatsApp — zakładka Czaty: dotknij rozmowę. Pole tekstowe na dole, wyślij = zielona strzałka po prawej. Nowy czat: zielony przycisk na dole po prawej.",
+  "com.facebook.katana": "Facebook — ściana przewija się w dół (scroll down). Pod każdym postem: Lubię to, Komentarz, Udostępnij. Powiadomienia: dzwonek na górze. Szukanie: lupa.",
+  "com.google.android.youtube": "YouTube — szukanie: lupa na górze, wpisz i zatwierdź (enter). Film otwierasz dotknięciem miniatury. Pauza: dotknij środka ekranu, potem tap_at w symbol pauzy. Shorts przewija się jak TikTok (scroll down).",
+  "com.zhiliaoapp.musically": "TikTok — następny film: scroll down; poprzedni: scroll up. Ikony po prawej (od góry): profil, serce=polub, dymek=komentarze, strzałka=udostępnij. Mało napisów — celuj tap_at ze zrzutu ekranu.",
+  "com.instagram.android": "Instagram — ściana: scroll down. Stories to kółka na górze; następna story: scroll left. Serce pod postem = polub. Wiadomości: ikona samolotu na górze.",
+  "com.google.android.gm": "Gmail — lista maili: dotknij, aby otworzyć. Nowy mail: przycisk „Utwórz” na dole po prawej. Wypełniaj po kolei: tap w Do → type, tap w Temat → type, tap w treść → type. Wyślij: strzałka na górze po prawej.",
+  "com.google.android.apps.messaging": "Wiadomości SMS — rozmowy na liście. Nowa: „Rozpocznij czat”. Pole tekstowe na dole, wyślij = strzałka po prawej.",
+  "com.spotify.music": "Spotify — zakładka Szukaj na dole → wpisz i zatwierdź. Dotknięcie utworu odtwarza. Pauza/wznowienie: dolna belka odtwarzania.",
+  "com.sec.android.gallery3d": "Galeria Samsung — zdjęcia siatką: dotknij, aby otworzyć; następne zdjęcie: scroll left. Po otwarciu na dole: Udostępnij, Usuń. Usunięcie potwierdź tylko na wyraźne polecenie.",
+  "com.samsung.android.dialer": "Telefon Samsung — zakładki na dole: Klawiatura, Ostatnie, Kontakty. Numer wybierasz na klawiaturze, zielona słuchawka dzwoni.",
+  "com.samsung.android.messaging": "Wiadomości Samsung — rozmowy na liście, pole tekstowe na dole, wyślij = strzałka.",
+  "com.einnovation.temu": "Temu — sklep. Szukanie na górze. UWAGA: NIE dotykaj „Kup teraz/Zamów/Zapłać” bez wyraźnego polecenia; przed finalizacją zawsze przeczytaj cenę i poproś o potwierdzenie.",
+  "com.lemon.lvoverseas": "CapCut — edytor wideo. „Nowy projekt” na górze, oś czasu na dole. Rób małe kroki i opisuj efekt po każdym.",
+  "com.android.chrome": "Chrome — pasek adresu na górze: tap → type → enter. Karty: kwadrat z liczbą. Wstecz: gest back.",
+};
+// 🏦 Aplikacje bankowe/płatnicze — tu obowiązuje ŻELAZNA ostrożność.
+const BANK_HINTS = ["revolut", "vipps", "bankid", "bank", "pko", "santander", "mbank", "ing", "pekao", "paypal"];
 
 const SYSTEM = `Jesteś "Gadacz" — głosowy asystent sterujący telefonem, zbudowany dla osób niewidomych i słabowidzących. Mówisz po polsku.
 
@@ -428,6 +466,16 @@ router.post("/ask", async (req: Request, res: Response) => {
         qFinal += `\n\n🧭 SPRAWDZONY PRZEPIS — podobne zadanie („${r.goal}”) udało się już ${r.uses} raz(y) tą drogą:\n` +
           r.steps.map((s, i) => `${i + 1}. ${s}`).join("\n") +
           `\nUżyj go jako MAPY: idź tą drogą, ale każdy krok sprawdzaj na EKRANIE i dostosuj napisy do tego, co naprawdę widzisz.`;
+      }
+    }
+    // 📱 Znana aplikacja na ekranie? Doklej ściągę o niej — Gadacz zna teren.
+    const pkgMatch = q.match(/EKRAN aplikacji:\s*([\w.]+)/);
+    if (pkgMatch) {
+      const pkg = pkgMatch[1].toLowerCase();
+      const guide = Object.entries(APP_GUIDES).find(([k]) => pkg.includes(k) || k.includes(pkg))?.[1];
+      if (guide) qFinal += `\n\n📱 ŚCIĄGA o tej aplikacji: ${guide}`;
+      if (BANK_HINTS.some(b => pkg.includes(b))) {
+        qFinal += `\n\n🏦 UWAGA — aplikacja BANKOWA/płatnicza. Żelazne zasady: NICZEGO nie dotykaj z własnej inicjatywy. Możesz czytać ekran i wykonać WYŁĄCZNIE dokładnie wypowiedziane polecenie użytkownika, krok po kroku. Przy jakiejkolwiek płatności/przelewie NAJPIERW przeczytaj na głos kwotę i odbiorcę i czekaj na potwierdzenie (action none). Nigdy nie wpisuj PIN-ów ani haseł.`;
       }
     }
     content.push({ type: "text", text: qFinal.slice(0, 5000) });
