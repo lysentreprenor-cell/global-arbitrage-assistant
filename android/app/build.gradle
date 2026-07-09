@@ -11,8 +11,8 @@ android {
         applicationId "pl.gadacz.app"
         minSdk 26
         targetSdk 34
-        versionCode 28
-        versionName "2.8"
+        versionCode 29
+        versionName "2.9"
     }
 
     // Fixed signing key so EVERY build has the SAME signature — required for

@@ -24,6 +24,9 @@ object Brain {
     private val http = OkHttpClient.Builder()
         .callTimeout(70, TimeUnit.SECONDS).readTimeout(70, TimeUnit.SECONDS).build()
 
+    /** Użytkownik chce PRZERWAĆ trwające zadanie (dotknięcie przycisku w trakcie). */
+    @Volatile var cancelRequested = false
+
     fun prefs(ctx: Context) = ctx.getSharedPreferences("gadacz", Context.MODE_PRIVATE)
 
     /**
@@ -107,7 +110,9 @@ object Brain {
         // Porażka kroku (nie znalazł przycisku, pole nie przyjęło tekstu) MUSI wrócić
         // do AI — inaczej AI nie wie, że krok nie wyszedł, błądzi i porzuca zadanie.
         var lastError = ""
+        cancelRequested = false
         while (step < if (plan.isBlank()) 14 else 20) {
+            if (cancelRequested) { cancelRequested = false; speak("Dobrze, przerywam zadanie."); return }
             val svcNow = GadaczAccessibilityService.instance
             val screen = svcNow?.readScreen()
             // 📸 Oko: przy pracy na ekranie doklejamy zrzut — AI widzi ikony i układ.

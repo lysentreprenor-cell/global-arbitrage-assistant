@@ -41,10 +41,12 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private var convPending = false
     private val pendingSpeech = java.util.concurrent.atomic.AtomicInteger(0)
     private var uttSeq = 0
+    @Volatile private var taskRunning = false   // trwa zadanie — dotknięcie je przerywa
     // Wake-word: continuously listen; act only when speech starts with "Gadacz".
     private var wakeMode = false
     private var wakeRec: SpeechRecognizer? = null
     private var wakeStopping = false
+    private var wakeErrors = 0   // narastający odstęp przy kolejnych błędach — mniej baterii
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -165,16 +167,25 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         wakeRec = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onResults(results: Bundle?) {
-                    val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.lowercase() ?: ""
-                    val word = Brain.wakeWord(this@GadaczOverlayService)
-                    val i = text.indexOf(word)
-                    if (i >= 0) {
-                        val cmd = text.substring(i + word.length).trim().trimStart(',', '.', ' ')
-                        if (cmd.isNotBlank()) { handle(cmd) ; return } // handle() restarts wake loop when done
+                    val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull() ?: ""
+                    wakeErrors = 0
+                    val cmd = findWakeCommand(text)
+                    if (cmd != null) {
+                        if (cmd.isNotBlank()) { handle(cmd); return } // handle() restarts wake loop when done
+                        // Samo „Gadacz" bez polecenia — odpowiedz i CZEKAJ na polecenie
+                        // (mikrofon otworzy się sam po „Słucham?" — tryb rozmowy).
+                        speak("Słucham?")
+                        convPending = true
+                        return
                     }
                     restartWake(300)
                 }
-                override fun onError(error: Int) { restartWake(500) }
+                override fun onError(error: Int) {
+                    // Narastający odstęp: 1s, 2s, 4s... do 8s — czuwanie nie zżera baterii,
+                    // gdy w pokoju jest cicho albo rozpoznawanie chwilowo szwankuje.
+                    wakeErrors = (wakeErrors + 1).coerceAtMost(4)
+                    restartWake((500L shl wakeErrors).coerceAtMost(8000L))
+                }
                 override fun onReadyForSpeech(p0: Bundle?) {}
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(p0: Float) {}
@@ -195,10 +206,35 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         bubble?.postDelayed({ if (wakeMode && !busy) startWakeLoop() }, delayMs)
     }
 
+    /**
+     * Wyrozumiałe łapanie słowa-klucza: bez polskich znaków i wielkości liter,
+     * z odmianą („Gadaczu", „Gadacza" też budzi). Zwraca polecenie PO słowie,
+     * "" gdy padło samo słowo, null gdy słowa nie było.
+     */
+    private fun normPl(s: String): String {
+        val map = mapOf('ą' to 'a', 'ć' to 'c', 'ę' to 'e', 'ł' to 'l', 'ń' to 'n',
+            'ó' to 'o', 'ś' to 's', 'ź' to 'z', 'ż' to 'z')
+        return s.lowercase().map { map[it] ?: it }.joinToString("")
+    }
+    private fun findWakeCommand(text: String): String? {
+        val n = normPl(text)
+        val w = normPl(Brain.wakeWord(this))
+        val stem = if (w.length >= 5) w.dropLast(1) else w   // „gadac" łapie gadaczu/gadacza
+        var i = n.indexOf(w)
+        if (i < 0) i = n.indexOf(stem)
+        if (i < 0) return null
+        var end = i + stem.length
+        while (end < n.length && !n[end].isWhitespace() && n[end] !in ",.!?") end++   // dokończ odmienione słowo
+        return text.substring(minOf(end, text.length)).trim().trimStart(',', '.', ' ')
+    }
+
     // ── Voice in (SpeechRecognizer works from a service, unlike the Activity flow) ──
     // auto=true → mikrofon otwarty przez TRYB ROZMOWY (po odpowiedzi), nie dotknięciem:
     // wtedy cisza kończy rozmowę po cichu (bez „nie usłyszałem") i wraca nasłuch słowa-klucza.
     private fun startListening(auto: Boolean = false) {
+        // Dotknięcie w TRAKCIE zadania = „stop, przerwij" — użytkownik musi mieć
+        // hamulec, gdy Gadacz klika coś nie tak.
+        if (taskRunning) { if (!auto) { Brain.cancelRequested = true; speak("Przerywam.") }; return }
         if (busy) return
         // Dotknięcie w trakcie mówienia = PRZERWIJ i słuchaj od razu (jak przerywa się
         // człowiekowi) — zamiast wymagać drugiego dotknięcia.
@@ -269,12 +305,14 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         setBubble("🧠")
         try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}   // clear old speech, then QUEUE step announcements
         Thread {
+            taskRunning = true
             try {
                 // Full task loop — Gadacz drives across screens until the goal is done.
                 Brain.runTask(this, text, history) { s -> speak(s) }
             } catch (e: Exception) {
                 speak("Błąd połączenia z serwerem.")
             } finally {
+                taskRunning = false
                 setBubble(if (wakeMode) "👂" else "🗣️")
                 // 💬 Tryb rozmowy: gdy Gadacz skończy mówić odpowiedź, sam otworzy
                 // mikrofon na Twoje kolejne zdanie (maybeContinueConversation).
