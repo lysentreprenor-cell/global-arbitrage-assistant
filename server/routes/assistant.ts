@@ -189,6 +189,33 @@ router.post("/memory/delete", (req, res) => {
 // POST /api/assistant/memory/clear → wipe
 router.post("/memory/clear", (_req, res) => { saveMemory([]); res.json({ ok: true, memory: [] }); });
 
+// 🔮 PIĘTRO 8 — PRZEWIDYWANIE: podpowiedź z rytmu dnia użytkownika. Z dziennika nauki
+// liczymy, o co użytkownik najczęściej prosi o tej porze (±1 h) i podpowiadamy.
+const ACTION_PL: Record<string, string> = {
+  flashlight: "latarkę", weather: "pogodę", btc: "kurs bitcoina", call: "telefonowanie",
+  open_app: "otwieranie aplikacji", youtube: "muzykę z YouTube", alarm: "budzik",
+  timer: "minutnik", read_screen: "czytanie ekranu", navigate: "zakładki aplikacji",
+  app_action: "sprawy bota", sms: "wiadomości", volume: "głośność", search: "szukanie w internecie",
+};
+router.get("/suggest", (req, res) => {
+  const hq = Number(req.query.hour);
+  const h = Number.isInteger(hq) && hq >= 0 && hq < 24 ? hq : new Date().getHours();
+  const counts: Record<string, number> = {};
+  for (const e of loadLearn()) {
+    if (!e.ok || !e.action || e.action === "none") continue;
+    const eh = new Date(e.t).getHours();
+    const diff = Math.abs(eh - h);
+    if (diff <= 1 || diff >= 23) counts[e.action] = (counts[e.action] ?? 0) + 1;
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([a]) => ACTION_PL[a] ?? a);
+  res.json({
+    say: top.length
+      ? `O tej porze zwykle prosisz o: ${top.join(", ")}. Powiedz, co zrobić.`
+      : "Jeszcze się uczę Twojego rytmu dnia. Używaj mnie, a zacznę podpowiadać.",
+  });
+});
+
 // GET /api/assistant/info?do=btc | weather&city=... → spoken-ready { say }
 // Live facts Gadacz can read aloud: BTC price (Kraken public) and weather (open-meteo, no key).
 router.get("/info", async (req: Request, res: Response) => {
@@ -488,16 +515,20 @@ router.post("/ask", async (req: Request, res: Response) => {
       { role: "user", content },
     ];
 
-    // 🧠 Dwa biegi mózgu: zwykła rozmowa jedzie na szybkim/tanim Haiku, ale praca NA
-    // EKRANIE (wielokrokowe prowadzenie telefonu) dostaje mądrzejszego Sonneta — to on
-    // decyduje, w co kliknąć i kiedy zadanie NAPRAWDĘ jest skończone. Tu była słabość
-    // „robi krótko i nie kończy”.
+    // 🎯 PIĘTRO 7 — DWA MÓZGI: strateg i wykonawca.
+    // Zwykła rozmowa → Haiku (tani). Praca na ekranie: PIERWSZY krok (układanie planu)
+    // i każdy krok PO PORAŻCE → Sonnet (strateg, drogi, mądry); zwykłe kroki wykonania
+    // planu → Haiku (wykonawca, tani). Strateg myśli, wykonawca klika — rachunek spada,
+    // a gdy wykonawca się potknie, strateg natychmiast przejmuje ster.
     const isScreenWork = q.includes("EKRAN") || q.includes("PLAN ZADANIA");
+    const hasPlan = q.includes("PLAN ZADANIA");
+    const hadError = q.includes("NIE WYSZEDŁ");
+    const screenModel = (hasPlan && !hadError) ? "claude-haiku-4-5-20251001" : "claude-sonnet-5";
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: isScreenWork ? "claude-sonnet-5" : "claude-haiku-4-5-20251001",
+        model: isScreenWork ? screenModel : "claude-haiku-4-5-20251001",
         max_tokens: 700,
         // 💰 Dwa bloki: [księga z cache] + [części zmienne]. Księga po pierwszym
         // poleceniu kosztuje ~10× mniej przez kolejne minuty aktywnego używania.

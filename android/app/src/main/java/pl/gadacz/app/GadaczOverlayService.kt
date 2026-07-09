@@ -67,6 +67,14 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             addBubble()
             // 🛟 Lustro pamięci — kopia faktów w telefonie; przywraca po utracie na serwerze.
             Brain.syncMemoryMirror(this) { n -> speak("Przywróciłem $n faktów z kopii w telefonie.") }
+            // 🔔 Piętro 4: silnik zdarzeń — co minutę reguły (przypomnienia, bateria).
+            val rulesTick = object : Runnable {
+                override fun run() {
+                    try { Brain.tickRules(this@GadaczOverlayService).forEach { speak(it) } } catch (_: Exception) {}
+                    bubble?.postDelayed(this, 60_000)
+                }
+            }
+            bubble?.postDelayed(rulesTick, 60_000)
         } catch (e: Exception) {
             try { stopSelf() } catch (_: Exception) {}
         }

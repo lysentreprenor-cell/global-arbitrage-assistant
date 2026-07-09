@@ -241,15 +241,124 @@ object Brain {
         return 0
     }
 
+    // ─── 🔔 PIĘTRO 4: ZDARZENIA — reguły „gdy X → powiedz Y" ────────────────
+    private fun loadRules(ctx: Context): JSONArray =
+        try { JSONArray(prefs(ctx).getString("rules", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
+    private fun saveRules(ctx: Context, r: JSONArray) { prefs(ctx).edit().putString("rules", r.toString()).apply() }
+    private fun addTimeRule(ctx: Context, hh: Int, mm: Int, text: String) {
+        val r = loadRules(ctx)
+        r.put(JSONObject().put("type", "time").put("h", hh).put("m", mm).put("text", text))
+        saveRules(ctx, r)
+    }
+
+    /** Silnik zdarzeń — wołany co minutę przez pływający przycisk. Zwraca komunikaty. */
+    fun tickRules(ctx: Context): List<String> {
+        val out = ArrayList<String>()
+        val cal = java.util.Calendar.getInstance()
+        val hh = cal.get(java.util.Calendar.HOUR_OF_DAY); val mm = cal.get(java.util.Calendar.MINUTE)
+        val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+        val p = prefs(ctx)
+        val rules = loadRules(ctx)
+        for (i in 0 until rules.length()) {
+            val r = rules.optJSONObject(i) ?: continue
+            if (r.optString("type") == "time" && r.optInt("h") == hh && r.optInt("m") == mm) {
+                val key = "rule_fired_${i}_$today"
+                if (!p.getBoolean(key, false)) {
+                    p.edit().putBoolean(key, true).apply()
+                    out.add("Przypomnienie: ${r.optString("text")}.")
+                }
+            }
+        }
+        // Czujnik baterii — ostrzeż raz przy każdym zejściu poniżej progu.
+        if (p.getBoolean("rule_battery", true)) {
+            try {
+                val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+                val lvl = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                val was = p.getInt("last_batt", 100)
+                if (lvl in 1..15 && was > 15 && !bm.isCharging) out.add("Uwaga: bateria $lvl procent. Podłącz ładowarkę.")
+                p.edit().putInt("last_batt", lvl).apply()
+            } catch (_: Exception) {}
+        }
+        return out
+    }
+
+    // ─── 🛡️ PIĘTRO 5: STRAŻNIK — groźne przyciski wymagają potwierdzenia ────
+    @Volatile private var pendingDangerTap: String? = null
+    private val DANGER = listOf("zaplac", "kup teraz", "zamow", "przelej", "pieniadze",
+        "usun", "skasuj", "przelew", "platnosc", "pay", "buy", "delete", "wyslij do wszystkich")
+    fun isDanger(label: String): Boolean {
+        val l = normPl(label)
+        return l.isNotBlank() && DANGER.any { l.contains(it) }
+    }
+
+    // ─── 🤏 PIĘTRO 6 (lite): rozumienie niedbałej mowy bez sieci ────────────
+    // „no zadzwoń no do tej... mamy" — wycinamy słowa-wypełniacze i próbujemy
+    // odruchów jeszcze raz. Fundament pod pełny lokalny mózg w przyszłości.
+    private val FILLERS = setOf("no", "prosze", "moze", "mi", "mnie", "zaraz", "ten", "ta", "to", "te",
+        "tej", "tego", "hej", "ej", "kochany", "szybko", "w koncu", "a", "i")
+    private fun stripFillers(n: String): String =
+        n.split(" ").filter { it !in FILLERS }.joinToString(" ").trim()
+
     /** Rdzeń kręgowy Gadacza. true = obsłużone odruchem (AI nie jest budzone). */
     fun reflex(ctx: Context, raw: String, speak: (String) -> Unit): Boolean {
-        val n = normPl(raw)
-        if (n.isBlank()) return false
+        val n0 = normPl(raw)
+        if (n0.isBlank()) return false
+        if (reflexCore(ctx, n0, raw, speak)) return true
+        val n1 = stripFillers(n0)          // 🤏 druga próba: bez wypełniaczy
+        return n1 != n0 && n1.isNotBlank() && reflexCore(ctx, n1, raw, speak)
+    }
+
+    private fun reflexCore(ctx: Context, n: String, raw: String, speak: (String) -> Unit): Boolean {
         val svc = GadaczAccessibilityService.instance
         fun done(s: String): Boolean { if (s.isNotBlank()) speak(s); return true }
 
         // 🚨 SOS — najważniejszy odruch: zero zwłoki, działa bez internetu.
         if (Regex("\\b(sos|pomocy|ratunku|wezwij pomoc)\\b").containsMatchIn(n)) return done(sos(ctx))
+
+        // 🛡️ Potwierdzenie groźnego przycisku wstrzymanego przez strażnika
+        if (n == "potwierdzam" || n == "potwierdz" || n == "tak potwierdzam") {
+            pendingDangerTap?.let { lbl ->
+                pendingDangerTap = null
+                return done(if (GadaczAccessibilityService.instance?.tapByText(lbl) == true)
+                    "Kliknięte: $lbl." else "Nie widzę już przycisku $lbl.")
+            }
+        }
+        if (n == "nie potwierdzam" || n == "anuluj" || n == "rezygnuje") {
+            if (pendingDangerTap != null) { pendingDangerTap = null; return done("Dobrze, nie klikam.") }
+        }
+
+        // 🔔 Przypomnienia głosem: „przypominaj mi o lekach o 8"
+        Regex("^przypom(nij|inaj)( mi)? o (.+) o (.+)$").find(n)?.let { m ->
+            val hm = parseTimePl(m.groupValues[4]) ?: return@let
+            val co = m.groupValues[3].trim()
+            addTimeRule(ctx, hm.first, hm.second, co)
+            return done("Dobrze. Codziennie o ${"%02d".format(hm.first)}:${"%02d".format(hm.second)} przypomnę o: $co.")
+        }
+        if (Regex("^jakie mam przypomnienia$").matches(n)) {
+            val r = loadRules(ctx)
+            if (r.length() == 0) return done("Nie masz żadnych przypomnień. Powiedz na przykład: przypominaj mi o lekach o ósmej.")
+            val list = (0 until r.length()).mapNotNull { r.optJSONObject(it) }
+                .joinToString(". ") { "o ${"%02d".format(it.optInt("h"))}:${"%02d".format(it.optInt("m"))} — ${it.optString("text")}" }
+            return done("Przypomnienia: $list.")
+        }
+        if (Regex("^(usun|skasuj) (wszystkie )?przypomnienia$").matches(n)) { saveRules(ctx, JSONArray()); return done("Przypomnienia usunięte.") }
+        if (n == "nie mow o baterii") { prefs(ctx).edit().putBoolean("rule_battery", false).apply(); return done("Dobrze, nie będę mówił o baterii.") }
+        if (Regex("^mow( mi)? gdy bateria( bedzie)? slaba$").matches(n)) { prefs(ctx).edit().putBoolean("rule_battery", true).apply(); return done("Będę ostrzegał przy słabej baterii.") }
+
+        // 🔮 Piętro 8: podpowiedź z Twojego rytmu dnia
+        if (Regex("^(co teraz|zaproponuj cos|co zwykle robie( o tej porze)?|co o tej porze)$").matches(n)) {
+            Thread {
+                try {
+                    val hr = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                    val r = http.newCall(Request.Builder()
+                        .url(serverUrl(ctx).trimEnd('/') + "/api/assistant/suggest?hour=$hr")
+                        .header("x-bot-pin", pin(ctx)).build())
+                        .execute().use { JSONObject(it.body?.string() ?: "{}") }
+                    speak(r.optString("say", "Jeszcze się uczę Twojego rytmu dnia."))
+                } catch (_: Exception) { speak("Nie mogę połączyć się z serwerem.") }
+            }.start()
+            return true
+        }
 
         // Sprzęt: latarka, głośność, panele
         if (n.contains("latark")) return done(flashlight(ctx, !Regex("zgas|wylacz").containsMatchIn(n)))
@@ -363,6 +472,12 @@ object Brain {
             speak("Znam tę drogę — robię z pamięci.")
             for ((action, arg) in steps) {
                 if (cancelRequested) { cancelRequested = false; speak("Przerwane."); return true }
+                // 🛡️ Strażnik obowiązuje też na autopilocie.
+                if (action == "tap" && isDanger(arg)) {
+                    pendingDangerTap = arg
+                    speak("To ważny przycisk: $arg. Powiedz: potwierdzam — a kliknę.")
+                    return true
+                }
                 val ok = when (action) {
                     "open_app" -> openApp(ctx, arg) == null
                     "tap" -> svc?.tapByText(arg) == true
@@ -453,6 +568,8 @@ object Brain {
             // Speak intermediate steps only briefly (keep it snappy); full result spoken at the end.
             if (say.isNotBlank() && next) speak(say)
             val spoken = execute(ctx, action, args, say) { s -> speak(s) }
+            // 🛡️ Strażnik wstrzymał kliknięcie — kończymy zadanie, czekamy na „potwierdzam".
+            if (spoken.startsWith("To ważny przycisk")) { speak(spoken); return }
             // Rozpoznaj porażkę kroku po komunikacie — poleci do AI w następnym pytaniu.
             if (spoken.startsWith("Nie znalazłem") || spoken.startsWith("Nie ma pola") ||
                 spoken.startsWith("Nie udało") || spoken.startsWith("To pole nie") ||
@@ -514,7 +631,15 @@ object Brain {
             "open" -> web(ctx, args.optString("url"))
             "open_app" -> openApp(ctx, args.optString("name"))?.let { learnFail(ctx); return it }
             "read_screen" -> { readScreenAsync(ctx, speak); return "" }
-            "tap" -> { if (svc?.tapByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
+            "tap" -> {
+                val label = args.optString("text")
+                // 🛡️ Strażnik: płatności/usuwanie tylko po Twoim „potwierdzam".
+                if (isDanger(label)) {
+                    pendingDangerTap = label
+                    return "To ważny przycisk: $label. Powiedz: potwierdzam — a kliknę. Albo: anuluj."
+                }
+                if (svc?.tapByText(label, args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: $label." }
+            }
             "tap_at" -> { if (svc?.tapAt(args.optDouble("x", -1.0), args.optDouble("y", -1.0)) != true) { learnFail(ctx); return "Nie mogę dotknąć tego miejsca." } }
             "long_press" -> { if (svc?.longPressByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
             "enter" -> { if (svc?.pressEnter() != true) { learnFail(ctx); return "Nie mam czego zatwierdzić." } }
