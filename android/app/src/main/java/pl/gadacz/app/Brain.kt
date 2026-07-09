@@ -72,20 +72,32 @@ object Brain {
     /** 🧠 Włącznik nauki — użytkownik panuje nad tym, czy Gadacz zapisuje nowe doświadczenia. */
     fun learningOn(ctx: Context) = prefs(ctx).getBoolean("learning_enabled", true)
 
-    /** Pobierz WSZYSTKIE nauczone dane z serwera (pamięć, dziennik, przepisy) jako czytelny JSON. */
+    /**
+     * Pobierz WSZYSTKIE nauczone dane z serwera (pamięć, dziennik, przepisy) jako czytelny
+     * JSON. Każda część osobno i odpornie — gdy serwer nie zna jeszcze któregoś adresu
+     * (stary kod przed git pull), bierzemy to, co jest, zamiast wywalać całość.
+     */
     fun fetchLearnedData(ctx: Context): String {
         val base = serverUrl(ctx).trimEnd('/')
-        fun get(path: String): String = try {
+        fun part(path: String, key: String): Any? = try {
             http.newCall(Request.Builder().url(base + path).header("x-bot-pin", pin(ctx)).build())
-                .execute().use { it.body?.string() ?: "{}" }
-        } catch (_: Exception) { "{}" }
+                .execute().use { r ->
+                    val body = r.body?.string() ?: return null
+                    if (!r.isSuccessful) return null
+                    JSONObject(body).opt(key)
+                }
+        } catch (_: Exception) { null }
+        val mem = part("/api/assistant/memory", "memory")
+        val log = part("/api/assistant/log", "log")
+        val rec = part("/api/assistant/recipes", "recipes")
+        if (mem == null && log == null && rec == null) return ""
         return try {
             JSONObject()
-                .put("pamięć_faktów", JSONObject(get("/api/assistant/memory")).opt("memory"))
-                .put("dziennik_nauki", JSONObject(get("/api/assistant/log")).opt("log"))
-                .put("przepisy_dróg", JSONObject(get("/api/assistant/recipes")).opt("recipes"))
+                .put("pamięć_faktów", mem ?: "(niedostępne)")
+                .put("dziennik_nauki", log ?: "(niedostępne)")
+                .put("przepisy_dróg", rec ?: "(niedostępne — serwer wymaga aktualizacji: git pull)")
                 .toString(2)
-        } catch (_: Exception) { "Nie udało się pobrać danych." }
+        } catch (_: Exception) { "" }
     }
 
     /** Skasuj nauczone dane (dziennik + przepisy). Pamięci faktów celowo NIE rusza. */

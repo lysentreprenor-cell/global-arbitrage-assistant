@@ -251,6 +251,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         Thread {
                             val data = Brain.fetchLearnedData(this)
                             runOnUiThread {
+                                if (data.isBlank()) {
+                                    speak("Nie mogę połączyć się z serwerem. Sprawdź adres w ustawieniach, PIN, i czy serwer w Replicie jest uruchomiony i zaktualizowany.")
+                                    return@runOnUiThread
+                                }
                                 try {
                                     val cb = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                     cb.setPrimaryClip(android.content.ClipData.newPlainText("Gadacz — nauka", data))
