@@ -46,10 +46,20 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 // Survives browser clears, shared across devices. Plain JSON list of facts.
 const MEMORY_FILE = path.resolve(process.cwd(), "data", "gadacz_memory.json");
 function loadMemory(): string[] {
-  try { return JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); } catch { return []; }
+  // Główny plik, a gdy zniknął/uszkodzony — kopia zapasowa .bak (ostatni dobry stan).
+  try { return JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); } catch { /* spróbuj .bak */ }
+  try { return JSON.parse(fs.readFileSync(MEMORY_FILE + ".bak", "utf8")); } catch { return []; }
 }
 function saveMemory(list: string[]) {
-  try { fs.mkdirSync(path.dirname(MEMORY_FILE), { recursive: true }); fs.writeFileSync(MEMORY_FILE, JSON.stringify(list.slice(-200))); } catch { /* ignore */ }
+  try {
+    fs.mkdirSync(path.dirname(MEMORY_FILE), { recursive: true });
+    // Przed nadpisaniem odłóż ostatni NIEPUSTY stan do .bak — polisa na uszkodzenie pliku.
+    try {
+      const cur = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8"));
+      if (Array.isArray(cur) && cur.length > 0) fs.writeFileSync(MEMORY_FILE + ".bak", JSON.stringify(cur));
+    } catch { /* brak/zepsuty — nie ma czego odkładać */ }
+    fs.writeFileSync(MEMORY_FILE, JSON.stringify(list.slice(-200)));
+  } catch { /* ignore */ }
 }
 
 // ── Learning journal — Gadacz records every interaction (command → action →

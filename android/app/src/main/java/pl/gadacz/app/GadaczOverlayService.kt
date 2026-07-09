@@ -65,6 +65,8 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             if (!micOk) { stopSelf(); return }
             startForeground(1, buildNotification())
             addBubble()
+            // 🛟 Lustro pamięci — kopia faktów w telefonie; przywraca po utracie na serwerze.
+            Brain.syncMemoryMirror(this) { n -> speak("Przywróciłem $n faktów z kopii w telefonie.") }
         } catch (e: Exception) {
             try { stopSelf() } catch (_: Exception) {}
         }

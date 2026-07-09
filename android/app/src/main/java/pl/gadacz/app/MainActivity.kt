@@ -108,6 +108,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         if (!Brain.isConfigured(this)) showSettings()
         else status.postDelayed({ val s = readinessSummary(true); status.text = s; speak(s) }, 1200)
+
+        // 🛟 Lustro pamięci: odśwież kopię w telefonie, a gdy serwer stracił dane — przywróć je.
+        Brain.syncMemoryMirror(this) { n ->
+            runOnUiThread { speak("Uwaga: serwer stracił pamięć. Przywróciłem $n faktów z kopii w telefonie.") }
+        }
     }
 
     private fun bigBtn(label: String, fg: Int, bg: Int, weight: Float, onClick: () -> Unit): Button =

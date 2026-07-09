@@ -92,6 +92,40 @@ object Brain {
         } catch (_: Exception) { "" }
     }
 
+    /**
+     * 🛟 LUSTRO PAMIĘCI — polisa na wypadek utraty danych na serwerze (Replit potrafi
+     * przywrócić stary „checkpoint" i skasować pliki). Telefon trzyma kopię faktów:
+     *  - serwer MA pamięć → odśwież kopię w telefonie,
+     *  - serwer PUSTY, a telefon ma kopię → wgraj ją z powrotem (samo-przywracanie).
+     * Wołane przy każdym starcie aplikacji i pływającego przycisku.
+     */
+    fun syncMemoryMirror(ctx: Context, onRestored: (Int) -> Unit = {}) {
+        Thread {
+            try {
+                val base = serverUrl(ctx).trimEnd('/')
+                if (base.isBlank()) return@Thread
+                val resp = http.newCall(Request.Builder().url("$base/api/assistant/memory")
+                    .header("x-bot-pin", pin(ctx)).build())
+                    .execute().use { r -> if (!r.isSuccessful) return@Thread else r.body?.string() ?: return@Thread }
+                val arr = JSONObject(resp).optJSONArray("memory") ?: return@Thread
+                val p = prefs(ctx)
+                if (arr.length() > 0) {
+                    p.edit().putString("memory_mirror", arr.toString()).apply()
+                } else {
+                    val mirror = p.getString("memory_mirror", "") ?: ""
+                    if (mirror.isNotBlank()) {
+                        val facts = JSONArray(mirror)
+                        if (facts.length() > 0) {
+                            val text = buildString { for (i in 0 until facts.length()) appendLine(facts.optString(i)) }
+                            val n = addKnowledge(ctx, text)
+                            if (n > 0) onRestored(n)
+                        }
+                    }
+                }
+            } catch (_: Exception) { /* polisa jest best-effort */ }
+        }.start()
+    }
+
     /** ➕ Wyślij wklejoną WIEDZĘ na serwer — tnie ją tam na fakty. Zwraca ile dodano (-1 = błąd). */
     fun addKnowledge(ctx: Context, text: String): Int = try {
         val body = JSONObject().put("text", text)
