@@ -28,7 +28,6 @@ import PLDashboard from "@/pages/resell/PLDashboard";
 import SuppliersPage from "@/pages/resell/SuppliersPage";
 import CompetitorTracker from "@/pages/resell/CompetitorTracker";
 import TradingBot from "@/pages/resell/TradingBot";
-import DrammenzTransport from "@/pages/resell/DrammenzTransport";
 import AssistantPage from "@/pages/resell/AssistantPage";
 
 function RedirectToResell() {
@@ -85,7 +84,6 @@ export default function App() {
         <Route path="/resell/agent" component={AgentPage} />
         <Route path="/resell/trading-bot" component={TradingBot} />
         <Route path="/resell/assistant" component={AssistantPage} />
-        <Route path="/resell/transport" component={DrammenzTransport} />
       </Switch>
       <Toaster />
     </QueryClientProvider>

@@ -8,6 +8,8 @@ import {
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
 const NAV_ITEMS = [
+  // Gadacz PIERWSZY — użytkownik niewidomy nie może go szukać za krawędzią ekranu.
+  { href: "/resell/assistant",    label: "🗣️ Gadacz",   icon: Mic },
   { href: "/resell",              label: "Dashboard",   icon: LayoutDashboard },
   { href: "/resell/agent",        label: "Agent AI",    icon: Bot },
   { href: "/resell/marketing",    label: "Marketing",   icon: Megaphone },
@@ -26,7 +28,6 @@ const NAV_ITEMS = [
   { href: "/resell/autopilot",    label: "Autopilot",   icon: Rocket },
   { href: "/resell/trading-bot",  label: "Trading Bot", icon: Activity },
   { href: "/resell/settings",     label: "API",         icon: Settings },
-  { href: "/resell/assistant",    label: "🗣️ Gadacz",   icon: Mic },
 ];
 
 export function TopNav() {
