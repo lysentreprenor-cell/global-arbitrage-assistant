@@ -344,14 +344,19 @@ Akcje PAMIĘCI (Gadacz uczy się użytkownika — działa zawsze):
 - "recall": {} — gdy pyta „co o mnie wiesz", „co pamiętasz".
 - "forget_all": {} — gdy prosi „zapomnij wszystko o mnie".
 
-Poniżej PAMIĘĆ o użytkowniku (co Gadacz już zapamiętał). Korzystaj z niej, żeby lepiej rozumieć polecenia i odpowiadać osobiście:
+Gdy użytkownik POPRAWIA Cię („nie o to chodziło", „źle", „miałem na myśli...") — potraktuj to jako naukę: w "say" potwierdź, a jeśli podał regułę (np. „jak mówię X to znaczy Y"), użyj akcji "remember", żeby zapamiętać to na przyszłość.`;
+
+// 💰 CACHE: powyższa „księga" (SYSTEM) jest NIEZMIENNA między poleceniami, więc
+// oznaczamy ją cache_control — Anthropic po pierwszym przeczytaniu liczy za nią
+// ~10× mniej przez kolejne minuty. Części ZMIENNE (pamięć użytkownika, doświadczenie,
+// zegar) muszą mieszkać OSOBNO, za punktem cache — inaczej każda zmiana pamięci
+// unieważniałaby cały cache i oszczędność by znikła.
+const SYSTEM_DYNAMIC = `Poniżej PAMIĘĆ o użytkowniku (co Gadacz już zapamiętał). Korzystaj z niej, żeby lepiej rozumieć polecenia i odpowiadać osobiście:
 {USER_MEMORY}
 
 DOŚWIADCZENIE — jak TEN użytkownik zwykle mówi i co wtedy działa. Ucz się z tego jego stylu (te same słowa → ta sama akcja). Jeśli obecne polecenie brzmi podobnie do udanego przykładu, wybierz tę samą akcję:
 {EXAMPLES}
 Jeśli w doświadczeniu widać polecenia, których NIE udało się zrozumieć (oznaczone [nieudane]), a teraz brzmią podobnie — postaraj się je tym razem obsłużyć albo dopytaj konkretnie, czego użytkownik chce.
-
-Gdy użytkownik POPRAWIA Cię („nie o to chodziło", „źle", „miałem na myśli...") — potraktuj to jako naukę: w "say" potwierdź, a jeśli podał regułę (np. „jak mówię X to znaczy Y"), użyj akcji "remember", żeby zapamiętać to na przyszłość.
 
 Aktualny czas lokalny użytkownika: {CLIENT_TIME}. Korzystaj z niego przy pytaniach o godzinę i datę.`;
 
@@ -446,10 +451,15 @@ router.post("/ask", async (req: Request, res: Response) => {
       body: JSON.stringify({
         model: isScreenWork ? "claude-sonnet-5" : "claude-haiku-4-5-20251001",
         max_tokens: 700,
-        system: SYSTEM
-          .replace("{CLIENT_TIME}", String(clientTime).slice(0, 100) || "nieznany")
-          .replace("{USER_MEMORY}", memText)
-          .replace("{EXAMPLES}", examplesText),
+        // 💰 Dwa bloki: [księga z cache] + [części zmienne]. Księga po pierwszym
+        // poleceniu kosztuje ~10× mniej przez kolejne minuty aktywnego używania.
+        system: [
+          { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
+          { type: "text", text: SYSTEM_DYNAMIC
+              .replace("{USER_MEMORY}", memText)
+              .replace("{EXAMPLES}", examplesText)
+              .replace("{CLIENT_TIME}", String(clientTime).slice(0, 100) || "nieznany") },
+        ],
         messages,
       }),
       signal: AbortSignal.timeout(60_000),
