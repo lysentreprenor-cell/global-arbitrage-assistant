@@ -135,6 +135,25 @@ router.post("/memory", (req, res) => {
   saveMemory(m);
   res.json({ ok: true, memory: m });
 });
+// POST /api/assistant/memory/bulk {text} — ➕ WKLEJONA WIEDZA: użytkownik wkleja cały
+// blok tekstu (notatki, instrukcje, fakty), my tniemy go na osobne fakty (linie/zdania),
+// pomijamy duplikaty i dopisujemy do pamięci. Szybka nauka zamiast dyktowania po jednym.
+router.post("/memory/bulk", (req, res) => {
+  const text = String(req.body?.text ?? "").trim();
+  if (!text) return res.status(400).json({ error: "Pusty tekst" });
+  const m = loadMemory();
+  let added = 0;
+  const parts = text
+    .split(/\r?\n|(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ0-9])/)
+    .map(s => s.trim().replace(/^[-•*\d.)\s]+/, "").trim())
+    .filter(s => s.length >= 3);
+  for (const p of parts) {
+    const fact = p.slice(0, 200);
+    if (!m.some(x => x.toLowerCase() === fact.toLowerCase())) { m.push(fact); added++; }
+  }
+  saveMemory(m);
+  res.json({ ok: true, added, total: Math.min(m.length, 200) });
+});
 // POST /api/assistant/memory/delete {index} → remove one
 router.post("/memory/delete", (req, res) => {
   const i = Number(req.body?.index);

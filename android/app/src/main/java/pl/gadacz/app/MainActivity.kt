@@ -234,6 +234,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val rec = Brain.learnRecipesOn(this)
         val jr = Brain.learnJournalOn(this)
         val items = arrayOf(
+            "➕  Dodaj wiedzę (wklej lub wpisz tekst)",
             "🧭  Obsługa aplikacji (przepisy dróg) — nauka: ${if (rec) "WŁĄCZONA" else "WYŁĄCZONA"}",
             "🗣  Rozumienie Ciebie (dziennik komend) — nauka: ${if (jr) "WŁĄCZONA" else "WYŁĄCZONA"}",
             "📌  Pamięć faktów (zapamiętaj, że…)",
@@ -243,16 +244,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setTitle("Nauka Gadacza — sekcje")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> sectionDialog(
+                    0 -> addKnowledgeDialog()
+                    1 -> sectionDialog(
                         "🧭 Obsługa aplikacji", "Udane drogi zadań — jak krok po kroku obsłużyć aplikacje.",
                         "learn_recipes", rec, "/api/assistant/recipes", "recipes", "/api/assistant/recipes/clear")
-                    1 -> sectionDialog(
+                    2 -> sectionDialog(
                         "🗣 Rozumienie Ciebie", "Jak mówisz i co wtedy działa; także nieudane kliknięcia (uczą ostrożności).",
                         "learn_journal", jr, "/api/assistant/log", "log", "/api/assistant/log/clear")
-                    2 -> sectionDialog(
+                    3 -> sectionDialog(
                         "📌 Pamięć faktów", "Rzeczy, które kazałeś zapamiętać. Zapisuje się tylko na Twoje wyraźne „zapamiętaj”.",
                         null, true, "/api/assistant/memory", "memory", "/api/assistant/memory/clear")
-                    3 -> {
+                    4 -> {
                         setStatus("📋 Pobieram wszystko…")
                         Thread {
                             val data = Brain.fetchLearnedData(this)
@@ -265,6 +267,50 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    /**
+     * ➕ Szybka nauka: wklej (albo wpisz) cały blok wiedzy — notatki, instrukcje, fakty.
+     * Serwer potnie go na osobne fakty (linia = fakt) i doda do pamięci Gadacza.
+     */
+    private fun addKnowledgeDialog() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 20, 40, 0) }
+        val input = EditText(this).apply {
+            hint = "Wklej tu wiedzę. Każda linia lub zdanie stanie się osobnym faktem, np.:\nMoja siostra ma na imię Anna.\nLeki biorę o 8 i o 20.\nKod do klatki to 1234."
+            minLines = 6
+            gravity = Gravity.TOP
+        }
+        val paste = Button(this).apply {
+            text = "📋 Wklej ze schowka"
+            isAllCaps = false
+            setOnClickListener {
+                try {
+                    val cb = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val t = cb.primaryClip?.getItemAt(0)?.coerceToText(this@MainActivity)?.toString() ?: ""
+                    if (t.isNotBlank()) input.setText(t) else speak("Schowek jest pusty.")
+                } catch (_: Exception) { speak("Nie udało się wkleić.") }
+            }
+        }
+        box.addView(input); box.addView(paste)
+        AlertDialog.Builder(this)
+            .setTitle("➕ Dodaj wiedzę Gadaczowi")
+            .setView(box)
+            .setPositiveButton("Dodaj") { _, _ ->
+                val text = input.text.toString().trim()
+                if (text.isBlank()) { speak("Nic nie wpisałeś."); return@setPositiveButton }
+                setStatus("➕ Dodaję wiedzę…")
+                Thread {
+                    val added = Brain.addKnowledge(this, text)
+                    runOnUiThread {
+                        speak(when {
+                            added < 0 -> "Nie udało się dodać. Sprawdź połączenie z serwerem i czy jest zaktualizowany."
+                            added == 0 -> "Wszystko to już znałem — nic nowego nie doszło."
+                            else -> "Dodane. Nauczyłem się $added nowych rzeczy i będę z nich korzystał."
+                        })
+                    }
+                }.start()
+            }
+            .setNegativeButton("Anuluj", null).show()
     }
 
     /** Jedna sekcja nauki: (włącznik) / kopiuj / kasuj. prefKey=null → sekcja bez włącznika. */

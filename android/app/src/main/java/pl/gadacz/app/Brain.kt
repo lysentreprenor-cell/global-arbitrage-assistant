@@ -92,6 +92,18 @@ object Brain {
         } catch (_: Exception) { "" }
     }
 
+    /** ➕ Wyślij wklejoną WIEDZĘ na serwer — tnie ją tam na fakty. Zwraca ile dodano (-1 = błąd). */
+    fun addKnowledge(ctx: Context, text: String): Int = try {
+        val body = JSONObject().put("text", text)
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/memory/bulk")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { r ->
+                if (!r.isSuccessful) -1
+                else JSONObject(r.body?.string() ?: "{}").optInt("added", -1)
+            }
+    } catch (_: Exception) { -1 }
+
     /** Wyczyść jedną sekcję nauki na serwerze. */
     fun clearSection(ctx: Context, clearPath: String): Boolean = try {
         http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + clearPath).header("x-bot-pin", pin(ctx))
