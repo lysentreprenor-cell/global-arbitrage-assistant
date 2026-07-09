@@ -69,8 +69,35 @@ object Brain {
     fun anthropicKey(ctx: Context) = prefs(ctx).getString("anthropic_key", "") ?: ""
     fun pin(ctx: Context) = prefs(ctx).getString("app_pin", "") ?: ""
     fun wakeWord(ctx: Context) = (prefs(ctx).getString("wake_word", "") ?: "").lowercase().trim().ifBlank { "gadacz" }
-    /** 🧠 Włącznik nauki — użytkownik panuje nad tym, czy Gadacz zapisuje nowe doświadczenia. */
-    fun learningOn(ctx: Context) = prefs(ctx).getBoolean("learning_enabled", true)
+    /**
+     * 🧠 Nauka w SEKCJACH — osobne włączniki (stary wspólny "learning_enabled" służy
+     * jako domyślna wartość, więc dawne ustawienie użytkownika przeżywa aktualizację):
+     *  - przepisy  = nauka OBSŁUGI APLIKACJI (udane drogi zadań)
+     *  - dziennik  = nauka UŻYTKOWNIKA (jak mówisz → co działa; porażki kliknięć)
+     * Pamięć faktów nie ma włącznika — zapisuje się tylko na wyraźne „zapamiętaj".
+     */
+    fun learnRecipesOn(ctx: Context) = prefs(ctx).getBoolean("learn_recipes", prefs(ctx).getBoolean("learning_enabled", true))
+    fun learnJournalOn(ctx: Context) = prefs(ctx).getBoolean("learn_journal", prefs(ctx).getBoolean("learning_enabled", true))
+
+    /** Pobierz jedną sekcję nauki z serwera jako czytelny JSON ("" gdy niedostępna). */
+    fun fetchSection(ctx: Context, path: String, key: String): String {
+        return try {
+            http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + path).header("x-bot-pin", pin(ctx)).build())
+                .execute().use { r ->
+                    val body = r.body?.string() ?: return ""
+                    if (!r.isSuccessful) return ""
+                    val data = JSONObject(body).opt(key) ?: return ""
+                    JSONObject().put(key, data).toString(2)
+                }
+        } catch (_: Exception) { "" }
+    }
+
+    /** Wyczyść jedną sekcję nauki na serwerze. */
+    fun clearSection(ctx: Context, clearPath: String): Boolean = try {
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + clearPath).header("x-bot-pin", pin(ctx))
+            .post("".toRequestBody("application/json".toMediaType())).build())
+            .execute().use { it.isSuccessful }
+    } catch (_: Exception) { false }
 
     /**
      * Pobierz WSZYSTKIE nauczone dane z serwera (pamięć, dziennik, przepisy) jako czytelny
@@ -124,7 +151,7 @@ object Brain {
             put("question", if (screenDump != null) "EKRAN: $screenDump\n\nPolecenie: $question" else question)
             put("history", msgs)
             put("clientTime", SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale("pl", "PL")).format(Date()))
-            put("learn", learningOn(ctx))   // 🧠 serwer nie zapisuje dziennika, gdy nauka wyłączona
+            put("learn", learnJournalOn(ctx))   // 🧠 serwer nie zapisuje dziennika, gdy ta sekcja wyłączona
             // 📸 Zrzut ekranu — AI widzi ekran naprawdę, nie tylko listę napisów.
             if (imageBase64 != null) { put("imageBase64", imageBase64); put("mediaType", "image/jpeg") }
         }
@@ -528,7 +555,7 @@ object Brain {
 
     /** 🧭 Wyślij UDANĄ drogę zadania na serwer — buduje przepisy obsługi telefonu. */
     private fun saveRecipe(ctx: Context, goal: String, steps: List<String>) {
-        if (!learningOn(ctx)) return   // 🧠 włącznik nauki
+        if (!learnRecipesOn(ctx)) return   // 🧠 sekcja: nauka obsługi aplikacji
         Thread {
             try {
                 val body = JSONObject().put("goal", goal).put("steps", JSONArray(steps.toList()))
@@ -545,7 +572,7 @@ object Brain {
      * (marks that phrasing [nieudane] in the journal). Fire-and-forget, off the caller's path.
      */
     private fun learnFail(ctx: Context) {
-        if (!learningOn(ctx)) return   // 🧠 włącznik nauki
+        if (!learnJournalOn(ctx)) return   // 🧠 sekcja: nauka użytkownika (dziennik)
         Thread {
             try {
                 val base = serverUrl(ctx).trimEnd('/')

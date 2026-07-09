@@ -227,57 +227,98 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     /**
-     * 🧠 Panel nauki — właściciel panuje nad tym, czego Gadacz się uczy:
-     * włącz/wyłącz zapisywanie, skopiuj wszystko do schowka, skasuj i zacznij od zera.
+     * 🧠 Panel nauki w SEKCJACH — każda dziedzina wiedzy Gadacza ma własny włącznik,
+     * kopiowanie i kasowanie. Właściciel widzi i kontroluje, czego Gadacz się uczy.
      */
     private fun showLearning() {
-        val on = Brain.learningOn(this)
+        val rec = Brain.learnRecipesOn(this)
+        val jr = Brain.learnJournalOn(this)
         val items = arrayOf(
-            if (on) "⏸  Wyłącz uczenie się" else "▶️  Włącz uczenie się",
-            "📋  Skopiuj nauczone dane (do schowka)",
-            "🗑  Skasuj nauczone dane",
+            "🧭  Obsługa aplikacji (przepisy dróg) — nauka: ${if (rec) "WŁĄCZONA" else "WYŁĄCZONA"}",
+            "🗣  Rozumienie Ciebie (dziennik komend) — nauka: ${if (jr) "WŁĄCZONA" else "WYŁĄCZONA"}",
+            "📌  Pamięć faktów (zapamiętaj, że…)",
+            "📋  Skopiuj WSZYSTKO do schowka",
         )
         AlertDialog.Builder(this)
-            .setTitle("Nauka Gadacza — teraz: ${if (on) "WŁĄCZONA" else "WYŁĄCZONA"}")
+            .setTitle("Nauka Gadacza — sekcje")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> {
-                        Brain.prefs(this).edit().putBoolean("learning_enabled", !on).apply()
-                        speak(if (!on) "Uczenie włączone. Zapisuję udane drogi i poprawki."
-                              else "Uczenie wyłączone. Korzystam z tego, co już umiem, ale nowego nie zapisuję.")
-                    }
-                    1 -> {
-                        setStatus("📋 Pobieram nauczone dane…")
+                    0 -> sectionDialog(
+                        "🧭 Obsługa aplikacji", "Udane drogi zadań — jak krok po kroku obsłużyć aplikacje.",
+                        "learn_recipes", rec, "/api/assistant/recipes", "recipes", "/api/assistant/recipes/clear")
+                    1 -> sectionDialog(
+                        "🗣 Rozumienie Ciebie", "Jak mówisz i co wtedy działa; także nieudane kliknięcia (uczą ostrożności).",
+                        "learn_journal", jr, "/api/assistant/log", "log", "/api/assistant/log/clear")
+                    2 -> sectionDialog(
+                        "📌 Pamięć faktów", "Rzeczy, które kazałeś zapamiętać. Zapisuje się tylko na Twoje wyraźne „zapamiętaj”.",
+                        null, true, "/api/assistant/memory", "memory", "/api/assistant/memory/clear")
+                    3 -> {
+                        setStatus("📋 Pobieram wszystko…")
                         Thread {
                             val data = Brain.fetchLearnedData(this)
                             runOnUiThread {
-                                if (data.isBlank()) {
-                                    speak("Nie mogę połączyć się z serwerem. Sprawdź adres w ustawieniach, PIN, i czy serwer w Replicie jest uruchomiony i zaktualizowany.")
-                                    return@runOnUiThread
-                                }
-                                try {
-                                    val cb = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    cb.setPrimaryClip(android.content.ClipData.newPlainText("Gadacz — nauka", data))
-                                    speak("Skopiowane do schowka. Wklej w notatkę albo wiadomość, gdzie chcesz.")
-                                } catch (_: Exception) { speak("Nie udało się skopiować.") }
+                                if (data.isBlank()) { speak("Nie mogę połączyć się z serwerem. Sprawdź adres, PIN i czy serwer działa."); return@runOnUiThread }
+                                copyToClipboard("Gadacz — cała nauka", data)
                             }
                         }.start()
                     }
-                    2 -> {
+                }
+            }
+            .setNegativeButton("Zamknij", null).show()
+    }
+
+    /** Jedna sekcja nauki: (włącznik) / kopiuj / kasuj. prefKey=null → sekcja bez włącznika. */
+    private fun sectionDialog(title: String, desc: String, prefKey: String?, on: Boolean,
+                              path: String, key: String, clearPath: String) {
+        val opts = ArrayList<String>()
+        if (prefKey != null) opts.add(if (on) "⏸  Wyłącz naukę tej sekcji" else "▶️  Włącz naukę tej sekcji")
+        opts.add("📋  Skopiuj do schowka")
+        opts.add("🗑  Skasuj (zacznij od zera)")
+        val toggleShift = if (prefKey != null) 1 else 0
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(desc)
+            .setItems(opts.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> if (prefKey != null) {
+                        Brain.prefs(this).edit().putBoolean(prefKey, !on).apply()
+                        speak(if (!on) "Nauka tej sekcji włączona." else "Nauka tej sekcji wyłączona. Korzystam z tego, co już umiem, ale nowego nie zapisuję.")
+                    } else copySection(title, path, key)
+                    toggleShift -> copySection(title, path, key)
+                    toggleShift + 1 -> {
                         AlertDialog.Builder(this)
-                            .setTitle("Skasować nauczone dane?")
-                            .setMessage("Usunie dziennik nauki i przepisy dróg. Pamięć faktów (to, co kazałeś zapamiętać) zostaje — kasujesz ją osobno, mówiąc: zapomnij wszystko.")
+                            .setTitle("Skasować: $title?")
+                            .setMessage("Ta sekcja wróci do zera. Pozostałe sekcje zostają nietknięte.")
                             .setPositiveButton("Kasuj") { _, _ ->
                                 Thread {
-                                    val ok = Brain.clearLearnedData(this)
-                                    runOnUiThread { speak(if (ok) "Skasowane. Zaczynam naukę od zera." else "Nie udało się skasować. Sprawdź połączenie z serwerem.") }
+                                    val ok = Brain.clearSection(this, clearPath)
+                                    runOnUiThread { speak(if (ok) "Skasowane. Ta sekcja zaczyna od zera." else "Nie udało się skasować. Sprawdź połączenie z serwerem.") }
                                 }.start()
                             }
                             .setNegativeButton("Anuluj", null).show()
                     }
                 }
             }
-            .setNegativeButton("Zamknij", null).show()
+            .setNegativeButton("Wróć", null).show()
+    }
+
+    private fun copySection(title: String, path: String, key: String) {
+        setStatus("📋 Pobieram…")
+        Thread {
+            val data = Brain.fetchSection(this, path, key)
+            runOnUiThread {
+                if (data.isBlank()) speak("Ta sekcja jest pusta albo serwer jej jeszcze nie zna. Zaktualizuj serwer w Replicie.")
+                else copyToClipboard("Gadacz — $title", data)
+            }
+        }.start()
+    }
+
+    private fun copyToClipboard(label: String, data: String) {
+        try {
+            val cb = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cb.setPrimaryClip(android.content.ClipData.newPlainText(label, data))
+            speak("Skopiowane do schowka. Wklej, gdzie chcesz.")
+        } catch (_: Exception) { speak("Nie udało się skopiować.") }
     }
 
     private fun speak(text: String) { setStatus("🔊 $text"); tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "g") }
