@@ -248,7 +248,7 @@ DZIAŁAJ SZYBKO I MĄDRZE (kluczowe):
 - Możesz przełączać aplikacje: "open_app" {"name":"..."} otwiera inną aplikację, "recents" pokazuje ostatnie, "home" ekran główny. Używaj tego, żeby przejść między aplikacjami w trakcie zadania.
 - Bądź zwięzły: w "say" podczas kroków tylko 2-4 słowa (np. „Otwieram Messenger", „Przewijam", „Wpisuję tekst"). Pełne wyjaśnienie tylko na końcu.
 - Wybieraj NAJKRÓTSZĄ drogę do celu — minimum kroków. Nie klikaj rzeczy niepotrzebnych.
-- Masz do 14 kroków. Jeśli po kilku próbach coś nie działa, ustaw "next":false i krótko powiedz, gdzie utknąłeś.
+- WYTRWAŁOŚĆ (kluczowa): przy zadaniach ekranowych DOMYŚLNIE kontynuuj ("next":true), dopóki cel nie jest POTWIERDZONY na ekranie. Nie kończ „bo chyba się udało" — sprawdź na EKRANIE. Jeden nieudany krok to NIE koniec zadania: spróbuj innego napisu, przewiń, zmień drogę. Masz do 20 kroków. Dopiero gdy 3-4 różne próby zawiodą, ustaw "next":false i powiedz dokładnie, gdzie utknąłeś i co widzisz.
 
 Zasady "say" — POPRAWNY, NATURALNY POLSKI (ważne, bo to czyta osoba niewidoma):
 - Mów jak życzliwy, spokojny człowiek — ciepło i prosto, nie jak robot. Krótkie, płynne zdania.
@@ -350,11 +350,16 @@ router.post("/ask", async (req: Request, res: Response) => {
       { role: "user", content },
     ];
 
+    // 🧠 Dwa biegi mózgu: zwykła rozmowa jedzie na szybkim/tanim Haiku, ale praca NA
+    // EKRANIE (wielokrokowe prowadzenie telefonu) dostaje mądrzejszego Sonneta — to on
+    // decyduje, w co kliknąć i kiedy zadanie NAPRAWDĘ jest skończone. Tu była słabość
+    // „robi krótko i nie kończy”.
+    const isScreenWork = q.includes("EKRAN") || q.includes("PLAN ZADANIA");
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: isScreenWork ? "claude-sonnet-5" : "claude-haiku-4-5-20251001",
         max_tokens: 700,
         system: SYSTEM
           .replace("{CLIENT_TIME}", String(clientTime).slice(0, 100) || "nieznany")

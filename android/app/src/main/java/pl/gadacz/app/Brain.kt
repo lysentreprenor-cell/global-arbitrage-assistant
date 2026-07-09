@@ -25,6 +25,43 @@ object Brain {
         .callTimeout(70, TimeUnit.SECONDS).readTimeout(70, TimeUnit.SECONDS).build()
 
     fun prefs(ctx: Context) = ctx.getSharedPreferences("gadacz", Context.MODE_PRIVATE)
+
+    /**
+     * 🎙️ Głos Gadacza. Telefon ma zwykle KILKA polskich głosów (Google TTS) — domyślny
+     * bywa drewniany jak stara Ivona. Wybieramy KOBIECY, SIECIOWY (najładniejszy):
+     * u Google'a polski głos „oda" jest kobiecy, a wersje "network" brzmią jak człowiek.
+     * Użytkownik może przełączać głosy komendą „zmień głos" — wybór zapamiętujemy.
+     */
+    fun applyVoice(ctx: Context, tts: android.speech.tts.TextToSpeech) {
+        try {
+            tts.language = java.util.Locale("pl", "PL")
+            val pl = tts.voices?.filter { it.locale.language == "pl" }?.sortedBy { it.name } ?: return
+            if (pl.isEmpty()) return
+            val saved = prefs(ctx).getString("voice_name", "") ?: ""
+            val v = pl.firstOrNull { it.name == saved }
+                ?: pl.firstOrNull { it.name.contains("oda") && it.name.contains("network") }
+                ?: pl.firstOrNull { it.name.contains("oda") }
+                ?: pl.firstOrNull { it.name.contains("network") }
+                ?: pl.first()
+            tts.voice = v
+            tts.setPitch(1.03f)        // odrobinę wyżej — cieplej, mniej maszynowo
+            tts.setSpeechRate(1.0f)
+        } catch (_: Exception) { /* zostaje domyślny */ }
+    }
+
+    /** Przełącz na następny polski głos i zapamiętaj. Zwraca zdanie do wypowiedzenia NOWYM głosem. */
+    fun nextVoice(ctx: Context, tts: android.speech.tts.TextToSpeech): String {
+        return try {
+            val pl = tts.voices?.filter { it.locale.language == "pl" }?.sortedBy { it.name } ?: emptyList()
+            if (pl.size < 2) return "Ten telefon ma tylko jeden polski głos. Doinstaluj głosy w ustawieniach syntezatora Google."
+            val cur = tts.voice?.name ?: ""
+            val idx = pl.indexOfFirst { it.name == cur }
+            val nxt = pl[(idx + 1 + pl.size) % pl.size]
+            prefs(ctx).edit().putString("voice_name", nxt.name).apply()
+            tts.voice = nxt
+            "Mówię teraz tym głosem. Podoba się? Jak nie, powiedz jeszcze raz: zmień głos."
+        } catch (_: Exception) { "Nie udało się zmienić głosu." }
+    }
     fun serverUrl(ctx: Context) = prefs(ctx).getString("server_url", "") ?: ""
     fun anthropicKey(ctx: Context) = prefs(ctx).getString("anthropic_key", "") ?: ""
     fun pin(ctx: Context) = prefs(ctx).getString("app_pin", "") ?: ""
@@ -65,11 +102,18 @@ object Brain {
         // Trzymamy go i doklejamy do każdego kolejnego pytania, żeby AI nie gubiło drogi
         // w połowie — proste zadania planu nie mają i kończą się jednym strzałem.
         var plan = ""
+        // Porażka kroku (nie znalazł przycisku, pole nie przyjęło tekstu) MUSI wrócić
+        // do AI — inaczej AI nie wie, że krok nie wyszedł, błądzi i porzuca zadanie.
+        var lastError = ""
         while (step < if (plan.isBlank()) 14 else 20) {
             val screen = GadaczAccessibilityService.instance?.readScreen()
-            val question = if (plan.isBlank()) goal
-                else "$goal\n\nPLAN ZADANIA (trzymaj się go): $plan\nWykonano już kroków: $step. Sprawdź na EKRANIE, który etap jest zrobiony, i wykonaj następny."
+            val question = buildString {
+                append(goal)
+                if (plan.isNotBlank()) append("\n\nPLAN ZADANIA (trzymaj się go): $plan\nWykonano już kroków: $step. Sprawdź na EKRANIE, który etap jest zrobiony, i wykonaj następny.")
+                if (lastError.isNotBlank()) append("\n\nUWAGA: poprzedni krok NIE WYSZEDŁ: $lastError Spróbuj INACZEJ — inny dokładny napis z EKRANU, scroll żeby odsłonić element, paste zamiast type, albo inna droga do celu. Nie przerywaj zadania.")
+            }
             val resp = try { ask(ctx, question, history, screen) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
+            lastError = ""
             val say = resp.optString("say", "")
             val action = resp.optString("action", "none")
             val args = resp.optJSONObject("args") ?: JSONObject()
@@ -80,6 +124,10 @@ object Brain {
             // Speak intermediate steps only briefly (keep it snappy); full result spoken at the end.
             if (say.isNotBlank() && next) speak(say)
             val spoken = execute(ctx, action, args, say) { s -> speak(s) }
+            // Rozpoznaj porażkę kroku po komunikacie — poleci do AI w następnym pytaniu.
+            if (spoken.startsWith("Nie znalazłem") || spoken.startsWith("Nie ma pola") ||
+                spoken.startsWith("Nie udało") || spoken.startsWith("To pole nie") ||
+                spoken.startsWith("Nie mam czego")) lastError = spoken
             // Akcje JEDNORAZOWE robią się w całości za jednym razem (budzik, minutnik,
             // telefon, SMS, latarka, głośność, SOS, otwarcie ustawień, pytania...). Po nich
             // KOŃCZYMY — nawet gdy AI błędnie poprosi o kolejny krok — inaczej budzik

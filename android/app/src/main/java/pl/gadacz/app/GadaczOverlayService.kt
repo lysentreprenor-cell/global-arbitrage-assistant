@@ -70,7 +70,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            tts.language = Locale("pl", "PL")
+            Brain.applyVoice(this, tts)   // kobiecy, sieciowy głos zamiast „starej Ivony"
             // Wiemy, KIEDY Gadacz skończył mówić — wtedy (w trybie rozmowy) sam
             // otwieramy mikrofon na odpowiedź użytkownika.
             tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
@@ -258,6 +258,12 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         if (Regex("^(koniec|dość|dosyć|dziękuję|dzięki|nic|to wszystko|stop|cicho|do widzenia|na razie|dobranoc)$").matches(bye)) {
             speak("Dobrze, jestem w pobliżu.")
             if (wakeMode) restartWake(1500)
+            return
+        }
+        // „Zmień głos" załatwiamy na miejscu — bez serwera (musi mówić NOWYM głosem).
+        if (Regex("^(zmień|zmien) (głos|glos)( .*)?$").matches(bye) || bye == "inny głos" || bye == "inny glos") {
+            speak(Brain.nextVoice(this, tts))
+            convPending = true
             return
         }
         setBubble("🧠")

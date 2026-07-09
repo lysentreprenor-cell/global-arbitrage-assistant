@@ -116,7 +116,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             setOnClickListener { onClick() }
         }
 
-    override fun onInit(code: Int) { if (code == TextToSpeech.SUCCESS) tts.language = Locale("pl", "PL") }
+    override fun onInit(code: Int) { if (code == TextToSpeech.SUCCESS) Brain.applyVoice(this, tts) }
 
     private fun onTalk() {
         if (tts.isSpeaking) { tts.stop(); setStatus("Gotowy"); return }
