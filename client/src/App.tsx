@@ -36,6 +36,13 @@ function RedirectToResell() {
   return null;
 }
 
+// Transport usunięty na życzenie użytkownika — stary adres prowadzi do Gadacza.
+function RedirectToGadacz() {
+  const [, setLocation] = useLocation();
+  useEffect(() => { setLocation("/resell/assistant"); }, []);
+  return null;
+}
+
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null };
   static getDerivedStateFromError(e: Error) { return { error: e.message }; }
@@ -84,6 +91,7 @@ export default function App() {
         <Route path="/resell/agent" component={AgentPage} />
         <Route path="/resell/trading-bot" component={TradingBot} />
         <Route path="/resell/assistant" component={AssistantPage} />
+        <Route path="/resell/transport" component={RedirectToGadacz} />
       </Switch>
       <Toaster />
     </QueryClientProvider>
