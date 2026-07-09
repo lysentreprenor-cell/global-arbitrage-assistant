@@ -81,6 +81,49 @@ router.post("/log/last-outcome", (req, res) => {
   res.json({ ok: true });
 });
 
+// ── 🧭 Silnik przepisów — Gadacz uczy się OBSŁUGI TELEFONU przez powtarzanie.
+// Gdy zadanie wielokrokowe SIĘ UDA, telefon przysyła całą drogę (kroki, które
+// zadziałały). Przy podobnym zadaniu wstrzykujemy przepis do promptu jako mapę —
+// AI nie odkrywa drogi od zera, tylko idzie sprawdzonym śladem, patrząc na ekran.
+const RECIPES_FILE = path.resolve(process.cwd(), "data", "gadacz_recipes.json");
+type Recipe = { goal: string; steps: string[]; uses: number; t: string };
+function loadRecipes(): Recipe[] { try { return JSON.parse(fs.readFileSync(RECIPES_FILE, "utf8")); } catch { return []; } }
+function saveRecipes(r: Recipe[]) { try { fs.mkdirSync(path.dirname(RECIPES_FILE), { recursive: true }); fs.writeFileSync(RECIPES_FILE, JSON.stringify(r.slice(-120))); } catch {} }
+function goalWords(s: string): Set<string> {
+  const map: Record<string, string> = { ą: "a", ć: "c", ę: "e", ł: "l", ń: "n", ó: "o", ś: "s", ź: "z", ż: "z" };
+  const n = s.toLowerCase().replace(/[ąćęłńóśźż]/g, ch => map[ch] ?? ch);
+  return new Set(n.split(/[^a-z0-9]+/).filter(w => w.length > 2));
+}
+function goalSimilarity(a: string, b: string): number {
+  const A = goalWords(a), B = goalWords(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0; for (const w of A) if (B.has(w)) inter++;
+  return inter / (A.size + B.size - inter); // Jaccard
+}
+// POST /api/assistant/recipe {goal, steps[]} — telefon melduje UDANĄ drogę
+router.post("/recipe", (req, res) => {
+  const goal = String(req.body?.goal ?? "").trim().slice(0, 200);
+  const steps = Array.isArray(req.body?.steps) ? req.body.steps.map((s: any) => String(s).slice(0, 120)).slice(0, 24) : [];
+  if (!goal || steps.length < 2) return res.status(400).json({ error: "Za mało danych" });
+  const all = loadRecipes();
+  const twin = all.find(r => goalSimilarity(r.goal, goal) >= 0.7);
+  if (twin) { twin.steps = steps; twin.uses++; twin.t = new Date().toISOString(); } // świeższa droga wygrywa
+  else all.push({ goal, steps, uses: 1, t: new Date().toISOString() });
+  saveRecipes(all);
+  res.json({ ok: true, recipes: all.length });
+});
+router.get("/recipes", (_req, res) => res.json({ recipes: loadRecipes() }));
+router.post("/recipes/clear", (_req, res) => { saveRecipes([]); res.json({ ok: true }); });
+// Najlepszy przepis dla celu (podobieństwo słów; przy remisie częściej używany).
+function bestRecipe(goal: string): Recipe | null {
+  let best: Recipe | null = null; let bestScore = 0;
+  for (const r of loadRecipes()) {
+    const s = goalSimilarity(r.goal, goal) + Math.min(0.1, r.uses * 0.01);
+    if (s > bestScore) { bestScore = s; best = r; }
+  }
+  return bestScore >= 0.45 ? best : null;
+}
+
 // GET  /api/assistant/memory        → { memory: string[] }
 router.get("/memory", (_req, res) => res.json({ memory: loadMemory() }));
 // POST /api/assistant/memory {fact} → append
@@ -342,7 +385,18 @@ router.post("/ask", async (req: Request, res: Response) => {
       }
     }
 
-    content.push({ type: "text", text: q.slice(0, 4000) });
+    // 🧭 Zadanie ekranowe? Dołącz sprawdzony przepis z poprzednich udanych prób.
+    let qFinal = q;
+    const cmdMatch = q.match(/Polecenie:\s*([\s\S]*?)(?:\n\nPLAN ZADANIA|\n\nUWAGA:|$)/);
+    if (cmdMatch) {
+      const r = bestRecipe(cmdMatch[1].trim());
+      if (r) {
+        qFinal += `\n\n🧭 SPRAWDZONY PRZEPIS — podobne zadanie („${r.goal}”) udało się już ${r.uses} raz(y) tą drogą:\n` +
+          r.steps.map((s, i) => `${i + 1}. ${s}`).join("\n") +
+          `\nUżyj go jako MAPY: idź tą drogą, ale każdy krok sprawdzaj na EKRANIE i dostosuj napisy do tego, co naprawdę widzisz.`;
+      }
+    }
+    content.push({ type: "text", text: qFinal.slice(0, 5000) });
 
     const messages = [
       ...(Array.isArray(history) ? history : []).slice(-12).map((m: any) => ({

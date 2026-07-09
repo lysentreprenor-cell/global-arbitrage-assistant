@@ -111,6 +111,9 @@ object Brain {
         // do AI — inaczej AI nie wie, że krok nie wyszedł, błądzi i porzuca zadanie.
         var lastError = ""
         cancelRequested = false
+        // 🧭 Silnik nauki obsługi telefonu: zbieramy kroki, które ZADZIAŁAŁY.
+        // Udane zadanie → przepis leci na serwer → następnym razem AI dostaje mapę.
+        val steps = ArrayList<String>()
         while (step < if (plan.isBlank()) 14 else 20) {
             if (cancelRequested) { cancelRequested = false; speak("Dobrze, przerywam zadanie."); return }
             val svcNow = GadaczAccessibilityService.instance
@@ -138,6 +141,11 @@ object Brain {
             if (spoken.startsWith("Nie znalazłem") || spoken.startsWith("Nie ma pola") ||
                 spoken.startsWith("Nie udało") || spoken.startsWith("To pole nie") ||
                 spoken.startsWith("Nie mam czego")) lastError = spoken
+            // Udany krok wchodzi do przepisu (z najważniejszym argumentem).
+            if (lastError.isBlank() && action != "none") {
+                val arg = args.optString("text", args.optString("name", args.optString("dir", "")))
+                steps.add(if (arg.isBlank()) action else "$action: $arg")
+            }
             // Akcje JEDNORAZOWE robią się w całości za jednym razem (budzik, minutnik,
             // telefon, SMS, latarka, głośność, SOS, otwarcie ustawień, pytania...). Po nich
             // KOŃCZYMY — nawet gdy AI błędnie poprosi o kolejny krok — inaczej budzik
@@ -149,7 +157,15 @@ object Brain {
                 "maps", "search", "open", "youtube", "navigate",
                 "remember", "recall", "forget_all"
             )
-            if (!next || terminal) { if (spoken.isNotBlank()) speak(spoken); return }
+            if (!next || terminal) {
+                if (spoken.isNotBlank()) speak(spoken)
+                // 🧭 Wielokrokowe zadanie skończone BEZ porażki → zapamiętaj drogę.
+                val looksFailed = lastError.isNotBlank() ||
+                    Regex("utkn|nie udało|nie mogę|nie znalaz|nie ma pola", RegexOption.IGNORE_CASE)
+                        .containsMatchIn("$say $spoken")
+                if (!looksFailed && steps.size >= 2) saveRecipe(ctx, goal, steps)
+                return
+            }
             // Adaptive settle — wait only as long as each action needs, so it's fast.
             val settle = when (action) {
                 "open_app", "open" -> 1900L
@@ -465,6 +481,19 @@ object Brain {
                 else -> "Nie znam tej funkcji."
             }
         } catch (e: Exception) { "Nie udało się połączyć z serwerem." }
+    }
+
+    /** 🧭 Wyślij UDANĄ drogę zadania na serwer — buduje przepisy obsługi telefonu. */
+    private fun saveRecipe(ctx: Context, goal: String, steps: List<String>) {
+        Thread {
+            try {
+                val body = JSONObject().put("goal", goal).put("steps", JSONArray(steps.toList()))
+                http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/recipe")
+                    .header("x-bot-pin", pin(ctx))
+                    .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                    .execute().close()
+            } catch (_: Exception) { /* nauka jest best-effort */ }
+        }.start()
     }
 
     /**
