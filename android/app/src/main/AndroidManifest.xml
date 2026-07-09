@@ -63,6 +63,22 @@
             </intent-filter>
         </service>
 
+        <!-- ⌨️ Klawiatura Gadacza — pisze w KAŻDEJ aplikacji (klawiaturze żadne pole
+             nie odmówi). Usługa dostępności przełącza się na nią automatycznie, gdy
+             zwykłe wpisywanie zawiedzie, wpisuje tekst i wraca do Twojej klawiatury. -->
+        <service
+            android:name=".GadaczIME"
+            android:exported="true"
+            android:label="Gadacz Klawiatura"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
         <!-- The one door Android opens for screen control — the user enables it
              manually in Settings → Accessibility → Gadacz -->
         <service

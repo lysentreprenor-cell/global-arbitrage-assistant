@@ -189,8 +189,18 @@ object Brain {
             "paste" -> { if (svc?.pasteFocused() != true) { learnFail(ctx); return "Nie udało się wkleić. Dotknij pola, żeby zamigał kursor, i powiedz: wklej." } }
             "type" -> {
                 if (svc?.typeText(args.optString("text")) != true) {
-                    // Pole nie daje się chwycić (aplikacja rysuje ekran po swojemu) —
-                    // plan awaryjny: schowek + instrukcja, zamiast bezradnego „nie da się".
+                    // Droga 2: ⌨️ klawiatura Gadacza — pisze tam, gdzie dostępność nie sięga.
+                    when (svc?.typeViaIme(args.optString("text"))) {
+                        "ok" -> return "Wpisuję przez klawiaturę Gadacza."
+                        "disabled" -> {
+                            try {
+                                ctx.startActivity(Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            } catch (_: Exception) {}
+                            return "To pole wymaga klawiatury Gadacza. Otworzyłem ustawienia — włącz Gadacz Klawiatura, raz na zawsze, i powtórz polecenie."
+                        }
+                    }
+                    // Droga 3: schowek + instrukcja, zamiast bezradnego „nie da się".
                     try {
                         val cb = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         cb.setPrimaryClip(android.content.ClipData.newPlainText("Gadacz", args.optString("text")))

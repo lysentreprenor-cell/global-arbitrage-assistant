@@ -173,6 +173,32 @@ class GadaczAccessibilityService : AccessibilityService() {
         return field.performAction(0x00008000) // ACTION_PASTE
     }
 
+    /**
+     * ⌨️ Ostatnia deska: przełącz na KLAWIATURĘ Gadacza, która wpisze tekst tam,
+     * gdzie dostępność nie sięga (pola rysowane po swojemu — Replit itp.).
+     * Wymaga Androida 11+ i jednorazowego włączenia klawiatury przez użytkownika.
+     * Zwraca: "ok" (przełączono, klawiatura wpisze), "disabled" (nie włączona), "no" (za stary Android/błąd).
+     */
+    fun typeViaIme(text: String): String {
+        if (android.os.Build.VERSION.SDK_INT < 30) return "no"
+        return try {
+            val enabled = android.provider.Settings.Secure.getString(contentResolver, "enabled_input_methods")
+                ?.contains(packageName) == true
+            if (!enabled) return "disabled"
+            val prev = android.provider.Settings.Secure.getString(
+                contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD) ?: ""
+            Brain.prefs(this).edit()
+                .putString("ime_pending", text)
+                .putString("ime_prev", prev).apply()
+            // Pole musi mieć fokus, żeby klawiatura dostała połączenie — kliknij je.
+            val root = rootInActiveWindow
+            val field = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                ?: root?.let { findEditable(it) }
+            field?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (softKeyboardController.switchToInputMethod("$packageName/.GadaczIME")) "ok" else "no"
+        } catch (_: Exception) { "no" }
+    }
+
     /** Enter/wyślij w aktywnym polu — zatwierdza wyszukiwanie, wysyła wiadomość. */
     fun pressEnter(): Boolean {
         val root = rootInActiveWindow ?: return false
