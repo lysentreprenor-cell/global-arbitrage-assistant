@@ -11,8 +11,8 @@ android {
         applicationId "pl.gadacz.app"
         minSdk 26
         targetSdk 34
-        versionCode 38
-        versionName "3.8"
+        versionCode 39
+        versionName "3.9"
     }
 
     // Fixed signing key so EVERY build has the SAME signature — required for
@@ -49,4 +49,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // 🤏 Piętro 6: lokalny mały mózg (MediaPipe LLM) — model wgrywany osobno przez użytkownika
+    implementation 'com.google.mediapipe:tasks-genai:0.10.24'
 }

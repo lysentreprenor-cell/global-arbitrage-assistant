@@ -87,8 +87,8 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             // otwieramy mikrofon na odpowiedź użytkownika.
             tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                 override fun onStart(id: String?) {}
-                override fun onDone(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) maybeContinueConversation() }
-                @Deprecated("api") override fun onError(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) maybeContinueConversation() }
+                override fun onDone(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); maybeContinueConversation() } }
+                @Deprecated("api") override fun onError(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); maybeContinueConversation() } }
             })
         }
     }
@@ -332,11 +332,37 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         }.start()
     }
 
+    // 🔉 PRZYCISZANIE: gdy Gadacz mówi, muzyka/film (YouTube, Spotify) cichnie samo
+    // (audio focus z opcją "duck"), a po ostatnim zdaniu wraca do pełnej głośności.
+    private var focusReq: android.media.AudioFocusRequest? = null
+    private fun duckStart() {
+        try {
+            val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+            if (Build.VERSION.SDK_INT >= 26) {
+                if (focusReq == null) focusReq = android.media.AudioFocusRequest
+                    .Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANT).build())
+                    .build()
+                am.requestAudioFocus(focusReq!!)
+            } else @Suppress("DEPRECATION") am.requestAudioFocus(
+                null, android.media.AudioManager.STREAM_MUSIC,
+                android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        } catch (_: Exception) {}
+    }
+    private fun duckStop() {
+        try {
+            val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+            if (Build.VERSION.SDK_INT >= 26) focusReq?.let { am.abandonAudioFocusRequest(it) }
+            else @Suppress("DEPRECATION") am.abandonAudioFocus(null)
+        } catch (_: Exception) {}
+    }
+
     // QUEUE_ADD so step announcements ("Otwieram…", "Wpisuję…") play in sequence
     // instead of cutting each other off. handle() flushes once at the start.
     // Unikalne id + licznik: wiemy, kiedy OSTATNIE zdanie wybrzmiało → tryb rozmowy.
     private fun speak(text: String) {
-        pendingSpeech.incrementAndGet()
+        if (pendingSpeech.incrementAndGet() == 1) duckStart()
         tts.speak(text, TextToSpeech.QUEUE_ADD, null, "g${uttSeq++}")
     }
     private fun setBubble(emoji: String) { bubble?.post { bubble?.text = emoji } }

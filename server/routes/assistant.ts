@@ -58,7 +58,7 @@ function saveMemory(list: string[]) {
       const cur = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8"));
       if (Array.isArray(cur) && cur.length > 0) fs.writeFileSync(MEMORY_FILE + ".bak", JSON.stringify(cur));
     } catch { /* brak/zepsuty — nie ma czego odkładać */ }
-    fs.writeFileSync(MEMORY_FILE, JSON.stringify(list.slice(-200)));
+    fs.writeFileSync(MEMORY_FILE, JSON.stringify(list.slice(-1000)));
   } catch { /* ignore */ }
 }
 
@@ -176,7 +176,7 @@ router.post("/memory/bulk", (req, res) => {
     if (!m.some(x => x.toLowerCase() === fact.toLowerCase())) { m.push(fact); added++; }
   }
   saveMemory(m);
-  res.json({ ok: true, added, total: Math.min(m.length, 200) });
+  res.json({ ok: true, added, total: Math.min(m.length, 1000) });
 });
 // POST /api/assistant/memory/delete {index} → remove one
 router.post("/memory/delete", (req, res) => {
@@ -428,11 +428,23 @@ Aktualny czas lokalny użytkownika: {CLIENT_TIME}. Korzystaj z niego przy pytani
 router.post("/ask", async (req: Request, res: Response) => {
   try {
     const { anthropicKey, question, history = [], imageBase64, mediaType = "image/jpeg", clientTime = "" } = req.body ?? {};
-    // Memory lives on the server — read it here so it's the single source of truth.
+    // 🧠 PAMIĘĆ WYBIÓRCZA: magazyn trzyma do 1000 faktów, ale do AI lecą tylko fakty
+    // TRAFNE dla obecnego polecenia (dopasowanie po słowach) + garść najnowszych.
+    // Dzięki temu pamięć może rosnąć bez wzrostu kosztów i bez rozmywania uwagi AI.
     const memory = loadMemory();
-    const memText = memory.length
-      ? memory.slice(-40).map((m, i) => `${i + 1}. ${String(m).slice(0, 200)}`).join("\n")
-      : "(pamięć pusta — nic jeszcze nie zapamiętano)";
+    let memText = "(pamięć pusta — nic jeszcze nie zapamiętano)";
+    if (memory.length) {
+      const qWords = goalWords(String(question ?? ""));
+      const scored = memory.map((m, i) => {
+        let s = 0; for (const w of goalWords(String(m))) if (qWords.has(w)) s++;
+        return { m, i, s };
+      });
+      const relevant = scored.filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 25);
+      const recent = scored.slice(-10);
+      const chosen = [...new Map([...relevant, ...recent].map(x => [x.i, x])).values()]
+        .sort((a, b) => a.i - b.i);
+      memText = chosen.map((x, k) => `${k + 1}. ${String(x.m).slice(0, 200)}`).join("\n");
+    }
 
     // 🧠 Learn from the journal: feed recent successful command→action patterns (and a
     // few failures) so the AI few-shot-adapts to how THIS user speaks. This is the

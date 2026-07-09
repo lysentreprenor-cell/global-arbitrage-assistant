@@ -556,7 +556,12 @@ object Brain {
                 if (plan.isNotBlank()) append("\n\nPLAN ZADANIA (trzymaj się go): $plan\nWykonano już kroków: $step. Sprawdź na EKRANIE, który etap jest zrobiony, i wykonaj następny.")
                 if (lastError.isNotBlank()) append("\n\nUWAGA: poprzedni krok NIE WYSZEDŁ: $lastError Spróbuj INACZEJ — inny dokładny napis z EKRANU, scroll żeby odsłonić element, paste zamiast type, albo inna droga do celu. Nie przerywaj zadania.")
             }
-            val resp = try { ask(ctx, question, history, screen, shot) } catch (e: Exception) { speak("Błąd połączenia z serwerem."); return }
+            val resp = try { ask(ctx, question, history, screen, shot) } catch (e: Exception) {
+                // 🤏 Piętro 6: serwer/sieć padły → próbuje lokalny mały mózg (offline).
+                val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+                speak(local ?: "Błąd połączenia z serwerem.")
+                return
+            }
             lastError = ""
             val say = resp.optString("say", "")
             val action = resp.optString("action", "none")
