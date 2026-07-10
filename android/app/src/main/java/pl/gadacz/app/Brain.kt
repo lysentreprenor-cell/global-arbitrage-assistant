@@ -269,6 +269,17 @@ object Brain {
                 }
             }
         }
+        // 👥 Piętro 9: OPIEKUN — długi brak aktywności → propozycja powiadomienia bliskiej osoby.
+        // (Każde użycie Gadacza odświeża znacznik; tu tylko sprawdzamy ciszę.)
+        try {
+            val last = p.getLong("last_active", System.currentTimeMillis())
+            val sos = p.getString("sos_number", "") ?: ""
+            val quietH = (System.currentTimeMillis() - last) / 3_600_000
+            if (sos.length >= 7 && quietH >= 24 && !p.getBoolean("guardian_warned", false)) {
+                p.edit().putBoolean("guardian_warned", true).apply()
+                out.add("Nie korzystałeś ze mnie od doby. Powiedz »wszystko dobrze«, albo powiem »napisz do opiekuna«, żebym wysłał wiadomość, że u Ciebie cisza.")
+            }
+        } catch (_: Exception) {}
         // Czujnik baterii — ostrzeż raz przy każdym zejściu poniżej progu.
         if (p.getBoolean("rule_battery", true)) {
             try {
@@ -303,6 +314,10 @@ object Brain {
     fun reflex(ctx: Context, raw: String, speak: (String) -> Unit): Boolean {
         val n0 = normPl(raw)
         if (n0.isBlank()) return false
+        // 👥 Opiekun: każde polecenie = znak życia; kasuje ostrzeżenie o ciszy.
+        prefs(ctx).edit().putLong("last_active", System.currentTimeMillis()).putBoolean("guardian_warned", false).apply()
+        if (n0 == "wszystko dobrze" || n0 == "wszystko w porzadku" || n0 == "zyje") { speak("Cieszę się. Jestem w pobliżu."); return true }
+        if (n0 == "napisz do opiekuna" || n0 == "powiadom opiekuna") { speak(sos(ctx)); return true }
         if (reflexCore(ctx, n0, raw, speak)) return true
         val n1 = stripFillers(n0)          // 🤏 druga próba: bez wypełniaczy
         return n1 != n0 && n1.isNotBlank() && reflexCore(ctx, n1, raw, speak)
@@ -314,6 +329,24 @@ object Brain {
 
         // 🚨 SOS — najważniejszy odruch: zero zwłoki, działa bez internetu.
         if (Regex("\\b(sos|pomocy|ratunku|wezwij pomoc)\\b").containsMatchIn(n)) return done(sos(ctx))
+
+        // 👁️ Piętro 11: OCZY NA ŚWIAT — aparat opisuje otoczenie / czyta tekst.
+        if (Regex("^(co (jest )?przede mna|co widzisz przede|opisz (co widzisz|otoczenie|obraz)|co to jest|co mam przed soba|rozejrzyj sie)$").matches(n)) {
+            ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "describe").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+        }
+        if (Regex("^przeczytaj (to|kartke|ulotke|tekst|co tu pisze|z kartki)$").matches(n) || n == "przeczytaj z aparatu") {
+            ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "read").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+        }
+
+        // 📋 Piętro 16: PORANNY RAPORT — jedno polecenie, pełny obraz dnia.
+        if (Regex("^(poranny raport|raport dnia|co (mnie )?dzis czeka|streszcz dzien|co nowego|podsumuj dzien)$").matches(n)) {
+            Thread { morningReport(ctx, speak) }.start(); return true
+        }
+
+        // 🎓 Piętro 18: NAUCZYCIEL — Gadacz tłumaczy krok po kroku (flaga do promptu).
+        if (Regex("^(naucz mnie|wytlumacz mi jak|pokaz mi jak|jak sie robi|jak obslugiwac) .+").containsMatchIn(n)) {
+            prefs(ctx).edit().putBoolean("teach_mode", true).apply()   // zdejmowane po odpowiedzi w ask()
+        }
 
         // 🛡️ Potwierdzenie groźnego przycisku wstrzymanego przez strażnika
         if (n == "potwierdzam" || n == "potwierdz" || n == "tak potwierdzam") {
@@ -345,6 +378,18 @@ object Brain {
         if (n == "nie mow o baterii") { prefs(ctx).edit().putBoolean("rule_battery", false).apply(); return done("Dobrze, nie będę mówił o baterii.") }
         if (Regex("^mow( mi)? gdy bateria( bedzie)? slaba$").matches(n)) { prefs(ctx).edit().putBoolean("rule_battery", true).apply(); return done("Będę ostrzegał przy słabej baterii.") }
 
+        // 🔧 Piętro 19: samonaprawa — Gadacz mówi, w czym się najczęściej myli.
+        if (Regex("^(gdzie sie mylisz|co poprawic|sprawdz sie|jak ci idzie|w czym sie mylisz)$").matches(n)) {
+            Thread {
+                try {
+                    val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/selfcheck")
+                        .header("x-bot-pin", pin(ctx)).build()).execute().use { JSONObject(it.body?.string() ?: "{}") }
+                    speak(r.optString("say", "Nie mogę się teraz sprawdzić."))
+                } catch (_: Exception) { speak("Nie mogę połączyć się z serwerem.") }
+            }.start()
+            return true
+        }
+
         // 🔮 Piętro 8: podpowiedź z Twojego rytmu dnia
         if (Regex("^(co teraz|zaproponuj cos|co zwykle robie( o tej porze)?|co o tej porze)$").matches(n)) {
             Thread {
@@ -359,6 +404,14 @@ object Brain {
             }.start()
             return true
         }
+
+        // 🚪 GNIAZDA na piętra przyszłości (sprzęt/rozbudowa) — uczciwa odpowiedź zamiast ciszy.
+        if (Regex("^(sterowanie domem|wlacz swiatlo w|zgas swiatlo w|inteligentny dom)").containsMatchIn(n))
+            return done("Sterowanie domem to piętro, które zbudujemy, gdy podłączysz inteligentne urządzenia. Na razie tego nie mam.")
+        if (Regex("^(zadzwon i (umow|zapytaj)|odbierz za mnie|porozmawiaj przez telefon)").containsMatchIn(n))
+            return done("Rozmawianie przez telefon za Ciebie to piętro na przyszłość — telefon na to jeszcze nie pozwala. Mogę wybrać numer, resztę powiedz sam.")
+        if (Regex("^(jak (bije |mam )?serce|jaki mam puls|jak spalem|zmierz puls)").containsMatchIn(n))
+            return done("Zdrowie odczytam, gdy sparujesz opaskę albo zegarek. To piętro czeka na sprzęt.")
 
         // Sprzęt: latarka, głośność, panele
         if (n.contains("latark")) return done(flashlight(ctx, !Regex("zgas|wylacz").containsMatchIn(n)))
@@ -502,9 +555,13 @@ object Brain {
         history.takeLast(12).forEach { (role, content) ->
             msgs.put(JSONObject().put("role", role).put("content", content))
         }
+        // 🎓 Tryb nauczyciela: jednorazowy znacznik doklejany do pytania.
+        val teach = prefs(ctx).getBoolean("teach_mode", false)
+        if (teach) prefs(ctx).edit().putBoolean("teach_mode", false).apply()
         val body = JSONObject().apply {
             put("anthropicKey", anthropicKey(ctx))
-            put("question", if (screenDump != null) "EKRAN: $screenDump\n\nPolecenie: $question" else question)
+            put("question", (if (teach) "[NAUCZ] " else "") +
+                if (screenDump != null) "EKRAN: $screenDump\n\nPolecenie: $question" else question)
             put("history", msgs)
             put("clientTime", SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale("pl", "PL")).format(Date()))
             put("learn", learnJournalOn(ctx))   // 🧠 serwer nie zapisuje dziennika, gdy ta sekcja wyłączona
@@ -636,6 +693,8 @@ object Brain {
             "open" -> web(ctx, args.optString("url"))
             "open_app" -> openApp(ctx, args.optString("name"))?.let { learnFail(ctx); return it }
             "read_screen" -> { readScreenAsync(ctx, speak); return "" }
+            "look" -> { ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "describe").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return "" }
+            "read_world" -> { ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "read").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return "" }
             "tap" -> {
                 val label = args.optString("text")
                 // 🛡️ Strażnik: płatności/usuwanie tylko po Twoim „potwierdzam".
@@ -927,6 +986,38 @@ object Brain {
                 else -> "Nie znam tej funkcji."
             }
         } catch (e: Exception) { "Nie udało się połączyć z serwerem." }
+    }
+
+    /** 📋 Piętro 16: poranny raport — bateria, sieć, pogoda, bot, przypomnienia dnia. */
+    private fun morningReport(ctx: Context, speak: (String) -> Unit) {
+        val sb = StringBuilder()
+        val cal = java.util.Calendar.getInstance()
+        val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        sb.append(if (h < 12) "Dzień dobry. " else if (h < 18) "Dzień dobry. " else "Dobry wieczór. ")
+        sb.append("Dziś ").append(SimpleDateFormat("EEEE, d MMMM", Locale("pl", "PL")).format(Date())).append(". ")
+        try {
+            val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+            sb.append("Bateria ").append(bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)).append(" procent. ")
+        } catch (_: Exception) {}
+        // przypomnienia na dziś
+        try {
+            val r = loadRules(ctx)
+            val today = (0 until r.length()).mapNotNull { r.optJSONObject(it) }
+                .filter { it.optString("type") == "time" }
+                .joinToString(", ") { "${it.optString("text")} o ${"%02d".format(it.optInt("h"))}:${"%02d".format(it.optInt("m"))}" }
+            if (today.isNotBlank()) sb.append("Przypomnienia: ").append(today).append(". ")
+        } catch (_: Exception) {}
+        speak(sb.toString())
+        // pogoda + bot z serwera (jeśli jest sieć)
+        try {
+            val base = serverUrl(ctx).trimEnd('/')
+            fun get(p: String) = http.newCall(Request.Builder().url(base + p).header("x-bot-pin", pin(ctx)).build())
+                .execute().use { JSONObject(it.body?.string() ?: "{}") }
+            get("/api/assistant/info?do=weather").optString("say", "").ifBlank { null }?.let { speak(it) }
+            val s = get("/api/bot/status")
+            if (s.has("sessionPnl")) speak("Bot: ${"%.2f".format(s.optDouble("sessionPnl", 0.0))} dolara w tej sesji.")
+        } catch (_: Exception) {}
+        speak("Powiedz, co zrobić.")
     }
 
     /** 🧭 Wyślij UDANĄ drogę zadania na serwer — buduje przepisy obsługi telefonu. */

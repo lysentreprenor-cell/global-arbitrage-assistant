@@ -123,6 +123,20 @@ router.post("/recipe", (req, res) => {
   res.json({ ok: true, recipes: all.length });
 });
 router.get("/recipes", (_req, res) => res.json({ recipes: loadRecipes() }));
+// 🔧 PIĘTRO 19 — SAMONAPRAWA: Gadacz analizuje własne porażki z dziennika i wskazuje,
+// które przepisy/komendy najczęściej zawodzą — żeby wiedzieć, co poprawić.
+router.get("/selfcheck", (_req, res) => {
+  const jr = loadLearn();
+  const bad = new Map<string, number>();
+  for (const e of jr) if (e.ok === false) { const k = String(e.q ?? "").toLowerCase().trim(); if (k) bad.set(k, (bad.get(k) ?? 0) + 1); }
+  const worst = [...bad.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  // przepisy używane rzadko / stare — kandydaci do odświeżenia
+  const recipes = loadRecipes();
+  const say = worst.length
+    ? `Najczęściej mylę się przy: ${worst.map(([q, n]) => `„${q}" (${n} razy)`).join(", ")}. Warto mnie tu doszkolić — powtórz te polecenia albo popraw mnie słowem „źle".`
+    : "Nie widzę powtarzających się błędów. Radzę sobie dobrze.";
+  res.json({ say, worst: worst.map(([q, n]) => ({ q, n })), recipes: recipes.length });
+});
 // GET /api/assistant/recipe/match?goal=... — 🧭 AUTOPILOT: telefon pyta, czy zna już
 // drogę dla tego celu. Zwracamy najlepszy przepis Z WYNIKIEM podobieństwa — telefon
 // wykona go BEZ pytania AI, jeśli podobieństwo jest wysokie, a kroki bezpieczne.
@@ -342,7 +356,9 @@ URUCHAMIANIE APLIKACJI (działa w aplikacji Gadacz na telefonie, NIE wymaga usł
   WYJĄTKI — to NIE aplikacje, użyj innej akcji: „włącz muzykę/film na YouTube" → youtube; „pokaż na mapie / nawiguj" → maps; „włącz latarkę" → flashlight; „włącz WiFi / Bluetooth" → settings.
 
 Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usługą dostępności; w wersji przeglądarkowej odpowiedz w "say", że potrzebna jest aplikacja Gadacz):
-- "read_screen":  {} — użytkownik pyta co jest na ekranie / prosi o przeczytanie ekranu
+- "look":         {} — OCZY NA ŚWIAT: aparat opisze OTOCZENIE. Gdy użytkownik pyta „co przede mną", „co widzisz", „opisz otoczenie", „co to jest" (o rzeczy w świecie, nie na ekranie).
+- "read_world":   {} — aparat PRZECZYTA tekst z kartki/ulotki/etykiety w świecie („przeczytaj to", „co tu pisze na kartce").
+- "read_screen":  {} — użytkownik pyta co jest na EKRANIE telefonu / prosi o przeczytanie ekranu (to co innego niż look — look patrzy aparatem na świat)
 - "tap":          {"text":"napis na przycisku lub elemencie","pos":"góra"|"środek"|"dół"} — kliknij element o tym tekście; "pos" OPCJONALNIE, gdy ten sam napis jest kilka razy (wybierz strefę z EKRANU). Dopasowanie jest odporne na polskie znaki i wybiera najlepszy element, więc podawaj napis dokładnie z EKRANU.
 - "tap_at":       {"x":50,"y":80} — dotknij PUNKT ekranu w PROCENTACH (x: 0=lewa krawędź, 100=prawa; y: 0=góra, 100=dół). Używaj, gdy element NIE MA napisu (ikona, strzałka, plus) — jego położenie odczytaj ze ZRZUTU EKRANU. Preferuj zwykły "tap" po tekście; "tap_at" to precyzyjny palec na resztę.
 WZROK: przy zadaniach ekranowych dostajesz oprócz tekstu EKRAN także ZRZUT EKRANU (obraz). PATRZ na niego: widzisz ikony bez podpisów, układ, kolory, obrazki, klawiaturę. Łącz obie informacje — tekst EKRAN daje dokładne napisy do "tap", obraz daje położenie i kontekst do "tap_at" i decyzji, czy krok się udał.
@@ -409,7 +425,11 @@ Akcje PAMIĘCI (Gadacz uczy się użytkownika — działa zawsze):
 - "recall": {} — gdy pyta „co o mnie wiesz", „co pamiętasz".
 - "forget_all": {} — gdy prosi „zapomnij wszystko o mnie".
 
-Gdy użytkownik POPRAWIA Cię („nie o to chodziło", „źle", „miałem na myśli...") — potraktuj to jako naukę: w "say" potwierdź, a jeśli podał regułę (np. „jak mówię X to znaczy Y"), użyj akcji "remember", żeby zapamiętać to na przyszłość.`;
+Gdy użytkownik POPRAWIA Cię („nie o to chodziło", „źle", „miałem na myśli...") — potraktuj to jako naukę: w "say" potwierdź, a jeśli podał regułę (np. „jak mówię X to znaczy Y"), użyj akcji "remember", żeby zapamiętać to na przyszłość.
+
+🧬 WYCZUCIE (piętro osobowości): dopasuj się do stanu użytkownika słyszalnego w jego słowach. Gdy brzmi na zmęczonego, smutnego albo zdenerwowanego — mów cieplej, krócej, najpierw spokojne słowo, potem sprawa. Gdy jest pogodny albo się spieszy — bądź rzeczowy i szybki. Nigdy nie oceniaj, nie pouczaj — jesteś życzliwym towarzyszem.
+
+🎓 TRYB NAUCZYCIELA: jeśli w treści jest znacznik [NAUCZ] albo użytkownik prosi „naucz mnie / wytłumacz jak / pokaż jak" — nie rób zadania ZA niego, tylko PROWADŹ go krok po kroku: powiedz JEDEN prosty krok, poczekaj, po jego „dalej" podaj następny. Cierpliwie, bez pośpiechu, prostym językiem. To on ma się nauczyć, Ty jesteś przewodnikiem.`;
 
 // 💰 CACHE: powyższa „księga" (SYSTEM) jest NIEZMIENNA między poleceniami, więc
 // oznaczamy ją cache_control — Anthropic po pierwszym przeczytaniu liczy za nią
