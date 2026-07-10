@@ -1550,6 +1550,11 @@ function packTooHot(list: Position[], dir: Direction): boolean {
 
 // Approximate 24h turnover (in quote currency) from the 5m candle volumes the bot
 // already fetched. 150 candles × 5m = 12.5h of data; scale up to a 24h estimate.
+// 💧 Twardy próg płynności (obrót 24h w walucie kwotowanej). Poniżej — moneta jest
+// zbyt cienka, SL nie trzyma. Ok. 300 tys. odcina mikro-pyłki (GWEI/2Z/ARX/BASED),
+// zostawia realne monety (BTC/ETH/SOL/DOGE/AVAX/ADA/APE/ICP/LTC...).
+const HARD_MIN_TURNOVER = 300_000;
+
 function estimate24hTurnover(volumes: number[], price: number): number {
   const baseVol = volumes.reduce((s, v) => s + v, 0);          // base-asset volume over window
   const windowMin = volumes.length * 5;                         // 5m candles
@@ -1571,10 +1576,14 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
     const price = candles.price;
     if (!price) return null;
 
-    // Liquidity filter — skip illiquid coins where the chart price isn't really tradeable
-    if (cfg.minVolume && cfg.minVolume > 0) {
+    // 💧 FILTR PŁYNNOŚCI — najważniejsza tama na „asymetrię śmierci": monety-pyłki
+    // (GWEI, 2Z, ARX...) mają tak cienki rynek, że SL nie trzyma i cena przeskakuje
+    // stop o -12/-18%. Twardy próg obrotu 24h ODCINA je z góry, zanim poślizg uderzy —
+    // niezależnie od ustawień użytkownika. Zostają monety, na których stop naprawdę działa.
+    const effMinVolume = Math.max(cfg.minVolume ?? 0, HARD_MIN_TURNOVER);
+    if (effMinVolume > 0) {
       const turnover24h = estimate24hTurnover(volumes.slice(0, -1), price);
-      if (turnover24h < cfg.minVolume) return null;
+      if (turnover24h < effMinVolume) return null;
     }
 
     const closedCloses = closes.slice(0, -1);
@@ -1614,10 +1623,10 @@ async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSig
     // while the real bot (no bbMax set) keeps the default 40 — A/B experiment.
     // Both get the reversal-map tilt (±5) — statistically hot/cold reversal hours.
     const bbEntry = Math.max(10, Math.min(45, (cfg.bbMax ?? 40) + reversalTiltNow));
-    // Dead-coin filter: with ATR < 0.10%/candle the price can't plausibly reach TP
-    // (or even SL) within the max-hold window — the position just sits flat and
-    // bleeds the 0.52% round-trip fee at the time-limit exit (ADI lesson).
-    const alive   = atrPct >= 0.10;
+    // Filtr żywotności: ATR < 0.10%/świecę = martwa moneta (nie dojdzie do TP, przejada
+    // opłatę). ATR > 4%/świecę = moneta-dzikus: skacze tak, że SL nigdy nie trzyma i
+    // zamyka się na -12/-18% (lekcja GWEI). Handlujemy tylko w zdrowym środku. 10.07.
+    const alive   = atrPct >= 0.10 && atrPct <= 4.0;
     const isLong  = alive && bbPercB < bbEntry && price < vwap && !inCrashSym && bottomConfirmed && notSteepDown;
     const isShort = alive && cfg.allowShorts && !spotOnly && canShortSym(sym) && bbPercB > (100 - bbEntry) && price > vwap && topConfirmed;
     const score   = isLong ? (50 - bbPercB) : isShort ? (bbPercB - 50) : 0;
@@ -2325,8 +2334,8 @@ async function engineTick() {
     const spotOnly = config.platform === "kraken" && effLev <= 1;
     // Liquidity filter on the primary symbol — if too illiquid, skip its signal
     // (the alt-scan below will still look for a tradeable, liquid mover).
-    const primaryLiquid = !config.minVolume || config.minVolume <= 0
-      || estimate24hTurnover(volumes.slice(0, -1), price) >= config.minVolume;
+    const primaryLiquid = estimate24hTurnover(volumes.slice(0, -1), price)
+      >= Math.max(config.minVolume ?? 0, HARD_MIN_TURNOVER);
     const primaryFree = !holdsSymbol(config.symbol); // don't double up on a coin we already hold
     const notSteepDown = ema9 >= ema21 * 0.985; // ema9 < 1.5% below ema21 = clear downtrend → skip longs
     // CONFIRMED bottom/top (uczeń: kupuj dopiero gdy dołek/górka już BYŁ, nie w trakcie).
