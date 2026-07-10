@@ -1391,8 +1391,14 @@ function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: 
 }
 
 // ── Fast exit check (every 5s) — checks every open position ───────────────────
+let priceCheckBusy = false; // 🛡️ reentrancy-guard: bez tego dwa równoległe przebiegi
+                            // mogły zamknąć tę samą pozycję DWA razy (podwójne P&L / na
+                            // marginie otwarcie przeciwnej pozycji). Audyt 10.07.
 async function priceCheck() {
   if (!config || !running || positions.length === 0) return;
+  if (priceCheckBusy) return;
+  priceCheckBusy = true;
+  try {
   // Snapshot so closes mid-loop don't disturb iteration
   for (const position of [...positions]) {
     if (!positions.includes(position)) continue;          // already closed this pass
@@ -1476,8 +1482,13 @@ async function priceCheck() {
       closingSymbols.add(sym);
       try { await finalizeClose(position, price, pct, reason); }
       finally { closingSymbols.delete(sym); }
+    } else {
+      // 💾 Zapisz postęp trailing-stop / break-even / runner na dysk, żeby restart
+      // serwera NIE cofnął zablokowanego zysku do luźnego SL. Audyt 10.07.
+      if (position.breakEvenSet || position.runner || position.trailRef !== position.entryPrice) saveState();
     }
   }
+  } finally { priceCheckBusy = false; }
 }
 
 // ── Lightweight multi-symbol signal scanner ───────────────────────────────────
@@ -1522,6 +1533,8 @@ const canShortSym = (sym: string) => SHORTABLE_MAJORS.has(sym.toUpperCase().repl
 // ⚫ Czarna lista poślizgu: coin, którego cena PRZESKOCZYŁA stop o >1% (SL -2% zamknięty
 // na -3%+), jest za rzadki, by mu ufać — nie handlujemy nim do restartu serwera.
 const slippageBlacklist = new Set<string>();
+// Osobna lista dla symulacji — wirtualne porażki nie tykają prawdziwego bota.
+const paperSlippageBlacklist = new Set<string>();
 
 // 🧯 Strażnik paczki — nie dokładaj pozycji w kierunku, w którym DWIE już krwawią.
 // Lekcja z 06.07 23:14: trzy shorty ścięte jedną świecą; skorelowana paczka umiera razem.
@@ -1547,7 +1560,8 @@ function estimate24hTurnover(volumes: number[], price: number): number {
 async function quickScanSymbol(sym: string, cfgIn?: BotConfig): Promise<QuickSignal | null> {
   const cfg = cfgIn ?? config;
   if (!cfg) return null;
-  if (slippageBlacklist.has(sym)) return null; // ⚫ przeskoczył SL — niehandlowalny
+  // ⚫ przeskoczył SL — niehandlowalny. Symulacja patrzy na swoją listę, bot na swoją.
+  if ((cfg.paperMode ? paperSlippageBlacklist : slippageBlacklist).has(sym)) return null;
   try {
     const candles = await fetchCandles(sym);
     if (!candles) return null;
@@ -1942,8 +1956,10 @@ async function paperPriceCheck() {
       else if (holdMin >= maxHold * 3) reason = `Limit czasu (twardy) (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
     }
     if (reason?.startsWith("SL/Trail") && pct <= -(pos.slPct + 1)) {
-      slippageBlacklist.add(sym);
-      addPaperLog(`⚫ SYM ${sym}: poślizg ${pct.toFixed(2)}% przy SL ${pos.slPct.toFixed(2)}% — czarna lista`, "warn");
+      // ⚫ Poślizg w SYMULACJI trafia na OSOBNĄ listę — wirtualna strata NIE może
+      // odcinać prawdziwego bota od handlu tą monetą. Audyt 10.07.
+      paperSlippageBlacklist.add(sym);
+      addPaperLog(`⚫ SYM ${sym}: poślizg ${pct.toFixed(2)}% przy SL ${pos.slPct.toFixed(2)}% — czarna lista symulacji`, "warn");
     }
 
     if (reason) {
@@ -2331,7 +2347,7 @@ async function engineTick() {
     // coin needs less individual overbought to be worth shorting.
     const shortBar = marketOverheated ? (100 - bbEntryLive) - 8 : (100 - bbEntryLive);
     const isLong  = !marketOverheated && !marketBearish && !peopleSleeping && primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
-    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && bbPercB > shortBar && aboveVwap && topConfirmed;
+    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && canShortSym(config.symbol) && bbPercB > shortBar && aboveVwap && topConfirmed;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;

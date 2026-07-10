@@ -309,13 +309,31 @@ class GadaczAccessibilityService : AccessibilityService() {
 
     fun hasNumbered() = numberedEls.isNotEmpty()
 
+    /**
+     * Klika element numer N — najpierw po NAPISIE na aktualnym ekranie (bezpiecznie),
+     * a w miejsce zapamiętane tylko jeśli wciąż jest tam coś klikalnego. Bez tego stary
+     * Rect po zmianie ekranu klikał w zły przycisk. Audyt 10.07.
+     */
     fun tapNumber(num: Int): Boolean {
         val el = numberedEls.getOrNull(num - 1) ?: return false
-        numberedEls = emptyList()   // ekran zaraz się zmieni — stare numery tracą ważność
-        val path = Path().apply { moveTo(el.second.exactCenterX(), el.second.exactCenterY()) }
-        dispatchGesture(GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 60)).build(), null, null)
-        return true
+        numberedEls = emptyList()   // numery jednorazowe
+        if (el.first.isNotBlank() && tapByText(el.first)) return true
+        val root = rootInActiveWindow ?: return false
+        if (nodeAt(root, el.second.centerX(), el.second.centerY()) != null) {
+            val path = Path().apply { moveTo(el.second.exactCenterX(), el.second.exactCenterY()) }
+            dispatchGesture(GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 60)).build(), null, null)
+            return true
+        }
+        return false
+    }
+
+    private fun nodeAt(node: AccessibilityNodeInfo?, x: Int, y: Int): AccessibilityNodeInfo? {
+        if (node == null) return null
+        val r = Rect(); node.getBoundsInScreen(r)
+        if ((node.isClickable || node.isEditable) && r.contains(x, y)) return node
+        for (i in 0 until node.childCount) nodeAt(node.getChild(i), x, y)?.let { return it }
+        return null
     }
 
     private fun collectInteractive(node: AccessibilityNodeInfo?, out: ArrayList<Pair<String, Rect>>) {

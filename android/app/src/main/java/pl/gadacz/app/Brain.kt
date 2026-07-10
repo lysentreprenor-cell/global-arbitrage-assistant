@@ -210,12 +210,20 @@ object Brain {
     private fun fixPm(n: String, h: Int, m: Int): Pair<Int, Int> =
         if ((n.contains("wieczor") || n.contains("po poludniu")) && h in 1..11) (h + 12) to m else h to m
 
-    /** „na 7:30" / „na 9" / „na dziewiątą" / „wpół do ósmej" → (godzina, minuty). */
+    // Nazwy dni zawierają rdzenie godzin (czwart-ek=4, piąt-ek=5) — bez tego „obudź w
+    // czwartek" ustawiał budzik na 04:00. Gdy w zdaniu jest dzień, nie zgadujemy godziny
+    // ze słów-rdzeni. Audyt 10.07.
+    private fun hasWeekday(n: String) =
+        Regex("poniedzia|wtorek|srod|czwartek|piatek|sobot|niedziel").containsMatchIn(n)
+
+    /** „na 7:30" / „na 9" / „na dziewiątą" / „wpół do ósmej" → (godzina, minuty). null=niejasne. */
     private fun parseTimePl(n: String): Pair<Int, Int>? {
+        // „za X godzin/minut" to czas trwania, nie godzina zegarowa — oddaj do AI.
+        if (Regex("\\bza \\d").containsMatchIn(n) || n.contains("za godzin") || n.contains("za pol")) return null
         if (n.contains("wpol do")) {
             val tail = n.substringAfter("wpol do")
-            for ((stem, h) in HOUR_WORDS) if (tail.contains(stem)) return fixPm(n, if (h == 1) 0 else h - 1, 30)
-            Regex("\\b(\\d{1,2})\\b").find(tail)?.let { val h = it.groupValues[1].toInt(); if (h in 1..24) return fixPm(n, h - 1, 30) }
+            Regex("\\b(\\d{1,2})\\b").find(tail)?.let { val h = it.groupValues[1].toInt(); if (h in 1..24) return fixPm(n, if (h == 1) 12 else h - 1, 30) }
+            for ((stem, h) in HOUR_WORDS) if (tail.contains(stem)) return fixPm(n, if (h == 1) 12 else h - 1, 30)
             return null
         }
         Regex("(\\d{1,2})[:.](\\d{2})").find(n)?.let {
@@ -223,18 +231,21 @@ object Brain {
             if (h in 0..23 && m in 0..59) return fixPm(n, h, m)
         }
         Regex("\\b(\\d{1,2})\\b").find(n)?.let { val h = it.groupValues[1].toInt(); if (h in 0..23) return fixPm(n, h, 0) }
-        for ((stem, h) in HOUR_WORDS) if (n.contains(stem)) return fixPm(n, h, 0)
+        // Słowa-godziny TYLKO gdy w zdaniu NIE ma nazwy dnia (inaczej „czwartek"→4).
+        if (!hasWeekday(n)) for ((stem, h) in HOUR_WORDS) if (n.contains(stem)) return fixPm(n, h, 0)
         return null
     }
 
     /** „5 minut" / „30 sekund" / „pół godziny" / „kwadrans" → sekundy (0 = nie wiem). */
     private fun parseDurationPl(n: String): Int {
+        fun num(s: String) = s.take(6).toIntOrNull() ?: 0   // max 6 cyfr, bez wyjątku. Audyt 10.07.
+        if (n.contains("poltorej godziny")) return 5400
         if (n.contains("pol godziny")) return 1800
         if (n.contains("kwadrans")) return 900
-        Regex("(\\d+)\\s*godzin").find(n)?.let { return it.groupValues[1].toInt() * 3600 }
+        Regex("(\\d+)\\s*godzin").find(n)?.let { return num(it.groupValues[1]) * 3600 + (Regex("godzin\\D+(\\d+)\\s*min").find(n)?.let { m -> num(m.groupValues[1]) * 60 } ?: 0) }
         if (n.contains("godzin")) return 3600
-        Regex("(\\d+)\\s*min").find(n)?.let { return it.groupValues[1].toInt() * 60 }
-        Regex("(\\d+)\\s*sek").find(n)?.let { return it.groupValues[1].toInt() }
+        Regex("(\\d+)\\s*min").find(n)?.let { return num(it.groupValues[1]) * 60 }
+        Regex("(\\d+)\\s*sek").find(n)?.let { return num(it.groupValues[1]) }
         for ((w, v) in mapOf("pietnascie" to 15, "dwadziescia" to 20, "dziesiec" to 10, "piec" to 5,
             "cztery" to 4, "trzy" to 3, "dwie" to 2, "jedna" to 1))
             if (n.contains("$w minut")) return v * 60
@@ -262,7 +273,9 @@ object Brain {
         for (i in 0 until rules.length()) {
             val r = rules.optJSONObject(i) ?: continue
             if (r.optString("type") == "time" && r.optInt("h") == hh && r.optInt("m") == mm) {
-                val key = "rule_fired_${i}_$today"
+                // Klucz po TREŚCI+godzinie, nie indeksie — inaczej nowe przypomnienie na
+                // zwolnionym indeksie dziedziczyło „już odpalone" i milczało. Audyt 10.07.
+                val key = "rf_${today}_${r.optInt("h")}_${r.optInt("m")}_${r.optString("text").hashCode()}"
                 if (!p.getBoolean(key, false)) {
                     p.edit().putBoolean(key, true).apply()
                     out.add("Przypomnienie: ${r.optString("text")}.")
@@ -285,9 +298,11 @@ object Brain {
             try {
                 val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
                 val lvl = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
-                val was = p.getInt("last_batt", 100)
-                if (lvl in 1..15 && was > 15 && !bm.isCharging) out.add("Uwaga: bateria $lvl procent. Podłącz ładowarkę.")
-                p.edit().putInt("last_batt", lvl).apply()
+                if (lvl in 0..100) {   // -1 / śmieciowy odczyt nie może zafałszować progu. Audyt 10.07.
+                    val was = p.getInt("last_batt", 100)
+                    if (lvl <= 15 && was > 15 && !bm.isCharging) out.add("Uwaga: bateria $lvl procent. Podłącz ładowarkę.")
+                    p.edit().putInt("last_batt", lvl).apply()
+                }
             } catch (_: Exception) {}
         }
         return out
@@ -327,8 +342,11 @@ object Brain {
         val svc = GadaczAccessibilityService.instance
         fun done(s: String): Boolean { if (s.isNotBlank()) speak(s); return true }
 
-        // 🚨 SOS — najważniejszy odruch: zero zwłoki, działa bez internetu.
-        if (Regex("\\b(sos|pomocy|ratunku|wezwij pomoc)\\b").containsMatchIn(n)) return done(sos(ctx))
+        // 🚨 SOS — zero zwłoki, offline. Ale TYLKO wołanie o pomoc, nie prośba „pomocy
+        // z telefonem": „pomocy, nie umiem wysłać zdjęcia" nie wzywa pogotowia. Audyt 10.07.
+        val isHelpWithPhone = Regex("(jak |nie (umiem|wiem|moge|potrafie)|pomoz mi|z (tym|obsluga)|wyslac|zrobic|ustawic|wlaczyc)").containsMatchIn(n)
+        if ((n == "sos" || n == "ratunku" || n == "pomocy" || n == "wezwij pomoc" || n == "potrzebuje pomocy" || Regex("^(sos|ratunku)\\b").containsMatchIn(n)) && !isHelpWithPhone)
+            return done(sos(ctx))
 
         // 👁️ Piętro 11: OCZY NA ŚWIAT — aparat opisuje otoczenie / czyta tekst.
         if (Regex("^(co (jest )?przede mna|co widzisz przede|opisz (co widzisz|otoczenie|obraz)|co to jest|co mam przed soba|rozejrzyj sie)$").matches(n)) {
@@ -583,6 +601,7 @@ object Brain {
      * phone across many screens, not just the current one. Call off the main thread.
      */
     fun runTask(ctx: Context, goal: String, history: ArrayList<Pair<String, String>>, speak: (String) -> Unit) {
+        cancelRequested = false   // wyzeruj u SAMEJ góry — stare „anuluj" nie może zabić nowego zadania. Audyt 10.07.
         // ⚡ Piętro 1: ODRUCHY — jednoznaczne komendy bez AI (natychmiast, 0 zł, offline).
         if (reflex(ctx, goal, speak)) return
         // 🧭 Piętro 2: AUTOPILOT — znana droga z przepisów bez AI; przy zgrzycie spada niżej.
@@ -705,7 +724,11 @@ object Brain {
                 if (svc?.tapByText(label, args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: $label." }
             }
             "tap_at" -> { if (svc?.tapAt(args.optDouble("x", -1.0), args.optDouble("y", -1.0)) != true) { learnFail(ctx); return "Nie mogę dotknąć tego miejsca." } }
-            "long_press" -> { if (svc?.longPressByText(args.optString("text"), args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: ${args.optString("text")}." } }
+            "long_press" -> {
+                val lbl = args.optString("text")
+                if (isDanger(lbl)) { pendingDangerTap = lbl; return "To ważny przycisk: $lbl. Powiedz: potwierdzam — a przytrzymam. Albo: anuluj." }
+                if (svc?.longPressByText(lbl, args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: $lbl." }
+            }
             "enter" -> { if (svc?.pressEnter() != true) { learnFail(ctx); return "Nie mam czego zatwierdzić." } }
             "paste" -> { if (svc?.pasteFocused() != true) { learnFail(ctx); return "Nie udało się wkleić. Dotknij pola, żeby zamigał kursor, i powiedz: wklej." } }
             "type" -> {

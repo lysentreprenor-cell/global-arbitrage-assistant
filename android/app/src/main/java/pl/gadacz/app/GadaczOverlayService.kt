@@ -212,8 +212,10 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         try { wakeRec?.startListening(intent) } catch (_: Exception) { restartWake(800) }
     }
     private fun restartWake(delayMs: Long) {
-        if (!wakeMode || wakeStopping || busy) { if (wakeMode && !busy) setBubble("👂") ; return }
-        bubble?.postDelayed({ if (wakeMode && !busy) startWakeLoop() }, delayMs)
+        // Nie wznawiaj nasłuchu słowa-klucza, gdy TRWA zadanie — inaczej rozpoznawacz
+        // łapie własną mowę Gadacza jako polecenia. Audyt 10.07.
+        if (!wakeMode || wakeStopping || busy || taskRunning) { if (wakeMode && !busy && !taskRunning) setBubble("👂") ; return }
+        bubble?.postDelayed({ if (wakeMode && !busy && !taskRunning) startWakeLoop() }, delayMs)
     }
 
     /**
@@ -244,7 +246,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private fun startListening(auto: Boolean = false) {
         // Dotknięcie w TRAKCIE zadania = „stop, przerwij" — użytkownik musi mieć
         // hamulec, gdy Gadacz klika coś nie tak.
-        if (taskRunning) { if (!auto) { Brain.cancelRequested = true; speak("Przerywam.") }; return }
+        if (taskRunning) { if (!auto) { Brain.cancelRequested = true; try { tts.stop() } catch (_: Exception) {}; pendingSpeech.set(0); duckStop(); speak("Przerywam.") }; return }
         if (busy) return
         // Dotknięcie w trakcie mówienia = PRZERWIJ i słuchaj od razu (jak przerywa się
         // człowiekowi) — zamiast wymagać drugiego dotknięcia.
@@ -323,6 +325,9 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                 speak("Błąd połączenia z serwerem.")
             } finally {
                 taskRunning = false
+                // Bezpiecznik przyciszenia: po zadaniu muzyka MUSI wrócić, nawet gdy
+                // licznik mowy utknął (TTS nie odpalił utterance). Audyt 10.07.
+                if (pendingSpeech.get() <= 0) { pendingSpeech.set(0); duckStop() }
                 setBubble(if (wakeMode) "👂" else "🗣️")
                 // 💬 Tryb rozmowy: gdy Gadacz skończy mówić odpowiedź, sam otworzy
                 // mikrofon na Twoje kolejne zdanie (maybeContinueConversation).

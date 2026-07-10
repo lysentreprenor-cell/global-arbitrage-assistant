@@ -41,9 +41,21 @@ class CameraCaptureActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         mode = intent.getStringExtra("mode") ?: "describe"
         tts = TextToSpeech(this, this)
         if (!Brain.isConfigured(this)) { finishSoon(); return }
-        try {
-            camLauncher.launch(Intent(MediaStore.ACTION_IMAGE_CAPTURE))
-        } catch (e: Exception) { speak("Ten telefon nie ma aparatu."); finishSoon() }
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 7); return
+        }
+        openCamera()
+    }
+
+    override fun onRequestPermissionsResult(rc: Int, perms: Array<out String>, res: IntArray) {
+        super.onRequestPermissionsResult(rc, perms, res)
+        if (res.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) openCamera()
+        else { speak("Potrzebuję zgody na aparat, żeby patrzeć."); finishSoon() }
+    }
+
+    private fun openCamera() {
+        try { camLauncher.launch(Intent(MediaStore.ACTION_IMAGE_CAPTURE)) }
+        catch (e: Exception) { speak("Ten telefon nie ma aparatu."); finishSoon() }
     }
 
     override fun onInit(status: Int) { if (status == TextToSpeech.SUCCESS) tts.language = Locale("pl", "PL") }
@@ -63,12 +75,11 @@ class CameraCaptureActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 else
                     "Jesteś oczami osoby niewidomej. Opisz krótko i konkretnie, co jest na tym zdjęciu: najpierw najważniejsze (zagrożenia, przeszkody, ludzie), potem otoczenie. Na końcu przeczytaj widoczny tekst, jeśli jest. Mów spokojnie, po polsku."
                 val resp = Brain.ask(this, q, emptyList(), null, b64)
-                speak(resp.optString("say", "Nie wiem, co widzę."))
+                speakThenFinish(resp.optString("say", "Nie wiem, co widzę."))
             } catch (e: Exception) {
                 val local = try { LocalBrain.answer(this, "Opisz otoczenie") } catch (_: Throwable) { null }
-                speak(local ?: "Nie udało się połączyć, spróbuj ponownie.")
+                speakThenFinish(local ?: "Nie udało się połączyć, spróbuj ponownie.")
             }
-            finishSoon()
         }.start()
     }
 
@@ -76,10 +87,23 @@ class CameraCaptureActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         try { tts.speak(text, TextToSpeech.QUEUE_ADD, null, "look") } catch (_: Exception) {}
     }
 
-    /** Poczekaj aż wybrzmi mowa, potem zamknij (mowa działa też po finish, bo TTS jest systemowy). */
-    private fun finishSoon() {
-        window.decorView.postDelayed({ try { finish() } catch (_: Exception) {} }, 400)
+    /**
+     * Mów CAŁY opis, a aktywność zamknij DOPIERO gdy TTS skończy — inaczej finish()
+     * ubijał TTS po 400 ms i niewidomy słyszał tylko ułamek. Audyt 10.07.
+     */
+    private fun speakThenFinish(text: String) {
+        try {
+            tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { runOnUiThread { try { finish() } catch (_: Exception) {} } }
+                @Deprecated("api") override fun onError(id: String?) { runOnUiThread { try { finish() } catch (_: Exception) {} } }
+            })
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "look_final")
+            window.decorView.postDelayed({ try { finish() } catch (_: Exception) {} }, (3000 + text.length * 70L).coerceAtMost(30000))
+        } catch (_: Exception) { try { finish() } catch (_: Exception) {} }
     }
+
+    private fun finishSoon() { window.decorView.postDelayed({ try { finish() } catch (_: Exception) {} }, 400) }
 
     override fun onDestroy() {
         try { tts.stop(); tts.shutdown() } catch (_: Exception) {}

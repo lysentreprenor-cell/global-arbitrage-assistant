@@ -46,9 +46,10 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 // Survives browser clears, shared across devices. Plain JSON list of facts.
 const MEMORY_FILE = path.resolve(process.cwd(), "data", "gadacz_memory.json");
 function loadMemory(): string[] {
-  // Główny plik, a gdy zniknął/uszkodzony — kopia zapasowa .bak (ostatni dobry stan).
-  try { return JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); } catch { /* spróbuj .bak */ }
-  try { return JSON.parse(fs.readFileSync(MEMORY_FILE + ".bak", "utf8")); } catch { return []; }
+  // Główny plik, a gdy zniknął/uszkodzony/nie-tablica — kopia .bak (ostatni dobry stan).
+  try { const d = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); if (Array.isArray(d)) return d; } catch { /* spróbuj .bak */ }
+  try { const d = JSON.parse(fs.readFileSync(MEMORY_FILE + ".bak", "utf8")); if (Array.isArray(d)) return d; } catch { /* pusto */ }
+  return [];
 }
 function saveMemory(list: string[]) {
   try {
@@ -148,18 +149,23 @@ router.get("/recipe/match", (req, res) => {
     const s = goalSimilarity(r.goal, goal);
     if (s > bestScore) { bestScore = s; best = r; }
   }
-  if (!best || bestScore < 0.45) return res.json({ found: false });
+  // Próg 0.72 dla ŚLEPEGO wykonania (telefon robi bez AI): „do mamy" vs „do taty"
+  // dają ~0.5 — za mało pewności, żeby ryzykować wiadomość do złej osoby. Audyt 10.07.
+  if (!best || bestScore < 0.72) return res.json({ found: false });
   res.json({ found: true, score: bestScore, goal: best.goal, steps: best.steps, uses: best.uses });
 });
 router.post("/recipes/clear", (_req, res) => { saveRecipes([]); res.json({ ok: true }); });
 // Najlepszy przepis dla celu (podobieństwo słów; przy remisie częściej używany).
 function bestRecipe(goal: string): Recipe | null {
+  // Podpowiedź dla AI (nie ślepe wykonanie) — sam bonus za użycia NIE może przepchnąć
+  // nietrafnego przepisu: wymagamy realnego podobieństwa bazowego ≥0.35. Audyt 10.07.
   let best: Recipe | null = null; let bestScore = 0;
   for (const r of loadRecipes()) {
-    const s = goalSimilarity(r.goal, goal) + Math.min(0.1, r.uses * 0.01);
-    if (s > bestScore) { bestScore = s; best = r; }
+    const base = goalSimilarity(r.goal, goal);
+    const s = base + Math.min(0.1, r.uses * 0.01);
+    if (base >= 0.35 && s > bestScore) { bestScore = s; best = r; }
   }
-  return bestScore >= 0.45 ? best : null;
+  return best;
 }
 
 // GET  /api/assistant/memory        → { memory: string[] }
@@ -287,7 +293,13 @@ const APP_GUIDES: Record<string, string> = {
   "com.android.chrome": "Chrome — pasek adresu na górze: tap → type → enter. Karty: kwadrat z liczbą. Wstecz: gest back.",
 };
 // 🏦 Aplikacje bankowe/płatnicze — tu obowiązuje ŻELAZNA ostrożność.
-const BANK_HINTS = ["revolut", "vipps", "bankid", "bank", "pko", "santander", "mbank", "ing", "pekao", "paypal"];
+// Dopasowanie po CZŁONACH pakietu (kropki), nie po podłańcuchu — inaczej „ing" łapało
+// „messag-ing" i zwykłe SMS-y stawały się „bankowe". Audyt 10.07.
+const BANK_HINTS = ["revolut", "vipps", "bankid", "santander", "mbank", "pekao", "paypal", "ingbank", "pkobp", "pko", "millennium", "aliorbank", "getin"];
+function looksBankApp(pkg: string): boolean {
+  const segs = pkg.toLowerCase().split(/[.\-_]/);
+  return BANK_HINTS.some(b => segs.includes(b)) || segs.includes("bank");
+}
 
 const SYSTEM = `Jesteś "Gadacz" — głosowy asystent sterujący telefonem, zbudowany dla osób niewidomych i słabowidzących. Mówisz po polsku.
 
@@ -360,7 +372,7 @@ Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usł
 - "read_world":   {} — aparat PRZECZYTA tekst z kartki/ulotki/etykiety w świecie („przeczytaj to", „co tu pisze na kartce").
 - "read_screen":  {} — użytkownik pyta co jest na EKRANIE telefonu / prosi o przeczytanie ekranu (to co innego niż look — look patrzy aparatem na świat)
 - "tap":          {"text":"napis na przycisku lub elemencie","pos":"góra"|"środek"|"dół"} — kliknij element o tym tekście; "pos" OPCJONALNIE, gdy ten sam napis jest kilka razy (wybierz strefę z EKRANU). Dopasowanie jest odporne na polskie znaki i wybiera najlepszy element, więc podawaj napis dokładnie z EKRANU.
-- "tap_at":       {"x":50,"y":80} — dotknij PUNKT ekranu w PROCENTACH (x: 0=lewa krawędź, 100=prawa; y: 0=góra, 100=dół). Używaj, gdy element NIE MA napisu (ikona, strzałka, plus) — jego położenie odczytaj ze ZRZUTU EKRANU. Preferuj zwykły "tap" po tekście; "tap_at" to precyzyjny palec na resztę.
+- "tap_at":       {"x":50,"y":80} — dotknij PUNKT ekranu w PROCENTACH (x: 0=lewa krawędź, 100=prawa; y: 0=góra, 100=dół). Używaj, gdy element NIE MA napisu (ikona, strzałka, plus) — jego położenie odczytaj ze ZRZUTU EKRANU. Preferuj zwykły "tap" po tekście; "tap_at" to precyzyjny palec na resztę. ZAKAZ: przycisków płatności/potwierdzenia/usuwania (Zapłać, Kup, Zamów, Przelej, Usuń) NIGDY nie klikaj przez tap_at — użyj "tap" z ich napisem, żeby zadziałał strażnik i poprosił użytkownika o potwierdzenie.
 WZROK: przy zadaniach ekranowych dostajesz oprócz tekstu EKRAN także ZRZUT EKRANU (obraz). PATRZ na niego: widzisz ikony bez podpisów, układ, kolory, obrazki, klawiaturę. Łącz obie informacje — tekst EKRAN daje dokładne napisy do "tap", obraz daje położenie i kontekst do "tap_at" i decyzji, czy krok się udał.
 - "long_press":   {"text":"napis","pos":"opcjonalnie"} — PRZYTRZYMAJ element (menu kontekstowe, usuwanie, dodatkowe opcje). Gdy zwykły klik nie daje opcji — spróbuj przytrzymania.
 - "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole. Puste pola pokazują na EKRANIE swoją podpowiedź (np. [pole] Wpisz wiadomość) — najpierw tap w to pole, potem type.
@@ -533,19 +545,19 @@ router.post("/ask", async (req: Request, res: Response) => {
       const pkg = pkgMatch[1].toLowerCase();
       const guide = Object.entries(APP_GUIDES).find(([k]) => pkg.includes(k) || k.includes(pkg))?.[1];
       if (guide) qFinal += `\n\n📱 ŚCIĄGA o tej aplikacji: ${guide}`;
-      if (BANK_HINTS.some(b => pkg.includes(b))) {
+      if (looksBankApp(pkg)) {
         qFinal += `\n\n🏦 UWAGA — aplikacja BANKOWA/płatnicza. Żelazne zasady: NICZEGO nie dotykaj z własnej inicjatywy. Możesz czytać ekran i wykonać WYŁĄCZNIE dokładnie wypowiedziane polecenie użytkownika, krok po kroku. Przy jakiejkolwiek płatności/przelewie NAJPIERW przeczytaj na głos kwotę i odbiorcę i czekaj na potwierdzenie (action none). Nigdy nie wpisuj PIN-ów ani haseł.`;
       }
     }
     content.push({ type: "text", text: qFinal.slice(0, 5000) });
 
-    const messages = [
-      ...(Array.isArray(history) ? history : []).slice(-12).map((m: any) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: String(m.content ?? "").slice(0, 2000),
-      })),
-      { role: "user", content },
-    ];
+    let hist = (Array.isArray(history) ? history : []).slice(-12).map((m: any) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: String(m.content ?? "").slice(0, 2000),
+    }));
+    // Pierwsza wiadomość MUSI być „user" — inaczej Anthropic zwraca 400 i Gadacz milczy.
+    while (hist.length && hist[0].role === "assistant") hist = hist.slice(1);
+    const messages = [...hist, { role: "user", content }];
 
     // 🎯 PIĘTRO 7 — DWA MÓZGI: strateg i wykonawca.
     // Zwykła rozmowa → Haiku (tani). Praca na ekranie: PIERWSZY krok (układanie planu)

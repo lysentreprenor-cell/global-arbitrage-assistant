@@ -24,6 +24,7 @@ object LocalBrain {
 
     fun available(): Boolean = modelPath() != null
 
+    @Synchronized  // dwa wątki nie mogą naraz utworzyć modelu (wyciek ~GB). Audyt 10.07.
     private fun ensure(ctx: Context): com.google.mediapipe.tasks.genai.llminference.LlmInference? {
         llm?.let { return it }
         val path = modelPath() ?: return null
