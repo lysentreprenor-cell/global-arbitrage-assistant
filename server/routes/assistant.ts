@@ -168,6 +168,35 @@ function bestRecipe(goal: string): Recipe | null {
   return best;
 }
 
+// ── 🏢 PIĘTRA GADACZA — włącznik każdej zdolności. Właściciel decyduje, co Gadacz
+// robi. Zapis na serwerze; telefon czyta i respektuje. Domyślnie wszystko WŁĄCZONE.
+const FLOORS_FILE = path.resolve(process.cwd(), "data", "gadacz_floors.json");
+const FLOOR_KEYS = [
+  "odruchy", "nawyki", "zdarzenia", "straznik", "mowa_niedbala",
+  "przewidywanie", "opiekun", "oczy", "poranny_raport", "osobowosc",
+  "nauczyciel", "samonaprawa", "numerki", "autopilot", "otwieranie_apek",
+  "czytanie_powiadomien", "budziki", "dzwonienie", "latarka_glosnosc", "sos",
+];
+function loadFloors(): Record<string, boolean> {
+  let saved: Record<string, boolean> = {};
+  try { const d = JSON.parse(fs.readFileSync(FLOORS_FILE, "utf8")); if (d && typeof d === "object") saved = d; } catch {}
+  const out: Record<string, boolean> = {};
+  for (const k of FLOOR_KEYS) out[k] = saved[k] !== false; // domyślnie true
+  return out;
+}
+function saveFloors(f: Record<string, boolean>) {
+  try { fs.mkdirSync(path.dirname(FLOORS_FILE), { recursive: true }); fs.writeFileSync(FLOORS_FILE, JSON.stringify(f)); } catch {}
+}
+router.get("/floors", (_req, res) => res.json({ floors: loadFloors() }));
+router.post("/floors", (req, res) => {
+  const cur = loadFloors();
+  const body = req.body ?? {};
+  if (typeof body.key === "string" && FLOOR_KEYS.includes(body.key)) cur[body.key] = body.on !== false;
+  else if (body.floors && typeof body.floors === "object") for (const k of FLOOR_KEYS) if (k in body.floors) cur[k] = body.floors[k] !== false;
+  saveFloors(cur);
+  res.json({ ok: true, floors: cur });
+});
+
 // GET  /api/assistant/memory        → { memory: string[] }
 router.get("/memory", (_req, res) => res.json({ memory: loadMemory() }));
 // POST /api/assistant/memory {fact} → append

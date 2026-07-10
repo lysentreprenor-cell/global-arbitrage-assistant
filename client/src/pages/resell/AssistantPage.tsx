@@ -84,6 +84,38 @@ export default function AssistantPage() {
   const [memory, setMemory] = useState<string[]>([]);
   const refreshMemory = () => fetch("/api/assistant/memory").then(r => r.json()).then(d => setMemory(d.memory ?? [])).catch(() => {});
   useEffect(() => { refreshMemory(); }, []);
+
+  // 🏢 PIĘTRA GADACZA — 20 zdolności z włącznikiem. Zapis na serwerze, telefon respektuje.
+  const [floors, setFloors] = useState<Record<string, boolean>>({});
+  const [floorsOpen, setFloorsOpen] = useState(false);
+  useEffect(() => { fetch("/api/assistant/floors").then(r => r.json()).then(d => setFloors(d.floors ?? {})).catch(() => {}); }, []);
+  const toggleFloor = (key: string) => {
+    const on = floors[key] === false; // odwracamy
+    setFloors(p => ({ ...p, [key]: on }));
+    fetch("/api/assistant/floors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, on }) }).catch(() => {});
+  };
+  const FLOOR_LIST: { key: string; nr: number; name: string; desc: string }[] = [
+    { key: "latarka_glosnosc", nr: 1, name: "Latarka i głośność", desc: "„włącz latarkę”, „głośniej”, „ciszej”" },
+    { key: "budziki", nr: 1, name: "Budziki i minutniki", desc: "„ustaw budzik na 9”, „minutnik 5 minut”" },
+    { key: "dzwonienie", nr: 1, name: "Dzwonienie", desc: "„zadzwoń na 112”, po numerze" },
+    { key: "otwieranie_apek", nr: 1, name: "Otwieranie aplikacji", desc: "„otwórz Facebooka”, „włącz aparat”" },
+    { key: "sos", nr: 1, name: "SOS / alarm", desc: "„ratunku” → wiadomość do opiekuna" },
+    { key: "nawyki", nr: 2, name: "Nawyki (przepisy dróg)", desc: "znane zadania z pamięci, bez AI" },
+    { key: "autopilot", nr: 2, name: "Autopilot", desc: "sprawdzoną drogę robi bez AI" },
+    { key: "zdarzenia", nr: 4, name: "Przypomnienia i czujniki", desc: "„przypominaj o lekach o 8”, słaba bateria" },
+    { key: "straznik", nr: 5, name: "Strażnik płatności", desc: "„Zapłać/Usuń” tylko po „potwierdzam”" },
+    { key: "mowa_niedbala", nr: 6, name: "Rozumienie mowy niedbałej", desc: "„no włącz no tę latarkę”" },
+    { key: "przewidywanie", nr: 8, name: "Przewidywanie", desc: "„co teraz?” — z Twojego rytmu dnia" },
+    { key: "opiekun", nr: 9, name: "Opiekun", desc: "po dobie ciszy pyta „wszystko dobrze?”" },
+    { key: "oczy", nr: 11, name: "Oczy na świat (aparat)", desc: "„co przede mną?”, „przeczytaj to”" },
+    { key: "numerki", nr: 3, name: "Tryb numerków", desc: "numeruje przyciski, mówisz numer" },
+    { key: "poranny_raport", nr: 16, name: "Poranny raport", desc: "„poranny raport” — dzień jednym ciągiem" },
+    { key: "osobowosc", nr: 17, name: "Wyczucie nastroju", desc: "dopasowuje ton do Twojego stanu" },
+    { key: "nauczyciel", nr: 18, name: "Nauczyciel", desc: "„naucz mnie jak…” — krok po kroku" },
+    { key: "samonaprawa", nr: 19, name: "Samonaprawa", desc: "„gdzie się mylisz?”" },
+    { key: "czytanie_powiadomien", nr: 4, name: "Czytanie powiadomień", desc: "czyta wiadomości na głos" },
+    { key: "odruchy", nr: 1, name: "Odruchy (godzina, bateria…)", desc: "„która godzina”, „ile baterii” — bez AI" },
+  ];
   // Hands-free continuous mode: after each answer, auto-listen again (while tab is open).
   const [continuous, setContinuous] = useState<boolean>(() => { try { return localStorage.getItem("gadacz_continuous") === "1"; } catch { return false; } });
   const continuousRef = useRef(continuous);
@@ -438,6 +470,41 @@ export default function AssistantPage() {
             Tu (w przeglądarce) tryb ciągły działa <b>tylko gdy ta karta jest otwarta</b>.
             Działanie <b>w tle nad każdą aplikacją</b> — jak bot — ma tylko aplikacja Gadacz z pliku APK.
           </span>
+        </div>
+
+        {/* 🏢 PIĘTRA GADACZA — 20 zdolności z włącznikiem */}
+        <div style={{ border: "3px solid #7c3aed", borderRadius: 16, background: "#1e1633", overflow: "hidden" }}>
+          <button onClick={() => setFloorsOpen(o => !o)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
+              background: "transparent", border: "none", color: "#ddd6fe", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+            <span>🏢 PIĘTRA GADACZA ({FLOOR_LIST.filter(f => floors[f.key] !== false).length}/{FLOOR_LIST.length} włączone)</span>
+            <span style={{ fontSize: 22 }}>{floorsOpen ? "▲" : "▼"}</span>
+          </button>
+          {floorsOpen && (
+            <div style={{ padding: "4px 12px 12px" }}>
+              <div style={{ color: "#a78bfa", fontSize: 13, padding: "0 4px 10px" }}>
+                Każda zdolność Gadacza z osobnym włącznikiem. Wyłączona = Gadacz jej nie użyje. Zmiana działa też w aplikacji na telefonie.
+              </div>
+              {FLOOR_LIST.map(f => {
+                const on = floors[f.key] !== false;
+                return (
+                  <button key={f.key} onClick={() => toggleFloor(f.key)}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                      minHeight: 62, borderRadius: 12, marginBottom: 8, padding: "8px 14px", textAlign: "left",
+                      border: `2px solid ${on ? "#7c3aed" : "#3f3f46"}`, background: on ? "#2e1065" : "#18181b",
+                      color: on ? "#ede9fe" : "#71717a" }}>
+                    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontSize: 16, fontWeight: 800 }}>{f.name}</span>
+                      <span style={{ fontSize: 12, color: on ? "#c4b5fd" : "#52525b" }}>{f.desc}</span>
+                    </span>
+                    <span style={{ width: 52, height: 28, borderRadius: 14, background: on ? "#8b5cf6" : "#3f3f46", position: "relative", flexShrink: 0 }}>
+                      <span style={{ position: "absolute", top: 3, left: on ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: "#fff", transition: "left .15s" }} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* action row — big, high-contrast */}

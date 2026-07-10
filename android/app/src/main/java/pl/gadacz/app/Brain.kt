@@ -29,6 +29,21 @@ object Brain {
 
     fun prefs(ctx: Context) = ctx.getSharedPreferences("gadacz", Context.MODE_PRIVATE)
 
+    // 🏢 PIĘTRA — telefon czyta ustawienia z serwera (cache 60 s) i respektuje włączniki.
+    @Volatile private var floorsCache: JSONObject? = null
+    @Volatile private var floorsAt = 0L
+    private fun floors(ctx: Context): JSONObject {
+        val now = System.currentTimeMillis()
+        floorsCache?.let { if (now - floorsAt < 60_000) return it }
+        return try {
+            val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/floors")
+                .header("x-bot-pin", pin(ctx)).build()).execute().use { JSONObject(it.body?.string() ?: "{}") }
+            (r.optJSONObject("floors") ?: JSONObject()).also { floorsCache = it; floorsAt = now }
+        } catch (_: Exception) { floorsCache ?: JSONObject() }
+    }
+    /** Czy piętro włączone? Brak połączenia/klucza = domyślnie TAK (nie blokujemy w ciemno). */
+    fun floorOn(ctx: Context, key: String): Boolean = floors(ctx).optBoolean(key, true)
+
     /**
      * 🎙️ Głos Gadacza. Telefon ma zwykle KILKA polskich głosów (Google TTS) — domyślny
      * bywa drewniany jak stara Ivona. Wybieramy KOBIECY, SIECIOWY (najładniejszy):
@@ -345,19 +360,21 @@ object Brain {
         // 🚨 SOS — zero zwłoki, offline. Ale TYLKO wołanie o pomoc, nie prośba „pomocy
         // z telefonem": „pomocy, nie umiem wysłać zdjęcia" nie wzywa pogotowia. Audyt 10.07.
         val isHelpWithPhone = Regex("(jak |nie (umiem|wiem|moge|potrafie)|pomoz mi|z (tym|obsluga)|wyslac|zrobic|ustawic|wlaczyc)").containsMatchIn(n)
-        if ((n == "sos" || n == "ratunku" || n == "pomocy" || n == "wezwij pomoc" || n == "potrzebuje pomocy" || Regex("^(sos|ratunku)\\b").containsMatchIn(n)) && !isHelpWithPhone)
+        if (floorOn(ctx, "sos") && (n == "sos" || n == "ratunku" || n == "pomocy" || n == "wezwij pomoc" || n == "potrzebuje pomocy" || Regex("^(sos|ratunku)\\b").containsMatchIn(n)) && !isHelpWithPhone)
             return done(sos(ctx))
 
         // 👁️ Piętro 11: OCZY NA ŚWIAT — aparat opisuje otoczenie / czyta tekst.
-        if (Regex("^(co (jest )?przede mna|co widzisz przede|opisz (co widzisz|otoczenie|obraz)|co to jest|co mam przed soba|rozejrzyj sie)$").matches(n)) {
-            ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "describe").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
-        }
-        if (Regex("^przeczytaj (to|kartke|ulotke|tekst|co tu pisze|z kartki)$").matches(n) || n == "przeczytaj z aparatu") {
-            ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "read").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+        if (floorOn(ctx, "oczy")) {
+            if (Regex("^(co (jest )?przede mna|co widzisz przede|opisz (co widzisz|otoczenie|obraz)|co to jest|co mam przed soba|rozejrzyj sie)$").matches(n)) {
+                ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "describe").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+            }
+            if (Regex("^przeczytaj (to|kartke|ulotke|tekst|co tu pisze|z kartki)$").matches(n) || n == "przeczytaj z aparatu") {
+                ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "read").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+            }
         }
 
         // 📋 Piętro 16: PORANNY RAPORT — jedno polecenie, pełny obraz dnia.
-        if (Regex("^(poranny raport|raport dnia|co (mnie )?dzis czeka|streszcz dzien|co nowego|podsumuj dzien)$").matches(n)) {
+        if (floorOn(ctx, "poranny_raport") && Regex("^(poranny raport|raport dnia|co (mnie )?dzis czeka|streszcz dzien|co nowego|podsumuj dzien)$").matches(n)) {
             Thread { morningReport(ctx, speak) }.start(); return true
         }
 
@@ -379,7 +396,7 @@ object Brain {
         }
 
         // 🔔 Przypomnienia głosem: „przypominaj mi o lekach o 8"
-        Regex("^przypom(nij|inaj)( mi)? o (.+) o (.+)$").find(n)?.let { m ->
+        if (floorOn(ctx, "zdarzenia")) Regex("^przypom(nij|inaj)( mi)? o (.+) o (.+)$").find(n)?.let { m ->
             val hm = parseTimePl(m.groupValues[4]) ?: return@let
             val co = m.groupValues[3].trim()
             addTimeRule(ctx, hm.first, hm.second, co)
@@ -432,7 +449,7 @@ object Brain {
             return done("Zdrowie odczytam, gdy sparujesz opaskę albo zegarek. To piętro czeka na sprzęt.")
 
         // Sprzęt: latarka, głośność, panele
-        if (n.contains("latark")) return done(flashlight(ctx, !Regex("zgas|wylacz").containsMatchIn(n)))
+        if (floorOn(ctx, "latarka_glosnosc") && n.contains("latark")) return done(flashlight(ctx, !Regex("zgas|wylacz").containsMatchIn(n)))
         if (Regex("^(zrob )?glosniej( troche)?$").matches(n)) return done(volume(ctx, "up"))
         if (Regex("^(zrob )?ciszej( troche)?$").matches(n)) return done(volume(ctx, "down"))
         if (Regex("^wycisz( telefon| dzwiek)?$").matches(n)) return done(volume(ctx, "mute"))
@@ -465,18 +482,20 @@ object Brain {
         }
 
         // 🔢 TRYB NUMERKÓW — sterowanie KAŻDYM ekranem bez rozumienia (Ty jesteś mózgiem).
-        if (Regex("^(numerki|ponumeruj( ekran)?|pokaz numery|jakie sa numery)$").matches(n))
-            return done(svc?.listNumbered() ?: "Włącz sterowanie ekranem.")
-        Regex("^(kliknij |dotknij )?(numer )?(\\d{1,2}|jeden|dwa|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|jedenascie|dwanascie)$").find(n)?.let { m ->
-            if (svc?.hasNumbered() == true) {
-                val tok = m.groupValues[3]
-                val num = tok.toIntOrNull() ?: NUM_WORDS[tok] ?: 0
-                return if (num > 0 && svc.tapNumber(num)) done("Klikam $num.") else done("Nie ma takiego numeru. Powiedz: numerki.")
+        if (floorOn(ctx, "numerki")) {
+            if (Regex("^(numerki|ponumeruj( ekran)?|pokaz numery|jakie sa numery)$").matches(n))
+                return done(svc?.listNumbered() ?: "Włącz sterowanie ekranem.")
+            Regex("^(kliknij |dotknij )?(numer )?(\\d{1,2}|jeden|dwa|trzy|cztery|piec|szesc|siedem|osiem|dziewiec|dziesiec|jedenascie|dwanascie)$").find(n)?.let { m ->
+                if (svc?.hasNumbered() == true) {
+                    val tok = m.groupValues[3]
+                    val num = tok.toIntOrNull() ?: NUM_WORDS[tok] ?: 0
+                    return if (num > 0 && svc.tapNumber(num)) done("Klikam $num.") else done("Nie ma takiego numeru. Powiedz: numerki.")
+                }
             }
         }
 
         // Budzik i minutnik — rozbiór czasu zwykłym kodem
-        if (n.contains("budzik") || n.contains("obudz mnie")) {
+        if (floorOn(ctx, "budziki") && (n.contains("budzik") || n.contains("obudz mnie"))) {
             val hm = parseTimePl(n) ?: return false   // niejasna godzina → mózg
             return done(setAlarm(ctx, hm.first, hm.second, "", speak))
         }
@@ -499,7 +518,7 @@ object Brain {
         }
 
         // Otwieranie aplikacji — z bezpiecznikami na dwuznaczności („włącz muzykę" ≠ apka)
-        Regex("^(otworz|uruchom|odpal|wlacz|wejdz w)\\s+(.{2,40})$").find(n)?.let { m ->
+        if (floorOn(ctx, "otwieranie_apek")) Regex("^(otworz|uruchom|odpal|wlacz|wejdz w)\\s+(.{2,40})$").find(n)?.let { m ->
             val nameN = m.groupValues[2]
             val banned = listOf("latark", "muzyk", "piosenk", "film", "czuwanie", "nasluch", "budzik", "minutnik",
                 "wifi", "wi fi", "bluetooth", "swiatlo", "glos", "tryb", "dane", "lokalizacj", "powiadomieni",
@@ -605,7 +624,7 @@ object Brain {
         // ⚡ Piętro 1: ODRUCHY — jednoznaczne komendy bez AI (natychmiast, 0 zł, offline).
         if (reflex(ctx, goal, speak)) return
         // 🧭 Piętro 2: AUTOPILOT — znana droga z przepisów bez AI; przy zgrzycie spada niżej.
-        if (tryAutopilot(ctx, goal, speak)) return
+        if (floorOn(ctx, "autopilot") && tryAutopilot(ctx, goal, speak)) return
         // 🧠 Piętro 3: AI — pełne rozumienie (poniżej).
         // Keep conversation memory bounded — a long multi-step task must not grow it forever.
         while (history.size > 16) history.removeAt(0)
@@ -716,8 +735,8 @@ object Brain {
             "read_world" -> { ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "read").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return "" }
             "tap" -> {
                 val label = args.optString("text")
-                // 🛡️ Strażnik: płatności/usuwanie tylko po Twoim „potwierdzam".
-                if (isDanger(label)) {
+                // 🛡️ Strażnik: płatności/usuwanie tylko po Twoim „potwierdzam" (jeśli włączony).
+                if (floorOn(ctx, "straznik") && isDanger(label)) {
                     pendingDangerTap = label
                     return "To ważny przycisk: $label. Powiedz: potwierdzam — a kliknę. Albo: anuluj."
                 }
