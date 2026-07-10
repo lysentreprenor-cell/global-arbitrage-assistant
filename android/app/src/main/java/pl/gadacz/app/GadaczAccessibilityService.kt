@@ -350,35 +350,29 @@ class GadaczAccessibilityService : AccessibilityService() {
      * dir: "down" (dalej/następny), "up" (wstecz), "left"/"right" (karuzele, stories).
      */
     fun scroll(dir: String) {
-        when (dir) {
-            "left", "right" -> swipeGesture(dir)
-            else -> {
-                val forward = dir != "up"
-                val root = rootInActiveWindow
-                val s = root?.let { findScrollable(it) }
-                if (s != null && s.performAction(
-                        if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-                        else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) return
-                // Fallback — przeciągnij palcem po środku ekranu (TikTok, Reelsy, Stories).
-                swipeGesture(if (forward) "down" else "up")
-            }
-        }
+        // 👆 ZAWSZE przeciągnięcie palcem jako PODSTAWA. Powód (lekcja z Facebooka):
+        // ACTION_SCROLL łapało pierwszy przewijalny element (poziomy pasek relacji) i
+        // „udawało sukces", nie ruszając ściany. Fizyczny swipe przewija to, co jest
+        // pod palcem — czyli właściwą treść — w każdej aplikacji (Facebook, TikTok, listy).
+        swipeGesture(dir)
     }
 
-    /** Fizyczny swipe. "down"=palec w górę (następny), "up"=palec w dół, "left"/"right" w bok. */
+    /** Fizyczny swipe. "down"=palec w górę (dalej), "up"=palec w dół (wstecz), "left"/"right" w bok. */
     private fun swipeGesture(dir: String) {
         val w = resources.displayMetrics.widthPixels
         val h = resources.displayMetrics.heightPixels
         val cx = w / 2f; val cy = h / 2f
         val path = Path()
+        // Szeroki zakres (bez paska stanu u góry i nawigacji na dole) = wyraźne przewinięcie.
         when (dir) {
-            "up"    -> { path.moveTo(cx, h * 0.30f); path.lineTo(cx, h * 0.75f) }
-            "left"  -> { path.moveTo(w * 0.80f, cy); path.lineTo(w * 0.20f, cy) }  // następny w bok
-            "right" -> { path.moveTo(w * 0.20f, cy); path.lineTo(w * 0.80f, cy) }  // poprzedni w bok
-            else    -> { path.moveTo(cx, h * 0.75f); path.lineTo(cx, h * 0.30f) }  // "down"
+            "up"    -> { path.moveTo(cx, h * 0.28f); path.lineTo(cx, h * 0.82f) }
+            "left"  -> { path.moveTo(w * 0.85f, cy); path.lineTo(w * 0.15f, cy) }  // następny w bok
+            "right" -> { path.moveTo(w * 0.15f, cy); path.lineTo(w * 0.85f, cy) }  // poprzedni w bok
+            else    -> { path.moveTo(cx, h * 0.82f); path.lineTo(cx, h * 0.28f) }  // "down"
         }
+        // 220 ms — kontrolowane przewinięcie o mniej więcej ekran, nie gwałtowny „rzut".
         dispatchGesture(GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 250)).build(), null, null)
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 220)).build(), null, null)
     }
     private fun findScrollable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (node == null) return null
