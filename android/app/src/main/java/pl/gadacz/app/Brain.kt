@@ -767,10 +767,6 @@ object Brain {
      */
     fun execute(ctx: Context, action: String, args: JSONObject, say: String, speak: (String) -> Unit): String {
         val svc = GadaczAccessibilityService.instance
-        // 🚫 Zablokowana aplikacja na wierzchu — Gadacz nie tyka jej ekranu (klik/wpisanie/przewijanie).
-        if (action in setOf("tap", "tap_at", "long_press", "type", "write", "paste", "enter", "scroll") && currentAppBlocked(ctx)) {
-            return "Ta aplikacja jest zablokowana — nie pracuję w niej. Odblokuj ją w panelu, jeśli chcesz."
-        }
         when (action) {
             "call" -> dial(ctx, args.optString("who"))?.let { return it }
             "sms" -> sms(ctx, args.optString("who"), args.optString("text"))

@@ -123,7 +123,7 @@ export default function AssistantPage() {
   const refreshAppGuides = () => fetch("/api/assistant/appguides").then(r => r.json()).then(d => setAppGuides(d.guides ?? [])).catch(() => {});
   useEffect(() => { refreshAppGuides(); }, []);
   const addAppGuide = () => {
-    if (!agMatch.trim() || !agGuide.trim()) return;
+    if (!agMatch.trim()) return; // instrukcja opcjonalna — sam match wystarcza (tryb ekspert)
     fetch("/api/assistant/appguides", { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ match: agMatch, name: agName || agMatch, guide: agGuide }) })
       .then(r => r.json()).then(() => { setAgMatch(""); setAgName(""); setAgGuide(""); refreshAppGuides(); }).catch(() => {});
@@ -131,22 +131,6 @@ export default function AssistantPage() {
   const delAppGuide = (match: string) => {
     fetch("/api/assistant/appguides/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ match }) })
       .then(() => refreshAppGuides()).catch(() => {});
-  };
-
-  // 🚫 ZABLOKOWANE APLIKACJE — gdzie Gadacz NIE ma pracować (np. bank).
-  const [blocked, setBlocked] = useState<{ match: string; name: string }[]>([]);
-  const [blOpen, setBlOpen] = useState(false);
-  const [blMatch, setBlMatch] = useState(""); const [blName, setBlName] = useState("");
-  const refreshBlocked = () => fetch("/api/assistant/blockedapps").then(r => r.json()).then(d => setBlocked(d.blocked ?? [])).catch(() => {});
-  useEffect(() => { refreshBlocked(); }, []);
-  const addBlocked = () => {
-    if (!blMatch.trim()) return;
-    fetch("/api/assistant/blockedapps", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ match: blMatch, name: blName || blMatch }) })
-      .then(r => r.json()).then(() => { setBlMatch(""); setBlName(""); refreshBlocked(); }).catch(() => {});
-  };
-  const delBlocked = (match: string) => {
-    fetch("/api/assistant/blockedapps/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ match }) })
-      .then(() => refreshBlocked()).catch(() => {});
   };
 
   // Hands-free continuous mode: after each answer, auto-listen again (while tab is open).
@@ -545,27 +529,27 @@ export default function AssistantPage() {
           <button onClick={() => setAgOpen(o => !o)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
               background: "transparent", border: "none", color: "#a5f3fc", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
-            <span>📱 APLIKACJE DO OBSŁUGI (+{appGuides.length} własnych)</span>
+            <span>🎓 APLIKACJE — TRYB EKSPERT ({appGuides.length})</span>
             <span style={{ fontSize: 22 }}>{agOpen ? "▲" : "▼"}</span>
           </button>
           {agOpen && (
             <div style={{ padding: "4px 12px 14px" }}>
               <div style={{ color: "#67e8f9", fontSize: 13, padding: "0 4px 10px" }}>
-                Naucz Gadacza dowolnej aplikacji. Wpisz jej nazwę i opisz <b>jak ją obsługiwać</b> (gdzie pole tekstu, gdzie „wyślij"…).
-                Możesz też z telefonu — otwórz apkę i powiedz: <b>„naucz się tej aplikacji: …"</b>.
+                Zaznaczone aplikacje Gadacz obsługuje <b>jak ekspert</b> — pewnie i dokładnie. Resztę obsługuje normalnie.
+                Wpisz nazwę i (opcjonalnie) <b>jak ją obsługiwać</b>. Możesz też z telefonu: otwórz apkę i powiedz <b>„naucz się tej aplikacji: …"</b>.
               </div>
               <input value={agName} onChange={e => setAgName(e.target.value)} placeholder="Nazwa aplikacji (np. OLX)"
                 style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
               <input value={agMatch} onChange={e => setAgMatch(e.target.value)} placeholder="Fragment nazwy pakietu lub apki (np. olx, com.olx)"
                 style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
               <textarea value={agGuide} onChange={e => setAgGuide(e.target.value)} rows={3}
-                placeholder="Jak obsługiwać: np. „Lista ogłoszeń przewija się w dół. Szukanie: lupa na górze. Wiadomość do sprzedawcy: przycisk Napisz, potem pole na dole i Wyślij.”"
+                placeholder="(OPCJONALNIE) Jak obsługiwać: np. „Lista ogłoszeń przewija się w dół. Szukanie: lupa na górze. Wiadomość: przycisk Napisz, pole na dole i Wyślij.” — puste = i tak tryb ekspert."
                 style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 15 }} />
               <button onClick={addAppGuide}
                 style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: "#0891b2", color: "#fff", fontSize: 17, fontWeight: 800, marginBottom: 12 }}>
-                ➕ Dodaj / zapisz aplikację
+                🎓 Oznacz jako ekspercką
               </button>
-              {appGuides.length > 0 && <div style={{ color: "#a5f3fc", fontSize: 13, fontWeight: 700, padding: "2px 4px 8px" }}>Twoje aplikacje:</div>}
+              {appGuides.length > 0 && <div style={{ color: "#a5f3fc", fontSize: 13, fontWeight: 700, padding: "2px 4px 8px" }}>Aplikacje eksperckie:</div>}
               {appGuides.map(g => (
                 <div key={g.match} style={{ border: "2px solid #155e63", borderRadius: 12, background: "#0b3d47", padding: "10px 14px", marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -573,38 +557,7 @@ export default function AssistantPage() {
                     <button onClick={() => delAppGuide(g.match)} style={{ background: "#7f1d1d", color: "#fecaca", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, fontWeight: 700 }}>Usuń</button>
                   </div>
                   <div style={{ color: "#67e8f9", fontSize: 12, marginTop: 2 }}>{g.match}</div>
-                  <div style={{ color: "#cffafe", fontSize: 13, marginTop: 6 }}>{g.guide}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 🚫 ZABLOKOWANE APLIKACJE — gdzie Gadacz NIE ma pracować */}
-        <div style={{ border: "3px solid #b91c1c", borderRadius: 16, background: "#2a1010", overflow: "hidden" }}>
-          <button onClick={() => setBlOpen(o => !o)}
-            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
-              background: "transparent", border: "none", color: "#fecaca", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
-            <span>🚫 APLIKACJE ZABLOKOWANE ({blocked.length})</span>
-            <span style={{ fontSize: 22 }}>{blOpen ? "▲" : "▼"}</span>
-          </button>
-          {blOpen && (
-            <div style={{ padding: "4px 12px 14px" }}>
-              <div style={{ color: "#fca5a5", fontSize: 13, padding: "0 4px 10px" }}>
-                W tych aplikacjach Gadacz <b>nie dotknie ekranu</b> (nie kliknie, nie wpisze). Dobre dla banku, płatności, prywatnych apek.
-              </div>
-              <input value={blName} onChange={e => setBlName(e.target.value)} placeholder="Nazwa (np. Mój bank)"
-                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #7f1d1d", background: "#3a1414", color: "#fee2e2", fontSize: 16 }} />
-              <input value={blMatch} onChange={e => setBlMatch(e.target.value)} placeholder="Fragment nazwy pakietu/apki (np. bank, revolut)"
-                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #7f1d1d", background: "#3a1414", color: "#fee2e2", fontSize: 16 }} />
-              <button onClick={addBlocked}
-                style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: "#b91c1c", color: "#fff", fontSize: 17, fontWeight: 800, marginBottom: 12 }}>
-                🚫 Zablokuj aplikację
-              </button>
-              {blocked.map(b => (
-                <div key={b.match} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, border: "2px solid #7f1d1d", borderRadius: 12, background: "#3a1414", padding: "10px 14px", marginBottom: 8 }}>
-                  <span><span style={{ color: "#fee2e2", fontSize: 16, fontWeight: 800 }}>{b.name}</span> <span style={{ color: "#f87171", fontSize: 12 }}>({b.match})</span></span>
-                  <button onClick={() => delBlocked(b.match)} style={{ background: "#166534", color: "#bbf7d0", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, fontWeight: 700 }}>Odblokuj</button>
+                  <div style={{ color: "#cffafe", fontSize: 13, marginTop: 6 }}>{g.guide || "🎓 tryb ekspert (bez instrukcji)"}</div>
                 </div>
               ))}
             </div>

@@ -346,7 +346,8 @@ router.post("/appguides", (req, res) => {
   const match = String(req.body?.match ?? "").trim().toLowerCase().slice(0, 80);
   const name = String(req.body?.name ?? "").trim().slice(0, 60) || match;
   const guide = String(req.body?.guide ?? "").trim().slice(0, 600);
-  if (!match || !guide) return res.status(400).json({ error: "Podaj aplikację i instrukcję" });
+  // Instrukcja OPCJONALNA — samo zaznaczenie aplikacji robi z niej „ekspercką".
+  if (!match) return res.status(400).json({ error: "Podaj aplikację" });
   const all = loadAppGuides().filter(g => g.match !== match); // nadpisz istniejącą
   all.push({ match, name, guide });
   saveAppGuides(all);
@@ -627,10 +628,16 @@ router.post("/ask", async (req: Request, res: Response) => {
     const pkgMatch = q.match(/EKRAN aplikacji:\s*([\w.]+)/);
     if (pkgMatch) {
       const pkg = pkgMatch[1].toLowerCase();
-      // Własne ściągi użytkownika mają PIERWSZEŃSTWO nad wbudowanymi (jego wiedza > moja).
-      const custom = loadAppGuides().find(g => pkg.includes(g.match) || g.match.includes(pkg))?.guide;
-      const guide = custom ?? Object.entries(APP_GUIDES).find(([k]) => pkg.includes(k) || k.includes(pkg))?.[1];
-      if (guide) qFinal += `\n\n📱 ŚCIĄGA o tej aplikacji: ${guide}`;
+      // 🎓 TRYB EKSPERT: aplikacja zaznaczona/wyuczona przez użytkownika (lub wbudowana).
+      // Gadacz zna ją dobrze — działa pewniej i dokładniej. Reszta apek = tryb normalny.
+      const customEntry = loadAppGuides().find(g => pkg.includes(g.match) || g.match.includes(pkg));
+      const builtin = Object.entries(APP_GUIDES).find(([k]) => pkg.includes(k) || k.includes(pkg))?.[1];
+      const isExpert = !!customEntry || !!builtin;
+      const guide = (customEntry?.guide || "").trim() || builtin || "";
+      if (isExpert) {
+        qFinal += `\n\n🎓 TRYB EKSPERT — użytkownik oznaczył tę aplikację jako dobrze znaną. Działaj PEWNIE i DOKŁADNIE: uważnie czytaj EKRAN i ZRZUT, wykonuj kroki zdecydowanie, nie dopytuj o oczywistości, dokończ zadanie do końca.`;
+        if (guide) qFinal += `\n📱 ŚCIĄGA o tej aplikacji (użyj jej): ${guide}`;
+      }
       if (looksBankApp(pkg)) {
         qFinal += `\n\n🏦 UWAGA — aplikacja BANKOWA/płatnicza. Żelazne zasady: NICZEGO nie dotykaj z własnej inicjatywy. Możesz czytać ekran i wykonać WYŁĄCZNIE dokładnie wypowiedziane polecenie użytkownika, krok po kroku. Przy jakiejkolwiek płatności/przelewie NAJPIERW przeczytaj na głos kwotę i odbiorcę i czekaj na potwierdzenie (action none). Nigdy nie wpisuj PIN-ów ani haseł.`;
       }
