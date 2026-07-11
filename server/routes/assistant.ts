@@ -358,6 +358,37 @@ router.post("/appguides/delete", (req, res) => {
   saveAppGuides(loadAppGuides().filter(g => g.match !== match));
   res.json({ ok: true, guides: loadAppGuides() });
 });
+// 🤖📱 SAMONAUKA APLIKACJI — telefon przysyła pakiet + ZRZUT/EKRAN otwartej apki, AI
+// pisze z tego krótką ściągę „jak ją obsługiwać" i ZAPISUJE jako ekspercką. Gadacz uczy
+// się aplikacji sam, bez pisania instrukcji przez użytkownika.
+router.post("/learn-app", async (req: Request, res: Response) => {
+  try {
+    const { anthropicKey, pkg, name, screen, imageBase64, mediaType = "image/jpeg" } = req.body ?? {};
+    const match = String(pkg ?? "").trim().toLowerCase();
+    if (!match) return res.status(400).json({ error: "Brak aplikacji" });
+    const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+    if (!key) return res.status(400).json({ error: "Brak klucza Anthropic" });
+    const content: any[] = [];
+    if (imageBase64) content.push({ type: "image", source: { type: "base64", media_type: mediaType, data: String(imageBase64) } });
+    content.push({ type: "text", text:
+      `To ekran aplikacji „${name || match}" na telefonie osoby niewidomej. Oto elementy odczytane z ekranu:\n${String(screen ?? "").slice(0, 3000)}\n\n` +
+      `Napisz KRÓTKĄ, praktyczną ściągę (max 4 zdania, po polsku) — JAK OBSŁUGIWAĆ tę aplikację: gdzie jest pole tekstowe, gdzie przycisk „wyślij"/główna akcja, jak nawigować (zakładki na dole?), jak szukać, jak się przewija. Sam konkret, bez wstępu. Jeśli czegoś nie widać, nie zmyślaj.` });
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 400, messages: [{ role: "user", content }] }),
+      signal: AbortSignal.timeout(40_000),
+    });
+    const d = await r.json() as any;
+    if (d.error) return res.status(502).json({ error: d.error.message ?? "Błąd AI" });
+    const guide = (d.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join(" ").trim().slice(0, 600);
+    if (!guide) return res.json({ say: "Nie udało mi się poznać tej aplikacji, spróbuj jeszcze raz." });
+    const all = loadAppGuides().filter(g => g.match !== match);
+    all.push({ match, name: String(name ?? match).slice(0, 60), guide });
+    saveAppGuides(all);
+    res.json({ ok: true, guide, say: `Poznałem tę aplikację. Zapamiętałem, jak ją obsługiwać, i będę w niej działał jak ekspert.` });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
 
 const APP_GUIDES: Record<string, string> = {
   "com.facebook.orca": "Messenger — lista rozmów: dotknij nazwę osoby. W rozmowie pole tekstowe na dole (podpowiedź „Aa”), wyślij = strzałka po prawej od pola. Szukanie osób: lupa na górze.",

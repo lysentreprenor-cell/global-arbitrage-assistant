@@ -438,6 +438,31 @@ object Brain {
         if (n == "nie mow o baterii") { prefs(ctx).edit().putBoolean("rule_battery", false).apply(); return done("Dobrze, nie będę mówił o baterii.") }
         if (Regex("^mow( mi)? gdy bateria( bedzie)? slaba$").matches(n)) { prefs(ctx).edit().putBoolean("rule_battery", true).apply(); return done("Będę ostrzegał przy słabej baterii.") }
 
+        // 🤖📱 SAMONAUKA: „poznaj tę aplikację" — Gadacz SAM patrzy na ekran (odczyt + zrzut),
+        // AI pisze z tego ściągę i zapisuje jako ekspercką. Bez pisania instrukcji przez Ciebie.
+        if (Regex("^(poznaj (te )?aplikacje|naucz sie sam (tej )?aplikacji|zbadaj (te )?aplikacje|poznaj apke)$").matches(n)) {
+            val pkg = svc?.currentPackage() ?: ""
+            if (pkg.isBlank() || pkg == "pl.gadacz.app") return done("Otwórz najpierw aplikację, którą mam poznać, i powiedz to będąc w niej.")
+            speak("Poznaję tę aplikację, chwileczkę…")
+            Thread {
+                try {
+                    val screen = svc?.readScreen() ?: ""
+                    val shot = svc?.screenshotBase64()
+                    val body = JSONObject().apply {
+                        put("anthropicKey", anthropicKey(ctx)); put("pkg", pkg)
+                        put("name", pkg.substringAfterLast(".")); put("screen", screen)
+                        if (shot != null) { put("imageBase64", shot); put("mediaType", "image/jpeg") }
+                    }
+                    val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/learn-app")
+                        .header("x-bot-pin", pin(ctx))
+                        .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                        .execute().use { JSONObject(it.body?.string() ?: "{}") }
+                    speak(r.optString("say", r.optString("error", "Nie udało się poznać aplikacji.")))
+                } catch (_: Exception) { speak("Nie udało się połączyć z serwerem.") }
+            }.start()
+            return true
+        }
+
         // 📱➕ Uczenie aplikacji z jej WNĘTRZA: „naucz się tej aplikacji, że wyślij jest
         // strzałką na dole". Gadacz czyta pakiet apki na wierzchu i zapisuje ściągę.
         Regex("^(naucz sie (tej )?aplikacji|zapamietaj (te )?aplikacje)[,: ]+(.+)$").find(n)?.let { m ->

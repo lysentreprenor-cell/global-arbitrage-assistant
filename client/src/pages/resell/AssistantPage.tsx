@@ -536,7 +536,8 @@ export default function AssistantPage() {
             <div style={{ padding: "4px 12px 14px" }}>
               <div style={{ color: "#67e8f9", fontSize: 13, padding: "0 4px 10px" }}>
                 Zaznaczone aplikacje Gadacz obsługuje <b>jak ekspert</b> — pewnie i dokładnie. Resztę obsługuje normalnie.
-                Wpisz nazwę i (opcjonalnie) <b>jak ją obsługiwać</b>. Możesz też z telefonu: otwórz apkę i powiedz <b>„naucz się tej aplikacji: …"</b>.
+                Wpisz nazwę i (opcjonalnie) <b>jak ją obsługiwać</b>. Z telefonu możesz też: otwórz apkę i powiedz <b>„naucz się tej aplikacji: …"</b>,
+                albo <b>„poznaj tę aplikację"</b> — wtedy Gadacz sam obejrzy jej ekran i nauczy się jej obsługi.
               </div>
               <input value={agName} onChange={e => setAgName(e.target.value)} placeholder="Nazwa aplikacji (np. OLX)"
                 style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
