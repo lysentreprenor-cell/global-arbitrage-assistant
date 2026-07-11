@@ -363,20 +363,22 @@ router.post("/appguides/delete", (req, res) => {
 // się aplikacji sam, bez pisania instrukcji przez użytkownika.
 router.post("/learn-app", async (req: Request, res: Response) => {
   try {
-    const { anthropicKey, pkg, name, screen, imageBase64, mediaType = "image/jpeg" } = req.body ?? {};
+    const { anthropicKey, pkg, name, screen, imageBase64, mediaType = "image/jpeg", deep } = req.body ?? {};
     const match = String(pkg ?? "").trim().toLowerCase();
     if (!match) return res.status(400).json({ error: "Brak aplikacji" });
     const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
     if (!key) return res.status(400).json({ error: "Brak klucza Anthropic" });
     const content: any[] = [];
     if (imageBase64) content.push({ type: "image", source: { type: "base64", media_type: mediaType, data: String(imageBase64) } });
-    content.push({ type: "text", text:
-      `To ekran aplikacji „${name || match}" na telefonie osoby niewidomej. Oto elementy odczytane z ekranu:\n${String(screen ?? "").slice(0, 3000)}\n\n` +
-      `Napisz KRÓTKĄ, praktyczną ściągę (max 4 zdania, po polsku) — JAK OBSŁUGIWAĆ tę aplikację: gdzie jest pole tekstowe, gdzie przycisk „wyślij"/główna akcja, jak nawigować (zakładki na dole?), jak szukać, jak się przewija. Sam konkret, bez wstępu. Jeśli czegoś nie widać, nie zmyślaj.` });
+    content.push({ type: "text", text: deep
+      ? `To zapis WIELU sekcji/zakładek aplikacji „${name || match}" (osoba niewidoma), odczytanych po kolei:\n${String(screen ?? "").slice(0, 6000)}\n\n` +
+        `Napisz zwięzłą ściągę (max 7 zdań, po polsku): CO ta aplikacja POTRAFI — wymień jej główne sekcje/zakładki — i JAK w każdej działać (gdzie pole tekstu, gdzie główna akcja, jak szukać, jak nawigować). Sam konkret. Nie zmyślaj tego, czego nie widać.`
+      : `To ekran aplikacji „${name || match}" na telefonie osoby niewidomej. Oto elementy odczytane z ekranu:\n${String(screen ?? "").slice(0, 3000)}\n\n` +
+        `Napisz KRÓTKĄ, praktyczną ściągę (max 4 zdania, po polsku) — JAK OBSŁUGIWAĆ tę aplikację: gdzie jest pole tekstowe, gdzie przycisk „wyślij"/główna akcja, jak nawigować (zakładki na dole?), jak szukać, jak się przewija. Sam konkret, bez wstępu. Jeśli czegoś nie widać, nie zmyślaj.` });
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 400, messages: [{ role: "user", content }] }),
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: deep ? 600 : 400, messages: [{ role: "user", content }] }),
       signal: AbortSignal.timeout(40_000),
     });
     const d = await r.json() as any;

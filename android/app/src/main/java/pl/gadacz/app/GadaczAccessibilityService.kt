@@ -51,6 +51,33 @@ class GadaczAccessibilityService : AccessibilityService() {
     /** Pakiet aplikacji na wierzchu (dla „naucz się tej aplikacji"). Pusty = nieznany. */
     fun currentPackage(): String = rootInActiveWindow?.packageName?.toString() ?: ""
 
+    /**
+     * 🧭 Dolne zakładki nawigacji — bezpieczne do klikania (tylko przełączają widok).
+     * Klikalne elementy z DOLNEGO paska ekranu (poniżej 85% wysokości), z pominięciem
+     * przycisków-akcji (wyślij/kup/usuń...). Do bezpiecznego „poznawania całej apki".
+     */
+    fun bottomTabs(): List<String> {
+        val root = rootInActiveWindow ?: return emptyList()
+        val h = resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        val danger = listOf("wyslij", "wyślij", "kup", "zaplac", "zapłać", "zamow", "zamów", "usun", "usuń",
+            "przelej", "wyloguj", "zaplata", "pay", "buy", "send", "delete", "checkout", "potwierdz", "potwierdź")
+        val out = LinkedHashSet<String>()
+        fun walk(node: AccessibilityNodeInfo?) {
+            if (node == null || out.size >= 6) return
+            if (node.isClickable) {
+                val r = Rect(); node.getBoundsInScreen(r)
+                if (r.centerY() > h * 0.85) {
+                    val lbl = (node.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+                        ?: node.contentDescription?.toString()?.trim())
+                    if (!lbl.isNullOrBlank() && lbl.length in 2..24 && danger.none { norm(lbl).contains(it) }) out.add(lbl)
+                }
+            }
+            for (i in 0 until node.childCount) walk(node.getChild(i))
+        }
+        walk(root)
+        return out.toList()
+    }
+
     private fun hasScrollable(node: AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
         if (node.isScrollable) return true

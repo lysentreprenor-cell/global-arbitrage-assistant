@@ -438,6 +438,46 @@ object Brain {
         if (n == "nie mow o baterii") { prefs(ctx).edit().putBoolean("rule_battery", false).apply(); return done("Dobrze, nie będę mówił o baterii.") }
         if (Regex("^mow( mi)? gdy bateria( bedzie)? slaba$").matches(n)) { prefs(ctx).edit().putBoolean("rule_battery", true).apply(); return done("Będę ostrzegał przy słabej baterii.") }
 
+        // 🤖📱🧭 SAMONAUKA CAŁEJ APKI: „poznaj całą aplikację" / „co ona potrafi" — Gadacz
+        // BEZPIECZNIE przechodzi po dolnych zakładkach (tylko przełączają widok, nic nie
+        // wysyłają), czyta każdą sekcję i AI pisze ściągę „co apka potrafi i jak działać".
+        if (Regex("^(poznaj cala aplikacje|co (ta|ona) aplikacja (potrafi|moze)|co (ona|ta apka) (potrafi|moze)|zbadaj cala aplikacje|co umie ta aplikacja)$").matches(n)) {
+            val pkg = svc?.currentPackage() ?: ""
+            if (svc == null) return done("Włącz sterowanie ekranem, żebym mógł poznać aplikację.")
+            if (pkg.isBlank() || pkg == "pl.gadacz.app") return done("Otwórz najpierw aplikację, którą mam poznać.")
+            // 🏦 Bezpieczeństwo: w apkach bankowych/płatniczych NIE klikamy po zakładkach.
+            if (listOf("bank", "revolut", "vipps", "paypal", "santander", "mbank", "pekao", "pko", "millennium").any { pkg.lowercase().contains(it) })
+                return done("To aplikacja bankowa — dla bezpieczeństwa nie klikam po niej sam. Opisz mi ją słowami, jeśli chcesz.")
+            speak("Poznaję całą aplikację, przejdę po zakładkach. Chwileczkę…")
+            Thread {
+                try {
+                    val sb = StringBuilder()
+                    sb.append("=== Ekran główny ===\n").append(svc.readScreen()).append("\n")
+                    val shot = svc.screenshotBase64()
+                    val tabs = svc.bottomTabs()
+                    for (tab in tabs.take(5)) {
+                        if (svc.tapByText(tab)) {
+                            Thread.sleep(1100)
+                            sb.append("=== Zakładka: $tab ===\n").append(svc.readScreen()).append("\n")
+                        }
+                    }
+                    val body = JSONObject().apply {
+                        put("anthropicKey", anthropicKey(ctx)); put("pkg", pkg)
+                        put("name", pkg.substringAfterLast(".")); put("screen", sb.toString())
+                        put("deep", true)
+                        if (shot != null) { put("imageBase64", shot); put("mediaType", "image/jpeg") }
+                    }
+                    val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/learn-app")
+                        .header("x-bot-pin", pin(ctx))
+                        .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                        .execute().use { JSONObject(it.body?.string() ?: "{}") }
+                    val guide = r.optString("guide", "")
+                    speak(if (guide.isNotBlank()) "Poznałem tę aplikację. Oto co potrafi: $guide" else r.optString("say", "Nie udało się poznać aplikacji."))
+                } catch (_: Exception) { speak("Nie udało się połączyć z serwerem.") }
+            }.start()
+            return true
+        }
+
         // 🤖📱 SAMONAUKA: „poznaj tę aplikację" — Gadacz SAM patrzy na ekran (odczyt + zrzut),
         // AI pisze z tego ściągę i zapisuje jako ekspercką. Bez pisania instrukcji przez Ciebie.
         if (Regex("^(poznaj (te )?aplikacje|naucz sie sam (tej )?aplikacji|zbadaj (te )?aplikacje|poznaj apke)$").matches(n)) {
