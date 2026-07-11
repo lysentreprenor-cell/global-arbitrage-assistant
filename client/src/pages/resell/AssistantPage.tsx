@@ -116,6 +116,23 @@ export default function AssistantPage() {
     { key: "czytanie_powiadomien", nr: 4, name: "Czytanie powiadomień", desc: "czyta wiadomości na głos" },
     { key: "odruchy", nr: 1, name: "Odruchy (godzina, bateria…)", desc: "„która godzina”, „ile baterii” — bez AI" },
   ];
+  // 📱➕ WŁASNE APLIKACJE — użytkownik uczy Gadacza obsługi dowolnej apki.
+  const [appGuides, setAppGuides] = useState<{ match: string; name: string; guide: string }[]>([]);
+  const [agOpen, setAgOpen] = useState(false);
+  const [agMatch, setAgMatch] = useState(""); const [agName, setAgName] = useState(""); const [agGuide, setAgGuide] = useState("");
+  const refreshAppGuides = () => fetch("/api/assistant/appguides").then(r => r.json()).then(d => setAppGuides(d.guides ?? [])).catch(() => {});
+  useEffect(() => { refreshAppGuides(); }, []);
+  const addAppGuide = () => {
+    if (!agMatch.trim() || !agGuide.trim()) return;
+    fetch("/api/assistant/appguides", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ match: agMatch, name: agName || agMatch, guide: agGuide }) })
+      .then(r => r.json()).then(() => { setAgMatch(""); setAgName(""); setAgGuide(""); refreshAppGuides(); }).catch(() => {});
+  };
+  const delAppGuide = (match: string) => {
+    fetch("/api/assistant/appguides/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ match }) })
+      .then(() => refreshAppGuides()).catch(() => {});
+  };
+
   // Hands-free continuous mode: after each answer, auto-listen again (while tab is open).
   const [continuous, setContinuous] = useState<boolean>(() => { try { return localStorage.getItem("gadacz_continuous") === "1"; } catch { return false; } });
   const continuousRef = useRef(continuous);
@@ -503,6 +520,46 @@ export default function AssistantPage() {
                   </button>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* 📱➕ APLIKACJE KTÓRE GADACZ UMIE OBSŁUGIWAĆ — dodawaj własne */}
+        <div style={{ border: "3px solid #0891b2", borderRadius: 16, background: "#08313a", overflow: "hidden" }}>
+          <button onClick={() => setAgOpen(o => !o)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
+              background: "transparent", border: "none", color: "#a5f3fc", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+            <span>📱 APLIKACJE DO OBSŁUGI (+{appGuides.length} własnych)</span>
+            <span style={{ fontSize: 22 }}>{agOpen ? "▲" : "▼"}</span>
+          </button>
+          {agOpen && (
+            <div style={{ padding: "4px 12px 14px" }}>
+              <div style={{ color: "#67e8f9", fontSize: 13, padding: "0 4px 10px" }}>
+                Naucz Gadacza dowolnej aplikacji. Wpisz jej nazwę i opisz <b>jak ją obsługiwać</b> (gdzie pole tekstu, gdzie „wyślij"…).
+                Możesz też z telefonu — otwórz apkę i powiedz: <b>„naucz się tej aplikacji: …"</b>.
+              </div>
+              <input value={agName} onChange={e => setAgName(e.target.value)} placeholder="Nazwa aplikacji (np. OLX)"
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
+              <input value={agMatch} onChange={e => setAgMatch(e.target.value)} placeholder="Fragment nazwy pakietu lub apki (np. olx, com.olx)"
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
+              <textarea value={agGuide} onChange={e => setAgGuide(e.target.value)} rows={3}
+                placeholder="Jak obsługiwać: np. „Lista ogłoszeń przewija się w dół. Szukanie: lupa na górze. Wiadomość do sprzedawcy: przycisk Napisz, potem pole na dole i Wyślij.”"
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 15 }} />
+              <button onClick={addAppGuide}
+                style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: "#0891b2", color: "#fff", fontSize: 17, fontWeight: 800, marginBottom: 12 }}>
+                ➕ Dodaj / zapisz aplikację
+              </button>
+              {appGuides.length > 0 && <div style={{ color: "#a5f3fc", fontSize: 13, fontWeight: 700, padding: "2px 4px 8px" }}>Twoje aplikacje:</div>}
+              {appGuides.map(g => (
+                <div key={g.match} style={{ border: "2px solid #155e63", borderRadius: 12, background: "#0b3d47", padding: "10px 14px", marginBottom: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "#e0f7fa", fontSize: 16, fontWeight: 800 }}>{g.name}</span>
+                    <button onClick={() => delAppGuide(g.match)} style={{ background: "#7f1d1d", color: "#fecaca", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, fontWeight: 700 }}>Usuń</button>
+                  </div>
+                  <div style={{ color: "#67e8f9", fontSize: 12, marginTop: 2 }}>{g.match}</div>
+                  <div style={{ color: "#cffafe", fontSize: 13, marginTop: 6 }}>{g.guide}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>

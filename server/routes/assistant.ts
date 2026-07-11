@@ -304,6 +304,34 @@ router.get("/info", async (req: Request, res: Response) => {
 // pracuje na ekranie znanej aplikacji (poznajemy po nazwie pakietu w zrzucie EKRAN),
 // doklejamy mu krótką mapę: jak ta aplikacja jest zbudowana, jak się nazywają kluczowe
 // przyciski, jaki jest typowy przepływ. AI przestaje zgadywać — zna teren.
+// 📱➕ WŁASNE ŚCIĄGI — użytkownik uczy Gadacza dowolnej aplikacji. Zapis na serwerze,
+// scalane z wbudowanymi. „match" to fragment nazwy pakietu ALBO nazwy apki (np. „olx",
+// „poczta", „com.olx"). Telefon może dodać ściągę z wnętrza apki (zna pakiet).
+const APPGUIDES_FILE = path.resolve(process.cwd(), "data", "gadacz_appguides.json");
+type AppGuide = { match: string; name: string; guide: string };
+function loadAppGuides(): AppGuide[] {
+  try { const d = JSON.parse(fs.readFileSync(APPGUIDES_FILE, "utf8")); return Array.isArray(d) ? d : []; } catch { return []; }
+}
+function saveAppGuides(g: AppGuide[]) {
+  try { fs.mkdirSync(path.dirname(APPGUIDES_FILE), { recursive: true }); fs.writeFileSync(APPGUIDES_FILE, JSON.stringify(g.slice(-100))); } catch {}
+}
+router.get("/appguides", (_req, res) => res.json({ guides: loadAppGuides() }));
+router.post("/appguides", (req, res) => {
+  const match = String(req.body?.match ?? "").trim().toLowerCase().slice(0, 80);
+  const name = String(req.body?.name ?? "").trim().slice(0, 60) || match;
+  const guide = String(req.body?.guide ?? "").trim().slice(0, 600);
+  if (!match || !guide) return res.status(400).json({ error: "Podaj aplikację i instrukcję" });
+  const all = loadAppGuides().filter(g => g.match !== match); // nadpisz istniejącą
+  all.push({ match, name, guide });
+  saveAppGuides(all);
+  res.json({ ok: true, guides: all });
+});
+router.post("/appguides/delete", (req, res) => {
+  const match = String(req.body?.match ?? "").trim().toLowerCase();
+  saveAppGuides(loadAppGuides().filter(g => g.match !== match));
+  res.json({ ok: true, guides: loadAppGuides() });
+});
+
 const APP_GUIDES: Record<string, string> = {
   "com.facebook.orca": "Messenger — lista rozmów: dotknij nazwę osoby. W rozmowie pole tekstowe na dole (podpowiedź „Aa”), wyślij = strzałka po prawej od pola. Szukanie osób: lupa na górze.",
   "com.whatsapp": "WhatsApp — zakładka Czaty: dotknij rozmowę. Pole tekstowe na dole, wyślij = zielona strzałka po prawej. Nowy czat: zielony przycisk na dole po prawej.",
@@ -572,7 +600,9 @@ router.post("/ask", async (req: Request, res: Response) => {
     const pkgMatch = q.match(/EKRAN aplikacji:\s*([\w.]+)/);
     if (pkgMatch) {
       const pkg = pkgMatch[1].toLowerCase();
-      const guide = Object.entries(APP_GUIDES).find(([k]) => pkg.includes(k) || k.includes(pkg))?.[1];
+      // Własne ściągi użytkownika mają PIERWSZEŃSTWO nad wbudowanymi (jego wiedza > moja).
+      const custom = loadAppGuides().find(g => pkg.includes(g.match) || g.match.includes(pkg))?.guide;
+      const guide = custom ?? Object.entries(APP_GUIDES).find(([k]) => pkg.includes(k) || k.includes(pkg))?.[1];
       if (guide) qFinal += `\n\n📱 ŚCIĄGA o tej aplikacji: ${guide}`;
       if (looksBankApp(pkg)) {
         qFinal += `\n\n🏦 UWAGA — aplikacja BANKOWA/płatnicza. Żelazne zasady: NICZEGO nie dotykaj z własnej inicjatywy. Możesz czytać ekran i wykonać WYŁĄCZNIE dokładnie wypowiedziane polecenie użytkownika, krok po kroku. Przy jakiejkolwiek płatności/przelewie NAJPIERW przeczytaj na głos kwotę i odbiorcę i czekaj na potwierdzenie (action none). Nigdy nie wpisuj PIN-ów ani haseł.`;

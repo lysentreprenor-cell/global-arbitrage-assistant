@@ -413,6 +413,26 @@ object Brain {
         if (n == "nie mow o baterii") { prefs(ctx).edit().putBoolean("rule_battery", false).apply(); return done("Dobrze, nie będę mówił o baterii.") }
         if (Regex("^mow( mi)? gdy bateria( bedzie)? slaba$").matches(n)) { prefs(ctx).edit().putBoolean("rule_battery", true).apply(); return done("Będę ostrzegał przy słabej baterii.") }
 
+        // 📱➕ Uczenie aplikacji z jej WNĘTRZA: „naucz się tej aplikacji, że wyślij jest
+        // strzałką na dole". Gadacz czyta pakiet apki na wierzchu i zapisuje ściągę.
+        Regex("^(naucz sie (tej )?aplikacji|zapamietaj (te )?aplikacje)[,: ]+(.+)$").find(n)?.let { m ->
+            val pkg = svc?.currentPackage() ?: ""
+            if (pkg.isBlank() || pkg == "pl.gadacz.app") return done("Otwórz najpierw aplikację, której mam się nauczyć, i powiedz to będąc w niej.")
+            // instrukcję bierzemy z ORYGINAŁU (polskie znaki), nie z uproszczonego n
+            val instr = Regex("^.*?(aplikacji|aplikacje)[,: ]+", RegexOption.IGNORE_CASE).replace(raw.trim(), "").trim()
+            if (instr.length < 4) return done("Powiedz, jak obsługiwać tę aplikację, po dwukropku.")
+            Thread {
+                try {
+                    val body = JSONObject().put("match", pkg).put("name", pkg.substringAfterLast(".")).put("guide", instr)
+                    http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/appguides")
+                        .header("x-bot-pin", pin(ctx))
+                        .post(body.toString().toRequestBody("application/json".toMediaType())).build()).execute().close()
+                    speak("Zapamiętałem, jak obsługiwać tę aplikację. Od teraz będę wiedział.")
+                } catch (_: Exception) { speak("Nie udało się zapisać. Sprawdź połączenie z serwerem.") }
+            }.start()
+            return true
+        }
+
         // 🔧 Piętro 19: samonaprawa — Gadacz mówi, w czym się najczęściej myli.
         if (Regex("^(gdzie sie mylisz|co poprawic|sprawdz sie|jak ci idzie|w czym sie mylisz)$").matches(n)) {
             Thread {

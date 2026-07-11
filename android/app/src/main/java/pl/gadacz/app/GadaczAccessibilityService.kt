@@ -48,6 +48,9 @@ class GadaczAccessibilityService : AccessibilityService() {
         return sb.toString()
     }
 
+    /** Pakiet aplikacji na wierzchu (dla „naucz się tej aplikacji"). Pusty = nieznany. */
+    fun currentPackage(): String = rootInActiveWindow?.packageName?.toString() ?: ""
+
     private fun hasScrollable(node: AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
         if (node.isScrollable) return true
