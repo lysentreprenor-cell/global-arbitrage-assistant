@@ -133,6 +133,22 @@ export default function AssistantPage() {
       .then(() => refreshAppGuides()).catch(() => {});
   };
 
+  // 🚫 ZABLOKOWANE APLIKACJE — gdzie Gadacz NIE ma pracować (np. bank).
+  const [blocked, setBlocked] = useState<{ match: string; name: string }[]>([]);
+  const [blOpen, setBlOpen] = useState(false);
+  const [blMatch, setBlMatch] = useState(""); const [blName, setBlName] = useState("");
+  const refreshBlocked = () => fetch("/api/assistant/blockedapps").then(r => r.json()).then(d => setBlocked(d.blocked ?? [])).catch(() => {});
+  useEffect(() => { refreshBlocked(); }, []);
+  const addBlocked = () => {
+    if (!blMatch.trim()) return;
+    fetch("/api/assistant/blockedapps", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ match: blMatch, name: blName || blMatch }) })
+      .then(r => r.json()).then(() => { setBlMatch(""); setBlName(""); refreshBlocked(); }).catch(() => {});
+  };
+  const delBlocked = (match: string) => {
+    fetch("/api/assistant/blockedapps/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ match }) })
+      .then(() => refreshBlocked()).catch(() => {});
+  };
+
   // Hands-free continuous mode: after each answer, auto-listen again (while tab is open).
   const [continuous, setContinuous] = useState<boolean>(() => { try { return localStorage.getItem("gadacz_continuous") === "1"; } catch { return false; } });
   const continuousRef = useRef(continuous);
@@ -558,6 +574,37 @@ export default function AssistantPage() {
                   </div>
                   <div style={{ color: "#67e8f9", fontSize: 12, marginTop: 2 }}>{g.match}</div>
                   <div style={{ color: "#cffafe", fontSize: 13, marginTop: 6 }}>{g.guide}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 🚫 ZABLOKOWANE APLIKACJE — gdzie Gadacz NIE ma pracować */}
+        <div style={{ border: "3px solid #b91c1c", borderRadius: 16, background: "#2a1010", overflow: "hidden" }}>
+          <button onClick={() => setBlOpen(o => !o)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
+              background: "transparent", border: "none", color: "#fecaca", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+            <span>🚫 APLIKACJE ZABLOKOWANE ({blocked.length})</span>
+            <span style={{ fontSize: 22 }}>{blOpen ? "▲" : "▼"}</span>
+          </button>
+          {blOpen && (
+            <div style={{ padding: "4px 12px 14px" }}>
+              <div style={{ color: "#fca5a5", fontSize: 13, padding: "0 4px 10px" }}>
+                W tych aplikacjach Gadacz <b>nie dotknie ekranu</b> (nie kliknie, nie wpisze). Dobre dla banku, płatności, prywatnych apek.
+              </div>
+              <input value={blName} onChange={e => setBlName(e.target.value)} placeholder="Nazwa (np. Mój bank)"
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #7f1d1d", background: "#3a1414", color: "#fee2e2", fontSize: 16 }} />
+              <input value={blMatch} onChange={e => setBlMatch(e.target.value)} placeholder="Fragment nazwy pakietu/apki (np. bank, revolut)"
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #7f1d1d", background: "#3a1414", color: "#fee2e2", fontSize: 16 }} />
+              <button onClick={addBlocked}
+                style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: "#b91c1c", color: "#fff", fontSize: 17, fontWeight: 800, marginBottom: 12 }}>
+                🚫 Zablokuj aplikację
+              </button>
+              {blocked.map(b => (
+                <div key={b.match} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, border: "2px solid #7f1d1d", borderRadius: 12, background: "#3a1414", padding: "10px 14px", marginBottom: 8 }}>
+                  <span><span style={{ color: "#fee2e2", fontSize: 16, fontWeight: 800 }}>{b.name}</span> <span style={{ color: "#f87171", fontSize: 12 }}>({b.match})</span></span>
+                  <button onClick={() => delBlocked(b.match)} style={{ background: "#166534", color: "#bbf7d0", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, fontWeight: 700 }}>Odblokuj</button>
                 </div>
               ))}
             </div>

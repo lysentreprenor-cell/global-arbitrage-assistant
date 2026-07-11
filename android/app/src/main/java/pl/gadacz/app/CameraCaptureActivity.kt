@@ -54,14 +54,22 @@ class CameraCaptureActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun openCamera() {
-        try { camLauncher.launch(Intent(MediaStore.ACTION_IMAGE_CAPTURE)) }
-        catch (e: Exception) { speak("Ten telefon nie ma aparatu."); finishSoon() }
+        try {
+            val i = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            if (mode == "selfie") {
+                // Podpowiedzi PRZEDNIEGO aparatu (best-effort — różne telefony różnie je czytają).
+                i.putExtra("android.intent.extras.CAMERA_FACING", 1)
+                i.putExtra("android.intent.extras.LENS_FACING_FRONT", 1)
+                i.putExtra("android.intent.extra.USE_FRONT_CAMERA", true)
+            }
+            camLauncher.launch(i)
+        } catch (e: Exception) { speak("Ten telefon nie ma aparatu."); finishSoon() }
     }
 
     override fun onInit(status: Int) { if (status == TextToSpeech.SUCCESS) tts.language = Locale("pl", "PL") }
 
     private fun analyze(bmp: Bitmap) {
-        speak(if (mode == "read") "Czytam…" else "Patrzę…")
+        speak(if (mode == "read") "Czytam…" else if (mode == "selfie") "Sprawdzam…" else "Patrzę…")
         Thread {
             try {
                 val scale = 1024f / bmp.width
@@ -70,10 +78,11 @@ class CameraCaptureActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val bos = ByteArrayOutputStream()
                 small.compress(Bitmap.CompressFormat.JPEG, 70, bos)
                 val b64 = Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP)
-                val q = if (mode == "read")
-                    "Przeczytaj na głos CAŁY tekst widoczny na tym zdjęciu, po polsku. Jeśli tekst jest w innym języku, przeczytaj i krótko przetłumacz. Nic nie zmyślaj — jeśli czegoś nie widać wyraźnie, powiedz to."
-                else
-                    "Jesteś oczami osoby niewidomej. Opisz krótko i konkretnie, co jest na tym zdjęciu: najpierw najważniejsze (zagrożenia, przeszkody, ludzie), potem otoczenie. Na końcu przeczytaj widoczny tekst, jeśli jest. Mów spokojnie, po polsku."
+                val q = when (mode) {
+                    "read" -> "Przeczytaj na głos CAŁY tekst widoczny na tym zdjęciu, po polsku. Jeśli tekst jest w innym języku, przeczytaj i krótko przetłumacz. Nic nie zmyślaj — jeśli czegoś nie widać wyraźnie, powiedz to."
+                    "selfie" -> "To zdjęcie z przedniego aparatu osoby NIEWIDOMEJ, która jest na rozmowie wideo i chce wiedzieć, czy dobrze ją widać. Oceń KRÓTKO i praktycznie: czy twarz jest wyśrodkowana i cała w kadrze, czy światło jest dobre (nie za ciemno, nie pod słońce), czy nie jest za blisko/za daleko. Jeśli coś jest nie tak, powiedz KONKRETNIE co poprawić („podnieś telefon wyżej”, „odsuń trochę”, „jest za ciemno, włącz światło”). Jeśli wszystko dobrze — powiedz „Wyglądasz dobrze, twarz w kadrze, dobre światło”. Mów wprost, po polsku, do tej osoby."
+                    else -> "Jesteś oczami osoby niewidomej. Opisz krótko i konkretnie, co jest na tym zdjęciu: najpierw najważniejsze (zagrożenia, przeszkody, ludzie), potem otoczenie. Na końcu przeczytaj widoczny tekst, jeśli jest. Mów spokojnie, po polsku."
+                }
                 val resp = Brain.ask(this, q, emptyList(), null, b64)
                 speakThenFinish(resp.optString("say", "Nie wiem, co widzę."))
             } catch (e: Exception) {

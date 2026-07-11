@@ -197,6 +197,32 @@ router.post("/floors", (req, res) => {
   res.json({ ok: true, floors: cur });
 });
 
+// 🚫 ZABLOKOWANE APLIKACJE — Gadacz NIE wykona żadnej akcji ekranowej (klik/wpisanie)
+// w tych apkach. „match" = fragment nazwy pakietu lub apki (np. „bank", „revolut").
+const BLOCKED_FILE = path.resolve(process.cwd(), "data", "gadacz_blocked.json");
+type BlockedApp = { match: string; name: string };
+function loadBlocked(): BlockedApp[] {
+  try { const d = JSON.parse(fs.readFileSync(BLOCKED_FILE, "utf8")); return Array.isArray(d) ? d : []; } catch { return []; }
+}
+function saveBlocked(b: BlockedApp[]) {
+  try { fs.mkdirSync(path.dirname(BLOCKED_FILE), { recursive: true }); fs.writeFileSync(BLOCKED_FILE, JSON.stringify(b.slice(-100))); } catch {}
+}
+router.get("/blockedapps", (_req, res) => res.json({ blocked: loadBlocked() }));
+router.post("/blockedapps", (req, res) => {
+  const match = String(req.body?.match ?? "").trim().toLowerCase().slice(0, 80);
+  const name = String(req.body?.name ?? "").trim().slice(0, 60) || match;
+  if (!match) return res.status(400).json({ error: "Podaj aplikację" });
+  const all = loadBlocked().filter(b => b.match !== match);
+  all.push({ match, name });
+  saveBlocked(all);
+  res.json({ ok: true, blocked: all });
+});
+router.post("/blockedapps/delete", (req, res) => {
+  const match = String(req.body?.match ?? "").trim().toLowerCase();
+  saveBlocked(loadBlocked().filter(b => b.match !== match));
+  res.json({ ok: true, blocked: loadBlocked() });
+});
+
 // GET  /api/assistant/memory        → { memory: string[] }
 router.get("/memory", (_req, res) => res.json({ memory: loadMemory() }));
 // POST /api/assistant/memory {fact} → append
@@ -427,6 +453,7 @@ URUCHAMIANIE APLIKACJI (działa w aplikacji Gadacz na telefonie, NIE wymaga usł
 Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usługą dostępności; w wersji przeglądarkowej odpowiedz w "say", że potrzebna jest aplikacja Gadacz):
 - "look":         {} — OCZY NA ŚWIAT: aparat opisze OTOCZENIE. Gdy użytkownik pyta „co przede mną", „co widzisz", „opisz otoczenie", „co to jest" (o rzeczy w świecie, nie na ekranie).
 - "read_world":   {} — aparat PRZECZYTA tekst z kartki/ulotki/etykiety w świecie („przeczytaj to", „co tu pisze na kartce").
+- "check_framing": {} — PRZEDNI aparat sprawdza kadr osoby (na rozmowie wideo): „czy dobrze mnie widać", „jak wyglądam", „czy jestem w kadrze". Mówi, czy twarz w kadrze i światło dobre.
 - "read_screen":  {} — użytkownik pyta co jest na EKRANIE telefonu / prosi o przeczytanie ekranu (to co innego niż look — look patrzy aparatem na świat)
 - "tap":          {"text":"napis na przycisku lub elemencie","pos":"góra"|"środek"|"dół"} — kliknij element o tym tekście; "pos" OPCJONALNIE, gdy ten sam napis jest kilka razy (wybierz strefę z EKRANU). Dopasowanie jest odporne na polskie znaki i wybiera najlepszy element, więc podawaj napis dokładnie z EKRANU.
 - "tap_at":       {"x":50,"y":80} — dotknij PUNKT ekranu w PROCENTACH (x: 0=lewa krawędź, 100=prawa; y: 0=góra, 100=dół). Używaj, gdy element NIE MA napisu (ikona, strzałka, plus) — jego położenie odczytaj ze ZRZUTU EKRANU. Preferuj zwykły "tap" po tekście; "tap_at" to precyzyjny palec na resztę. ZAKAZ: przycisków płatności/potwierdzenia/usuwania (Zapłać, Kup, Zamów, Przelej, Usuń) NIGDY nie klikaj przez tap_at — użyj "tap" z ich napisem, żeby zadziałał strażnik i poprosił użytkownika o potwierdzenie.

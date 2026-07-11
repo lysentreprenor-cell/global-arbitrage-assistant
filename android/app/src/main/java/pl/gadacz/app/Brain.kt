@@ -44,6 +44,27 @@ object Brain {
     /** Czy piętro włączone? Brak połączenia/klucza = domyślnie TAK (nie blokujemy w ciemno). */
     fun floorOn(ctx: Context, key: String): Boolean = floors(ctx).optBoolean(key, true)
 
+    // 🚫 ZABLOKOWANE APLIKACJE — Gadacz nie tyka ekranu w tych apkach (cache 60 s).
+    @Volatile private var blockedCache: List<String>? = null
+    @Volatile private var blockedAt = 0L
+    private fun blockedApps(ctx: Context): List<String> {
+        val now = System.currentTimeMillis()
+        blockedCache?.let { if (now - blockedAt < 60_000) return it }
+        return try {
+            val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/blockedapps")
+                .header("x-bot-pin", pin(ctx)).build()).execute().use { JSONObject(it.body?.string() ?: "{}") }
+            val arr = r.optJSONArray("blocked") ?: JSONArray()
+            val list = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("match")?.lowercase()?.ifBlank { null } }
+            list.also { blockedCache = it; blockedAt = now }
+        } catch (_: Exception) { blockedCache ?: emptyList() }
+    }
+    /** Czy aplikacja na wierzchu jest zablokowana? (dla akcji ekranowych) */
+    fun currentAppBlocked(ctx: Context): Boolean {
+        val pkg = GadaczAccessibilityService.instance?.currentPackage()?.lowercase() ?: return false
+        if (pkg.isBlank()) return false
+        return blockedApps(ctx).any { pkg.contains(it) }
+    }
+
     /**
      * 🎙️ Głos Gadacza. Telefon ma zwykle KILKA polskich głosów (Google TTS) — domyślny
      * bywa drewniany jak stara Ivona. Wybieramy KOBIECY, SIECIOWY (najładniejszy):
@@ -370,6 +391,10 @@ object Brain {
             }
             if (Regex("^przeczytaj (to|kartke|ulotke|tekst|co tu pisze|z kartki)$").matches(n) || n == "przeczytaj z aparatu") {
                 ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "read").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+            }
+            // 📹 Kamerka do rozmów: przedni aparat sprawdza, czy dobrze widać twarz.
+            if (Regex("^(czy dobrze mnie widac|jak (wygladam|mnie widac)|czy mnie widac|sprawdz (kamerke|jak wygladam)|czy jestem w kadrze)$").matches(n)) {
+                ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "selfie").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
             }
         }
 
@@ -742,6 +767,10 @@ object Brain {
      */
     fun execute(ctx: Context, action: String, args: JSONObject, say: String, speak: (String) -> Unit): String {
         val svc = GadaczAccessibilityService.instance
+        // 🚫 Zablokowana aplikacja na wierzchu — Gadacz nie tyka jej ekranu (klik/wpisanie/przewijanie).
+        if (action in setOf("tap", "tap_at", "long_press", "type", "write", "paste", "enter", "scroll") && currentAppBlocked(ctx)) {
+            return "Ta aplikacja jest zablokowana — nie pracuję w niej. Odblokuj ją w panelu, jeśli chcesz."
+        }
         when (action) {
             "call" -> dial(ctx, args.optString("who"))?.let { return it }
             "sms" -> sms(ctx, args.optString("who"), args.optString("text"))
@@ -753,6 +782,7 @@ object Brain {
             "read_screen" -> { readScreenAsync(ctx, speak); return "" }
             "look" -> { ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "describe").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return "" }
             "read_world" -> { ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "read").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return "" }
+            "check_framing" -> { ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java).putExtra("mode", "selfie").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return "" }
             "tap" -> {
                 val label = args.optString("text")
                 // 🛡️ Strażnik: płatności/usuwanie tylko po Twoim „potwierdzam" (jeśli włączony).
