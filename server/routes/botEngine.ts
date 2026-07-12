@@ -150,6 +150,7 @@ type Position = {
   tpPct: number;        // effective take-profit %
   trailPct: number;     // effective trailing-stop %
   breakEvenSet: boolean; // true once SL has been moved to break-even
+  trailArmed?: boolean;  // trail active only after profit once covered fees (anti fee-bleed)
   runner?: boolean;      // TP touched once → wide-trail runner mode (let winners run)
   lastPrice?: number;          // last KNOWN good price for THIS symbol (SL fallback, never entry)
   signal?: string;             // which condition triggered entry (optional for restored positions)
@@ -1468,6 +1469,11 @@ async function priceCheck() {
     const initSL = position.direction === "long"
       ? position.entryPrice * (1 - position.slPct / 100)
       : position.entryPrice * (1 + position.slPct / 100);
+    // 💸 Trail dopiero, gdy zysk choć raz pokrył prowizje — wcześniej tylko twardy SL.
+    if (!position.trailArmed && pct >= TRAIL_ARM_PCT) position.trailArmed = true;
+    const stopLine = position.direction === "long"
+      ? (position.trailArmed ? Math.max(trailSL, initSL) : initSL)
+      : (position.trailArmed ? Math.min(trailSL, initSL) : initSL);
 
     const holdMin = (Date.now() - new Date(position.entryTime).getTime()) / 60_000;
     const maxHoldMin = (config.maxHoldMin && config.maxHoldMin > 0) ? config.maxHoldMin : 48 * 60;
@@ -1486,8 +1492,8 @@ async function priceCheck() {
       }
     }
     if (!reason) {
-      if (position.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-      else if (position.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      if (position.direction === "long"  && price <= stopLine) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      else if (position.direction === "short" && price >= stopLine) reason = `SL/Trail ${pct.toFixed(2)}%`;
       // 💰 Limit czasu wychodzi TYLKO powyżej progu opłacalności (+1.2% > prowizja).
       // Koniec z „+0.33% → -$0.99”: remis na papierze to strata w kieszeni.
       else if (holdMin >= maxHoldMin && pct >= 1.2) reason = `Limit czasu ${timeLabel} (+${pct.toFixed(2)}%)`;
@@ -1575,7 +1581,12 @@ function packTooHot(list: Position[], dir: Direction): boolean {
 // 💧 Twardy próg płynności (obrót 24h w walucie kwotowanej). Poniżej — moneta jest
 // zbyt cienka, SL nie trzyma. Ok. 300 tys. odcina mikro-pyłki (GWEI/2Z/ARX/BASED),
 // zostawia realne monety (BTC/ETH/SOL/DOGE/AVAX/ADA/APE/ICP/LTC...).
-const HARD_MIN_TURNOVER = 300_000;
+const HARD_MIN_TURNOVER = 500_000; // podbite z 300k (12.07) — większy margines od monet-pyłków
+
+// 💸 Trail uzbraja się dopiero od tego zysku (prowizje 0.52% + luz). Analiza 12.07:
+// wyjścia trail w paśmie −0.3%…+1% brzmiały jak remis, a każde kosztowało 2-5 dolarów.
+// Zanim pozycja pokryje prowizje, pilnuje jej TYLKO twardy SL.
+const TRAIL_ARM_PCT = 0.7;
 
 function estimate24hTurnover(volumes: number[], price: number): number {
   const baseVol = volumes.reduce((s, v) => s + v, 0);          // base-asset volume over window
@@ -1898,7 +1909,11 @@ async function paperTick() {
     paperScanCursor += MAX_SCAN_PER_TICK;
 
     const scans = await scanInBatches(batch, paperCfg);
-    const best = scans.filter(s => s.isLong || s.isShort).sort((a, b) => b.score - a.score)[0];
+    // 🐻 Shorty tylko z wiatrem w plecy: gdy zbiorczy trend (BTC prowadzi rynek) nie
+    // spada, shorta nie otwieramy. Analiza 12.07: shorty pod prąd oddały ~100 dolarów
+    // w tydzień, niemal wszystkie na minusie.
+    const shortsOk = trendScore < 0;
+    const best = scans.filter(s => s.isLong || (s.isShort && shortsOk)).sort((a, b) => b.score - a.score)[0];
     if (!best) return;
     // 🧯 Strażnik paczki — dwie pozycje w tym kierunku już krwawią? Nie dokładamy.
     if (packTooHot(paperPositions, best.isLong ? "long" : "short")) {
@@ -1976,6 +1991,11 @@ async function paperPriceCheck() {
 
     const trailSL = pos.direction === "long" ? pos.trailRef * (1 - pos.trailPct / 100) : pos.trailRef * (1 + pos.trailPct / 100);
     const initSL  = pos.direction === "long" ? pos.entryPrice * (1 - pos.slPct / 100)  : pos.entryPrice * (1 + pos.slPct / 100);
+    // 💸 Jak w prawdziwym bocie: trail dopiero po pokryciu prowizji, wcześniej tylko twardy SL.
+    if (!pos.trailArmed && pct >= TRAIL_ARM_PCT) pos.trailArmed = true;
+    const stopLine = pos.direction === "long"
+      ? (pos.trailArmed ? Math.max(trailSL, initSL) : initSL)
+      : (pos.trailArmed ? Math.min(trailSL, initSL) : initSL);
     const holdMin = (Date.now() - new Date(pos.entryTime).getTime()) / 60_000;
     const maxHold = (paperCfg.maxHoldMin && paperCfg.maxHoldMin > 0) ? paperCfg.maxHoldMin : 48 * 60;
     const timeLabel = maxHold >= 60 ? `${(maxHold / 60).toFixed(0)}h` : `${maxHold}m`;
@@ -1991,8 +2011,8 @@ async function paperPriceCheck() {
       }
     }
     if (!reason) {
-      if (pos.direction === "long"  && price <= Math.max(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
-      else if (pos.direction === "short" && price >= Math.min(trailSL, initSL)) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      if (pos.direction === "long"  && price <= stopLine) reason = `SL/Trail ${pct.toFixed(2)}%`;
+      else if (pos.direction === "short" && price >= stopLine) reason = `SL/Trail ${pct.toFixed(2)}%`;
       else if (holdMin >= maxHold && pct >= 1.2) reason = `Limit czasu ${timeLabel} (+${pct.toFixed(2)}%)`;
       else if (holdMin >= maxHold * 3) reason = `Limit czasu (twardy) (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
     }
@@ -2388,7 +2408,7 @@ async function engineTick() {
     // coin needs less individual overbought to be worth shorting.
     const shortBar = marketOverheated ? (100 - bbEntryLive) - 8 : (100 - bbEntryLive);
     const isLong  = !marketOverheated && !marketBearish && !peopleSleeping && primaryFree && primaryLiquid && bbPercB < bbEntryLive && belowVwap && !inCrash && bottomConfirmed && notSteepDown;
-    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && canShortSym(config.symbol) && bbPercB > shortBar && aboveVwap && topConfirmed;
+    const isShort = primaryFree && primaryLiquid && config.allowShorts && !spotOnly && canShortSym(config.symbol) && bbPercB > shortBar && aboveVwap && topConfirmed && trendScore < 0;
 
     const cooldownMs = (config.cooldownMin ?? 60) * 60 * 1000;
     const cooldownOk = Date.now() - lastEntryTime > cooldownMs;
@@ -2430,8 +2450,10 @@ async function engineTick() {
         // Pick the best signal among coins we don't already hold.
         // 🌡️ overheat / 🌙 night / 📉 bearish trend: ignore alt LONGs too — only shorts pass.
         const longsBlocked = marketOverheated || peopleSleeping || marketBearish;
+        // 🐻 Shorty tylko przy spadającym trendzie zbiorczym (analiza 12.07).
+        const shortsOk = trendScore < 0;
         const best = scans
-          .filter(s => ((s.isLong && !longsBlocked) || s.isShort) && !holdsSymbol(s.sym))
+          .filter(s => ((s.isLong && !longsBlocked) || (s.isShort && shortsOk)) && !holdsSymbol(s.sym))
           .sort((a, b) => b.score - a.score)[0];
         if (best) {
           const altDir: Direction = best.isLong ? "long" : "short";
@@ -2888,7 +2910,13 @@ router.post("/paper/start", (req, res) => {
   paperRunning = true;
   paperPositions = [];
   // Preserve the simulation's cumulative record across on/off — only reset:true wipes.
-  if (b.reset === true) { paperPnl = 0; paperWins = 0; paperLosses = 0; paperHistory = []; }
+  if (b.reset === true) {
+    paperPnl = 0; paperWins = 0; paperLosses = 0; paperHistory = [];
+    // 🧠 Dziennik nauki też do zera — stare lekcje były zatrute błędem par (monety
+    // z kursem BTC) i erą sprzed filtra płynności; uczenie z nich szkodziło.
+    learningLog = []; saveLearning();
+    paperSlippageBlacklist.clear();
+  }
   paperLastEntry = 0; paperScanCursor = 0;
   savePaper();
   addPaperLog(`📝 Symulacja START — kapitał $${paperCfg.capital} (wirtualnie), ${(paperCfg.symbols?.length ?? 0) + 1} monet, max ${paperCfg.maxPositions} pozycji, głębokość BB%B<${paperCfg.bbMax}${paperCfg.allowShorts ? ", SHORTY ON (wirtualny margin 2x + rolowanie)" : ""}${b.reset === true ? " [wyzerowano]" : " [kontynuacja]"} — działa RÓWNOLEGLE z botem | 🧬 kod: ${CODE_VERSION}`, "info");
