@@ -388,7 +388,15 @@ function krakenSymbolInfo(symbol: string): KrakenSymbolInfo | undefined {
 function getKrakenPairName(symbol: string, fiat: KrakenFiat): string {
   const info = krakenSymbolInfo(symbol);
   if (info) return fiat === "EUR" && info.pairEUR ? info.pairEUR : info.pairUSD;
-  return (fiat === "EUR" ? SYMBOL_MAP_EUR : SYMBOL_MAP_USD)[symbol] ?? "XBTUSD";
+  const staticPair = (fiat === "EUR" ? SYMBOL_MAP_EUR : SYMBOL_MAP_USD)[symbol];
+  if (staticPair) return staticPair;
+  // 🐛 KRYTYCZNE (12.07): dawny fallback "XBTUSD" podstawiał KURS BITCOINA pod każdą
+  // nieznaną monetę — skaner analizował świece BTC myśląc, że to np. ALMANAK/ART/MIRROR,
+  // a historia pokazywała te monety po 64 000 dolarów. Teraz: nieznana para = ""
+  // (wołający pomija symbol), a w tle dociągamy świeżą listę par z Krakena,
+  // żeby następny tick już ją znał.
+  loadKrakenSymbols().catch(() => {});
+  return "";
 }
 
 function getKrakenBalanceKey(symbol: string): string {
@@ -820,6 +828,9 @@ async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{
   }
   if (config.platform === "kraken") {
     const pair = krakenPair(tradeSym);
+    // 🛡️ Bez znanej pary NIE wysyłamy zlecenia — dawny fallback XBTUSD mógłby
+    // kupić PRAWDZIWEGO Bitcoina, gdy bot myślał, że kupuje inną monetę.
+    if (!pair) throw new Error(`Nieznana para Kraken dla ${tradeSym} — zlecenie wstrzymane`);
     const effLev = Math.max(1, config.leverage ?? 1);
     const orderParams: Record<string, string> = {
       pair, type: side === "long" ? "buy" : "sell", ordertype: "market", volume: String(qty),
@@ -1048,6 +1059,7 @@ async function fetchFearGreed(): Promise<{ value: number; label: string } | null
 
 async function fetchCandles(symbol: string): Promise<{closes:number[];opens:number[];highs:number[];lows:number[];volumes:number[];vwaps:number[];price:number}|null> {
   const pair = krakenPair(symbol);
+  if (!pair) return null; // nieznana para — lepiej pominąć niż analizować cudze świece
   try {
     const since = Math.floor(Date.now() / 1000) - 150 * 5 * 60;
     const raw = await krakenOhlcFetch(pair, 5, since);
@@ -1070,6 +1082,7 @@ async function fetchCandles(symbol: string): Promise<{closes:number[];opens:numb
 
 async function fetchCurrentPrice(symbol: string, fiatOverride?: KrakenFiat): Promise<number | null> {
   const pair = fiatOverride ? getKrakenPairName(symbol, fiatOverride) : krakenPair(symbol);
+  if (!pair) return null;
   try {
     const r = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
@@ -1085,6 +1098,7 @@ async function fetchCurrentPrice(symbol: string, fiatOverride?: KrakenFiat): Pro
 // making the trade a guaranteed loser before the market even moves. Gate on it.
 async function fetchSpreadPct(symbol: string, fiat?: KrakenFiat): Promise<number | null> {
   const pair = fiat ? getKrakenPairName(symbol, fiat) : krakenPair(symbol);
+  if (!pair) return null;
   try {
     const r = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
@@ -1102,6 +1116,7 @@ const MAX_SPREAD_PCT = 0.4; // skip entries where bid-ask spread > 0.4% of price
 /** Trend on a single Kraken interval (minutes) via EMA9 vs EMA21. Cached/queued by krakenOhlcFetch. */
 async function fetchTfTrend(symbol: string, interval: number): Promise<"bull" | "bear" | "neutral"> {
   const pair = krakenPair(symbol);
+  if (!pair) return "neutral";
   try {
     const since = Math.floor(Date.now() / 1000) - 70 * interval * 60;
     const raw = await krakenOhlcFetch(pair, interval, since);
@@ -1413,6 +1428,13 @@ async function priceCheck() {
     // KNOWN price; if we've never had one, skip this pass rather than fake it.
     const price = live ?? position.lastPrice ?? 0;
     if (!price || price <= 0) continue;
+    // 🧯 Cena o rząd wielkości inna niż wejście = pozycja zapisana z błędną parą
+    // (dawny fallback XBTUSD). PRAWDZIWYCH pieniędzy nie ruszamy automatycznie —
+    // głośno ostrzegamy i pomijamy, użytkownik decyduje ręcznie.
+    if (price < position.entryPrice * 0.1 || price > position.entryPrice * 10) {
+      addLog(`🧯 ${sym}: cena $${fmtPrice(price)} nie pasuje do wejścia $${fmtPrice(position.entryPrice)} — pozycja z błędną parą (stary błąd). Sprawdź ją ręcznie na Krakenie.`, "warn");
+      continue;
+    }
     if (live) { position.lastPrice = live; lastPrice = live; }
 
     const rawPct = (price - position.entryPrice) / position.entryPrice * 100;
@@ -1926,6 +1948,16 @@ async function paperPriceCheck() {
 
     const price = await fetchCurrentPrice(sym, pos.fiat); // same fiat as entry (see priceCheck)
     if (!price) continue;
+
+    // 🧯 Pozycja zatruta dawnym błędem par (wejście po kursie BTC zamiast tej monety):
+    // prawdziwa cena różni się o rząd wielkości — usuwamy pozycję BEZ liczenia P&L,
+    // żeby nie księgować fałszywej straty −99% ani fałszywego zysku.
+    if (price < pos.entryPrice * 0.1 || price > pos.entryPrice * 10) {
+      addPaperLog(`🧯 ${sym}: cena $${fmtPrice(price)} nie pasuje do wejścia $${fmtPrice(pos.entryPrice)} (stary błąd par) — usuwam pozycję bez P&L`, "warn");
+      paperPositions = paperPositions.filter(p => p !== pos);
+      savePaper();
+      continue;
+    }
 
     const rawPct = (price - pos.entryPrice) / pos.entryPrice * 100;
     const pct    = pos.direction === "short" ? -rawPct : rawPct;
@@ -3559,7 +3591,10 @@ router.post("/optimize", async (req, res) => {
   }
 });
 
-// Auto-resume bot + paper simulation if they were running before server restart
+// Auto-resume bot + paper simulation if they were running before server restart.
+// NAJPIERW lista par z Krakena — bez niej egzotyczne monety nie mają cen (a dawniej
+// po cichu dostawały kurs Bitcoina). Auto-resume czeka aż lista zdąży się pobrać.
+loadKrakenSymbols().catch(() => {});
 setTimeout(loadState, 3000);
 setTimeout(loadPaper, 4000);
 
