@@ -125,6 +125,8 @@ router.post("/remix", async (req: Request, res: Response) => {
       img = m.img; mediaType = m.mediaType;
     }
     if (img.length < 100) return res.status(400).json({ error: "Brak obrazka" });
+    // Anthropic przyjmuje tylko jpeg/png/gif/webp — inny nagłówek wywróciłby cały strzał.
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType)) mediaType = "image/jpeg";
     const hint = String(req.body?.hint ?? "").slice(0, 300);
     const prompt = `Jesteś polskim mistrzem memów. Obejrzyj ten mem/obrazek: zrozum, co na nim jest i na czym polega żart (jeśli jest tekst — przeczytaj go).
 ${hint ? `Wskazówka użytkownika, o czym mają być nowe wersje: ${hint}` : "Wymyśl nowe wersje w tym samym duchu, po polsku, śmieszne ale kulturalne."}

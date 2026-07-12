@@ -154,7 +154,7 @@ export default function AdsPage() {
   const download = (dataUrl: string, name: string) => {
     const a = document.createElement("a");
     a.href = dataUrl;
-    a.download = `${name.replace(/[^\w\ąćęłńóśźż-]+/gi, "_") || "mem"}.jpg`;
+    a.download = `${name.replace(/[^\wąćęłńóśźż-]+/gi, "_") || "mem"}.jpg`;
     a.click();
   };
 

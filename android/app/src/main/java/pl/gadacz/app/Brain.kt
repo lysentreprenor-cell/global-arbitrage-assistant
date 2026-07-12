@@ -531,11 +531,11 @@ object Brain {
             speak("Przerabiam mema, chwileczkę…")
             Thread {
                 try {
-                    val ask = JSONObject().put("anthropicKey", anthropicKey(ctx))
+                    val payload = JSONObject().put("anthropicKey", anthropicKey(ctx))
                         .put("imageBase64", shot).put("mediaType", "image/jpeg")
                     val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/memes/remix")
                         .header("x-bot-pin", pin(ctx))
-                        .post(ask.toString().toRequestBody("application/json".toMediaType())).build())
+                        .post(payload.toString().toRequestBody("application/json".toMediaType())).build())
                         .execute().use { JSONObject(it.body?.string() ?: "{}") }
                     val teksty = r.optJSONArray("teksty")
                     if (teksty == null || teksty.length() == 0) { speak(r.optString("error", "Nie wymyśliłem nowego tekstu.")); return@Thread }

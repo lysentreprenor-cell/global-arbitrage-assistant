@@ -55,7 +55,7 @@ type Order = {
   sourceMarket?: string; buyerName: string; buyerAddress: string; buyerEmail: string;
   quantity: number; sellPrice: number; sourcePriceUSD: number; profit: number;
   status: string; createdAt: string; processedAt: string | null; platform: string;
-  trackingNumber?: string; notes?: string;
+  trackingNumber?: string; notes?: string; category?: string;
 };
 
 type Stats = {

@@ -90,7 +90,10 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        // Ucinamy — odpowiedzi z obrazkami (memy, zdjęcia) miewają MEGABAJTY base64
+        // i pojedynczy wpis zalewał całą konsolę Replit.
+        const js = JSON.stringify(capturedJsonResponse);
+        logLine += ` :: ${js.length > 300 ? js.slice(0, 300) + `… (${js.length} znaków)` : js}`;
       }
 
       log(logLine);
