@@ -40,6 +40,7 @@ const APP_TABS: Record<string, { path: string; name: string }> = {
   bot:         { path: "/resell/trading-bot",  name: "Trading Bot" },
   api:         { path: "/resell/settings",     name: "Ustawienia API" },
   gadacz:      { path: "/resell/assistant",    name: "Gadacz" },
+  reklama:     { path: "/resell/ads",          name: "Reklama" },
 };
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -131,6 +132,25 @@ export default function AssistantPage() {
   const delAppGuide = (match: string) => {
     fetch("/api/assistant/appguides/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ match }) })
       .then(() => refreshAppGuides()).catch(() => {});
+  };
+
+  // ✍️ WARSZTAT PISARSKI — Gadacz pisze: wiersze, piosenki, opowiadania, pisma, listy.
+  const [wsOpen, setWsOpen] = useState(false);
+  const [wsTopic, setWsTopic] = useState("");
+  const WS_STYLES: { icon: string; name: string; prompt: string }[] = [
+    { icon: "🌹", name: "Wiersz",           prompt: "Napisz piękny wiersz o:" },
+    { icon: "🎵", name: "Piosenka",         prompt: "Napisz tekst piosenki, ze zwrotkami i refrenem, o:" },
+    { icon: "📖", name: "Opowiadanie",      prompt: "Napisz wciągające opowiadanie o:" },
+    { icon: "💌", name: "List romantyczny", prompt: "Napisz romantyczny list. Do kogo i o czym:" },
+    { icon: "⚖️", name: "Pismo urzędowe",   prompt: "Napisz oficjalne pismo urzędowe w sprawie:" },
+    { icon: "📧", name: "E-mail oficjalny", prompt: "Napisz oficjalny e-mail w sprawie:" },
+    { icon: "🎂", name: "Życzenia",         prompt: "Napisz serdeczne życzenia z okazji:" },
+    { icon: "🗣️", name: "Przemówienie",     prompt: "Napisz krótkie przemówienie na okazję:" },
+  ];
+  const writeStyled = (prompt: string) => {
+    const t = wsTopic.trim();
+    if (!t) { speak("Najpierw wpisz temat — o czym mam napisać."); return; }
+    ask(`${prompt} ${t}`);
   };
 
   // Hands-free continuous mode: after each answer, auto-listen again (while tab is open).
@@ -565,6 +585,38 @@ export default function AssistantPage() {
           )}
         </div>
 
+        {/* ✍️ WARSZTAT PISARSKI — wiersze, piosenki, opowiadania, pisma, listy */}
+        <div style={{ border: "3px solid #db2777", borderRadius: 16, background: "#31081f", overflow: "hidden" }}>
+          <button onClick={() => setWsOpen(o => !o)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
+              background: "transparent", border: "none", color: "#fbcfe8", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+            <span>✍️ WARSZTAT PISARSKI</span>
+            <span style={{ fontSize: 22 }}>{wsOpen ? "▲" : "▼"}</span>
+          </button>
+          {wsOpen && (
+            <div style={{ padding: "4px 12px 14px" }}>
+              <div style={{ color: "#f9a8d4", fontSize: 13, padding: "0 4px 10px" }}>
+                Gadacz pisze za Ciebie w wybranym stylu: wpisz temat, dotknij styl — <b>przeczyta całość na głos i skopiuje do schowka</b>.
+                Głosem działa wszędzie: „napisz wiersz o mamie", „napisz pismo do urzędu o umorzenie opłaty", „napisz romantyczną wiadomość na dobranoc".
+              </div>
+              <input value={wsTopic} onChange={e => setWsTopic(e.target.value)}
+                placeholder="O czym napisać? (np. o mamie na urodziny)"
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 10, padding: "12px 14px", borderRadius: 10, border: "2px solid #831843", background: "#3f0d29", color: "#fce7f3", fontSize: 16 }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {WS_STYLES.map(s => (
+                  <button key={s.name} onClick={() => writeStyled(s.prompt)}
+                    style={{ minHeight: 64, borderRadius: 12, border: "2px solid #be185d", background: "#4a1033",
+                      color: "#fce7f3", fontSize: 16, fontWeight: 800, display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center", gap: 4 }}>
+                    <span style={{ fontSize: 24 }}>{s.icon}</span>
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* action row — big, high-contrast */}
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={() => fileRef.current?.click()} aria-label="Zrób zdjęcie i opisz"
@@ -615,7 +667,7 @@ export default function AssistantPage() {
               ▶️ „Włącz YouTube z disco polo"<br />
               🔍 „Wyszukaj pogodę na jutro"<br />
               📇 „Zapisz kontakt mama, numer pięćset sześćset..."<br />
-              ✍️ „Napisz email do szefa, że jestem chory" · „napisz listę zakupów: chleb, mleko" (redaguję i kopiuję do schowka)<br />
+              ✍️ „Napisz email do szefa, że jestem chory" · „napisz wiersz o wiośnie" · „napisz piosenkę disco polo o Kasi" · „napisz pismo do urzędu" (redaguję, czytam i kopiuję do schowka)<br />
               📖 „Przeczytaj mi to" (po zdjęciu) — czytam cały tekst<br />
               📷 albo zrób zdjęcie — opiszę je i przeczytam tekst<br /><br />
               <span style={{ color: "#818cf8" }}>📱 Tylko w aplikacji APK: sterowanie ekranem innych aplikacji, „co jest na ekranie", oraz działanie w tle nad wszystkim. W przeglądarce Gadacz robi to, co powyżej.</span><br /><br />

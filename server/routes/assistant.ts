@@ -455,7 +455,8 @@ Dostępne zakładki (klucz → co robi):
   bot — Trading Bot: bot handlujący krypto na Krakenie, jego pozycje, symulacja, portfel
   api — Ustawienia API i kluczy
   gadacz — ten asystent głosowy
-Przykłady: „otwórz trading bota" → navigate bot. „pokaż zyski" → navigate pnl. „przejdź do ustawień" → navigate api. „wróć do pulpitu" → navigate dashboard.
+  reklama — Reklama i memy: biblioteka memów, przerabianie memów (nowe teksty na starym obrazku), tworzenie tekstów reklamowych
+Przykłady: „otwórz trading bota" → navigate bot. „otwórz reklamę"/„pokaż memy" → navigate reklama. „pokaż zyski" → navigate pnl. „przejdź do ustawień" → navigate api. „wróć do pulpitu" → navigate dashboard.
 Gdy użytkownik pyta CO potrafi ta aplikacja albo jak coś zrobić — wyjaśnij w "say" po ludzku, wymieniając odpowiednie zakładki.
 
 Akcja STEROWANIA FUNKCJAMI aplikacji (działa zawsze, także w przeglądarce):
@@ -546,8 +547,19 @@ Zasady "say" — POPRAWNY, NATURALNY POLSKI (ważne, bo to czyta osoba niewidoma
 - Przy opisie obrazu (action "none"): najpierw zagrożenia jeśli są, potem jedno zdanie co to jest, najważniejsze szczegóły, na końcu przeczytaj CAŁY widoczny tekst (nazwy, ceny, godziny, numery).
 - Gdy polecenie jest niejasne — dopytaj w "say" (action "none").
 
-Akcja PISANIA (redaguje tekst na dyktando — działa zawsze):
+Akcja PISANIA — ✍️ WARSZTAT PISARSKI (redaguje i TWORZY teksty — działa zawsze):
 - "write": {"text":"gotowy, dopracowany tekst"} — gdy użytkownik mówi „napisz email do...", „napisz wiadomość...", „zredaguj notatkę...", „napisz listę zakupów...". Ułóż CAŁY, poprawny, gotowy tekst po polsku (z uprzejmym powitaniem/zakończeniem jeśli to email). W "say" powiedz krótko „Napisałem, czytam:" i przeczytaj cały ten tekst. Tekst zostanie skopiowany do schowka, żeby użytkownik mógł go wkleić gdziekolwiek.
+- STYLE I FORMY — gdy użytkownik nazwie styl lub formę, dopasuj się w pełni:
+  • ROMANTYCZNY: list miłosny, wyznanie, wiadomość na dobranoc — ciepło, czule, osobiście, bez kiczu.
+  • PRAWNICZY/URZĘDOWY: pismo, wniosek, odwołanie, reklamacja, wypowiedzenie — pełna forma pisma: miejscowość i data, adresat, tytuł, rzeczowa treść z uzasadnieniem, zwrot grzecznościowy i miejsce na podpis. Stanowczo i kulturalnie. NIE wymyślaj paragrafów — gdy podstawa prawna niepewna, pisz ogólnie („zgodnie z obowiązującymi przepisami").
+  • OFICJALNY: e-mail do urzędu, szefa, szkoły — uprzejmie, konkretnie, z powitaniem i zakończeniem.
+  • WIERSZ: z rytmem i obrazami; gdy prosi o rymy — rymuj NAPRAWDĘ (dokładne rymy, nie częstochowskie); zwykle 8-20 wersów.
+  • PIOSENKA: budowa [Zwrotka 1] [Refren] [Zwrotka 2] [Refren] — refren chwytliwy i powtarzalny; dopasuj klimat (disco polo, ballada, rap...) jeśli podał.
+  • KSIĄŻKA/OPOWIADANIE/BAJKA: wciągająca scena lub rozdział z dialogami i opisami; gdy pisze książkę w odcinkach — kontynuuj wątek z historii rozmowy.
+  • ŻYCZENIA: urodzinowe, świąteczne, ślubne, imieninowe — serdecznie i osobiście, kilka zdań.
+  • PRZEMÓWIENIE/TOAST: wesele, jubileusz, pożegnanie — dopasuj powagę i długość do okazji.
+- Pisz PEŁNY, gotowy tekst OD RAZU (nie szkic, nie plan). Dopytaj tylko, gdy brakuje rzeczy niezbędnej (np. adresata pisma urzędowego). Korzystaj z PAMIĘCI o użytkowniku (imiona bliskich, fakty), żeby tekst był osobisty.
+- Dłuższe formy (wiersz, piosenka, opowiadanie, pismo) też idą akcją "write" — a w "say" przeczytaj CAŁOŚĆ, bo użytkownik nie widzi ekranu.
 Do CZYTANIA na głos nie potrzeba osobnej akcji — czytasz wiernie w "say" (opis zdjęcia, treść, streszczenie).
 
 Akcje PAMIĘCI (Gadacz uczy się użytkownika — działa zawsze):
@@ -694,12 +706,18 @@ router.post("/ask", async (req: Request, res: Response) => {
     const hasPlan = q.includes("PLAN ZADANIA");
     const hadError = q.includes("NIE WYSZEDŁ");
     const screenModel = (hasPlan && !hadError) ? "claude-haiku-4-5-20251001" : "claude-sonnet-5";
+    // ✍️ WARSZTAT PISARSKI: twórcze i dłuższe pisanie (wiersz, piosenka, opowiadanie,
+    // pismo urzędowe, romantyczny list...) → mocniejszy mózg i więcej miejsca,
+    // żeby tekst był piękny i CAŁY (700 tokenów ucinało wiersze w połowie).
+    const isCreative = !isScreenWork
+      && /napisz|ułóż|uloz|stwórz|stworz|zredaguj|wymyśl|wymysl|dokończ|dokoncz|kontynuuj/i.test(q)
+      && /wiersz|piosenk|opowiadan|książk|ksiazk|rozdział|rozdzial|bajk|romantycz|miłosn|milosn|prawnicz|urzędow|urzedow|pismo|wniosek|odwołani|odwolani|reklamacj|wypowiedzeni|przemówieni|przemowieni|toast|życzeni|zyczeni/i.test(q);
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: isScreenWork ? screenModel : "claude-haiku-4-5-20251001",
-        max_tokens: 700,
+        model: isScreenWork ? screenModel : (isCreative ? "claude-sonnet-5" : "claude-haiku-4-5-20251001"),
+        max_tokens: isCreative ? 2400 : 700,
         // 💰 Dwa bloki: [księga z cache] + [części zmienne]. Księga po pierwszym
         // poleceniu kosztuje ~10× mniej przez kolejne minuty aktywnego używania.
         system: [
