@@ -476,7 +476,8 @@ Dostępne zakładki (klucz → co robi):
   api — Ustawienia API i kluczy
   gadacz — ten asystent głosowy
   reklama — Reklama i memy: biblioteka memów, przerabianie memów (nowe teksty na starym obrazku), tworzenie tekstów reklamowych
-Przykłady: „otwórz trading bota" → navigate bot. „otwórz reklamę"/„pokaż memy" → navigate reklama. „pokaż zyski" → navigate pnl. „przejdź do ustawień" → navigate api. „wróć do pulpitu" → navigate dashboard.
+  filmiki — Tworzenie filmików: AI pisze scenariusz (bajka, nauka języka, reklama), strona animuje sceny, czyta lektorem i nagrywa plik wideo
+Przykłady: „otwórz trading bota" → navigate bot. „otwórz reklamę"/„pokaż memy" → navigate reklama. „stwórz filmik/bajkę" → navigate filmiki. „pokaż zyski" → navigate pnl. „przejdź do ustawień" → navigate api. „wróć do pulpitu" → navigate dashboard.
 Gdy użytkownik pyta CO potrafi ta aplikacja albo jak coś zrobić — wyjaśnij w "say" po ludzku, wymieniając odpowiednie zakładki.
 
 Akcja STEROWANIA FUNKCJAMI aplikacji (działa zawsze, także w przeglądarce):

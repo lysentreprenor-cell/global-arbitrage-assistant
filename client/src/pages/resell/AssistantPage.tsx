@@ -41,6 +41,7 @@ const APP_TABS: Record<string, { path: string; name: string }> = {
   api:         { path: "/resell/settings",     name: "Ustawienia API" },
   gadacz:      { path: "/resell/assistant",    name: "Gadacz" },
   reklama:     { path: "/resell/ads",          name: "Reklama" },
+  filmiki:     { path: "/resell/video",        name: "Filmiki" },
 };
 
 type Msg = { role: "user" | "assistant"; content: string };

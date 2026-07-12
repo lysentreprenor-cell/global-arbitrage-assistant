@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp,
   Camera, ListTodo, Search, Rocket, Bell, Copy, Flame, LineChart,
-  Truck, Crosshair, Megaphone, Bot, Activity, Mic, Image as ImageIcon,
+  Truck, Crosshair, Megaphone, Bot, Activity, Mic, Image as ImageIcon, Clapperboard,
 } from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
@@ -30,6 +30,7 @@ const NAV_ITEMS = [
   { href: "/resell/assistant",    label: "🗣️ Gadacz",   icon: Mic },
   // Reklama ZARAZ PO Gadaczu — memy (zapis, przeróbki, także z ekranu telefonu) i reklamy.
   { href: "/resell/ads",          label: "📢 Reklama",  icon: ImageIcon },
+  { href: "/resell/video",        label: "🎬 Filmiki",  icon: Clapperboard },
 ];
 
 export function TopNav() {

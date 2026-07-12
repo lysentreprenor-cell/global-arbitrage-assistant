@@ -30,6 +30,7 @@ import CompetitorTracker from "@/pages/resell/CompetitorTracker";
 import TradingBot from "@/pages/resell/TradingBot";
 import AssistantPage from "@/pages/resell/AssistantPage";
 import AdsPage from "@/pages/resell/AdsPage";
+import VideoPage from "@/pages/resell/VideoPage";
 
 function RedirectToResell() {
   const [, setLocation] = useLocation();
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/resell/trading-bot" component={TradingBot} />
         <Route path="/resell/assistant" component={AssistantPage} />
         <Route path="/resell/ads" component={AdsPage} />
+        <Route path="/resell/video" component={VideoPage} />
         <Route path="/resell/transport" component={RedirectToGadacz} />
       </Switch>
       <Toaster />
