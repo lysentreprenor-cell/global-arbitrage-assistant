@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'pl.resellassist.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "pl.resellassist.app"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // Ten sam klucz podpisu co Gadacz — jeden magazyn, spójne aktualizacje „install over".
+    signingConfigs {
+        resell {
+            storeFile file("../gadacz-release.keystore")
+            storePassword "gadacz123"
+            keyAlias "gadacz"
+            keyPassword "gadacz123"
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.resell
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.resell
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+}
