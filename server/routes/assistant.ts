@@ -341,7 +341,7 @@ function loadAppGuides(): AppGuide[] {
 function saveAppGuides(g: AppGuide[]) {
   try { fs.mkdirSync(path.dirname(APPGUIDES_FILE), { recursive: true }); fs.writeFileSync(APPGUIDES_FILE, JSON.stringify(g.slice(-100))); } catch {}
 }
-router.get("/appguides", (_req, res) => res.json({ guides: loadAppGuides() }));
+router.get("/appguides", (_req, res) => res.json({ guides: loadAppGuides(), builtin: BUILTIN_TILES }));
 router.post("/appguides", (req, res) => {
   const match = String(req.body?.match ?? "").trim().toLowerCase().slice(0, 80);
   const name = String(req.body?.name ?? "").trim().slice(0, 60) || match;
@@ -409,6 +409,26 @@ const APP_GUIDES: Record<string, string> = {
   "com.lemon.lvoverseas": "CapCut — edytor wideo. „Nowy projekt” na górze, oś czasu na dole. Rób małe kroki i opisuj efekt po każdym.",
   "com.android.chrome": "Chrome — pasek adresu na górze: tap → type → enter. Karty: kwadrat z liczbą. Wstecz: gest back.",
 };
+// 🎓 Miniaturki do panelu „TRYB EKSPERT" na stronie: przyjazna nazwa + ikonka dla
+// każdej WBUDOWANEJ ściągi powyżej — użytkownik widzi kafelki „nauczone".
+const BUILTIN_TILES: { match: string; name: string; icon: string }[] = [
+  { match: "com.facebook.orca",                name: "Messenger",   icon: "💬" },
+  { match: "com.whatsapp",                     name: "WhatsApp",    icon: "🟢" },
+  { match: "com.facebook.katana",              name: "Facebook",    icon: "📘" },
+  { match: "com.google.android.youtube",       name: "YouTube",     icon: "▶️" },
+  { match: "com.zhiliaoapp.musically",         name: "TikTok",      icon: "🎵" },
+  { match: "com.instagram.android",            name: "Instagram",   icon: "📸" },
+  { match: "com.google.android.gm",            name: "Gmail",       icon: "✉️" },
+  { match: "com.google.android.apps.messaging", name: "Wiadomości", icon: "📩" },
+  { match: "com.spotify.music",                name: "Spotify",     icon: "🎧" },
+  { match: "com.sec.android.gallery3d",        name: "Galeria",     icon: "🖼️" },
+  { match: "com.samsung.android.dialer",       name: "Telefon",     icon: "📞" },
+  { match: "com.samsung.android.messaging",    name: "SMS Samsung", icon: "📨" },
+  { match: "com.einnovation.temu",             name: "Temu",        icon: "🛍️" },
+  { match: "com.lemon.lvoverseas",             name: "CapCut",      icon: "✂️" },
+  { match: "com.android.chrome",               name: "Chrome",      icon: "🌐" },
+];
+
 // 🏦 Aplikacje bankowe/płatnicze — tu obowiązuje ŻELAZNA ostrożność.
 // Dopasowanie po CZŁONACH pakietu (kropki), nie po podłańcuchu — inaczej „ing" łapało
 // „messag-ing" i zwykłe SMS-y stawały się „bankowe". Audyt 10.07.

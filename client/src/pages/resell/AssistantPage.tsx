@@ -119,9 +119,16 @@ export default function AssistantPage() {
   ];
   // 📱➕ WŁASNE APLIKACJE — użytkownik uczy Gadacza obsługi dowolnej apki.
   const [appGuides, setAppGuides] = useState<{ match: string; name: string; guide: string }[]>([]);
-  const [agOpen, setAgOpen] = useState(false);
+  // 🎓 Miniaturki: wbudowane „nauczone" aplikacje z serwera (nazwa + ikonka).
+  const [builtinTiles, setBuiltinTiles] = useState<{ match: string; name: string; icon: string }[]>([]);
+  const [agOpen, setAgOpen] = useState(true); // panel widoczny od razu — kafelki na ekranie
   const [agMatch, setAgMatch] = useState(""); const [agName, setAgName] = useState(""); const [agGuide, setAgGuide] = useState("");
-  const refreshAppGuides = () => fetch("/api/assistant/appguides").then(r => r.json()).then(d => setAppGuides(d.guides ?? [])).catch(() => {});
+  const refreshAppGuides = () => fetch("/api/assistant/appguides").then(r => r.json())
+    .then(d => { setAppGuides(d.guides ?? []); setBuiltinTiles(d.builtin ?? []); }).catch(() => {});
+  // ikonka dla własnej apki: jeśli pakiet pasuje do wbudowanej — bierzemy jej ikonkę
+  const iconFor = (g: { match: string; name: string }) =>
+    builtinTiles.find(b => g.match.toLowerCase().includes(b.match) || b.match.includes(g.match.toLowerCase())
+      || b.name.toLowerCase() === g.name.toLowerCase())?.icon ?? "📱";
   useEffect(() => { refreshAppGuides(); }, []);
   const addAppGuide = () => {
     if (!agMatch.trim()) return; // instrukcja opcjonalna — sam match wystarcza (tryb ekspert)
@@ -549,15 +556,36 @@ export default function AssistantPage() {
           <button onClick={() => setAgOpen(o => !o)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
               background: "transparent", border: "none", color: "#a5f3fc", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
-            <span>🎓 APLIKACJE — TRYB EKSPERT ({appGuides.length})</span>
+            <span>🎓 APLIKACJE — TRYB EKSPERT ({builtinTiles.length + appGuides.length})</span>
             <span style={{ fontSize: 22 }}>{agOpen ? "▲" : "▼"}</span>
           </button>
           {agOpen && (
             <div style={{ padding: "4px 12px 14px" }}>
+              {/* 🎓 MINIATURKI: każda nauczona aplikacja jako kafelek z ikonką i statusem */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))", gap: 8, marginBottom: 12 }}>
+                {appGuides.map(g => (
+                  <div key={"c" + g.match} title={g.guide || "tryb ekspert"}
+                    style={{ position: "relative", border: "2px solid #22d3ee", borderRadius: 12, background: "#0b3d47", padding: "10px 6px 8px", textAlign: "center" }}>
+                    <button onClick={() => delAppGuide(g.match)} aria-label={`Usuń ${g.name}`}
+                      style={{ position: "absolute", top: 0, right: 4, background: "transparent", border: "none", color: "#67e8f9", fontSize: 16, fontWeight: 800, padding: 4 }}>×</button>
+                    <div style={{ fontSize: 30, lineHeight: 1.2 }}>{iconFor(g)}</div>
+                    <div style={{ color: "#e0f7fa", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                    <div style={{ color: "#4ade80", fontSize: 11, fontWeight: 800, marginTop: 2 }}>🎓 nauczone</div>
+                  </div>
+                ))}
+                {builtinTiles.map(b => (
+                  <div key={"b" + b.match}
+                    style={{ border: "2px solid #155e63", borderRadius: 12, background: "#0b3d47", padding: "10px 6px 8px", textAlign: "center" }}>
+                    <div style={{ fontSize: 30, lineHeight: 1.2 }}>{b.icon}</div>
+                    <div style={{ color: "#e0f7fa", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</div>
+                    <div style={{ color: "#4ade80", fontSize: 11, fontWeight: 800, marginTop: 2 }}>🎓 nauczone</div>
+                  </div>
+                ))}
+              </div>
               <div style={{ color: "#67e8f9", fontSize: 13, padding: "0 4px 10px" }}>
-                Zaznaczone aplikacje Gadacz obsługuje <b>jak ekspert</b> — pewnie i dokładnie. Resztę obsługuje normalnie.
-                Wpisz nazwę i (opcjonalnie) <b>jak ją obsługiwać</b>. Z telefonu możesz też: otwórz apkę i powiedz <b>„naucz się tej aplikacji: …"</b>,
-                albo <b>„poznaj tę aplikację"</b> — wtedy Gadacz sam obejrzy jej ekran i nauczy się jej obsługi.
+                Kafelki powyżej to aplikacje, które Gadacz obsługuje <b>jak ekspert</b> (Twoje mają ×, żeby usunąć). Resztę obsługuje normalnie.
+                Nową dodasz poniżej — albo z telefonu: otwórz apkę i powiedz <b>„poznaj tę aplikację"</b> (Gadacz sam obejrzy jej ekran),
+                <b> „poznaj całą aplikację"</b> (przejdzie po zakładkach) lub <b>„naucz się tej aplikacji: …"</b> (własna instrukcja).
               </div>
               <input value={agName} onChange={e => setAgName(e.target.value)} placeholder="Nazwa aplikacji (np. OLX)"
                 style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
@@ -567,20 +595,9 @@ export default function AssistantPage() {
                 placeholder="(OPCJONALNIE) Jak obsługiwać: np. „Lista ogłoszeń przewija się w dół. Szukanie: lupa na górze. Wiadomość: przycisk Napisz, pole na dole i Wyślij.” — puste = i tak tryb ekspert."
                 style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 15 }} />
               <button onClick={addAppGuide}
-                style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: "#0891b2", color: "#fff", fontSize: 17, fontWeight: 800, marginBottom: 12 }}>
+                style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: "#0891b2", color: "#fff", fontSize: 17, fontWeight: 800 }}>
                 🎓 Oznacz jako ekspercką
               </button>
-              {appGuides.length > 0 && <div style={{ color: "#a5f3fc", fontSize: 13, fontWeight: 700, padding: "2px 4px 8px" }}>Aplikacje eksperckie:</div>}
-              {appGuides.map(g => (
-                <div key={g.match} style={{ border: "2px solid #155e63", borderRadius: 12, background: "#0b3d47", padding: "10px 14px", marginBottom: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <span style={{ color: "#e0f7fa", fontSize: 16, fontWeight: 800 }}>{g.name}</span>
-                    <button onClick={() => delAppGuide(g.match)} style={{ background: "#7f1d1d", color: "#fecaca", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, fontWeight: 700 }}>Usuń</button>
-                  </div>
-                  <div style={{ color: "#67e8f9", fontSize: 12, marginTop: 2 }}>{g.match}</div>
-                  <div style={{ color: "#cffafe", fontSize: 13, marginTop: 6 }}>{g.guide || "🎓 tryb ekspert (bez instrukcji)"}</div>
-                </div>
-              ))}
             </div>
           )}
         </div>
