@@ -449,14 +449,28 @@ document.getElementById('f').onsubmit=async e=>{
   });
 
   // ── Serve frontend — prefer pre-built dist, fall back to Vite dev middleware ─
-  const distIndex = path.resolve(process.cwd(), "dist", "public", "index.html");
-  if (process.env.NODE_ENV === "production" || fs.existsSync(distIndex)) {
+  // Zbudowana strona może leżeć w dwóch miejscach: względem katalogu uruchomienia
+  // (dist/public) ALBO obok samej paczki (__dirname/public). Gdy Replit odpala
+  // `node dist/index.cjs` z innego katalogu, sprawdzanie tylko cwd zawodziło i serwer
+  // szedł w tryb Vite, którego w gotowej paczce NIE MA → „Cannot GET /". Sprawdzamy oba.
+  const bundleDir: string = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+  const builtClientExists =
+    fs.existsSync(path.resolve(process.cwd(), "dist", "public", "index.html")) ||
+    fs.existsSync(path.resolve(bundleDir, "public", "index.html"));
+  if (process.env.NODE_ENV === "production" || builtClientExists) {
     serveStatic(app);
     log("serving pre-built client from dist/public");
   } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
-    log("serving client via Vite dev middleware");
+    try {
+      const { setupVite } = await import("./vite");
+      await setupVite(httpServer, app);
+      log("serving client via Vite dev middleware");
+    } catch (e) {
+      // Vite nie istnieje w gotowej paczce — ostatnia deska ratunku: podaj zbudowaną
+      // stronę, jeśli w ogóle jest. Lepsze to niż nagie „Cannot GET /".
+      log("Vite niedostępny — próbuję podać zbudowaną stronę z dist/public");
+      try { serveStatic(app); } catch { log("Brak zbudowanej strony — uruchom `npm run build`."); }
+    }
   }
 
   function shutdown(signal: string) {
