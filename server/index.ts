@@ -36,6 +36,7 @@ import bybitRouter from "./routes/bybit";
 import krakenRouter from "./routes/kraken";
 import botEngineRouter from "./routes/botEngine";
 import assistantRouter from "./routes/assistant";
+import memesRouter from "./routes/memes";
 import keysSyncRouter from "./routes/keysSync";
 
 const app = express();
@@ -404,6 +405,7 @@ document.getElementById('f').onsubmit=async e=>{
   app.use("/api/kraken", krakenRouter);
   app.use("/api/bot", botEngineRouter);
   app.use("/api/assistant", assistantRouter);
+  app.use("/api/memes", memesRouter);
   app.use("/api/keys/sync", keysSyncRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

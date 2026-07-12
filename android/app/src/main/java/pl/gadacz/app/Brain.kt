@@ -503,6 +503,58 @@ object Brain {
             return true
         }
 
+        // 📢 MEMY Z EKRANU: „zapisz tego mema" — zrzut tego, co widać, leci do biblioteki
+        // w zakładce Reklama. Dla osoby niewidomej to jedyny sposób „złapania" mema.
+        if (Regex("^zapisz (tego |ten )?mema?$").matches(n)) {
+            val shot = svc?.screenshotBase64() ?: return done("Nie mam dostępu do ekranu. Włącz Gadacza w Dostępności.")
+            speak("Zapisuję mema…")
+            Thread {
+                try {
+                    val body = JSONObject().put("imageBase64", shot).put("mediaType", "image/jpeg")
+                        .put("name", "mem z telefonu").put("source", "telefon")
+                    val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/memes")
+                        .header("x-bot-pin", pin(ctx))
+                        .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                        .execute().use { JSONObject(it.body?.string() ?: "{}") }
+                    speak(if (r.optBoolean("ok")) "Zapisałem mema w zakładce Reklama. Masz już ${r.optInt("count")} memów."
+                          else r.optString("error", "Nie udało się zapisać mema."))
+                } catch (_: Exception) { speak("Nie udało się połączyć z serwerem.") }
+            }.start()
+            return true
+        }
+
+        // 📢♻️ MEM Z MEMA: „przerób tego mema" — AI ogląda ekran, rozumie żart, wymyśla
+        // nowy tekst, Gadacz maluje go na obrazku (biały napis z czarną obwódką) i odkłada
+        // gotową przeróbkę do biblioteki w zakładce Reklama.
+        if (Regex("^(przerob|zremiksuj) (tego |ten )?mema?$|^zrob (nowego )?mema z (tego|ekranu)$").matches(n)) {
+            val shot = svc?.screenshotBase64() ?: return done("Nie mam dostępu do ekranu. Włącz Gadacza w Dostępności.")
+            speak("Przerabiam mema, chwileczkę…")
+            Thread {
+                try {
+                    val ask = JSONObject().put("anthropicKey", anthropicKey(ctx))
+                        .put("imageBase64", shot).put("mediaType", "image/jpeg")
+                    val r = http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/memes/remix")
+                        .header("x-bot-pin", pin(ctx))
+                        .post(ask.toString().toRequestBody("application/json".toMediaType())).build())
+                        .execute().use { JSONObject(it.body?.string() ?: "{}") }
+                    val teksty = r.optJSONArray("teksty")
+                    if (teksty == null || teksty.length() == 0) { speak(r.optString("error", "Nie wymyśliłem nowego tekstu.")); return@Thread }
+                    val t = teksty.getJSONObject(0)
+                    val gora = t.optString("gora"); val dol = t.optString("dol")
+                    val nowy = drawMemeOnBase64(shot, gora, dol) ?: shot
+                    val save = JSONObject().put("imageBase64", nowy).put("mediaType", "image/jpeg")
+                        .put("name", gora.ifBlank { "przeróbka" }).put("caption", listOf(gora, dol).filter { it.isNotBlank() }.joinToString(" / "))
+                        .put("source", "telefon")
+                    http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/memes")
+                        .header("x-bot-pin", pin(ctx))
+                        .post(save.toString().toRequestBody("application/json".toMediaType())).build()).execute().close()
+                    speak("Przerobiłem mema i zapisałem w zakładce Reklama. Nowy tekst: $gora." +
+                          if (dol.isNotBlank()) " Na dole: $dol." else "")
+                } catch (_: Exception) { speak("Nie udało się przerobić mema.") }
+            }.start()
+            return true
+        }
+
         // 📱➕ Uczenie aplikacji z jej WNĘTRZA: „naucz się tej aplikacji, że wyślij jest
         // strzałką na dole". Gadacz czyta pakiet apki na wierzchu i zapisuje ściągę.
         Regex("^(naucz sie (tej )?aplikacji|zapamietaj (te )?aplikacje)[,: ]+(.+)$").find(n)?.let { m ->
@@ -1216,6 +1268,47 @@ object Brain {
             } catch (e: Exception) { speak(dump.take(400)) }
         }.start()
     }
+
+    /**
+     * 📢 Klasyczny memowy napis na obrazku: WIELKIE litery, biały środek, gruba czarna
+     * obwódka, góra i dół, proste łamanie wierszy. Zwraca nowy JPEG jako base64
+     * (null gdy obrazek nie dał się przetworzyć — wtedy zapisujemy oryginał).
+     */
+    private fun drawMemeOnBase64(b64: String, top: String, bottom: String): String? = try {
+        val bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+        val src = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        val bmp = src.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+        val canvas = android.graphics.Canvas(bmp)
+        val size = (bmp.width / 11f).coerceAtLeast(22f)
+        fun makePaint(stroke: Boolean) = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = size
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT_BOLD, android.graphics.Typeface.BOLD)
+            if (stroke) { style = android.graphics.Paint.Style.STROKE; strokeWidth = size / 9f; color = android.graphics.Color.BLACK }
+            else { style = android.graphics.Paint.Style.FILL; color = android.graphics.Color.WHITE }
+        }
+        val pStroke = makePaint(true); val pFill = makePaint(false)
+        fun drawBlock(text: String, atTop: Boolean) {
+            val t = text.trim().uppercase()
+            if (t.isBlank()) return
+            val lines = ArrayList<String>(); var cur = ""
+            for (w in t.split(" ")) {
+                val probe = if (cur.isBlank()) w else "$cur $w"
+                if (pFill.measureText(probe) > bmp.width * 0.92f && cur.isNotBlank()) { lines.add(cur); cur = w } else cur = probe
+            }
+            if (cur.isNotBlank()) lines.add(cur)
+            val lh = size * 1.12f
+            lines.forEachIndexed { i, line ->
+                val y = if (atTop) size + 8f + i * lh else bmp.height - 14f - (lines.size - 1 - i) * lh
+                canvas.drawText(line, bmp.width / 2f, y, pStroke)
+                canvas.drawText(line, bmp.width / 2f, y, pFill)
+            }
+        }
+        drawBlock(top, true); drawBlock(bottom, false)
+        val bos = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, bos)
+        android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP)
+    } catch (_: Throwable) { null }
 
     private fun dial(ctx: Context, who: String): String? {
         val num = who.filter { it.isDigit() || it == '+' }

@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Globe, ShoppingBag, BarChart2, Settings, TrendingUp,
   Camera, ListTodo, Search, Rocket, Bell, Copy, Flame, LineChart,
-  Truck, Crosshair, Megaphone, Bot, Activity, Mic,
+  Truck, Crosshair, Megaphone, Bot, Activity, Mic, Image as ImageIcon,
 } from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
 
@@ -28,6 +28,8 @@ const NAV_ITEMS = [
   { href: "/resell/settings",     label: "API",         icon: Settings },
   // Gadacz na miejscu dawnego Transportu — na końcu paska, jak chce użytkownik.
   { href: "/resell/assistant",    label: "🗣️ Gadacz",   icon: Mic },
+  // Reklama ZARAZ PO Gadaczu — memy (zapis, przeróbki, także z ekranu telefonu) i reklamy.
+  { href: "/resell/ads",          label: "📢 Reklama",  icon: ImageIcon },
 ];
 
 export function TopNav() {
