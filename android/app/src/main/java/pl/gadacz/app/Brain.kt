@@ -837,6 +837,18 @@ object Brain {
                 speak(local ?: "Błąd połączenia z serwerem.")
                 return
             }
+            // 🔇 KONIEC MILCZENIA: serwer zgłosił błąd → resp nie ma "say" i Gadacz
+            // potrafił zamilknąć bez słowa. Teraz zawsze MÓWI, co jest nie tak.
+            val srvErr = resp.optString("error", "")
+            if (srvErr.isNotBlank()) {
+                speak(when {
+                    srvErr.contains("PIN", true) -> "Serwer prosi o PIN aplikacji. Wejdź w Ustawienia Gadacza, wpisz PIN i spróbuj znowu."
+                    srvErr.contains("credit", true) || srvErr.contains("billing", true) -> "Skończyły się środki na kluczu sztucznej inteligencji. Doładuj konto Anthropic albo podaj inny klucz w ustawieniach."
+                    srvErr.contains("Brak klucza", true) -> srvErr
+                    else -> "Serwer zgłosił błąd: $srvErr"
+                })
+                return
+            }
             lastError = ""
             val say = resp.optString("say", "")
             val action = resp.optString("action", "none")
@@ -872,6 +884,8 @@ object Brain {
             )
             if (!next || terminal) {
                 if (spoken.isNotBlank()) speak(spoken)
+                // 🔇 Gwarancja głosu: nawet gdy AI odda pustą odpowiedź, Gadacz nie milczy.
+                else if (say.isBlank()) speak("Nie mam na to odpowiedzi. Powiedz to proszę inaczej.")
                 // 🧭 Wielokrokowe zadanie skończone BEZ porażki → zapamiętaj drogę.
                 val looksFailed = lastError.isNotBlank() ||
                     Regex("utkn|nie udało|nie mogę|nie znalaz|nie ma pola", RegexOption.IGNORE_CASE)
