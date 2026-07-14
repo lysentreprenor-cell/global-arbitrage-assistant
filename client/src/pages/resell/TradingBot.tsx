@@ -205,7 +205,7 @@ function mergeLocalTrades(incoming: TradeRecord[]): TradeRecord[] {
     const prev = loadLocalTrades();
     const map = new Map<string, TradeRecord>();
     [...prev, ...incoming].forEach(t => map.set(`${t.time}_${t.entry}`, t));
-    const merged = Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time)).slice(-50);
+    const merged = Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time)).slice(-200);
     localStorage.setItem(TRADES_KEY, JSON.stringify(merged));
     return merged;
   } catch { return incoming; }

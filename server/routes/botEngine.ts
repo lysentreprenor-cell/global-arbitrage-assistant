@@ -1397,7 +1397,7 @@ function recordTrade(pos: Position, exitPrice: number, pnlUsdt: number, pnlPct: 
   if (sessionPnl > sessionPeakPnl) sessionPeakPnl = sessionPnl;
   const dd = sessionPeakPnl > sessionPnl ? sessionPeakPnl - sessionPnl : 0;
   if (dd > sessionMaxDrawdown) sessionMaxDrawdown = dd;
-  tradeHistory = [...tradeHistory.slice(-49), {
+  tradeHistory = [...tradeHistory.slice(-199), {
     symbol: pos.symbol ?? config?.symbol,
     dir: pos.direction, entry: pos.entryPrice, exit: exitPrice,
     pnlUsdt, pnlPct: parseFloat(pnlPct.toFixed(3)),
@@ -3328,7 +3328,7 @@ router.get("/status", (_req, res) => {
       avgWin: parseFloat(avgWin.toFixed(2)),
       avgLoss: parseFloat(avgLoss.toFixed(2)),
       maxDrawdown: parseFloat(sessionMaxDrawdown.toFixed(2)),
-      tradeHistory: tradeHistory.slice(-10),
+      tradeHistory: tradeHistory.slice(-200),
     },
     autoRetrain: { enabled: !!autoRetrainId, intervalH: autoRetrainIntervalH },
     riskPct: config?.riskPct ?? 100,
