@@ -15,6 +15,7 @@ import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { installPinFetch } from "@/lib/botPin";
+import { PinUnlock } from "@/components/resell/PinUnlock";
 
 installPinFetch(); // Gadacz endpoints require the app PIN — attach it to every call
 
@@ -84,6 +85,7 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [lastAnswer, setLastAnswer] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [pinNeeded, setPinNeeded] = useState(false);
   const [memory, setMemory] = useState<string[]>([]);
   const refreshMemory = () => fetch("/api/assistant/memory").then(r => r.json()).then(d => setMemory(d.memory ?? [])).catch(() => {});
   useEffect(() => { refreshMemory(); }, []);
@@ -392,7 +394,10 @@ export default function AssistantPage() {
         throw new Error("Serwer nieaktualny — w Shell zrób: git pull, npm run build, a potem Stop i Run.");
       }
       const d = await r.json();
+      // 401 = serwer chce PIN aplikacji — pokaż pole do wpisania zamiast suchego błędu
+      if (r.status === 401) { setPinNeeded(true); throw new Error("Wpisz PIN aplikacji w polu poniżej — potem zapytaj jeszcze raz."); }
       if (d.error) throw new Error(d.error);
+      setPinNeeded(false);
       const say: string = d.say ?? "Nie mam odpowiedzi.";
       setMessages(m => [...m, { role: "assistant", content: say }]);
       setLastAnswer(say);
@@ -659,6 +664,7 @@ export default function AssistantPage() {
             ⚠️ {error}
           </div>
         )}
+        {pinNeeded && <PinUnlock onUnlocked={() => { setPinNeeded(false); setError(null); refreshMemory(); speak("Odblokowane. Zapytaj jeszcze raz."); }} />}
 
         {/* transcript — large type, newest on top */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

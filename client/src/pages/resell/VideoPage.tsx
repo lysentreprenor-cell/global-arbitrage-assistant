@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { installPinFetch } from "@/lib/botPin";
+import { PinUnlock } from "@/components/resell/PinUnlock";
 
 installPinFetch();
 
@@ -157,6 +158,7 @@ export default function VideoPage() {
   const [script, setScript] = useState<Scenorys | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pinNeeded, setPinNeeded] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [recording, setRecording] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -282,7 +284,10 @@ export default function VideoPage() {
         body: JSON.stringify({ anthropicKey: key, pomysl: idea }),
       });
       const d = await r.json();
+      // 401 = serwer chce PIN aplikacji — pokaż pole do wpisania zamiast suchego błędu
+      if (r.status === 401) { setPinNeeded(true); throw new Error("Wpisz PIN aplikacji poniżej — po odblokowaniu scenariusz ruszy sam."); }
       if (d.error) throw new Error(d.error);
+      setPinNeeded(false);
       setScript(d);
       setSceneIdx(0);
       // od razu narysuj pierwszą klatkę, żeby było co oglądać
@@ -385,6 +390,7 @@ export default function VideoPage() {
 
         {busy && <div style={{ background: "#1e3a5f", border: "2px solid #38bdf8", color: "#e0f2fe", borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⏳ {busy}</div>}
         {error && <div role="alert" style={{ background: "#450a0a", border: "2px solid #f87171", color: "#fecaca", borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⚠️ {error}</div>}
+        {pinNeeded && <PinUnlock onUnlocked={() => { setPinNeeded(false); setError(null); makeScript(); }} />}
 
         {/* pomysł + gotowe szablony */}
         <div style={box}>
