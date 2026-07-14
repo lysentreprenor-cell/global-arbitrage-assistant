@@ -158,6 +158,8 @@ type Position = {
   leverage?: number;           // leverage this position was OPENED with (close with the same)
   fiat?: KrakenFiat;           // quote currency the entry price is in — price checks MUST use
                                // the same fiat, else a USD→EUR auto-flip fakes a ~-8% "loss"
+  safetyTxid?: string;         // resting stop-loss order on the EXCHANGE (fires even when the
+                               // server sleeps — the software SL can't; see placeSafetyStop)
   ctx?: { hour: number; human: number; bb: number; regime: string }; // entry context for learning
 };
 
@@ -309,6 +311,7 @@ type KrakenSymbolInfo = {
   balanceKey: string; // Kraken balance API key, e.g. "XXBT"
   dec: number;        // qty decimal places
   min: number;        // minimum order qty
+  priceDec: number;   // price decimal places (pair_decimals) — required for stop-loss triggers
 };
 
 // XBT → BTC (Kraken uses XBT, the world uses BTC; show BTC in UI)
@@ -345,12 +348,14 @@ async function loadKrakenSymbols(): Promise<KrakenSymbolInfo[]> {
     }
 
     // Group USD and EUR pairs by base asset
-    const byBase: Record<string, { usd?: string; eur?: string; dec: number; min: number }> = {};
+    const byBase: Record<string, { usd?: string; eur?: string; dec: number; min: number; priceDec: number }> = {};
     for (const [pairName, p] of Object.entries(pairs as Record<string, any>)) {
       if (p.status && p.status !== "online") continue; // skip delisted/suspended
       const base = p.base as string;
       const quote = p.quote as string;
-      if (!byBase[base]) byBase[base] = { dec: p.lot_decimals ?? 2, min: parseFloat(p.ordermin ?? "0.01") };
+      if (!byBase[base]) byBase[base] = { dec: p.lot_decimals ?? 2, min: parseFloat(p.ordermin ?? "0.01"), priceDec: p.pair_decimals ?? 4 };
+      // min across quotes — fewer decimals is always accepted by Kraken, more is rejected
+      else byBase[base].priceDec = Math.min(byBase[base].priceDec, p.pair_decimals ?? 4);
       if (quote === "ZUSD") byBase[base].usd = pairName;
       if (quote === "ZEUR") byBase[base].eur = pairName;
     }
@@ -369,6 +374,7 @@ async function loadKrakenSymbols(): Promise<KrakenSymbolInfo[]> {
         balanceKey: base,
         dec: info.dec,
         min: info.min,
+        priceDec: info.priceDec,
       });
     }
     result.sort((a, b) => a.name.localeCompare(b.name));
@@ -467,6 +473,19 @@ async function reconcilePosition() {
       if (!asset) return true; // unknown asset — keep
       const coinBal = parseFloat(bal?.[asset] ?? "0");
       if (coinBal >= p.qty * 0.7) return true; // still held
+      if (p.safetyTxid) {
+        // Saldo zniknęło, a mieliśmy giełdowy stop-loss → to on zadziałał, gdy serwer
+        // spał. Rozlicz uczciwie po cenie stopa (strata ≈ -slPct, nie -18%) i zapisz
+        // do historii — bez tego statystyki nie widziałyby najważniejszych transakcji.
+        const exitPx = p.entryPrice * (1 - p.slPct / 100);
+        const notional = p.entryPrice * p.qty;
+        const pnl = -p.slPct / 100 * notional - notional * 0.0052;
+        sessionPnl += pnl;
+        recordTrade(p, exitPx, pnl, -p.slPct, `SL giełdowy (serwer spał) -${p.slPct.toFixed(2)}%`);
+        forgetBuy(sym);
+        addLog(`🛡️ ${sym}: giełdowy stop-loss zadziałał podczas przerwy serwera — strata ucięta na ${-p.slPct.toFixed(2)}% (${pnl.toFixed(2)} USD)`, "sell");
+        return false;
+      }
       addLog(`⚠️ Brak salda ${asset} — pozycja ${sym} już zamknięta, usuwam`, "warn");
       return false;
     });
@@ -632,7 +651,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
       const spec0 = getKrakenSpec(scanSym);
       const qty0 = parseFloat(coinBal.toFixed(spec0.dec));
       if (qty0 <= 0) return;
-      positions.push({
+      const memPos: Position = {
         direction: "long",
         entryPrice: mem.entryPrice,
         qty: qty0,
@@ -646,11 +665,13 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
         symbol: scanSym,
         leverage: mem.leverage ?? 1,
         fiat: mem.fiat, // price checks stay in the fiat the entry was recorded in
-      });
+      };
+      positions.push(memPos);
       lastEntryTime = new Date(mem.entryTime).getTime();
       saveState();
       const pnlPct = ((price - mem.entryPrice) / mem.entryPrice) * 100;
       addLog(`♻️ Odtworzono pozycję LONG z własnej pamięci: ${asset}=${coinBal} wejście=$${fmtPrice(mem.entryPrice)} teraz=$${fmtPrice(price)} P&L=${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}% SL=${mem.slPct}% TP=${mem.tpPct}%`, "buy");
+      await placeSafetyStop(memPos); // odzyskana pozycja też dostaje giełdowy SL
       return;
     }
 
@@ -711,7 +732,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
     // (was 8%, which let losing positions like ALKIMI bleed too far).
     const recoveredSlPct = entryKnown ? config.stopLoss : Math.max(config.stopLoss, 3.0);
 
-    positions.push({
+    const adoptedPos: Position = {
       direction: "long",
       entryPrice,
       qty,
@@ -725,7 +746,8 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
       symbol: scanSym,
       leverage: 1, // adopted spot holding (recover only runs for spot 1x)
       fiat: config.krakenFiat ?? "USD", // adoption price fetched in current fiat — pin it
-    });
+    };
+    positions.push(adoptedPos);
     lastEntryTime = new Date(entryTime).getTime();
     // Persist this adoption to memory so the next restart recovers it with the SAME
     // entryTime — otherwise the max-hold clock would reset to "now" on every restart
@@ -733,6 +755,7 @@ async function recoverSingleSymbol(scanSym: string, coinBal: number): Promise<vo
     rememberBuy(scanSym, { entryPrice, entryTime, qty, slPct: recoveredSlPct, tpPct: config.takeProfit, trailPct: config.trailPct, leverage: 1, fiat: config.krakenFiat ?? "USD" });
     saveState();
     addLog(`♻️ Odtworzono pozycję LONG z salda Krakena: ${asset}=${coinBal} (~$${valueUsd.toFixed(2)}) wejście${entryKnown ? "" : "≈bieżąca"}=$${fmtPrice(entryPrice)} SL=${recoveredSlPct}% TP=${config.takeProfit}%${entryKnown ? "" : " [szeroki SL — historia kupna nieznana]"}`, "buy");
+    await placeSafetyStop(adoptedPos); // przygarnięta pozycja też dostaje giełdowy SL
   } catch (e: any) {
     addLog(`⚠️ Nie udało się odtworzyć pozycji z salda: ${e.message}`, "warn");
   }
@@ -880,6 +903,79 @@ async function placeOrder(side: Direction, qty: number, sym?: string): Promise<{
   return { txid: orderId, fillPrice: 0 };
 }
 
+// ── Giełdowy stop-loss: siatka bezpieczeństwa ─────────────────────────────────
+// Programowy SL nie działa, gdy serwer śpi (darmowy Replit usypia projekt po
+// zamknięciu karty) — stąd wtopy typu ALLO -18.5% przy SL 2%: masowe zamknięcia
+// o jednej godzinie to moment PRZEBUDZENIA serwera, nie decyzja bota.
+// Dlatego po każdym kupnie spot zostawiamy na Krakenie PRAWDZIWE zlecenie
+// stop-loss. Giełda zetnie stratę nawet przy martwym serwerze. Program dalej
+// prowadzi trailing/TP; przy programowym zamknięciu zlecenie trzeba anulować
+// PRZED sprzedażą market, bo otwarte zlecenie sell rezerwuje monety.
+
+function fmtTriggerPrice(sym: string, price: number): string {
+  const info = krakenSymbolInfo(sym);
+  // Fallback tylko dla par spoza cache — mniej miejsc po przecinku Kraken zawsze przyjmie
+  const dec = info?.priceDec ?? (price >= 100 ? 1 : price >= 1 ? 3 : 6);
+  return price.toFixed(dec);
+}
+
+async function placeSafetyStop(pos: Position, trigger?: number): Promise<void> {
+  if (!config || config.paperMode || config.platform !== "kraken") return;
+  if (pos.direction !== "long" || Math.max(1, pos.leverage ?? config.leverage ?? 1) > 1) return;
+  const sym = pos.symbol ?? config.symbol;
+  try {
+    const pair = pos.fiat ? getKrakenPairName(sym, pos.fiat) : krakenPair(sym);
+    if (!pair) return;
+    const spec = getKrakenSpec(sym);
+    const f = Math.pow(10, spec.dec);
+    // Prowizję Kraken pobiera W MONECIE — realne saldo jest odrobinę poniżej qty,
+    // więc zlecenie na pełne qty by się nie przyjęło. Sprzedajemy to, co naprawdę jest.
+    let volume = Math.floor(pos.qty * 0.997 * f) / f;
+    try {
+      const bal = await krakenPrivate("/0/private/Balance") as Record<string, string>;
+      const asset = getKrakenBalanceKey(sym);
+      const real = asset ? parseFloat(bal?.[asset] ?? "0") : 0;
+      if (real > 0) volume = Math.floor(Math.min(pos.qty, real) * f) / f;
+    } catch { /* zostaje przybliżenie 99.7% */ }
+    if (volume < spec.min) return; // pył — Kraken odrzuci, programowy SL wystarczy
+    const price = fmtTriggerPrice(sym, trigger ?? pos.entryPrice * (1 - pos.slPct / 100));
+    const res = await krakenPrivate("/0/private/AddOrder", {
+      pair, type: "sell", ordertype: "stop-loss", price, volume: String(volume),
+    });
+    const txid = res?.txid?.[0];
+    if (txid) {
+      pos.safetyTxid = txid;
+      saveState();
+      addLog(`🛡️ ${sym}: stop-loss NA GIEŁDZIE @ ${price} — utnie stratę nawet gdy serwer śpi`, "info");
+    }
+  } catch (e: any) {
+    const hint = /Permission denied/i.test(e.message ?? "")
+      ? " — dodaj na kluczu API uprawnienie „Tworzenie i modyfikacja zleceń”"
+      : "";
+    addLog(`⚠️ ${sym}: nie ustawiłem giełdowego stop-lossa: ${e.message}${hint} (pilnuje programowy SL)`, "warn");
+  }
+}
+
+async function cancelSafetyStop(pos: Position): Promise<void> {
+  if (!pos.safetyTxid) return;
+  const txid = pos.safetyTxid;
+  pos.safetyTxid = undefined;
+  if (config?.paperMode || config?.platform !== "kraken") return;
+  try {
+    await krakenPrivate("/0/private/CancelOrder", { txid });
+  } catch (e: any) {
+    // "Unknown order" = zlecenie już wykonane/anulowane — to nie jest błąd
+    if (!/Unknown order/i.test(e.message ?? "")) addLog(`⚠️ Nie anulowałem giełdowego stop-lossa: ${e.message}`, "warn");
+  }
+}
+
+// Podnieś giełdowy stop (np. do break-even po TP1) — anuluj stary, postaw nowy.
+async function raiseSafetyStop(pos: Position, trigger: number): Promise<void> {
+  if (!pos.safetyTxid) return;
+  await cancelSafetyStop(pos);
+  await placeSafetyStop(pos, trigger);
+}
+
 // Returns true on success, false on failure
 async function closePosition(reason: string, pos: Position): Promise<boolean> {
   if (!config || !pos) return false;
@@ -891,6 +987,9 @@ async function closePosition(reason: string, pos: Position): Promise<boolean> {
   }
   try {
     if (config.platform === "kraken") {
+      // Otwarte zlecenie stop-loss REZERWUJE monety — bez anulowania market sell
+      // poleci "Insufficient funds". Zawsze najpierw anuluj siatkę bezpieczeństwa.
+      await cancelSafetyStop(pos);
       // Close on the pair in the SAME fiat the position was opened in
       const pair = pos.fiat ? getKrakenPairName(closeSym, pos.fiat) : krakenPair(closeSym);
       const closeSide = pos.direction === "long" ? "sell" : "buy";
@@ -1461,6 +1560,9 @@ async function priceCheck() {
         position.trailRef = Math.min(position.trailRef, beRef / (1 + position.trailPct / 100));
       }
       addLog(`🎯 TP1 ${sym} +${pct.toFixed(2)}% — break-even (z opłatą) + trail ${position.trailPct.toFixed(2)}%`, "info");
+      // Podnieś też giełdowy stop do break-even — zysk zablokowany również przy śpiącym
+      // serwerze. W tle, żeby nie wstrzymywać pilnowania pozostałych pozycji.
+      if (position.safetyTxid) raiseSafetyStop(position, beRef).catch(() => {});
     }
 
     const trailSL = position.direction === "long"
@@ -2511,16 +2613,18 @@ async function engineTick() {
             const entryTime = new Date().toISOString();
             const altLev = Math.max(1, config.leverage ?? 1);
             const altFiat: KrakenFiat = config.krakenFiat ?? "USD";
-            positions.push({
+            const altPos: Position = {
               direction: altDir, entryPrice, qty: best.qty,
               entryTime, trailRef: entryPrice,
               slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail,
               breakEvenSet: false, signal: "multi_scan", symbol: best.sym, leverage: altLev, fiat: altFiat,
               ctx: { hour: new Date().getUTCHours(), human: humanActivity(new Date().getUTCHours()), bb: parseFloat(best.bbPercB.toFixed(1)), regime: marketRegime },
-            });
+            };
+            positions.push(altPos);
             lastEntryTime = Date.now();
             rememberBuy(best.sym, { entryPrice, entryTime, qty: best.qty, slPct: best.effSL, tpPct: best.effTP, trailPct: best.effTrail, leverage: altLev, fiat: altFiat });
             saveState();
+            await placeSafetyStop(altPos); // giełdowy SL — chroni gdy serwer śpi
           } catch (e: any) {
             addLog(`🔴 ZLECENIE ${best.sym} NIEUDANE: ${e.message}`, "warn");
           }
@@ -2634,15 +2738,17 @@ async function engineTick() {
       const entryPrice = fillPrice > 0 ? fillPrice : price; // real fill price if available
       const entryTime = new Date().toISOString();
       const entryFiat: KrakenFiat = config.krakenFiat ?? "USD";
-      positions.push({
+      const mainPos: Position = {
         direction, entryPrice, qty, entryTime, trailRef: entryPrice,
         slPct: effSL, tpPct: effTP, trailPct: effTrail, breakEvenSet: false,
         signal: lastEntrySignal, symbol: config.symbol, leverage: effLev, fiat: entryFiat,
         ctx: { hour: utcHour, human: humanActivity(utcHour), bb: parseFloat(bbPercB.toFixed(1)), regime: marketRegime },
-      });
+      };
+      positions.push(mainPos);
       lastEntryTime = Date.now();
       rememberBuy(config.symbol, { entryPrice, entryTime, qty, slPct: effSL, tpPct: effTP, trailPct: effTrail, leverage: effLev, fiat: entryFiat });
       saveState();
+      await placeSafetyStop(mainPos); // giełdowy SL — chroni gdy serwer śpi
     } catch (e: any) {
       addLog(`🔴 ZLECENIE NIEUDANE: ${e.message}`, "warn");
     }
