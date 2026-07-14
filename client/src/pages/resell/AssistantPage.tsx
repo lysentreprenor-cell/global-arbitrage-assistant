@@ -90,6 +90,21 @@ export default function AssistantPage() {
   const refreshMemory = () => fetch("/api/assistant/memory").then(r => r.json()).then(d => setMemory(d.memory ?? [])).catch(() => {});
   useEffect(() => { refreshMemory(); }, []);
 
+  // 🎭 SYSTEMY GADACZA — wybieralne osobowości (niewidomi/prawnik/lekarz/żartowniś/
+  // bajerant/sprzedawca). Wybór trzymany NA SERWERZE — telefon i www widzą to samo.
+  type PersonaInfo = { key: string; name: string; icon: string; desc: string };
+  const [personas, setPersonas] = useState<PersonaInfo[]>([]);
+  const [persona, setPersona] = useState("niewidomi");
+  useEffect(() => {
+    fetch("/api/assistant/persona").then(r => r.json())
+      .then(d => { setPersonas(d.list ?? []); if (d.persona) setPersona(d.persona); }).catch(() => {});
+  }, []);
+  const pickPersona = (key: string) => {
+    setPersona(key);
+    fetch("/api/assistant/persona", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ persona: key }) })
+      .catch(() => {});
+  };
+
   // 🏢 PIĘTRA GADACZA — 20 zdolności z włącznikiem. Zapis na serwerze, telefon respektuje.
   const [floors, setFloors] = useState<Record<string, boolean>>({});
   const [floorsOpen, setFloorsOpen] = useState(false);
@@ -522,6 +537,29 @@ export default function AssistantPage() {
             Działanie <b>w tle nad każdą aplikacją</b> — jak bot — ma tylko aplikacja Gadacz z pliku APK.
           </span>
         </div>
+
+        {/* 🎭 SYSTEMY GADACZA — wybór osobowości */}
+        {personas.length > 0 && (
+          <div style={{ border: "3px solid #d97706", borderRadius: 16, background: "#292013", padding: 14 }}>
+            <div style={{ color: "#fde68a", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
+              🎭 SYSTEM GADACZA: {personas.find(p => p.key === persona)?.icon} {personas.find(p => p.key === persona)?.name}
+            </div>
+            <div style={{ color: "#d6b98c", fontSize: 13, marginBottom: 10 }}>
+              Wybierz, kim Gadacz ma być. Podstawa zostaje ta sama — zmienia się specjalność i sposób mówienia. Działa też w aplikacji na telefonie.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {personas.map(p => (
+                <button key={p.key} onClick={() => pickPersona(p.key)}
+                  style={{ textAlign: "left", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
+                    border: persona === p.key ? "2px solid #fbbf24" : "2px solid #57534e",
+                    background: persona === p.key ? "#78350f" : "#1c1917" }}>
+                  <div style={{ color: "#fef3c7", fontSize: 15, fontWeight: 800 }}>{p.icon} {p.name}{persona === p.key ? " ✓" : ""}</div>
+                  <div style={{ color: "#a8a29e", fontSize: 12, marginTop: 2 }}>{p.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 🏢 PIĘTRA GADACZA — 20 zdolności z włącznikiem */}
         <div style={{ border: "3px solid #7c3aed", borderRadius: 16, background: "#1e1633", overflow: "hidden" }}>

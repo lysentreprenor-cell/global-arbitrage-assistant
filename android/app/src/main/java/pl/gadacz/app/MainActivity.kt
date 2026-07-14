@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
     private lateinit var status: TextView
     private lateinit var transcript: TextView
+    private lateinit var personaBtn: Button
     private val history = ArrayList<Pair<String, String>>()
     private var lastAnswer = ""
 
@@ -59,36 +60,25 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             setOnClickListener { onClick() }
         }
 
+        // 🧹 CZYSTY EKRAN GŁÓWNY: gadanie, czytanie ekranu, powtórz, wybór SYSTEMU
+        // i jedno wejście do USTAWIEŃ. Cała reszta dawnego panelu mieszka w Ustawieniach.
         val talk = btn("🗣️  DOTKNIJ I POWIEDZ", 0xFFFACC15.toInt(), 0xFF111111.toInt(), 190) { onTalk() }
         status = TextView(this).apply {
             text = "Gotowy"; textSize = 19f; setTextColor(0xFFFFFFFF.toInt()); gravity = Gravity.CENTER; setPadding(0, dp(10), 0, dp(10))
         }
-        // Settings FIRST after the talk button — always visible, impossible to miss.
-        val settings = btn("⚙  USTAWIENIA (adres i klucz)", 0xFFFDE68A.toInt(), 0xFF422006.toInt(), 74) { showSettings() }
         val readScreen = btn("👀  CO JEST NA EKRANIE", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
-        val bgOn = btn("🟢  WŁĄCZ PŁYWAJĄCY PRZYCISK", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 74) { enableOverlay() }
-        val access = btn("♿  WŁĄCZ STEROWANIE EKRANEM", 0xFFE0F2FE.toInt(), 0xFF082F49.toInt(), 74) { enableAccessibilityFlow() }
-        val unblock = btn("🔓  ODBLOKUJ (jeśli szare) — 3 kropki", 0xFFFEF3C7.toInt(), 0xFF451A03.toInt(), 66) {
-            speak("Naciśnij trzy kropki w prawym górnym rogu i wybierz: Zezwól na ustawienia z ograniczeniami. Potem wróć i włącz sterowanie ekranem.")
-            try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
-        }
-        val notif = btn("📢  CZYTAJ POWIADOMIENIA NA GŁOS", 0xFFFCE7F3.toInt(), 0xFF500724.toInt(), 74) {
-            Brain.prefs(this).edit().putBoolean("read_notifications", true).apply()
-            speak("Włącz Gadacza na liście dostępu do powiadomień.")
-            try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (_: Exception) {}
-        }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
-        val ready = btn("✅  CO JESZCZE ZOSTAŁO (gotowość)", 0xFFD1FAE5.toInt(), 0xFF064E3B.toInt(), 66) {
-            val s = readinessSummary(false); appendLine("✅ $s"); speak(s)
-        }
-        val update = btn("🔄  SPRAWDŹ AKTUALIZACJĘ (v${Updater.currentVersion(this)})", 0xFFCFFAFE.toInt(), 0xFF083344.toInt(), 66) { doUpdate(manual = true) }
-        val learn = btn("🧠  NAUKA (włącz/wyłącz · kopiuj · kasuj)", 0xFFE9D5FF.toInt(), 0xFF312E81.toInt(), 66) { showLearning() }
+        personaBtn = btn("🎭  SYSTEM GADACZA", 0xFFFDE68A.toInt(), 0xFF3B2A06.toInt(), 74) { showPersonaPicker() }
+        val settings = btn("⚙  USTAWIENIA", 0xFFE7E5E4.toInt(), 0xFF292524.toInt(), 74) { showSettingsHub() }
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        col.addView(talk); col.addView(status); col.addView(ready); col.addView(settings); col.addView(readScreen)
-        col.addView(bgOn); col.addView(access); col.addView(unblock); col.addView(notif); col.addView(repeat); col.addView(update); col.addView(learn); col.addView(transcript)
+        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(repeat)
+        col.addView(personaBtn); col.addView(settings); col.addView(transcript)
         setContentView(outer)
+
+        // Pokaż na przycisku, który SYSTEM jest teraz wybrany (pobierane z serwera).
+        refreshPersonaLabel()
 
         // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).
         Thread {
@@ -151,6 +141,87 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             } catch (e: Exception) { speak("Błąd połączenia. ${e.message}") }
         }.start()
+    }
+
+    // ── 🎭 SYSTEMY GADACZA — wybieralne osobowości. Klucze MUSZĄ zgadzać się z serwerem
+    // (server/routes/assistant.ts, PERSONAS). Wybór zapisuje się na serwerze, więc
+    // strona www i telefon zawsze widzą ten sam tryb.
+    private val personas = listOf(
+        Triple("niewidomi",  "🦯 Dla niewidomych", "Tryb podstawowy — ten, który trenujemy"),
+        Triple("prawnik",    "🧑‍⚖️ Prawnik",        "Prawo prostym językiem, pisma i odwołania"),
+        Triple("lekarz",     "🩺 Lekarz",          "Zdrowie i leki — nie zastępuje lekarza"),
+        Triple("zartownis",  "😂 Żartowniś",       "Żarty, anegdoty i dobry humor"),
+        Triple("bajerant",   "😎 Bajerant",        "Rozmowy z dziewczynami — z klasą"),
+        Triple("sprzedawca", "💼 Sprzedawca",      "Oferty, negocjacje, odpowiedzi klientom"),
+    )
+
+    private fun refreshPersonaLabel() {
+        Thread {
+            val cur = Brain.fetchPersona(this)
+            val label = personas.firstOrNull { it.first == cur }?.second
+            runOnUiThread { personaBtn.text = if (label != null) "🎭  SYSTEM: $label" else "🎭  SYSTEM GADACZA" }
+        }.start()
+    }
+
+    private fun showPersonaPicker() {
+        Thread {
+            val cur = Brain.fetchPersona(this)
+            runOnUiThread {
+                val items = personas.map { (key, name, desc) ->
+                    (if (key == cur) "✓ " else "") + name + "\n" + desc
+                }.toTypedArray()
+                AlertDialog.Builder(this)
+                    .setTitle("🎭 Kim ma być Gadacz?")
+                    .setItems(items) { _, which ->
+                        val (key, name, _) = personas[which]
+                        setStatus("🎭 Przełączam…")
+                        Thread {
+                            val ok = Brain.setPersona(this, key)
+                            runOnUiThread {
+                                if (ok) { speak("Przełączone. Od teraz jestem: ${name.substringAfter(" ")}."); refreshPersonaLabel() }
+                                else speak("Nie udało się przełączyć. Sprawdź połączenie z serwerem i czy jest zaktualizowany.")
+                            }
+                        }.start()
+                    }
+                    .setNegativeButton("Zamknij", null).show()
+            }
+        }.start()
+    }
+
+    /** ⚙ Centrum ustawień — cały dawny panel z ekranu głównego w jednym miejscu. */
+    private fun showSettingsHub() {
+        val items = arrayOf(
+            "🔑  Adres serwera i klucz",
+            "✅  Co jeszcze zostało (gotowość)",
+            "🟢  Włącz pływający przycisk",
+            "♿  Włącz sterowanie ekranem",
+            "🔓  Odblokuj (jeśli szare) — 3 kropki",
+            "📢  Czytaj powiadomienia na głos",
+            "🔄  Sprawdź aktualizację (v${Updater.currentVersion(this)})",
+            "🧠  Nauka (włącz/wyłącz · kopiuj · kasuj)",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("⚙ Ustawienia Gadacza")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> showSettings()
+                    1 -> { val s = readinessSummary(false); appendLine("✅ $s"); speak(s) }
+                    2 -> enableOverlay()
+                    3 -> enableAccessibilityFlow()
+                    4 -> {
+                        speak("Naciśnij trzy kropki w prawym górnym rogu i wybierz: Zezwól na ustawienia z ograniczeniami. Potem wróć i włącz sterowanie ekranem.")
+                        try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
+                    }
+                    5 -> {
+                        Brain.prefs(this).edit().putBoolean("read_notifications", true).apply()
+                        speak("Włącz Gadacza na liście dostępu do powiadomień.")
+                        try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (_: Exception) {}
+                    }
+                    6 -> doUpdate(manual = true)
+                    7 -> showLearning()
+                }
+            }
+            .setNegativeButton("Zamknij", null).show()
     }
 
     // One clear readiness check — tells the user exactly what's still needed, so setup

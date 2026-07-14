@@ -174,6 +174,24 @@ object Brain {
             }
     } catch (_: Exception) { -1 }
 
+    /** 🎭 Który SYSTEM (osobowość) jest wybrany na serwerze. "" = nie udało się pobrać. */
+    fun fetchPersona(ctx: Context): String = try {
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/persona")
+            .header("x-bot-pin", pin(ctx)).build())
+            .execute().use { r ->
+                if (!r.isSuccessful) "" else JSONObject(r.body?.string() ?: "{}").optString("persona", "")
+            }
+    } catch (_: Exception) { "" }
+
+    /** 🎭 Ustaw SYSTEM (osobowość) na serwerze — telefon i strona www widzą to samo. */
+    fun setPersona(ctx: Context, key: String): Boolean = try {
+        val body = JSONObject().put("persona", key)
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/persona")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { it.isSuccessful }
+    } catch (_: Exception) { false }
+
     /** Wyczyść jedną sekcję nauki na serwerze. */
     fun clearSection(ctx: Context, clearPath: String): Boolean = try {
         http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + clearPath).header("x-bot-pin", pin(ctx))
