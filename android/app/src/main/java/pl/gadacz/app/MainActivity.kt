@@ -31,7 +31,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
     private lateinit var status: TextView
     private lateinit var transcript: TextView
-    private lateinit var personaBtn: Button
+    private val personaBtns = HashMap<String, Button>()
     private val history = ArrayList<Pair<String, String>>()
     private var lastAnswer = ""
 
@@ -68,17 +68,27 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         val readScreen = btn("👀  CO JEST NA EKRANIE", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
-        personaBtn = btn("🎭  SYSTEM GADACZA", 0xFFFDE68A.toInt(), 0xFF3B2A06.toInt(), 74) { showPersonaPicker() }
+        // 🎭 SYSTEMY — każdy jako OSOBNY duży przycisk (jak POWTÓRZ), żadnych ukrytych
+        // list. Włączony system jest podświetlony i podpisany „WŁĄCZONY".
+        val personaHeader = TextView(this).apply {
+            text = "🎭 SYSTEM GADACZA — kim ma być:"
+            textSize = 15f; setTextColor(0xFFA8A29E.toInt()); setPadding(0, dp(14), 0, 0)
+        }
+        for ((key, name, _) in personas) {
+            personaBtns[key] = btn(name, 0xFFE7E5E4.toInt(), 0xFF1C1917.toInt(), 62) { selectPersona(key, name) }
+        }
         val settings = btn("⚙  USTAWIENIA", 0xFFE7E5E4.toInt(), 0xFF292524.toInt(), 74) { showSettingsHub() }
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
         col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(repeat)
-        col.addView(personaBtn); col.addView(settings); col.addView(transcript)
+        col.addView(personaHeader)
+        for ((key, _, _) in personas) col.addView(personaBtns[key])
+        col.addView(settings); col.addView(transcript)
         setContentView(outer)
 
-        // Pokaż na przycisku, który SYSTEM jest teraz wybrany (pobierane z serwera).
-        refreshPersonaLabel()
+        // Podświetl system, który jest teraz wybrany (pobierane z serwera).
+        refreshPersonaButtons()
 
         // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).
         Thread {
@@ -155,36 +165,36 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         Triple("sprzedawca", "💼 Sprzedawca",      "Oferty, negocjacje, odpowiedzi klientom"),
     )
 
-    private fun refreshPersonaLabel() {
+    /** Dotknięcie przycisku systemu: zapisz wybór na serwerze i podświetl. */
+    private fun selectPersona(key: String, name: String) {
+        setStatus("🎭 Przełączam…")
         Thread {
-            val cur = Brain.fetchPersona(this)
-            val label = personas.firstOrNull { it.first == cur }?.second
-            runOnUiThread { personaBtn.text = if (label != null) "🎭  SYSTEM: $label" else "🎭  SYSTEM GADACZA" }
+            val ok = Brain.setPersona(this, key)
+            runOnUiThread {
+                if (ok) { speak("Przełączone. Od teraz jestem: ${name.substringAfter(" ")}."); markActivePersona(key) }
+                else speak("Nie udało się przełączyć. Sprawdź połączenie z serwerem i czy jest zaktualizowany.")
+            }
         }.start()
     }
 
-    private fun showPersonaPicker() {
+    /** Podświetl WŁĄCZONY system, wygaś pozostałe. */
+    private fun markActivePersona(cur: String) {
+        for ((key, name, _) in personas) {
+            val b = personaBtns[key] ?: continue
+            if (key == cur) {
+                b.text = "✓ $name — WŁĄCZONY"
+                b.setBackgroundColor(0xFF3B2A06.toInt()); b.setTextColor(0xFFFDE68A.toInt())
+            } else {
+                b.text = name
+                b.setBackgroundColor(0xFF1C1917.toInt()); b.setTextColor(0xFFE7E5E4.toInt())
+            }
+        }
+    }
+
+    private fun refreshPersonaButtons() {
         Thread {
             val cur = Brain.fetchPersona(this)
-            runOnUiThread {
-                val items = personas.map { (key, name, desc) ->
-                    (if (key == cur) "✓ " else "") + name + "\n" + desc
-                }.toTypedArray()
-                AlertDialog.Builder(this)
-                    .setTitle("🎭 Kim ma być Gadacz?")
-                    .setItems(items) { _, which ->
-                        val (key, name, _) = personas[which]
-                        setStatus("🎭 Przełączam…")
-                        Thread {
-                            val ok = Brain.setPersona(this, key)
-                            runOnUiThread {
-                                if (ok) { speak("Przełączone. Od teraz jestem: ${name.substringAfter(" ")}."); refreshPersonaLabel() }
-                                else speak("Nie udało się przełączyć. Sprawdź połączenie z serwerem i czy jest zaktualizowany.")
-                            }
-                        }.start()
-                    }
-                    .setNegativeButton("Zamknij", null).show()
-            }
+            runOnUiThread { markActivePersona(if (cur.isBlank()) "niewidomi" else cur) }
         }.start()
     }
 
