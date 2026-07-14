@@ -647,6 +647,7 @@ Zasady "say" — POPRAWNY, NATURALNY POLSKI (ważne, bo to czyta osoba niewidoma
 - Gdy polecenie jest niejasne — dopytaj w "say" (action "none").
 - 💬 ROZMOWNOŚĆ: gdy użytkownik ROZMAWIA (pyta o świat, opowiada, nudzi się, żartuje, pyta co słychać) — nie zbywaj go jednym zdaniem. Odpowiedz 2-4 pełnymi, ciekawymi zdaniami, dodaj coś od siebie i zakończ krótkim pytaniem podtrzymującym rozmowę. Krótkie potwierdzenia zostaw dla AKCJI; w rozmowie bądź towarzyski.
 - Gdy użytkownik mówi „naucz się czegoś" / „naucz się" bez treści — wyjaśnij, że uczysz się z rozmów sam, i poproś: „Powiedz: zapamiętaj, że... — a zapamiętam na zawsze". Gdy podał treść — użyj akcji "remember".
+- 🌐 AKTUALNOŚCI: masz też dostęp do internetu — gdy użytkownik użyje słów typu „najnowsze", „aktualne", „sprawdź w internecie", serwer sam przeszuka świeże źródła. Jeśli pytanie dotyczy świeżych spraw (nowe przepisy, dzisiejsze wiadomości, bieżące ceny), a odpowiadasz tylko z pamięci — powiedz uczciwie, że Twoja wiedza ma datę graniczną, i podpowiedz: „dodaj słowo najnowsze, a sprawdzę w internecie".
 
 Akcja PISANIA — ✍️ WARSZTAT PISARSKI (redaguje i TWORZY teksty — działa zawsze):
 - "write": {"text":"gotowy, dopracowany tekst"} — gdy użytkownik mówi „napisz email do...", „napisz wiadomość...", „zredaguj notatkę...", „napisz listę zakupów...". Ułóż CAŁY, poprawny, gotowy tekst po polsku (z uprzejmym powitaniem/zakończeniem jeśli to email). W "say" powiedz krótko „Napisałem, czytam:" i przeczytaj cały ten tekst. Tekst zostanie skopiowany do schowka, żeby użytkownik mógł go wkleić gdziekolwiek.
@@ -757,6 +758,41 @@ router.post("/ask", async (req: Request, res: Response) => {
         } catch { /* ignore */ }
         return res.json({ say: isGood ? "Dobrze, zapamiętam że to było trafne." : "Rozumiem, następnym razem inaczej. Powiedz jak powinno być, to się nauczę.", action: "none", args: {}, next: false });
       }
+    }
+
+    // 🌐 ŚWIEŻE INFORMACJE Z INTERNETU — Gadacz „sam się uczy najnowszych rzeczy".
+    // Pytania o aktualności (nowe prawo, nowe zalecenia, wiadomości, ceny, „sprawdź
+    // w internecie") idą osobną ścieżką z narzędziem web_search Anthropic: model
+    // NAPRAWDĘ przeszukuje sieć i odpowiada na podstawie świeżych źródeł, podając
+    // skąd wie. Odpowiedź wraca zwykłym tekstem do przeczytania (action none) —
+    // dzięki temu wyniki wyszukiwania nie rozbijają ścisłego kontraktu JSON księgi.
+    // Koszt: wyszukiwania są płatne na kluczu Anthropic (ok. 1 grosz za sprawdzenie).
+    const screenWorkNow = q.includes("EKRAN") || q.includes("PLAN ZADANIA");
+    const wantsFresh = !screenWorkNow && !imageBase64 &&
+      /najnowsz|aktualn|śwież|swiez|dzisiejsz|wczorajsz|co nowego|co słychać w|co slychac w|nowe (prawo|przepisy|zasady|zalecenia|leki|stawki)|zmiany w (prawie|przepisach|podatkach)|zmienił[oa]? się|zmienil[oa]? sie|wiadomości|wiadomosci|sprawdź w internecie|sprawdz w internecie|z internetu|w internecie|ile (teraz |dziś |dzis )?kosztuje|jaki jest (teraz |dziś |dzis )?kurs/i.test(q);
+    if (wantsFresh) {
+      try {
+        const personaNow = PERSONAS[loadPersona()];
+        const rr = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-5",
+            max_tokens: 1500,
+            system: [{ type: "text", text: (personaNow.prompt ? personaNow.prompt + "\n\n" : "") +
+              `Jesteś Gadaczem — polskim asystentem głosowym. Użytkownik pyta o AKTUALNE informacje. Użyj wyszukiwania w internecie, znajdź świeże i wiarygodne źródła, i odpowiedz PO POLSKU zwykłym tekstem — bez JSON, bez gwiazdek, bez nagłówków — bo tekst będzie CZYTANY NA GŁOS. Powiedz krótko, skąd i z kiedy jest informacja (np. „według strony rządowej z tego miesiąca"). Kwoty i daty wymawiaj słownie i przyjaźnie. Zmieść się w kilku–kilkunastu zdaniach. Aktualny czas u użytkownika: ${String(clientTime).slice(0, 100) || "nieznany"}.` }],
+            messages: [{ role: "user", content: q.slice(0, 2000) }],
+            tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
+          }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        const dd = await rr.json() as any;
+        if (!dd.error) {
+          const freshText = (dd.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join(" ").trim();
+          if (freshText) return res.json({ say: freshText, action: "none", args: {}, next: false });
+        }
+        // Błąd (np. konto bez web_search)? Spadamy do zwykłej ścieżki — odpowie z wiedzy AI.
+      } catch { /* sieć/timeout — zwykła ścieżka niżej odpowie z wiedzy AI */ }
     }
 
     // 🧭 Zadanie ekranowe? Dołącz sprawdzony przepis z poprzednich udanych prób.
