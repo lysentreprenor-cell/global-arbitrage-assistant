@@ -158,6 +158,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // strona www i telefon zawsze widzą ten sam tryb.
     private val personas = listOf(
         Triple("niewidomi",  "🦯 Dla niewidomych", "Tryb podstawowy — ten, który trenujemy"),
+        Triple("ogolny",     "⚡ Ogólny",          "Krótko i na temat — dla widzących"),
         Triple("prawnik",    "🧑‍⚖️ Prawnik",        "Prawo prostym językiem, pisma i odwołania"),
         Triple("lekarz",     "🩺 Lekarz",          "Zdrowie i leki — nie zastępuje lekarza"),
         Triple("zartownis",  "😂 Żartowniś",       "Żarty, anegdoty i dobry humor"),
