@@ -21,14 +21,30 @@ class GadaczAccessibilityService : AccessibilityService() {
 
     companion object {
         @Volatile var instance: GadaczAccessibilityService? = null
+        /** 👁️ Świadomość ekranu: usługa woła to, gdy na wierzch wejdzie NOWA aplikacja.
+         *  Ustawia to GadaczOverlayService i sam decyduje, czy i co powiedzieć. */
+        @Volatile var onScreenChange: ((pkg: String) -> Unit)? = null
     }
 
     override fun onServiceConnected() { instance = this }
     override fun onInterrupt() {}
     override fun onDestroy() { instance = null; super.onDestroy() }
 
-    // We don't react to every event — MainActivity pulls the screen on demand.
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    private var lastPkg = ""
+    private var lastPkgAt = 0L
+
+    // 👁️ Zwykle nie reagujemy na każde zdarzenie (ekran czytamy na żądanie), ALE
+    // zmianę aplikacji na wierzchu zgłaszamy — to serce „świadomości ekranu".
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg == packageName || pkg == "com.android.systemui") return
+        val now = System.currentTimeMillis()
+        // Odbicie: ignoruj to samo okno i seryjne zdarzenia (< 1,2 s) — bez gadatliwości.
+        if (pkg == lastPkg && now - lastPkgAt < 1200) return
+        lastPkg = pkg; lastPkgAt = now
+        try { onScreenChange?.invoke(pkg) } catch (_: Throwable) {}
+    }
 
     /**
      * Flatten the active window into a readable summary for the AI/TTS. Captures

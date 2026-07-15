@@ -158,6 +158,17 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         try { wm.addView(b, lp) } catch (_: Exception) {}
         // Resume wake-word if it was on before.
         if (Brain.prefs(this).getBoolean("wake_mode", false)) { wakeMode = true; startWakeLoop() }
+
+        // 👁️ ŚWIADOMOŚĆ EKRANU: gdy na wierzch wejdzie nowa aplikacja, Gadacz mówi jej
+        // nazwę — dzięki temu osoba niewidoma cały czas WIE, gdzie jest. Opt-in
+        // (pref „watch_screen"), i nigdy nie przerywa: milczy, gdy pracuje albo mówi.
+        GadaczAccessibilityService.onScreenChange = { pkg ->
+            if (Brain.prefs(this).getBoolean("watch_screen", false) && !busy && !taskRunning
+                && !tts.isSpeaking && pendingSpeech.get() <= 0) {
+                val name = Brain.appLabel(this, pkg)
+                if (name.isNotBlank()) speak("Otworzyłeś: $name.")
+            }
+        }
     }
 
     // ── Wake word "Gadacz" — continuous listening loop (opt-in; uses battery) ──
@@ -373,6 +384,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private fun setBubble(emoji: String) { bubble?.post { bubble?.text = emoji } }
 
     override fun onDestroy() {
+        GadaczAccessibilityService.onScreenChange = null   // koniec świadomości ekranu
         try { bubble?.let { wm.removeView(it) } } catch (_: Exception) {}
         try { wakeRec?.destroy() } catch (_: Exception) {}
         recognizer?.destroy(); tts.stop(); tts.shutdown()

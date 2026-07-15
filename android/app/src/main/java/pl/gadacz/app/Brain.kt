@@ -108,6 +108,12 @@ object Brain {
         }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
     }
 
+    /** Przyjazna nazwa aplikacji po pakiecie (dla świadomości ekranu). */
+    fun appLabel(ctx: Context, pkg: String): String = try {
+        val pm = ctx.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+    } catch (_: Exception) { "" }
+
     /** Otwórz aplikację po pakiecie (do nauki urządzenia). true = udało się. */
     fun launchPackage(ctx: Context, pkg: String): Boolean = try {
         ctx.packageManager.getLaunchIntentForPackage(pkg)
@@ -517,6 +523,16 @@ object Brain {
             return done("Tryb darmowy włączony. Radzę sobie sam na telefonie — nie wydaję ani grosza." +
                 if (LocalBrain.available(ctx)) " Mam lokalny mózg, więc na proste pytania też odpowiem."
                 else " Nie masz wgranego lokalnego mózgu, więc zrobię tylko proste komendy i znane drogi.")
+        }
+
+        // 👁️ ŚWIADOMOŚĆ EKRANU — Gadacz mówi, gdy zmienia się aplikacja na wierzchu.
+        if (Regex("^(obserwuj|sledz|pilnuj)( moj)? ekran$|^(wlacz )?swiadomosc ekranu$").matches(n)) {
+            prefs(ctx).edit().putBoolean("watch_screen", true).apply()
+            return done("Dobrze. Będę mówił, kiedy otworzysz nową aplikację.")
+        }
+        if (Regex("^(przestan|nie) (obserwowac|sledzic|pilnowac)( ekran(u)?)?$|^cisza na ekran$|^wylacz swiadomosc ekranu$").matches(n)) {
+            prefs(ctx).edit().putBoolean("watch_screen", false).apply()
+            return done("Dobrze, przestaję mówić o zmianach ekranu.")
         }
 
         // ⏹ PRZERWIJ — zatrzymaj naukę telefonu i/lub bieżące zadanie.
