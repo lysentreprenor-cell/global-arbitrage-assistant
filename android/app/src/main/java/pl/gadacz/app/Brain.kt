@@ -959,7 +959,7 @@ object Brain {
                     val widac = GadaczAccessibilityService.instance?.visibleButtons() ?: emptyList()
                     val coWidac = if (widac.isEmpty()) "nie widzę żadnych przycisków" else "widzę: " + widac.joinToString(", ")
                     pendingHelpGoal = goal
-                    speak("Utknąłem. Szukam „$szukam", ale $coWidac. Pomóż mi: powiedz, w co mam dotknąć, albo zrób ten krok palcem i powiedz „jedź dalej" — a resztę dokończę i zapamiętam.")
+                    speak("Utknąłem. Szukam „$szukam”, ale $coWidac. Pomóż mi: powiedz, w co mam dotknąć, albo zrób ten krok palcem i powiedz „jedź dalej” — a resztę dokończę i zapamiętam.")
                     return
                 }
             } else stuckStreak = 0
@@ -1003,8 +1003,8 @@ object Brain {
             try { Thread.sleep(settle) } catch (_: Exception) {}
             step++
         }
-        speak(if (plan.isBlank()) "Zrobiłem kilka kroków, ale nie widzę, żeby zadanie się domknęło. Powiedz, co dalej, albo zrób ostatni krok palcem i powiedz „jedź dalej"."
-              else "Wyczerpałem kroki planu. Powiedz, co dalej, albo dokończ ostatni etap ręcznie i powiedz „jedź dalej".")
+        speak(if (plan.isBlank()) "Zrobiłem kilka kroków, ale nie widzę, żeby zadanie się domknęło. Powiedz, co dalej, albo zrób ostatni krok palcem i powiedz „jedź dalej”."
+              else "Wyczerpałem kroki planu. Powiedz, co dalej, albo dokończ ostatni etap ręcznie i powiedz „jedź dalej”.")
         pendingHelpGoal = goal   // po pomocy palcem można wznowić
     }
 

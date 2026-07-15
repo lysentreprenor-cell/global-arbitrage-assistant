@@ -247,14 +247,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val apps = Brain.learnableApps(this)
         AlertDialog.Builder(this)
             .setTitle("🏫 Nauczyć się całego telefonu?")
-            .setMessage("Otworzę po kolei Twoje aplikacje (${apps.size.coerceAtMost(20)} z ${apps.size}) i napiszę o każdej ściągę — dzięki temu potem lepiej je obsłużę. Pomijam banki i płatności. To potrwa kilka minut i zużyje trochę środków na kluczu. W każdej chwili powiedz „przerwij".")
+            .setMessage("Otworzę po kolei Twoje aplikacje (${apps.size.coerceAtMost(20)} z ${apps.size}) i napiszę o każdej ściągę — dzięki temu potem lepiej je obsłużę. Pomijam banki i płatności. To potrwa kilka minut i zużyje trochę środków na kluczu. W każdej chwili powiedz „przerwij”.")
             .setPositiveButton("Zaczynaj") { _, _ -> learnDevice(apps.take(20)) }
             .setNegativeButton("Nie teraz", null).show()
     }
 
     private fun learnDevice(apps: List<Pair<String, String>>) {
         Brain.deviceLearnCancel = false
-        speak("Uczę się telefonu. Otworzę ${apps.size} aplikacji. Powiedz „przerwij", żeby zatrzymać.")
+        speak("Uczę się telefonu. Otworzę ${apps.size} aplikacji. Powiedz „przerwij”, żeby zatrzymać.")
         Thread {
             var done = 0
             for ((i, app) in apps.withIndex()) {
