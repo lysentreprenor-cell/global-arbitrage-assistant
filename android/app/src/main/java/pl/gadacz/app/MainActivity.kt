@@ -68,6 +68,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         val readScreen = btn("👀  CO JEST NA EKRANIE (mądry opis)", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
         val readPlain = btn("📄  PRZECZYTAJ NAPISY (za darmo)", 0xFFD9F99D.toInt(), 0xFF1A2E05.toInt(), 66) { readScreenPlainFree() }
+        val bt = btn("📶  SPRAWDŹ BLUETOOTH", 0xFFBFDBFE.toInt(), 0xFF0C1E3A.toInt(), 66) {
+            val s = Brain.bluetoothReport(this); lastAnswer = s; appendLine("📶 $s"); speak(s)
+        }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
         // 🎭 TWARZE — każda jako OSOBNY duży przycisk (jak POWTÓRZ), żadnych ukrytych
         // list. Włączona twarz jest podświetlona i podpisana „WŁĄCZONA".
@@ -82,7 +85,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(repeat)
+        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(repeat)
         col.addView(personaHeader)
         for ((key, _, _) in personas) col.addView(personaBtns[key])
         col.addView(settings); col.addView(transcript)
@@ -104,6 +107,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val need = ArrayList<String>()
             if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(android.Manifest.permission.RECORD_AUDIO)
             if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(android.Manifest.permission.BLUETOOTH_CONNECT)
             if (need.isNotEmpty()) requestPermissions(need.toTypedArray(), 1)
         } catch (_: Exception) {}
 

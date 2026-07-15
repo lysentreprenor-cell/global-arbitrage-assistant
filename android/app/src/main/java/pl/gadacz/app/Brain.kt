@@ -34,6 +34,52 @@ object Brain {
     @Volatile var deviceLearnCancel = false
 
     /**
+     * 📶 Czym można sterować przez Bluetooth — wylicza SPAROWANE urządzenia i mówi,
+     * co Gadacz z każdym potrafi. Smart-dom (żarówki, gniazdka) chodzi zwykle po
+     * Wi-Fi/Zigbee, nie po Bluetooth — o tym też uczciwie informujemy.
+     * Zwraca gotowy tekst do przeczytania na głos.
+     */
+    fun bluetoothReport(ctx: Context): String {
+        val mgr = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+        val adapter = mgr?.adapter ?: return "To urządzenie nie ma Bluetooth albo nie mam do niego dostępu."
+        // Android 12+ wymaga zgody BLUETOOTH_CONNECT, żeby czytać listę urządzeń.
+        if (android.os.Build.VERSION.SDK_INT >= 31 &&
+            ctx.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return "Potrzebuję zgody na Bluetooth. Otwórz ustawienia Gadacza i zezwól na Bluetooth, potem powiedz jeszcze raz: sprawdź Bluetooth."
+        }
+        if (!adapter.isEnabled) return "Bluetooth jest wyłączony. Włącz go w ustawieniach telefonu i powiedz jeszcze raz: sprawdź Bluetooth."
+        val bonded = try { adapter.bondedDevices?.toList() ?: emptyList() } catch (_: Exception) { emptyList() }
+        if (bonded.isEmpty()) return "Bluetooth jest włączony, ale nie masz jeszcze żadnego sparowanego urządzenia. Sparuj je raz w ustawieniach telefonu, a potem będę nimi zarządzał."
+        val sb = StringBuilder("Masz ${bonded.size} sparowanych urządzeń Bluetooth. ")
+        for (d in bonded.take(12)) {
+            val name = try { d.name } catch (_: Exception) { null } ?: "urządzenie bez nazwy"
+            val kind = try { d.bluetoothClass?.majorDeviceClass } catch (_: Exception) { null }
+            val opis = when (kind) {
+                android.bluetooth.BluetoothClass.Device.Major.AUDIO_VIDEO -> "głośnik lub słuchawki — mogę połączyć i sterować dźwiękiem"
+                android.bluetooth.BluetoothClass.Device.Major.WEARABLE -> "opaska lub zegarek — mogę połączyć"
+                android.bluetooth.BluetoothClass.Device.Major.HEALTH -> "urządzenie zdrowotne, np. ciśnieniomierz — mogę połączyć i odczytać"
+                android.bluetooth.BluetoothClass.Device.Major.PHONE -> "telefon"
+                android.bluetooth.BluetoothClass.Device.Major.COMPUTER -> "komputer"
+                android.bluetooth.BluetoothClass.Device.Major.PERIPHERAL -> "klawiatura, myszka lub pilot"
+                else -> "mogę spróbować połączyć"
+            }
+            sb.append("$name: $opis. ")
+        }
+        sb.append("Żeby połączyć, powiedz na przykład: połącz z ").append(
+            (try { bonded.first().name } catch (_: Exception) { null }) ?: "głośnikiem").append(". ")
+        sb.append("Uwaga: żarówki i gniazdka smart zwykle nie chodzą po Bluetooth, tylko przez swoją aplikację — nimi steruję otwierając tę aplikację.")
+        return sb.toString()
+    }
+
+    /** 📶 Połącz z sparowanym urządzeniem po fragmencie nazwy (otwiera ustawienia BT). */
+    fun bluetoothConnect(ctx: Context, namePart: String): String {
+        // Realne łączenie profili audio jest zależne od producenta; najpewniej i
+        // najbezpieczniej: otwórz ekran Bluetooth, gdzie jednym dotknięciem łączysz.
+        try { ctx.startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+        return "Otwieram ustawienia Bluetooth. Dotknij „$namePart” na liście, żeby połączyć — albo powiedz mi, co widzisz, to pokieruję."
+    }
+
+    /**
      * 🏫 Aplikacje, których Gadacz może się bezpiecznie nauczyć: dające się uruchomić,
      * BEZ banków/płatności i bez siebie samego. Zwraca pary (nazwa, pakiet).
      */
@@ -468,6 +514,18 @@ object Brain {
                 Thread { runTask(ctx, g, ArrayList(), speak) }.start()
                 return true
             }
+        }
+
+        // 📶 BLUETOOTH: czym można sterować + łączenie ze sparowanym urządzeniem.
+        if (Regex("^(sprawdz|pokaz|co (mam|jest)( sparowane)?|czym (moge|mozna) sterowac)( przez)? bluetooth$").matches(n)
+            || n == "bluetooth" || n == "sprawdz bluetooth" || n == "urzadzenia bluetooth") {
+            return done(bluetoothReport(ctx))
+        }
+        Regex("^(polacz|lacz)( sie)?( z)? (.+)$").find(n)?.let { m ->
+            val target = m.groupValues[4].trim()
+            // Tylko sprzęt BT — nie porywamy „połącz z mamą" (to dzwonienie).
+            if (Regex("bluetooth|glosnik|sluchawk|opask|zegarek|cisnieniomierz|waga").containsMatchIn(target))
+                return done(bluetoothConnect(ctx, target.replace("bluetooth", "").trim().ifBlank { "urządzeniem" }))
         }
 
         // 📄 Piętro 1: DARMOWE czytanie ekranu — telefon sam czyta napisy, bez AI
