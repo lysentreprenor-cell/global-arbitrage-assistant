@@ -11,6 +11,10 @@ on:
         description: "Adres modelu .task (puste = domyslny Qwen 2.5 0.5B)"
         required: false
         default: ""
+  # Odpala sie tez sam, gdy zmieni sie ten plik — tak wypuszczamy/odswiezamy mozg.
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths: [ ".github/workflows/publish-brain.yml" ]
 
 permissions:
   contents: write
