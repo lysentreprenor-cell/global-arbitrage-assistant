@@ -27,6 +27,53 @@ object Brain {
     /** Użytkownik chce PRZERWAĆ trwające zadanie (dotknięcie przycisku w trakcie). */
     @Volatile var cancelRequested = false
 
+    /** 🆘 Zadanie utknęło i CZEKA na pomoc człowieka. Po „gotowe, jedź dalej" wznawiamy. */
+    @Volatile private var pendingHelpGoal: String? = null
+
+    /** 🏫 Przerwanie „nauki całego telefonu" (długa wyprawa po aplikacjach). */
+    @Volatile var deviceLearnCancel = false
+
+    /**
+     * 🏫 Aplikacje, których Gadacz może się bezpiecznie nauczyć: dające się uruchomić,
+     * BEZ banków/płatności i bez siebie samego. Zwraca pary (nazwa, pakiet).
+     */
+    fun learnableApps(ctx: Context): List<Pair<String, String>> {
+        val pm = ctx.packageManager
+        val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val bankHints = listOf("bank", "revolut", "vipps", "paypal", "santander", "mbank",
+            "pekao", "pko", "millennium", "alior", "getin", "blik", "ing", "payu", "przelewy")
+        return pm.queryIntentActivities(main, 0).mapNotNull { ri ->
+            val pkg = ri.activityInfo?.packageName ?: return@mapNotNull null
+            if (pkg == ctx.packageName) return@mapNotNull null
+            val lp = pkg.lowercase()
+            if (bankHints.any { lp.contains(it) }) return@mapNotNull null
+            val label = ri.loadLabel(pm)?.toString()?.trim() ?: return@mapNotNull null
+            if (label.isBlank()) null else label to pkg
+        }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
+    }
+
+    /** Otwórz aplikację po pakiecie (do nauki urządzenia). true = udało się. */
+    fun launchPackage(ctx: Context, pkg: String): Boolean = try {
+        ctx.packageManager.getLaunchIntentForPackage(pkg)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let { ctx.startActivity(it); true } ?: false
+    } catch (_: Exception) { false }
+
+    /** Poznaj JEDNĄ otwartą aplikację (odczyt ekranu + zrzut → serwer pisze ściągę). */
+    fun learnCurrentApp(ctx: Context, pkg: String): Boolean = try {
+        val svc = GadaczAccessibilityService.instance ?: return false
+        val screen = svc.readScreen()
+        val shot = svc.screenshotBase64()
+        val body = JSONObject().apply {
+            put("anthropicKey", anthropicKey(ctx)); put("pkg", pkg)
+            put("name", pkg.substringAfterLast(".")); put("screen", screen); put("deep", false)
+            if (shot != null) { put("imageBase64", shot); put("mediaType", "image/jpeg") }
+        }
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/learn-app")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { it.isSuccessful }
+    } catch (_: Exception) { false }
+
     fun prefs(ctx: Context) = ctx.getSharedPreferences("gadacz", Context.MODE_PRIVATE)
 
     // 🏢 PIĘTRA — telefon czyta ustawienia z serwera (cache 60 s) i respektuje włączniki.
@@ -365,7 +412,9 @@ object Brain {
     // ─── 🛡️ PIĘTRO 5: STRAŻNIK — groźne przyciski wymagają potwierdzenia ────
     @Volatile private var pendingDangerTap: String? = null
     private val DANGER = listOf("zaplac", "kup teraz", "zamow", "przelej", "pieniadze",
-        "usun", "skasuj", "przelew", "platnosc", "pay", "buy", "delete", "wyslij do wszystkich")
+        "usun", "skasuj", "przelew", "platnosc", "pay", "buy", "delete", "wyslij do wszystkich",
+        // Publikacja ogłoszenia = punkt bez odwrotu → tylko po „potwierdzam".
+        "wystaw", "opublikuj", "dodaj ogloszenie", "zakoncz i dodaj", "publikuj")
     fun isDanger(label: String): Boolean {
         val l = normPl(label)
         return l.isNotBlank() && DANGER.any { l.contains(it) }
@@ -401,6 +450,25 @@ object Brain {
         val isHelpWithPhone = Regex("(jak |nie (umiem|wiem|moge|potrafie)|pomoz mi|z (tym|obsluga)|wyslac|zrobic|ustawic|wlaczyc)").containsMatchIn(n)
         if (floorOn(ctx, "sos") && (n == "sos" || n == "ratunku" || n == "pomocy" || n == "wezwij pomoc" || n == "potrzebuje pomocy" || Regex("^(sos|ratunku)\\b").containsMatchIn(n)) && !isHelpWithPhone)
             return done(sos(ctx))
+
+        // ⏹ PRZERWIJ — zatrzymaj naukę telefonu i/lub bieżące zadanie.
+        if (n == "przerwij" || n == "przerwij nauke" || n == "stop nauka" || n == "zatrzymaj") {
+            deviceLearnCancel = true; cancelRequested = true
+            return done("Dobrze, przerywam.")
+        }
+
+        // 🆘 WZNOWIENIE po pomocy: użytkownik pomógł (palcem/podpowiedzią) i mówi
+        // „jedź dalej" → wracamy do przerwanego zadania OD BIEŻĄCEGO ekranu (AI sam
+        // rozpozna, co już zrobione). Bez pomocy zadania: to zwykłe „dalej".
+        if (Regex("^(jedz|jed[zź] dalej|dalej|kontynuuj|gotowe jedz dalej|zrobione jedz dalej|mozesz dalej|dokoncz)$").matches(n)) {
+            val g = pendingHelpGoal
+            if (g != null) {
+                pendingHelpGoal = null
+                speak("Dobrze, jadę dalej.")
+                Thread { runTask(ctx, g, ArrayList(), speak) }.start()
+                return true
+            }
+        }
 
         // 📄 Piętro 1: DARMOWE czytanie ekranu — telefon sam czyta napisy, bez AI
         // (zero kosztów). Mądry OPIS ekranu („co jest na ekranie") dalej robi AI.
@@ -828,7 +896,14 @@ object Brain {
         // 🧭 Silnik nauki obsługi telefonu: zbieramy kroki, które ZADZIAŁAŁY.
         // Udane zadanie → przepis leci na serwer → następnym razem AI dostaje mapę.
         val steps = ArrayList<String>()
-        while (step < if (plan.isBlank()) 14 else 20) {
+        var stuckStreak = 0   // ile razy z rzędu krok nie wyszedł (do wołania o pomoc)
+        // 🎯 MISJA: długie zadania (ogłoszenia, wieloekranowe formularze) dostają więcej
+        // kroków — zwykłe zadania kończą się w kilku, ale wystawienie ogłoszenia to 20-40
+        // kroków przez wiele ekranów, więc nie poddawaj się za wcześnie.
+        val isMission = Regex("ogloszeni|sprzeda|wystaw|olx|allegro|vinted|formularz|zarejestruj|konto|wypelnij")
+            .containsMatchIn(normPl(goal))
+        val stepCap = if (isMission) 45 else if (plan.isBlank()) 14 else 20
+        while (step < stepCap) {
             if (cancelRequested) { cancelRequested = false; speak("Dobrze, przerywam zadanie."); return }
             val svcNow = GadaczAccessibilityService.instance
             val screen = svcNow?.readScreen()
@@ -874,6 +949,20 @@ object Brain {
             if (spoken.startsWith("Nie znalazłem") || spoken.startsWith("Nie ma pola") ||
                 spoken.startsWith("Nie udało") || spoken.startsWith("To pole nie") ||
                 spoken.startsWith("Nie mam czego")) lastError = spoken
+            // 🆘 MISTRZOWSKIE WOŁANIE O POMOC: gdy AI utyka drugi raz z rzędu, nie błądź
+            // dalej po omacku — powiedz KONKRETNIE co próbujesz, CO widać i CZEGO trzeba,
+            // po czym zatrzymaj się i czekaj na pomoc (głosem albo palcem → „jedź dalej").
+            if (lastError.isNotBlank()) {
+                stuckStreak++
+                if (stuckStreak >= 2) {
+                    val szukam = args.optString("text", args.optString("name", "")).ifBlank { "właściwego elementu" }
+                    val widac = GadaczAccessibilityService.instance?.visibleButtons() ?: emptyList()
+                    val coWidac = if (widac.isEmpty()) "nie widzę żadnych przycisków" else "widzę: " + widac.joinToString(", ")
+                    pendingHelpGoal = goal
+                    speak("Utknąłem. Szukam „$szukam", ale $coWidac. Pomóż mi: powiedz, w co mam dotknąć, albo zrób ten krok palcem i powiedz „jedź dalej" — a resztę dokończę i zapamiętam.")
+                    return
+                }
+            } else stuckStreak = 0
             // Udany krok wchodzi do przepisu (z najważniejszym argumentem).
             if (lastError.isBlank() && action != "none") {
                 val arg = args.optString("text", args.optString("name", args.optString("dir", "")))
@@ -914,8 +1003,9 @@ object Brain {
             try { Thread.sleep(settle) } catch (_: Exception) {}
             step++
         }
-        speak(if (plan.isBlank()) "Zrobiłem kilka kroków. Powiedz, co dalej."
-              else "Wyczerpałem kroki planu. Powiedz, co dalej, albo dokończ ostatni etap ręcznie.")
+        speak(if (plan.isBlank()) "Zrobiłem kilka kroków, ale nie widzę, żeby zadanie się domknęło. Powiedz, co dalej, albo zrób ostatni krok palcem i powiedz „jedź dalej"."
+              else "Wyczerpałem kroki planu. Powiedz, co dalej, albo dokończ ostatni etap ręcznie i powiedz „jedź dalej".")
+        pendingHelpGoal = goal   // po pomocy palcem można wznowić
     }
 
     /**

@@ -211,6 +211,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "📢  Czytaj powiadomienia na głos",
             "🔄  Sprawdź aktualizację (v${Updater.currentVersion(this)})",
             "🧠  Nauka (włącz/wyłącz · kopiuj · kasuj)",
+            "🏫  Naucz się całego telefonu",
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -231,9 +232,49 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                     6 -> doUpdate(manual = true)
                     7 -> showLearning()
+                    8 -> confirmLearnDevice()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    /** 🏫 Nauka całego telefonu: Gdacz otwiera po kolei aplikacje i pisze o nich ściągi. */
+    private fun confirmLearnDevice() {
+        if (GadaczAccessibilityService.instance == null) {
+            speak("Najpierw włącz sterowanie ekranem w ustawieniach Gadacza, wtedy poznam telefon.")
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); return
+        }
+        val apps = Brain.learnableApps(this)
+        AlertDialog.Builder(this)
+            .setTitle("🏫 Nauczyć się całego telefonu?")
+            .setMessage("Otworzę po kolei Twoje aplikacje (${apps.size.coerceAtMost(20)} z ${apps.size}) i napiszę o każdej ściągę — dzięki temu potem lepiej je obsłużę. Pomijam banki i płatności. To potrwa kilka minut i zużyje trochę środków na kluczu. W każdej chwili powiedz „przerwij".")
+            .setPositiveButton("Zaczynaj") { _, _ -> learnDevice(apps.take(20)) }
+            .setNegativeButton("Nie teraz", null).show()
+    }
+
+    private fun learnDevice(apps: List<Pair<String, String>>) {
+        Brain.deviceLearnCancel = false
+        speak("Uczę się telefonu. Otworzę ${apps.size} aplikacji. Powiedz „przerwij", żeby zatrzymać.")
+        Thread {
+            var done = 0
+            for ((i, app) in apps.withIndex()) {
+                if (Brain.deviceLearnCancel) break
+                val (label, pkg) = app
+                runOnUiThread { setStatus("🏫 ${i + 1}/${apps.size}: $label") }
+                if (!Brain.launchPackage(this, pkg)) continue
+                try { Thread.sleep(2600) } catch (_: Exception) {}   // daj się wczytać
+                if (Brain.deviceLearnCancel) break
+                if (Brain.learnCurrentApp(this, pkg)) done++
+                try { Thread.sleep(400) } catch (_: Exception) {}
+            }
+            val d = done
+            val stopped = Brain.deviceLearnCancel
+            Brain.deviceLearnCancel = false
+            runOnUiThread {
+                setStatus("Gotowy")
+                speak(if (stopped) "Przerwane. Zdążyłem poznać $d aplikacji." else "Gotowe. Poznałem $d aplikacji. Teraz będę je obsługiwał pewniej.")
+            }
+        }.start()
     }
 
     // One clear readiness check — tells the user exactly what's still needed, so setup

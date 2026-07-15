@@ -51,6 +51,14 @@ class GadaczAccessibilityService : AccessibilityService() {
     /** Pakiet aplikacji na wierzchu (dla „naucz się tej aplikacji"). Pusty = nieznany. */
     fun currentPackage(): String = rootInActiveWindow?.packageName?.toString() ?: ""
 
+    /** 🆘 Krótka lista widocznych przycisków/pól — do konkretnego wołania o pomoc. */
+    fun visibleButtons(): List<String> {
+        val root = rootInActiveWindow ?: return emptyList()
+        val out = ArrayList<Pair<String, Rect>>()
+        collectInteractive(root, out)
+        return out.map { it.first }.distinct().take(8)
+    }
+
     /**
      * 📄 DARMOWE czytanie ekranu — same napisy, po ludzku, prosto do TTS.
      * Zero AI = zero kosztów: telefon sam zbiera teksty z ekranu i je czyta.

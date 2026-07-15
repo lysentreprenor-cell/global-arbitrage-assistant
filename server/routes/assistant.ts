@@ -525,6 +525,9 @@ const APP_GUIDES: Record<string, string> = {
   "com.einnovation.temu": "Temu — sklep. Szukanie na górze. UWAGA: NIE dotykaj „Kup teraz/Zamów/Zapłać” bez wyraźnego polecenia; przed finalizacją zawsze przeczytaj cenę i poproś o potwierdzenie.",
   "com.lemon.lvoverseas": "CapCut — edytor wideo. „Nowy projekt” na górze, oś czasu na dole. Rób małe kroki i opisuj efekt po każdym.",
   "com.android.chrome": "Chrome — pasek adresu na górze: tap → type → enter. Karty: kwadrat z liczbą. Wstecz: gest back.",
+  "pl.olx.olx": "OLX — SPRZEDAŻ krok po kroku: 1) duży przycisk „Dodaj ogłoszenie” (plus na dole, środek). 2) Wpisz tytuł/nazwę przedmiotu → OLX sam podpowie kategorię, wybierz pasującą. 3) Dodaj zdjęcia (ikona aparatu/galerii). 4) Pola po kolei: tytuł, opis (tap → type), cena (pole „Cena”, type samą liczbę), stan (używane/nowe). 5) Dane kontaktowe zwykle już wypełnione. 6) Na końcu „Dodaj ogłoszenie”/„Zakończ i dodaj”. WAŻNE: przycisku publikacji NIE dotykaj bez wyraźnego potwierdzenia użytkownika. Przewijaj formularz w dół, żeby odsłonić kolejne pola.",
+  "com.allegro": "Allegro — SPRZEDAŻ: zakładka „Sprzedaj”/plus. Formularz jest DŁUGI (kategoria → tytuł → parametry → zdjęcia → opis → cena → wysyłka) — rób etap po etapie, po każdym przewiń w dół. Tytuł piszesz tak, jak kupujący szuka (marka + model). Cena to samo pole liczbowe. Przed „Wystaw” przeczytaj całość i poczekaj na potwierdzenie.",
+  "com.vinted": "Vinted — SPRZEDAŻ (głównie ubrania): plus na dole → dodaj zdjęcia → tytuł, opis, kategoria, rozmiar, stan, marka, cena. Wysyłkę Vinted ogarnia sam. „Dodaj” na końcu = publikacja, tylko po potwierdzeniu.",
 };
 // 🎓 Miniaturki do panelu „TRYB EKSPERT" na stronie: przyjazna nazwa + ikonka dla
 // każdej WBUDOWANEJ ściągi powyżej — użytkownik widzi kafelki „nauczone".
@@ -544,6 +547,9 @@ const BUILTIN_TILES: { match: string; name: string; icon: string }[] = [
   { match: "com.einnovation.temu",             name: "Temu",        icon: "🛍️" },
   { match: "com.lemon.lvoverseas",             name: "CapCut",      icon: "✂️" },
   { match: "com.android.chrome",               name: "Chrome",      icon: "🌐" },
+  { match: "pl.olx.olx",                        name: "OLX",         icon: "🏷️" },
+  { match: "com.allegro",                       name: "Allegro",     icon: "🅰️" },
+  { match: "com.vinted",                        name: "Vinted",      icon: "👕" },
 ];
 
 // 🏦 Aplikacje bankowe/płatnicze — tu obowiązuje ŻELAZNA ostrożność.
