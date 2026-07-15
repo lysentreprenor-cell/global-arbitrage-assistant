@@ -314,6 +314,14 @@ router.post("/persona", (req, res) => {
   res.json({ ok: true, persona: p });
 });
 
+// 🤏 ADRES LOKALNEGO MÓZGU — z jakiego linku telefon pobiera model AI do trybu
+// offline. Trzymany TU (nie w apce), żeby dało się go poprawić bez nowej wersji
+// aplikacji, gdy dany link przestanie działać albo pojawi się lepszy model.
+// WYMAGANIA: publiczny (bez logowania/licencji), format MediaPipe .task.
+// Qwen 2.5 0.5B jest na licencji Apache — pobiera się bez konta.
+const BRAIN_URL = "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task";
+router.get("/brain-url", (_req, res) => res.json({ url: BRAIN_URL }));
+
 // 🚫 ZABLOKOWANE APLIKACJE — Gadacz NIE wykona żadnej akcji ekranowej (klik/wpisanie)
 // w tych apkach. „match" = fragment nazwy pakietu lub apki (np. „bank", „revolut").
 const BLOCKED_FILE = path.resolve(process.cwd(), "data", "gadacz_blocked.json");

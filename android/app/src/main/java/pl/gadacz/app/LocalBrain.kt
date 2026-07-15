@@ -28,10 +28,24 @@ object LocalBrain {
     @Volatile private var loadedPath: String? = null
     @Volatile var downloadCancel = false
 
-    // Gemma 3 1B (int4, ~0.5 GB) w formacie MediaPipe .task — mały, ale rozmowny,
-    // dobrze zna polski. Publiczne wydanie społeczności LiteRT.
-    private const val MODEL_URL =
-        "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task"
+    // Zapasowy adres, gdy serwer nieosiągalny. GŁÓWNY adres bierzemy z serwera
+    // (/api/assistant/brain-url) — żeby dało się poprawić link bez nowej wersji apki.
+    // Qwen 2.5 0.5B (Apache) — publiczny, bez logowania; format MediaPipe .task.
+    private const val MODEL_URL_FALLBACK =
+        "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+
+    /** Adres modelu z serwera (można go tam poprawić bez aktualizacji apki). */
+    private fun modelUrl(ctx: Context): String = try {
+        val base = Brain.serverUrl(ctx).trimEnd('/')
+        if (base.isBlank()) MODEL_URL_FALLBACK else {
+            val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
+            client.newCall(Request.Builder().url("$base/api/assistant/brain-url").header("x-bot-pin", Brain.pin(ctx)).build())
+                .execute().use { r ->
+                    val u = if (r.isSuccessful) org.json.JSONObject(r.body?.string() ?: "{}").optString("url", "") else ""
+                    if (u.startsWith("http")) u else MODEL_URL_FALLBACK
+                }
+        }
+    } catch (_: Exception) { MODEL_URL_FALLBACK }
 
     private fun downloadedFile(ctx: Context) = File(ctx.getExternalFilesDir(null), "gadacz-mozg.task")
 
@@ -128,7 +142,13 @@ object LocalBrain {
         val out = downloadedFile(ctx)
         val tmp = File(out.absolutePath + ".part")
         try {
-            client.newCall(Request.Builder().url(MODEL_URL).build()).execute().use { resp ->
+            val url = modelUrl(ctx)
+            client.newCall(Request.Builder().url(url)
+                .header("User-Agent", "Gadacz/1.0").build()).execute().use { resp ->
+                if (resp.code == 401 || resp.code == 403) {
+                    onDone(false, "Ten model wymaga logowania i nie da się go pobrać automatycznie. Powiem opiekunowi, żeby podał inny link — a Ty możesz wgrać plik ręcznie do folderu Pobrane pod nazwą gadacz-mozg kropka task.")
+                    return
+                }
                 if (!resp.isSuccessful) { onDone(false, "Serwer modeli zwrócił błąd ${resp.code}."); return }
                 val body = resp.body ?: run { onDone(false, "Pusta odpowiedź serwera."); return }
                 val total = body.contentLength().coerceAtLeast(1)
