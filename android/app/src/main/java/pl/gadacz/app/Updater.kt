@@ -19,12 +19,15 @@ object Updater {
     private const val VERSION_URL = "$BASE/version.txt"
     private const val APK_URL = "$BASE/Gadacz.apk"
     private val http = OkHttpClient.Builder()
-        // Bez twardego callTimeout — APK ma w sobie lokalny mózg AI (kilkadziesiąt MB),
-        // a 90-sekundowy limit CAŁEGO pobierania powodował „timeout" na telefonie.
-        // Zostają hojne limity na łączenie i BEZCZYNNOŚĆ (zwis), nie na wielkość pliku.
+        // ⏳ POBIERANIE BEZ LIMITU CZASU — apka może kiedyś ważyć bardzo dużo (lokalny
+        // mózg AI, modele głosu itd.). Zero = brak ograniczenia: plik pobiera się tak
+        // długo, jak trzeba, byle dane płynęły. Zostaje TYLKO limit na NAWIĄZANIE
+        // połączenia (30 s), żeby przy braku internetu od razu powiedzieć „nie ma sieci"
+        // zamiast wisieć w nieskończoność.
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
+        .callTimeout(0, TimeUnit.SECONDS)   // 0 = bez limitu na całe pobieranie
+        .readTimeout(0, TimeUnit.SECONDS)   // 0 = bez limitu na oczekiwanie na dane
+        .writeTimeout(0, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
