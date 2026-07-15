@@ -363,11 +363,26 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setNegativeButton("Później", null).show()
     }
     private fun startDownload() {
+        // 🔓 Android 8+ blokuje instalację, jeśli apka nie ma zgody „Instaluj nieznane
+        // aplikacje". Bez tego instalator się otwiera i cofa („aktualizacja nie przechodzi").
+        // Sprawdzamy PRZED pobraniem i prowadzimy użytkownika do włączenia zgody.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+            AlertDialog.Builder(this)
+                .setTitle("Jednorazowa zgoda na instalację")
+                .setMessage("Android wymaga, żebyś raz zezwolił Gadaczowi instalować aktualizacje. Zaraz otworzę ten ekran — włącz przełącznik „Zezwól z tego źródła”, cofnij się i dotknij Aktualizuj jeszcze raz.")
+                .setPositiveButton("Otwórz ustawienia") { _, _ ->
+                    speak("Włącz przełącznik zezwól z tego źródła, potem wróć i dotknij Aktualizuj jeszcze raz.")
+                    try { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
+                    catch (_: Exception) { try { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)) } catch (_: Exception) {} }
+                }
+                .setNegativeButton("Anuluj", null).show()
+            return
+        }
         speak("Pobieram aktualizację, chwileczkę.")
         Thread {
             Updater.downloadAndInstall(this,
                 onProgress = { p -> runOnUiThread { setStatus("⬇️ Pobieram… $p%") } },
-                onError = { e -> runOnUiThread { setStatus("Gotowy"); speak("Błąd aktualizacji. $e") } })
+                onError = { e -> runOnUiThread { setStatus("Gotowy"); speak("Błąd aktualizacji. $e Możesz też pobrać aplikację z przeglądarki — otwórz stronę github i plik Gadacz kropka apk.") } })
         }.start()
     }
 
