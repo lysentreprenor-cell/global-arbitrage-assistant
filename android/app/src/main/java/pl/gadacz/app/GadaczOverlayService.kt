@@ -52,7 +52,9 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
 
     // START_NOT_STICKY: don't let Android auto-restart us after the app is killed or
     // data is cleared — a restart with no mic permission would crash-loop.
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
+    // 🔁 START_STICKY: gdy Android ubije usługę (pamięć/bateria), SAM ją wznowi —
+    // Gadacz wraca do życia bez dotykania telefonu. Kluczowe dla ciągłej pracy.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onCreate() {
         super.onCreate()
@@ -65,6 +67,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             if (!micOk) { stopSelf(); return }
             startForeground(1, buildNotification())
             addBubble()
+            askIgnoreBatteryOptimizations()   // raz: żeby system nie usypiał Gadacza
             // 🛟 Lustro pamięci — kopia faktów w telefonie; przywraca po utracie na serwerze.
             Brain.syncMemoryMirror(this) { n -> speak("Przywróciłem $n faktów z kopii w telefonie.") }
             // 🔔 Piętro 4: silnik zdarzeń — co minutę reguły (przypomnienia, bateria).
@@ -107,11 +110,36 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(NotificationChannel(chanId, "Gadacz", NotificationManager.IMPORTANCE_LOW))
         }
+        // Dotknięcie powiadomienia otwiera Gadacza — a samo powiadomienie (kanał LOW,
+        // ongoing) trzyma usługę żywą i daje Androidowi znak „to ma działać cały czas".
+        val tapOpen = try {
+            android.app.PendingIntent.getActivity(this, 0,
+                Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                android.app.PendingIntent.FLAG_IMMUTABLE)
+        } catch (_: Exception) { null }
         return Notification.Builder(this, chanId)
-            .setContentTitle("Gadacz słucha")
-            .setContentText("Dotknij pływającego przycisku i mów")
+            .setContentTitle("Gadacz działa")
+            .setContentText("Jestem w pobliżu — dotknij przycisku albo powiedz Gadacz")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setOngoing(true)
+            .also { if (tapOpen != null) it.setContentIntent(tapOpen) }
             .build()
+    }
+
+    /** 🔋 Poproś RAZ o zwolnienie z oszczędzania baterii — inaczej system usypia
+     *  usługę po chwili bez ekranu i Gadacz „gaśnie". Prosimy delikatnie, raz. */
+    private fun askIgnoreBatteryOptimizations() {
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+            if (Brain.prefs(this).getBoolean("batt_asked", false)) return
+            val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+            if (pm.isIgnoringBatteryOptimizations(packageName)) return
+            Brain.prefs(this).edit().putBoolean("batt_asked", true).apply()
+            val i = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                .setData(android.net.Uri.parse("package:$packageName"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(i)
+        } catch (_: Exception) {}
     }
 
     // ── Floating button ──────────────────────────────────────────────────────
