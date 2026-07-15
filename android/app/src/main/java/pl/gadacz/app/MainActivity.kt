@@ -32,6 +32,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var status: TextView
     private lateinit var transcript: TextView
     private val personaBtns = HashMap<String, Button>()
+    private lateinit var payBtn: Button
     private val history = ArrayList<Pair<String, String>>()
     private var lastAnswer = ""
 
@@ -72,6 +73,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val s = Brain.bluetoothReport(this); lastAnswer = s; appendLine("📶 $s"); speak(s)
         }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
+        // 💰/🆓 Tryb pracy: płatny (mądry mózg w chmurze) albo darmowy (telefon sam).
+        payBtn = btn("", 0xFFFDE68A.toInt(), 0xFF3B2A06.toInt(), 66) { togglePaidMode() }
+        refreshPayButton()
         // 🎭 TWARZE — każda jako OSOBNY duży przycisk (jak POWTÓRZ), żadnych ukrytych
         // list. Włączona twarz jest podświetlona i podpisana „WŁĄCZONA".
         val personaHeader = TextView(this).apply {
@@ -85,7 +89,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(repeat)
+        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(repeat); col.addView(payBtn)
         col.addView(personaHeader)
         for ((key, _, _) in personas) col.addView(personaBtns[key])
         col.addView(settings); col.addView(transcript)
@@ -318,6 +322,22 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         setStatus("👀 Czytam ekran…")
         Brain.execute(this, "read_screen", JSONObject(), "") { s -> lastAnswer = s; appendLine("🗣️ $s"); speak(s) }
+    }
+
+    /** 💰/🆓 Przełącznik trybu pracy + odświeżenie podpisu na przycisku. */
+    private fun refreshPayButton() {
+        val paid = Brain.paidMode(this)
+        payBtn.text = if (paid) "💰  PRACUJĘ ZA OPŁATĄ (mądry mózg)" else "🆓  PRACUJĘ ZA DARMO (telefon sam)"
+        payBtn.setBackgroundColor(if (paid) 0xFF3B2A06.toInt() else 0xFF052E16.toInt())
+        payBtn.setTextColor(if (paid) 0xFFFDE68A.toInt() else 0xFFDCFCE7.toInt())
+    }
+
+    private fun togglePaidMode() {
+        val nowPaid = !Brain.paidMode(this)
+        Brain.setPaidMode(this, nowPaid)
+        refreshPayButton()
+        speak(if (nowPaid) "Tryb płatny włączony. Pytania idą do mądrego mózgu w chmurze."
+              else "Tryb darmowy. Radzę sobie sam na telefonie — proste komendy, znane drogi i czytanie ekranu działają, nie wydaję ani grosza.")
     }
 
     /** 📄 Darmowe czytanie: telefon sam czyta napisy z ekranu — bez AI, zero kosztów. */

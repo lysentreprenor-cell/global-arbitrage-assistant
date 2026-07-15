@@ -34,6 +34,16 @@ object Brain {
     @Volatile var deviceLearnCancel = false
 
     /**
+     * 💰/🆓 TRYB PRACY. Płatny = pytania idą do mądrego mózgu w chmurze (klucz
+     * Anthropic). Darmowy = telefon radzi sobie SAM: odruchy, autopilot, darmowe
+     * czytanie ekranu i (jeśli wgrany) lokalny mózg — zero groszy z klucza.
+     * Przełączany przyciskiem i głosem; gdy skończą się środki na kluczu,
+     * Gadacz przechodzi na darmowy SAM i mówi o tym.
+     */
+    fun paidMode(ctx: Context): Boolean = prefs(ctx).getBoolean("paid_mode", true)
+    fun setPaidMode(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("paid_mode", on).apply() }
+
+    /**
      * 📶 Czym można sterować przez Bluetooth — wylicza SPAROWANE urządzenia i mówi,
      * co Gadacz z każdym potrafi. Smart-dom (żarówki, gniazdka) chodzi zwykle po
      * Wi-Fi/Zigbee, nie po Bluetooth — o tym też uczciwie informujemy.
@@ -497,6 +507,18 @@ object Brain {
         if (floorOn(ctx, "sos") && (n == "sos" || n == "ratunku" || n == "pomocy" || n == "wezwij pomoc" || n == "potrzebuje pomocy" || Regex("^(sos|ratunku)\\b").containsMatchIn(n)) && !isHelpWithPhone)
             return done(sos(ctx))
 
+        // 💰/🆓 PRZEŁĄCZNIK TRYBU PRACY — głosem, bez szukania przycisku.
+        if (Regex("^(pracuj|dzialaj) za oplata$|^(wlacz )?tryb platny$").matches(n)) {
+            setPaidMode(ctx, true)
+            return done("Tryb płatny włączony. Pytania idą do mądrego mózgu w chmurze.")
+        }
+        if (Regex("^(pracuj|dzialaj) za darmo$|^(wlacz )?tryb darmowy$|^bez klucza$").matches(n)) {
+            setPaidMode(ctx, false)
+            return done("Tryb darmowy włączony. Radzę sobie sam na telefonie — nie wydaję ani grosza." +
+                if (LocalBrain.available()) " Mam lokalny mózg, więc na proste pytania też odpowiem."
+                else " Nie masz wgranego lokalnego mózgu, więc zrobię tylko proste komendy i znane drogi.")
+        }
+
         // ⏹ PRZERWIJ — zatrzymaj naukę telefonu i/lub bieżące zadanie.
         if (n == "przerwij" || n == "przerwij nauke" || n == "stop nauka" || n == "zatrzymaj") {
             deviceLearnCancel = true; cancelRequested = true
@@ -939,6 +961,16 @@ object Brain {
         if (reflex(ctx, goal, speak)) return
         // 🧭 Piętro 2: AUTOPILOT — znana droga z przepisów bez AI; przy zgrzycie spada niżej.
         if (floorOn(ctx, "autopilot") && tryAutopilot(ctx, goal, speak)) return
+        // 🆓 TRYB DARMOWY: chmury nie budzimy. Odruchy i autopilot już próbowały,
+        // więc zostaje lokalny mózg w telefonie — a jak go brak, mówimy uczciwie.
+        if (!paidMode(ctx)) {
+            val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+            speak(local ?: (if (LocalBrain.available())
+                "Lokalny mózg nie zna odpowiedzi. Powiedz: pracuj za opłatą — a zapytam mądrego mózgu w chmurze."
+            else
+                "Jestem w trybie darmowym i tego nie umiem zrobić sam. Powiedz: pracuj za opłatą — a użyję mądrego mózgu w chmurze."))
+            return
+        }
         // 🧠 Piętro 3: AI — pełne rozumienie (poniżej).
         // Keep conversation memory bounded — a long multi-step task must not grow it forever.
         while (history.size > 16) history.removeAt(0)
@@ -982,9 +1014,17 @@ object Brain {
             // potrafił zamilknąć bez słowa. Teraz zawsze MÓWI, co jest nie tak.
             val srvErr = resp.optString("error", "")
             if (srvErr.isNotBlank()) {
+                // 🆓 AUTOMAT: skończyły się środki → Gadacz SAM przechodzi na tryb
+                // darmowy (odruchy, autopilot, lokalny mózg) i mówi, jak wrócić.
+                if (srvErr.contains("credit", true) || srvErr.contains("billing", true)) {
+                    setPaidMode(ctx, false)
+                    val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+                    speak("Skończyły się środki na kluczu, więc przechodzę na darmowy tryb — proste komendy i znane drogi działają dalej za darmo. Doładuj konto Anthropic i powiedz: pracuj za opłatą, żeby wrócić." +
+                        (local?.let { " A na Twoje pytanie lokalny mózg odpowiada: $it" } ?: ""))
+                    return
+                }
                 speak(when {
                     srvErr.contains("PIN", true) -> "Serwer prosi o PIN aplikacji. Wejdź w Ustawienia Gadacza, wpisz PIN i spróbuj znowu."
-                    srvErr.contains("credit", true) || srvErr.contains("billing", true) -> "Skończyły się środki na kluczu sztucznej inteligencji. Doładuj konto Anthropic albo podaj inny klucz w ustawieniach."
                     srvErr.contains("Brak klucza", true) -> srvErr
                     else -> "Serwer zgłosił błąd: $srvErr"
                 })
