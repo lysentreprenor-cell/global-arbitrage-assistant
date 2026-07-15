@@ -19,7 +19,14 @@ object Updater {
     private const val VERSION_URL = "$BASE/version.txt"
     private const val APK_URL = "$BASE/Gadacz.apk"
     private val http = OkHttpClient.Builder()
-        .callTimeout(90, TimeUnit.SECONDS).readTimeout(90, TimeUnit.SECONDS).build()
+        // Bez twardego callTimeout — APK ma w sobie lokalny mózg AI (kilkadziesiąt MB),
+        // a 90-sekundowy limit CAŁEGO pobierania powodował „timeout" na telefonie.
+        // Zostają hojne limity na łączenie i BEZCZYNNOŚĆ (zwis), nie na wielkość pliku.
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
 
     fun currentVersion(ctx: Context): String =
         try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?" } catch (e: Exception) { "?" }
