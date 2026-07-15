@@ -220,6 +220,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🔄  Sprawdź aktualizację (v${Updater.currentVersion(this)})",
             "🧠  Nauka (włącz/wyłącz · kopiuj · kasuj)",
             "🏫  Naucz się całego telefonu",
+            "🤏  Pobierz lokalny mózg (rozmowy offline)",
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -241,9 +242,31 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     6 -> doUpdate(manual = true)
                     7 -> showLearning()
                     8 -> confirmLearnDevice()
+                    9 -> confirmLocalBrain()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    /** 🤏 Pobierz lokalny mózg — model AI do rozmów offline w trybie darmowym. */
+    private fun confirmLocalBrain() {
+        if (LocalBrain.available(this)) { speak("Masz już lokalny mózg. Działa w trybie darmowym, także bez internetu."); return }
+        AlertDialog.Builder(this)
+            .setTitle("🤏 Pobrać lokalny mózg?")
+            .setMessage("Mały model AI (około pół gigabajta) zamieszka w telefonie. Dzięki niemu w trybie darmowym Gadacz odpowie na pytania BEZ internetu i BEZ grosza z klucza — i będzie pamiętał Twoje fakty. Najlepiej pobierać na Wi-Fi. Powiedz „przerwij”, żeby zatrzymać.")
+            .setPositiveButton("Pobierz") { _, _ ->
+                speak("Pobieram lokalny mózg. To około pół gigabajta — daj mi kilka minut.")
+                Thread {
+                    LocalBrain.downloadModel(this,
+                        onProgress = { p -> runOnUiThread { setStatus("🤏 Pobieram mózg… $p%") } },
+                        onDone = { ok, err -> runOnUiThread {
+                            setStatus("Gotowy")
+                            speak(if (ok) "Mam lokalny mózg! Od teraz w trybie darmowym odpowiem też na pytania — nawet bez internetu."
+                                  else "Nie udało się pobrać mózgu. $err Możesz też wgrać plik ręcznie do folderu Pobrane pod nazwą gadacz-mozg kropka task.")
+                        } })
+                }.start()
+            }
+            .setNegativeButton("Nie teraz", null).show()
     }
 
     /** 🏫 Nauka całego telefonu: Gdacz otwiera po kolei aplikacje i pisze o nich ściągi. */

@@ -515,13 +515,13 @@ object Brain {
         if (Regex("^(pracuj|dzialaj) za darmo$|^(wlacz )?tryb darmowy$|^bez klucza$").matches(n)) {
             setPaidMode(ctx, false)
             return done("Tryb darmowy włączony. Radzę sobie sam na telefonie — nie wydaję ani grosza." +
-                if (LocalBrain.available()) " Mam lokalny mózg, więc na proste pytania też odpowiem."
+                if (LocalBrain.available(ctx)) " Mam lokalny mózg, więc na proste pytania też odpowiem."
                 else " Nie masz wgranego lokalnego mózgu, więc zrobię tylko proste komendy i znane drogi.")
         }
 
         // ⏹ PRZERWIJ — zatrzymaj naukę telefonu i/lub bieżące zadanie.
         if (n == "przerwij" || n == "przerwij nauke" || n == "stop nauka" || n == "zatrzymaj") {
-            deviceLearnCancel = true; cancelRequested = true
+            deviceLearnCancel = true; cancelRequested = true; LocalBrain.downloadCancel = true
             return done("Dobrze, przerywam.")
         }
 
@@ -965,7 +965,7 @@ object Brain {
         // więc zostaje lokalny mózg w telefonie — a jak go brak, mówimy uczciwie.
         if (!paidMode(ctx)) {
             val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
-            speak(local ?: (if (LocalBrain.available())
+            speak(local ?: (if (LocalBrain.available(ctx))
                 "Lokalny mózg nie zna odpowiedzi. Powiedz: pracuj za opłatą — a zapytam mądrego mózgu w chmurze."
             else
                 "Jestem w trybie darmowym i tego nie umiem zrobić sam. Powiedz: pracuj za opłatą — a użyję mądrego mózgu w chmurze."))
