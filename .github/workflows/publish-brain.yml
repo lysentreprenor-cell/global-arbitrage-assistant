@@ -1,0 +1,43 @@
+name: Opublikuj lokalny mozg Gadacza
+
+# Pobiera maly model AI (MediaPipe .task) z publicznego zrodla i publikuje go
+# jako plik gadacz-mozg.task na wydaniu GitHub. Dzieki temu telefon pobiera mozg
+# z NASZEGO linku (bez licencji/logowania HuggingFace). Uruchom recznie:
+# Actions -> "Opublikuj lokalny mozg Gadacza" -> Run workflow (mozna podac inny URL).
+on:
+  workflow_dispatch:
+    inputs:
+      model_url:
+        description: "Adres modelu .task (puste = domyslny Qwen 2.5 0.5B)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pobierz model
+        run: |
+          URL="${{ github.event.inputs.model_url }}"
+          if [ -z "$URL" ]; then
+            URL="https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+          fi
+          echo "Pobieram: $URL"
+          curl -fL --retry 3 -A "Gadacz-CI" -o gadacz-mozg.task "$URL"
+          SIZE=$(stat -c%s gadacz-mozg.task)
+          echo "Rozmiar: $SIZE bajtow"
+          if [ "$SIZE" -lt 52428800 ]; then
+            echo "Plik za maly (<50 MB) - pewnie blad/HTML zamiast modelu."; exit 1
+          fi
+
+      - name: Opublikuj jako wydanie
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-brain
+          name: "Gadacz — lokalny mozg"
+          body: "Model AI do trybu offline. Aplikacja pobiera go sama przyciskiem 'Pobierz lokalny mozg'."
+          files: gadacz-mozg.task
+          make_latest: false

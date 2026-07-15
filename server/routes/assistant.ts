@@ -318,8 +318,11 @@ router.post("/persona", (req, res) => {
 // offline. Trzymany TU (nie w apce), żeby dało się go poprawić bez nowej wersji
 // aplikacji, gdy dany link przestanie działać albo pojawi się lepszy model.
 // WYMAGANIA: publiczny (bez logowania/licencji), format MediaPipe .task.
-// Qwen 2.5 0.5B jest na licencji Apache — pobiera się bez konta.
-const BRAIN_URL = "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task";
+// Domyślnie kierujemy na NASZE wydanie GitHub — model wrzuca tam workflow
+// „Opublikuj lokalny mozg Gadacza" (GitHub ma otwarty internet, my nie), więc
+// telefon pobiera z naszego linku bez licencji HuggingFace. Gdyby link kiedyś
+// nie działał, zmień tę jedną linię (albo wskaż inny publiczny .task).
+const BRAIN_URL = "https://github.com/lysentreprenor-cell/global-arbitrage-assistant/releases/download/gadacz-brain/gadacz-mozg.task";
 router.get("/brain-url", (_req, res) => res.json({ url: BRAIN_URL }));
 
 // 🚫 ZABLOKOWANE APLIKACJE — Gadacz NIE wykona żadnej akcji ekranowej (klik/wpisanie)
