@@ -542,10 +542,10 @@ export default function AssistantPage() {
         {personas.length > 0 && (
           <div style={{ border: "3px solid #d97706", borderRadius: 16, background: "#292013", padding: 14 }}>
             <div style={{ color: "#fde68a", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
-              🎭 SYSTEM GADACZA: {personas.find(p => p.key === persona)?.icon} {personas.find(p => p.key === persona)?.name}
+              🎭 TWARZ GADACZA: {personas.find(p => p.key === persona)?.icon} {personas.find(p => p.key === persona)?.name}
             </div>
             <div style={{ color: "#d6b98c", fontSize: 13, marginBottom: 10 }}>
-              Wybierz, kim Gadacz ma być. Podstawa zostaje ta sama — zmienia się specjalność i sposób mówienia. Działa też w aplikacji na telefonie.
+              Jeden Gadacz, różne twarze — wybierz, kim ma być. Podstawa zostaje ta sama, zmienia się specjalność i sposób mówienia. Działa też w aplikacji na telefonie.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {personas.map(p => (

@@ -68,10 +68,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         val readScreen = btn("👀  CO JEST NA EKRANIE", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
-        // 🎭 SYSTEMY — każdy jako OSOBNY duży przycisk (jak POWTÓRZ), żadnych ukrytych
-        // list. Włączony system jest podświetlony i podpisany „WŁĄCZONY".
+        // 🎭 TWARZE — każda jako OSOBNY duży przycisk (jak POWTÓRZ), żadnych ukrytych
+        // list. Włączona twarz jest podświetlona i podpisana „WŁĄCZONA".
         val personaHeader = TextView(this).apply {
-            text = "🎭 SYSTEM GADACZA — kim ma być:"
+            text = "🎭 TWARZE GADACZA — kim ma być:"
             textSize = 15f; setTextColor(0xFFA8A29E.toInt()); setPadding(0, dp(14), 0, 0)
         }
         for ((key, name, _) in personas) {
@@ -183,7 +183,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         for ((key, name, _) in personas) {
             val b = personaBtns[key] ?: continue
             if (key == cur) {
-                b.text = "✓ $name — WŁĄCZONY"
+                b.text = "✓ $name — WŁĄCZONA"
                 b.setBackgroundColor(0xFF3B2A06.toInt()); b.setTextColor(0xFFFDE68A.toInt())
             } else {
                 b.text = name
