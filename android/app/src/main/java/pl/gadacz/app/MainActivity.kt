@@ -66,7 +66,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         status = TextView(this).apply {
             text = "Gotowy"; textSize = 19f; setTextColor(0xFFFFFFFF.toInt()); gravity = Gravity.CENTER; setPadding(0, dp(10), 0, dp(10))
         }
-        val readScreen = btn("👀  CO JEST NA EKRANIE", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
+        val readScreen = btn("👀  CO JEST NA EKRANIE (mądry opis)", 0xFFE9D5FF.toInt(), 0xFF3B0764.toInt(), 74) { readScreen() }
+        val readPlain = btn("📄  PRZECZYTAJ NAPISY (za darmo)", 0xFFD9F99D.toInt(), 0xFF1A2E05.toInt(), 66) { readScreenPlainFree() }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
         // 🎭 TWARZE — każda jako OSOBNY duży przycisk (jak POWTÓRZ), żadnych ukrytych
         // list. Włączona twarz jest podświetlona i podpisana „WŁĄCZONA".
@@ -81,7 +82,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(repeat)
+        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(repeat)
         col.addView(personaHeader)
         for ((key, _, _) in personas) col.addView(personaBtns[key])
         col.addView(settings); col.addView(transcript)
@@ -272,6 +273,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         setStatus("👀 Czytam ekran…")
         Brain.execute(this, "read_screen", JSONObject(), "") { s -> lastAnswer = s; appendLine("🗣️ $s"); speak(s) }
+    }
+
+    /** 📄 Darmowe czytanie: telefon sam czyta napisy z ekranu — bez AI, zero kosztów. */
+    private fun readScreenPlainFree() {
+        val svc = GadaczAccessibilityService.instance
+        if (svc == null) {
+            speak("Aby czytać ekran, włącz Gadacza w Ustawieniach, Dostępność.")
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); return
+        }
+        val plain = svc.readScreenPlain()
+        if (plain.isBlank()) speak("Nie widzę tekstu na tym ekranie.")
+        else { lastAnswer = plain; appendLine("📄 $plain"); speak(plain) }
     }
 
     /** Overlay permission → start the always-on floating button. */

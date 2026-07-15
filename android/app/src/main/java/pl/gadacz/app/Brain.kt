@@ -402,6 +402,14 @@ object Brain {
         if (floorOn(ctx, "sos") && (n == "sos" || n == "ratunku" || n == "pomocy" || n == "wezwij pomoc" || n == "potrzebuje pomocy" || Regex("^(sos|ratunku)\\b").containsMatchIn(n)) && !isHelpWithPhone)
             return done(sos(ctx))
 
+        // 📄 Piętro 1: DARMOWE czytanie ekranu — telefon sam czyta napisy, bez AI
+        // (zero kosztów). Mądry OPIS ekranu („co jest na ekranie") dalej robi AI.
+        if (Regex("^(przeczytaj|odczytaj|czytaj)( mi)?( caly)?( wszystkie)?( napisy( z)?)? ekran(u)?$").matches(n)) {
+            if (svc == null) return done("Żeby czytać ekran, włącz sterowanie ekranem w ustawieniach Gadacza.")
+            val plain = svc.readScreenPlain()
+            return done(if (plain.isBlank()) "Nie widzę tekstu na tym ekranie." else plain)
+        }
+
         // 👁️ Piętro 11: OCZY NA ŚWIAT — aparat opisuje otoczenie / czyta tekst.
         if (floorOn(ctx, "oczy")) {
             if (Regex("^(co (jest )?przede mna|co widzisz przede|opisz (co widzisz|otoczenie|obraz)|co to jest|co mam przed soba|rozejrzyj sie)$").matches(n)) {

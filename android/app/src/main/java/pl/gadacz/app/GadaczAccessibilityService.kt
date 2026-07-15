@@ -52,6 +52,43 @@ class GadaczAccessibilityService : AccessibilityService() {
     fun currentPackage(): String = rootInActiveWindow?.packageName?.toString() ?: ""
 
     /**
+     * 📄 DARMOWE czytanie ekranu — same napisy, po ludzku, prosto do TTS.
+     * Zero AI = zero kosztów: telefon sam zbiera teksty z ekranu i je czyta.
+     * Mniej mądre niż opis od Gadacza (nie streszcza), ale natychmiastowe i darmowe.
+     */
+    fun readScreenPlain(): String {
+        val root = rootInActiveWindow ?: return ""
+        val out = ArrayList<String>()
+        collectPlain(root, out)
+        if (out.isEmpty()) return ""
+        val sb = StringBuilder(out.joinToString(". "))
+        if (hasScrollable(root)) sb.append(". Dalej jest więcej — przewiń ekran, a przeczytam resztę.")
+        return sb.toString()
+    }
+
+    private fun collectPlain(node: AccessibilityNodeInfo?, out: ArrayList<String>) {
+        if (node == null || out.size >= 120) return
+        val text = node.text?.toString()?.trim()
+        val desc = node.contentDescription?.toString()?.trim()
+        val hint = node.hintText?.toString()?.trim()
+        val label = when {
+            !text.isNullOrEmpty() -> text
+            !desc.isNullOrEmpty() -> desc
+            node.isEditable && !hint.isNullOrEmpty() -> hint
+            else -> null
+        }
+        if (label != null && label.length in 1..200) {
+            out.add(when {
+                node.isEditable -> "pole: $label"
+                node.isClickable -> "przycisk: $label"
+                node.isCheckable -> (if (node.isChecked) "zaznaczone: " else "odznaczone: ") + label
+                else -> label
+            })
+        }
+        for (i in 0 until node.childCount) collectPlain(node.getChild(i), out)
+    }
+
+    /**
      * 🧭 Dolne zakładki nawigacji — bezpieczne do klikania (tylko przełączają widok).
      * Klikalne elementy z DOLNEGO paska ekranu (poniżej 85% wysokości), z pominięciem
      * przycisków-akcji (wyślij/kup/usuń...). Do bezpiecznego „poznawania całej apki".
