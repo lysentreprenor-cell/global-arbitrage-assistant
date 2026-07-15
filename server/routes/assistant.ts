@@ -637,6 +637,8 @@ Akcje EKRANOWE (działają tylko w aplikacji Android "Gadacz" z włączoną usł
 - "read_screen":  {} — użytkownik pyta co jest na EKRANIE telefonu / prosi o przeczytanie ekranu (to co innego niż look — look patrzy aparatem na świat)
 - "tap":          {"text":"napis na przycisku lub elemencie","pos":"góra"|"środek"|"dół"} — kliknij element o tym tekście; "pos" OPCJONALNIE, gdy ten sam napis jest kilka razy (wybierz strefę z EKRANU). Dopasowanie jest odporne na polskie znaki i wybiera najlepszy element, więc podawaj napis dokładnie z EKRANU.
 - "tap_at":       {"x":50,"y":80} — dotknij PUNKT ekranu w PROCENTACH (x: 0=lewa krawędź, 100=prawa; y: 0=góra, 100=dół). Używaj, gdy element NIE MA napisu (ikona, strzałka, plus) — jego położenie odczytaj ze ZRZUTU EKRANU. Preferuj zwykły "tap" po tekście; "tap_at" to precyzyjny palec na resztę. ZAKAZ: przycisków płatności/potwierdzenia/usuwania (Zapłać, Kup, Zamów, Przelej, Usuń) NIGDY nie klikaj przez tap_at — użyj "tap" z ich napisem, żeby zadziałał strażnik i poprosił użytkownika o potwierdzenie.
+- "double_tap":   {"x":50,"y":50} — PODWÓJNE stuknięcie w punkt (procenty jak w tap_at): powiększenie zdjęcia/mapy, szybkie polubienie zdjęcia na Instagramie.
+- "zoom_in": {} / "zoom_out": {} — szczypnięcie dwoma palcami na środku ekranu: powiększ / pomniejsz (mapy, zdjęcia, drobny tekst na stronach).
 WZROK: przy zadaniach ekranowych dostajesz oprócz tekstu EKRAN także ZRZUT EKRANU (obraz). PATRZ na niego: widzisz ikony bez podpisów, układ, kolory, obrazki, klawiaturę. Łącz obie informacje — tekst EKRAN daje dokładne napisy do "tap", obraz daje położenie i kontekst do "tap_at" i decyzji, czy krok się udał.
 - "long_press":   {"text":"napis","pos":"opcjonalnie"} — PRZYTRZYMAJ element (menu kontekstowe, usuwanie, dodatkowe opcje). Gdy zwykły klik nie daje opcji — spróbuj przytrzymania.
 - "type":         {"text":"co wpisać"} — wpisz tekst w aktywne pole. Puste pola pokazują na EKRANIE swoją podpowiedź (np. [pole] Wpisz wiadomość) — najpierw tap w to pole, potem type.
@@ -892,6 +894,7 @@ router.post("/ask", async (req: Request, res: Response) => {
     // ✍️ WARSZTAT PISARSKI: twórcze i dłuższe pisanie (wiersz, piosenka, opowiadanie,
     // pismo urzędowe, romantyczny list...) → mocniejszy mózg i więcej miejsca,
     // żeby tekst był piękny i CAŁY (700 tokenów ucinało wiersze w połowie).
+    const isDeep = !isScreenWork && /^(pomyśl|pomysl|zastanów się|zastanow sie|przemyśl|przemysl)\b/i.test(q.trim());
     const isCreative = !isScreenWork
       && /napisz|ułóż|uloz|stwórz|stworz|zredaguj|wymyśl|wymysl|dokończ|dokoncz|kontynuuj/i.test(q)
       && /wiersz|piosenk|opowiadan|książk|ksiazk|rozdział|rozdzial|bajk|romantycz|miłosn|milosn|prawnicz|urzędow|urzedow|pismo|wniosek|odwołani|odwolani|reklamacj|wypowiedzeni|przemówieni|przemowieni|toast|życzeni|zyczeni/i.test(q);
@@ -899,8 +902,10 @@ router.post("/ask", async (req: Request, res: Response) => {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: isScreenWork ? screenModel : (isCreative ? "claude-sonnet-5" : "claude-haiku-4-5-20251001"),
-        max_tokens: isCreative ? 2400 : 700,
+        // 🧠 „Pomyśl…” na początku pytania = użytkownik prosi o GŁĘBOKIE myślenie —
+        // trudna decyzja, porównanie, plan. Wtedy mocniejszy mózg i więcej miejsca.
+        model: isScreenWork ? screenModel : ((isCreative || isDeep) ? "claude-sonnet-5" : "claude-haiku-4-5-20251001"),
+        max_tokens: (isCreative || isDeep) ? 2400 : 700,
         // 💰 Dwa bloki: [księga z cache] + [części zmienne]. Księga po pierwszym
         // poleceniu kosztuje ~10× mniej przez kolejne minuty aktywnego używania.
         system: [

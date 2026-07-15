@@ -80,17 +80,35 @@ object LocalBrain {
         }
     } catch (_: Exception) { "" }
 
+    /**
+     * 🗨️ Pamięć ROZMOWY offline: ostatnie wymiany zdań trzymane w telefonie, żeby
+     * mały mózg rozumiał „a on?", „powtórz to inaczej" — jak w prawdziwej rozmowie.
+     */
+    private fun history(ctx: Context): List<String> = try {
+        val arr = JSONArray(Brain.prefs(ctx).getString("local_hist", "") ?: "[]")
+        (0 until arr.length()).map { arr.optString(it) }
+    } catch (_: Exception) { emptyList() }
+
+    private fun remember(ctx: Context, q: String, a: String) = try {
+        val cur = history(ctx).takeLast(4).toMutableList()
+        cur.add("Użytkownik: ${q.take(150)}"); cur.add("Gadacz: ${a.take(150)}")
+        Brain.prefs(ctx).edit().putString("local_hist", JSONArray(cur.takeLast(6)).toString()).apply()
+    } catch (_: Exception) {}
+
     /** Odpowiedz lokalnie (offline). null = mózg niedostępny albo zawiódł. */
     fun answer(ctx: Context, question: String): String? {
         val engine = ensure(ctx) ?: return null
         return try {
             val facts = memoryFor(ctx, question)
+            val hist = history(ctx).joinToString("\n")
             val prompt = "Jesteś Gadacz — polski asystent głosowy. Odpowiadaj PO POLSKU, " +
                 "krótko i konkretnie, pełnymi zdaniami, bez gwiazdek i list — tekst będzie " +
                 "czytany na głos. Gdy nie wiesz, powiedz uczciwie, że nie wiesz.\n" +
                 (if (facts.isNotBlank()) "Wiesz o użytkowniku:\n$facts\n" else "") +
+                (if (hist.isNotBlank()) "Ostatnia rozmowa:\n$hist\n" else "") +
                 "Pytanie: ${question.take(400)}\nOdpowiedź:"
             engine.generateResponse(prompt)?.trim()?.take(600)?.ifBlank { null }
+                ?.also { remember(ctx, question, it) }
         } catch (_: Throwable) { null }
     }
 

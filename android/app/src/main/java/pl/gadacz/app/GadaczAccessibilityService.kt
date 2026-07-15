@@ -65,13 +65,76 @@ class GadaczAccessibilityService : AccessibilityService() {
      * Mniej mądre niż opis od Gadacza (nie streszcza), ale natychmiastowe i darmowe.
      */
     fun readScreenPlain(): String {
-        val root = rootInActiveWindow ?: return ""
-        val out = ArrayList<String>()
-        collectPlain(root, out)
+        val out = readScreenPlainList()
         if (out.isEmpty()) return ""
         val sb = StringBuilder(out.joinToString(". "))
-        if (hasScrollable(root)) sb.append(". Dalej jest więcej — przewiń ekran, a przeczytam resztę.")
+        if (hasScrollable(rootInActiveWindow)) sb.append(". Dalej jest więcej — przewiń ekran, a przeczytam resztę.")
         return sb.toString()
+    }
+
+    /** 📖 Surowa lista napisów z ekranu — dla czytania ciągłego (czyta-przewija-czyta). */
+    fun readScreenPlainList(): List<String> {
+        val root = rootInActiveWindow ?: return emptyList()
+        val out = ArrayList<String>()
+        collectPlain(root, out)
+        return out
+    }
+
+    /** 🔎 Gdzie na ekranie jest element o podanym napisie? Opis słowny albo null. */
+    fun whereIs(query: String): String? {
+        val root = rootInActiveWindow ?: return null
+        val q = norm(query)
+        if (q.isBlank()) return null
+        val w = resources.displayMetrics.widthPixels.coerceAtLeast(1)
+        val h = resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        var hit: Rect? = null; var hitLabel = ""
+        fun walk(n: AccessibilityNodeInfo?) {
+            if (n == null || hit != null) return
+            val label = n.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: n.contentDescription?.toString()?.trim()
+            if (!label.isNullOrBlank() && norm(label).contains(q)) {
+                val r = Rect(); n.getBoundsInScreen(r)
+                if (r.width() > 0 && r.height() > 0) { hit = r; hitLabel = label }
+            }
+            for (i in 0 until n.childCount) walk(n.getChild(i))
+        }
+        walk(root)
+        val r = hit ?: return null
+        val pion = when { r.centerY() < h / 3 -> "u góry" ; r.centerY() > 2 * h / 3 -> "na dole" ; else -> "pośrodku" }
+        val poziom = when { r.centerX() < w / 3 -> "po lewej stronie" ; r.centerX() > 2 * w / 3 -> "po prawej stronie" ; else -> "na środku" }
+        return "„$hitLabel” jest $pion, $poziom ekranu."
+    }
+
+    /** 👆👆 Podwójne dotknięcie punktu (w PROCENTACH ekranu) — powiększanie zdjęć/map, szybkie polubienie. */
+    fun doubleTapAt(xPct: Double, yPct: Double): Boolean {
+        val w = resources.displayMetrics.widthPixels
+        val h = resources.displayMetrics.heightPixels
+        val x = (w * xPct / 100.0).toFloat().coerceIn(1f, w - 1f)
+        val y = (h * yPct / 100.0).toFloat().coerceIn(1f, h - 1f)
+        val p1 = Path().apply { moveTo(x, y) }
+        val p2 = Path().apply { moveTo(x, y) }
+        // Dwa krótkie stuknięcia z przerwą 140 ms = klasyczny double-tap.
+        return dispatchGesture(GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(p1, 0, 60))
+            .addStroke(GestureDescription.StrokeDescription(p2, 200, 60)).build(), null, null)
+    }
+
+    /** 🤏 Szczypnięcie dwoma palcami: zoomIn=true rozsuwa (powiększa), false zsuwa (pomniejsza). */
+    fun pinch(zoomIn: Boolean): Boolean {
+        val w = resources.displayMetrics.widthPixels
+        val h = resources.displayMetrics.heightPixels
+        val cx = w / 2f; val cy = h / 2f
+        val a: Path; val b: Path
+        if (zoomIn) {
+            a = Path().apply { moveTo(cx - w * 0.06f, cy); lineTo(cx - w * 0.32f, cy) }
+            b = Path().apply { moveTo(cx + w * 0.06f, cy); lineTo(cx + w * 0.32f, cy) }
+        } else {
+            a = Path().apply { moveTo(cx - w * 0.32f, cy); lineTo(cx - w * 0.06f, cy) }
+            b = Path().apply { moveTo(cx + w * 0.32f, cy); lineTo(cx + w * 0.06f, cy) }
+        }
+        return dispatchGesture(GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(a, 0, 350))
+            .addStroke(GestureDescription.StrokeDescription(b, 0, 350)).build(), null, null)
     }
 
     private fun collectPlain(node: AccessibilityNodeInfo?, out: ArrayList<String>) {

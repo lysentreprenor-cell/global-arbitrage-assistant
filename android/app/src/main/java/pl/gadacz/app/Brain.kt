@@ -558,6 +558,32 @@ object Brain {
             return done(if (plain.isBlank()) "Nie widzę tekstu na tym ekranie." else plain)
         }
 
+        // 🔎 GDZIE JEST X — oko za darmo: mówi położenie elementu (góra/dół, lewo/prawo).
+        Regex("^gdzie( na ekranie)? (jest|mam|znajde) (.+)$").find(n)?.let { m ->
+            val s2 = svc ?: return done("Włącz sterowanie ekranem, żebym mógł spojrzeć.")
+            return done(s2.whereIs(m.groupValues[3]) ?: "Nie widzę na ekranie niczego z napisem: ${m.groupValues[3]}. Przewiń i zapytaj jeszcze raz.")
+        }
+
+        // 📖 CZYTAJ WSZYSTKO — darmowe czytanie CAŁEJ treści: czyta, przewija, czyta
+        // dalej, aż do końca albo „przerwij". Artykuły, przepisy, długie rozmowy — 0 zł.
+        if (Regex("^(czytaj|przeczytaj) (wszystko|caly (artykul|tekst)|cala (strone|rozmowe)|do konca)$").matches(n)) {
+            val s2 = svc ?: return done("Włącz sterowanie ekranem, żebym mógł czytać.")
+            speak("Czytam całość. Dotknij mnie, żeby przerwać.")
+            val seen = HashSet<String>()
+            var pusteRundy = 0
+            for (i in 0 until 15) {   // maks ~15 ekranów — bezpiecznik przed nieskończonością
+                if (cancelRequested) { cancelRequested = false; return done("Dobrze, koniec czytania.") }
+                val fresh = s2.readScreenPlainList().filter { seen.add(normPl(it)) }
+                if (fresh.isEmpty()) { pusteRundy++; if (pusteRundy >= 2) break } else {
+                    pusteRundy = 0
+                    speak(fresh.joinToString(". "))
+                }
+                s2.scroll("down")
+                try { Thread.sleep(1200) } catch (_: Exception) {}
+            }
+            return done("To już koniec treści.")
+        }
+
         // 👁️ Piętro 11: OCZY NA ŚWIAT — aparat opisuje otoczenie / czyta tekst.
         if (floorOn(ctx, "oczy")) {
             if (Regex("^(co (jest )?przede mna|co widzisz przede|opisz (co widzisz|otoczenie|obraz)|co to jest|co mam przed soba|rozejrzyj sie)$").matches(n)) {
@@ -1092,6 +1118,7 @@ object Brain {
             val settle = when (action) {
                 "open_app", "open" -> 1900L
                 "tap", "tap_at", "enter" -> 850L
+                "double_tap", "zoom_in", "zoom_out" -> 800L
                 "long_press" -> 1000L
                 "scroll" -> 450L
                 "type", "write" -> 400L
@@ -1134,6 +1161,9 @@ object Brain {
                 if (svc?.tapByText(label, args.optString("pos")) != true) { learnFail(ctx); return "Nie znalazłem na ekranie: $label." }
             }
             "tap_at" -> { if (svc?.tapAt(args.optDouble("x", -1.0), args.optDouble("y", -1.0)) != true) { learnFail(ctx); return "Nie mogę dotknąć tego miejsca." } }
+            "double_tap" -> { if (svc?.doubleTapAt(args.optDouble("x", 50.0), args.optDouble("y", 50.0)) != true) return "Nie mogę tam stuknąć dwa razy." }
+            "zoom_in" -> { if (svc?.pinch(true) != true) return "Nie mogę powiększyć." }
+            "zoom_out" -> { if (svc?.pinch(false) != true) return "Nie mogę pomniejszyć." }
             "long_press" -> {
                 val lbl = args.optString("text")
                 if (isDanger(lbl)) { pendingDangerTap = lbl; return "To ważny przycisk: $lbl. Powiedz: potwierdzam — a przytrzymam. Albo: anuluj." }
