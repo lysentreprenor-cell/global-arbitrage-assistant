@@ -351,9 +351,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         speak("Pobieram usta Gadacza, około osiemdziesiąt megabajtów. Powiedz przerwij, żeby zatrzymać.")
         Thread {
             PiperUsta.download(this,
-                onProgress = { p -> runOnUiThread { setStatus("👄 Pobieram usta… $p%") } },
+                onProgress = { p -> setProgress("usta", "👄 Pobieram usta… $p%") },
                 onDone = { ok, err -> runOnUiThread {
-                    setStatus("Gotowy")
+                    setProgress("usta", null)
                     speak(if (ok) "Gotowe! Od teraz mówię nowym głosem — posłuchaj, jak brzmię. Działa też całkiem bez internetu."
                           else "Nie udało się pobrać ust. $err")
                 } })
@@ -418,9 +418,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         speak("Pobieram ucho Gadacza, około pięćdziesiąt megabajtów. Powiedz przerwij, żeby zatrzymać.")
         Thread {
             VoskEar.download(this,
-                onProgress = { p -> runOnUiThread { setStatus("👂 Pobieram ucho… $p%") } },
+                onProgress = { p -> setProgress("ucho", "👂 Pobieram ucho… $p%") },
                 onDone = { ok, err -> runOnUiThread {
-                    setStatus("Gotowy")
+                    setProgress("ucho", null)
                     if (ok) {
                         speak("Gotowe! Ucho działa. W trybie stałym słucham teraz bez przerw.")
                         // Przeładuj usługę, żeby ucho od razu przejęło czuwanie.
@@ -470,9 +470,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         speak("Pobieram silnik $name. Daj mi kilka minut, najlepiej na Wi-Fi. Gdy sieć się zerwie, wznowię sam od tego samego miejsca. Powiedz przerwij, żeby zatrzymać.")
         Thread {
             LocalBrain.downloadModel(this, url,
-                onProgress = { p -> runOnUiThread { setStatus("🧠 Pobieram $name… $p%") } },
+                onProgress = { p -> setProgress("mozg", "🧠 Pobieram mózg $name… $p%") },
                 onDone = { ok, err -> runOnUiThread {
-                    setStatus("Gotowy")
+                    setProgress("mozg", null)
                     speak(if (ok) "Gotowe! Silnik $name działa. W trybie darmowym odpowiem teraz na pytania nawet bez internetu."
                           else "Nie udało się pobrać. $err")
                 } })
@@ -682,8 +682,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         speak("Pobieram aktualizację, chwileczkę.")
         Thread {
             Updater.downloadAndInstall(this,
-                onProgress = { p -> runOnUiThread { setStatus("⬇️ Pobieram… $p%") } },
-                onError = { e -> runOnUiThread { setStatus("Gotowy"); speak("Błąd aktualizacji. $e Możesz też pobrać aplikację z przeglądarki — otwórz stronę github i plik Gadacz kropka apk.") } })
+                onProgress = { p -> setProgress("apk", "🔄 Pobieram aktualizację… $p%") },
+                onError = { e -> runOnUiThread { setProgress("apk", null); speak("Błąd aktualizacji. $e Możesz też pobrać aplikację z przeglądarki — otwórz stronę github i plik Gadacz kropka apk.") } })
         }.start()
     }
 
@@ -834,7 +834,25 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (PiperUsta.enabled(this)) { PiperUsta.stopNow(); if (PiperUsta.speak(this, text) {}) return }
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "g")
     }
-    private fun setStatus(s: String) { runOnUiThread { status.text = s } }
+    // 📊 TABLICA POSTĘPÓW: każde pobieranie (mózg, ucho, usta, aktualizacja) ma
+    // WŁASNĄ linijkę — gdy schodzą dwa naraz, widać oba postępy, jeden pod drugim.
+    private var baseStatus = "Gotowy"
+    private val progressLines = LinkedHashMap<String, String>()
+    private fun setStatus(s: String) { runOnUiThread { baseStatus = s; refreshStatus() } }
+    private fun setProgress(key: String, text: String?) {
+        runOnUiThread {
+            if (text == null) progressLines.remove(key) else progressLines[key] = text
+            refreshStatus()
+        }
+    }
+    private fun refreshStatus() {
+        val extra = progressLines.values.joinToString("\n")
+        status.text = when {
+            extra.isBlank() -> baseStatus
+            baseStatus.isBlank() || baseStatus == "Gotowy" -> extra
+            else -> baseStatus + "\n" + extra
+        }
+    }
     private fun appendLine(s: String) { runOnUiThread { transcript.text = "$s\n\n${transcript.text}" } }
 
     private fun showSettings() {
