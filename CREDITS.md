@@ -23,3 +23,13 @@ Gadacz może używać małego modelu językowego działającego w telefonie
 Ten plik istnieje, aby spełnić warunek atrybucji licencji Apache 2.0.
 Nie jest poradą prawną. Jeśli w przyszłości zmieni się użyty model,
 należy zaktualizować tę notkę zgodnie z licencją nowego modelu.
+
+## Ucho Gadacza (rozpoznawanie mowy offline)
+
+- **Silnik:** Vosk / Kaldi (`com.alphacephei:vosk-android`), autor: Alpha
+  Cephei Inc. Licencja: Apache License 2.0.
+- **Model języka polskiego:** vosk-model-small-pl-0.22 (~50 MB), autor:
+  Alpha Cephei Inc. Licencja: Apache License 2.0.
+- **JNA** (`net.java.dev.jna:jna`) — Apache License 2.0 / LGPL 2.1 (używana
+  na warunkach Apache 2.0).
+- Pełny tekst licencji: https://www.apache.org/licenses/LICENSE-2.0

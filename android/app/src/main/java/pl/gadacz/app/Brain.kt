@@ -678,7 +678,7 @@ object Brain {
 
         // ⏹ PRZERWIJ — zatrzymaj naukę telefonu i/lub bieżące zadanie.
         if (n == "przerwij" || n == "przerwij nauke" || n == "stop nauka" || n == "zatrzymaj") {
-            deviceLearnCancel = true; cancelRequested = true; LocalBrain.downloadCancel = true
+            deviceLearnCancel = true; cancelRequested = true; LocalBrain.downloadCancel = true; VoskEar.downloadCancel = true
             return done("Dobrze, przerywam.")
         }
 

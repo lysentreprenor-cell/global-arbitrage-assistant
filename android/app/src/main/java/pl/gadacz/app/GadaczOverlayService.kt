@@ -216,9 +216,52 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     // i słucha) oraz „Gadacz + polecenie" (ucina i od razu wykonuje). Zwykłe słowa
     // ignoruje — inaczej echo odpowiedzi udawałoby polecenia. Działa też na
     // wynikach CZĘŚCIOWYCH — reaguje w pół słowa, bez czekania na koniec zdania.
+    // ── 👂 UCHO (Vosk): JEDEN ciągły strumień nasłuchu — bez sesji, bez dziur,
+    // bez walki o mikrofon. Gdy model ucha jest wgrany, czuwanie i wchodzenie
+    // w słowo robi ucho; rozpoznanie TREŚCI polecenia dalej robi Google (celniej).
+    private var lastEarBarge = 0L
+    private fun earStart(): Boolean {
+        if (!VoskEar.available(this)) return false
+        val ok = VoskEar.start(this) { text, isFinal -> bubble?.post { onEarHeard(text, isFinal) } }
+        if (ok) setBubble("👂")
+        return ok
+    }
+    private fun onEarHeard(text: String, isFinal: Boolean) {
+        if (busy) return   // mikrofon Google właśnie pracuje — nie wtrącaj się
+        val n = normPl(text)
+        val speaking = tts.isSpeaking || pendingSpeech.get() > 0 || taskRunning
+        if (speaking) {
+            // 🗡️ Wejście w słowo: TYLKO „stop/cicho/zamilcz/dość" albo „Gadacz…" —
+            // ucho słyszy też własny głos Gadacza, zwykłe słowa to echo odpowiedzi.
+            val stop = Regex("\\b(stop|cicho|zamilcz|dosc|dosyc)\\b").containsMatchIn(n)
+            val cmd = findWakeCommand(text)
+            if (!stop && cmd == null) return
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (now - lastEarBarge < 2500) return   // częściówki rosną — nie strzelaj seriami
+            lastEarBarge = now
+            try { tts.stop() } catch (_: Exception) {}
+            pendingSpeech.set(0); duckStop()
+            if (taskRunning) { Brain.cancelRequested = true; speak("Już przerywam."); return }
+            if (cmd != null && cmd.isNotBlank()) { VoskEar.stop(); handle(cmd); return }
+            VoskEar.stop()
+            convPending = true; convUntil = convDeadline()
+            bubble?.postDelayed({ if (!busy && !taskRunning) startListening(auto = true) }, 200)
+            return
+        }
+        if (!isFinal) return
+        val cmd = findWakeCommand(text) ?: return
+        VoskEar.stop()
+        if (cmd.isNotBlank()) { handle(cmd); return }
+        // Samo „Gadacz" — odpowiedz i słuchaj polecenia (dokładny mikrofon Google).
+        speak("Słucham?")
+        convPending = true
+        convUntil = convDeadline()
+    }
+
     private var guardRec: SpeechRecognizer? = null
     @Volatile private var bargeDone = false
     private fun startGuard() {
+        if (VoskEar.listening()) return   // ucho już czuwa — ono jest strażnikiem
         if (busy || guardRec != null) return
         if (!SpeechRecognizer.isRecognitionAvailable(this)) return
         // Strażnik PRZEJMUJE mikrofon od czuwania na czas mówienia/zadania —
@@ -261,6 +304,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     /** Po WYBRZMIENIU ostatniego zdania: strażnik schodzi z posterunku, a gdy nie
      *  trwa rozmowa ani zadanie — czuwanie na słowo „Gadacz" wraca na swoje miejsce. */
     private fun afterSpeech() {
+        if (VoskEar.listening()) return   // ucho czuwa nieprzerwanie — nic nie ruszaj
         if (taskRunning) return   // zadanie trwa — strażnik pilnuje dalej (głosowe „stop")
         stopGuard()
         if (wakeMode && !convPending && !busy) restartWake(250)
@@ -300,9 +344,11 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         if (wakeMode) { speak("Nasłuchuję. Powiedz ${Brain.wakeWord(this)} i polecenie."); startWakeLoop() }
         else { speak("Przestaję nasłuchiwać."); stopWakeLoop() }
     }
-    private fun stopWakeLoop() { wakeStopping = true; try { wakeRec?.destroy() } catch (_: Exception) {}; wakeRec = null; setBubble("🗣️") }
+    private fun stopWakeLoop() { wakeStopping = true; VoskEar.stop(); try { wakeRec?.destroy() } catch (_: Exception) {}; wakeRec = null; setBubble("🗣️") }
     private fun startWakeLoop() {
         if (!wakeMode || busy) return
+        // 👂 Gdy UCHO jest wgrane — czuwa ono: jeden ciągły strumień, zero dziur.
+        if (earStart()) { wakeStopping = false; return }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { speak("Brak rozpoznawania mowy."); wakeMode = false; return }
         wakeStopping = false
         try { wakeRec?.destroy() } catch (_: Exception) {}
@@ -396,7 +442,8 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { speak("Brak rozpoznawania mowy na tym telefonie."); return }
         // Pause the wake-word recognizer so two mics don't fight (it resumes after handle()).
         try { wakeRec?.cancel(); wakeRec?.destroy() } catch (_: Exception) {}; wakeRec = null
-        stopGuard()   // strażnik przerwania też oddaje mikrofon
+        stopGuard()      // strażnik przerwania też oddaje mikrofon
+        VoskEar.stop()   // ucho też — dokładne rozpoznanie robi teraz Google
         busy = true
         setBubble("🎤")
         recognizer?.destroy()
@@ -527,6 +574,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         try { bubble?.let { wm.removeView(it) } } catch (_: Exception) {}
         try { wakeRec?.destroy() } catch (_: Exception) {}
         try { guardRec?.destroy() } catch (_: Exception) {}
+        VoskEar.stop()
         recognizer?.destroy(); tts.stop(); tts.shutdown()
         super.onDestroy()
     }

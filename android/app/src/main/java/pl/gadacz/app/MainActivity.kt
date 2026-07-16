@@ -261,6 +261,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🏫  Naucz się całego telefonu",
             brainLabel,
             "⏳  Czas rozmowy: ${convWaitLabel(Brain.convWaitSec(this))} — ile czekam na Twój głos",
+            if (VoskEar.available(this)) "👂  Ucho: WGRANE — nasłuch ciągły, bez przerw"
+            else "👂  Ucho: BRAK — dotknij, by pobrać (nasłuch bez przerw)",
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -283,6 +285,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     7 -> confirmLearnDevice()
                     8 -> confirmLocalBrain()
                     9 -> showConvWaitPicker()
+                    10 -> confirmEar()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
@@ -312,6 +315,38 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                       else "Ustawione. W rozmowie poczekam na Ciebie ${convWaitLabel(s)}.")
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    // 👂 UCHO GADACZA — własny ciągły nasłuch (Vosk): tryb stały bez żadnych dziur.
+    private fun confirmEar() {
+        val has = VoskEar.available(this)
+        AlertDialog.Builder(this)
+            .setTitle(if (has) "👂 Ucho jest wgrane" else "👂 Pobrać ucho Gadacza?")
+            .setMessage(if (has)
+                "Ucho czuwa jednym ciągłym strumieniem — słowo „Gadacz” i „stop” łapie bez przerw. Możesz pobrać je na nowo, gdyby coś szwankowało."
+            else
+                "Ucho to własny silnik rozpoznawania mowy (około 50 megabajtów, działa bez internetu). W trybie stałym słucha CIĄGLE — bez dziur między sesjami — i pozwala pewniej wchodzić Gadaczowi w słowo. Pobrać?")
+            .setPositiveButton(if (has) "Pobierz na nowo" else "Pobierz") { _, _ -> downloadEar() }
+            .setNegativeButton("Nie teraz", null).show()
+    }
+
+    private fun downloadEar() {
+        speak("Pobieram ucho Gadacza, około pięćdziesiąt megabajtów. Powiedz przerwij, żeby zatrzymać.")
+        Thread {
+            VoskEar.download(this,
+                onProgress = { p -> runOnUiThread { setStatus("👂 Pobieram ucho… $p%") } },
+                onDone = { ok, err -> runOnUiThread {
+                    setStatus("Gotowy")
+                    if (ok) {
+                        speak("Gotowe! Ucho działa. W trybie stałym słucham teraz bez przerw.")
+                        // Przeładuj usługę, żeby ucho od razu przejęło czuwanie.
+                        if (Brain.prefs(this).getString("float_mode", "off") == "staly") {
+                            stopService(Intent(this, GadaczOverlayService::class.java))
+                            startService(Intent(this, GadaczOverlayService::class.java))
+                        }
+                    } else speak("Nie udało się pobrać ucha. $err")
+                } })
+        }.start()
     }
 
     /** 🤏 Pobierz lokalny mózg — WYBÓR silnika (mały/średni/duży) do rozmów offline. */

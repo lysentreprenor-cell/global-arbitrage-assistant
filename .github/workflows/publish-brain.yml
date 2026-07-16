@@ -90,3 +90,25 @@ jobs:
           tag_name: gadacz-brain
           files: gadacz-mozg-duzy.task
           make_latest: false
+
+  # 👂 UCHO GADACZA: polski model rozpoznawania mowy Vosk (Apache 2.0) do nasluchu
+  # CIAGLEGO bez przerw (slowo-klucz + "stop"). Telefon pobiera z naszego wydania.
+  ucho:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pobierz model Vosk (polski, maly)
+        id: ear
+        continue-on-error: true
+        run: |
+          curl -fL --retry 3 -A "Gadacz-CI" -o gadacz-ucho.zip \
+            "https://alphacephei.com/vosk/models/vosk-model-small-pl-0.22.zip"
+          SIZE=$(stat -c%s gadacz-ucho.zip)
+          echo "Rozmiar: $SIZE"
+          if [ "$SIZE" -lt 10485760 ]; then echo "Za maly - blad"; rm -f gadacz-ucho.zip; exit 1; fi
+      - name: Opublikuj ucho
+        if: steps.ear.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-brain
+          files: gadacz-ucho.zip
+          make_latest: false
