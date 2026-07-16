@@ -251,19 +251,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     /** 🤏 Pobierz lokalny mózg — WYBÓR silnika (mały/średni/duży) do rozmów offline. */
     private fun confirmLocalBrain() {
         val ready = LocalBrain.available(this)
+        // 🏷️ Najpierw POWIEDZ, który mózg jest wgrany (rozpoznany po rozmiarze pliku).
+        if (ready) speak("Masz wgrany mózg: ${LocalBrain.installedName(this)}.")
         setStatus("🧠 Sprawdzam dostępne silniki…")
         Thread {
             val opts = LocalBrain.brainOptions(this)   // (nazwa, opis, url) z serwera
             runOnUiThread {
                 setStatus("Gotowy")
                 if (opts.isEmpty()) {
-                    // Serwer nie podał listy (stary/śpi) — pobierz domyślny.
+                    if (ready) return@runOnUiThread   // masz mózg, serwer nie podał listy — nie pobieraj na nowo
                     downloadBrain(null, "domyślny")
                     return@runOnUiThread
                 }
                 val items = opts.map { "${it.first}\n${it.second}" }.toTypedArray()
                 AlertDialog.Builder(this)
-                    .setTitle(if (ready) "🧠 Zmienić silnik lokalny?" else "🧠 Który silnik lokalny pobrać?")
+                    .setTitle(if (ready) "🧠 Masz: ${LocalBrain.installedName(this)}. Zmienić?" else "🧠 Który silnik lokalny pobrać?")
                     .setItems(items) { _, which ->
                         val (name, _, url) = opts[which]
                         downloadBrain(url, name)

@@ -78,6 +78,17 @@ object LocalBrain {
 
     fun available(ctx: Context): Boolean = modelPath(ctx) != null
 
+    /** 🏷️ Który mózg jest wgrany — rozpoznawany po ROZMIARZE pliku. */
+    fun installedName(ctx: Context): String {
+        val p = modelPath(ctx) ?: return "brak"
+        val mb = File(p).length() / (1024 * 1024)
+        return when {
+            mb >= 1000 -> "Średni (Qwen 1.5B), około $mb megabajtów"
+            mb >= 300  -> "Mały (Qwen 0.5B), około $mb megabajtów"
+            else       -> "nieznany, około $mb megabajtów"
+        }
+    }
+
     @Synchronized  // dwa wątki nie mogą naraz utworzyć modelu (wyciek ~GB). Audyt 10.07.
     private fun ensure(ctx: Context): com.google.mediapipe.tasks.genai.llminference.LlmInference? {
         val path = modelPath(ctx) ?: return null
