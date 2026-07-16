@@ -95,6 +95,7 @@ export default function AssistantPage() {
   type PersonaInfo = { key: string; name: string; icon: string; desc: string };
   const [personas, setPersonas] = useState<PersonaInfo[]>([]);
   const [persona, setPersona] = useState("niewidomi");
+  const [typed, setTyped] = useState("");   // ⌨️ pisanie z twarzą jak w czacie
   const [personaOpen, setPersonaOpen] = useState(false);  // twarze zwinięte domyślnie
   useEffect(() => {
     fetch("/api/assistant/persona").then(r => r.json())
@@ -419,6 +420,12 @@ export default function AssistantPage() {
       setLastAnswer(say);
       vibrate([40, 60, 40]);
       executeAction(d.action ?? "none", d.args ?? {}, say);
+      // 🗂 Auto-zapis rozmowy z twarzą na serwerze (to samo, co robi telefon) —
+      // po cichu; brak internetu/starego serwera niczego nie psuje.
+      fetch("/api/assistant/conversation/append", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona, user: question, assistant: say }),
+      }).catch(() => {});
     } catch (e: any) {
       setError(e.message ?? "Błąd");
       speak("Wystąpił błąd. " + (e.message ?? ""));
@@ -690,6 +697,26 @@ export default function AssistantPage() {
             </div>
           )}
         </div>
+
+        {/* ⌨️ pisanie z twarzą — jak w zwykłym czacie (obok mówienia) */}
+        <form
+          onSubmit={e => { e.preventDefault(); const t = typed.trim(); if (t) { ask(t); setTyped(""); } }}
+          style={{ display: "flex", gap: 8 }}
+        >
+          <input
+            value={typed}
+            onChange={e => setTyped(e.target.value)}
+            placeholder={`Napisz do twarzy: ${personas.find(p => p.key === persona)?.name ?? "Gadacz"}…`}
+            aria-label="Napisz wiadomość do Gadacza"
+            style={{ flex: 1, minHeight: 60, borderRadius: 14, border: "2px solid #57534e",
+              background: "#1c1917", color: "#e7e5e4", fontSize: 18, padding: "0 14px" }}
+          />
+          <button type="submit" aria-label="Wyślij wiadomość"
+            style={{ minWidth: 96, borderRadius: 14, border: "3px solid #fbbf24",
+              background: "#78350f", color: "#fef3c7", fontSize: 18, fontWeight: 800 }}>
+            ✉️ Wyślij
+          </button>
+        </form>
 
         {/* action row — big, high-contrast */}
         <div style={{ display: "flex", gap: 10 }}>

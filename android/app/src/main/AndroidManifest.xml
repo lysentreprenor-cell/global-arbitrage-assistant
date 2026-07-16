@@ -43,6 +43,13 @@
             </intent-filter>
         </activity>
 
+        <!-- ⌨️ Czat: pisanie z twarzami jak w komunikatorze -->
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- 👁️ Aparat-oczy: przezroczysta aktywność, robi zdjęcie i opisuje na głos -->
         <activity
             android:name=".CameraCaptureActivity"

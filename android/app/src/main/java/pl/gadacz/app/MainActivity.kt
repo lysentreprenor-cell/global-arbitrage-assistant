@@ -112,6 +112,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // 🎭 TWARZE — ZWINIĘTE pod jeden przycisk (koniec przewijania). Dotknięcie
         // otwiera listę wyboru; podpis pokazuje włączoną twarz.
         personaBtn = btn("🎭  TWARZ GADACZA", 0xFFFDE68A.toInt(), 0xFF3B2A06.toInt(), 74) { showPersonaPicker() }
+        // ⌨️ CZAT — pisanie z twarzami jak w komunikatorze (po cichu, bez głosu).
+        val chatBtn = btn("⌨️  NAPISZ DO GADACZA (czat)", 0xFFBAE6FD.toInt(), 0xFF082F49.toInt(), 74) {
+            startActivity(Intent(this, ChatActivity::class.java))
+        }
         val settings = btn("⚙  USTAWIENIA", 0xFFE7E5E4.toInt(), 0xFF292524.toInt(), 74) { showSettingsHub() }
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
@@ -119,7 +123,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(repeat)
         col.addView(floatHeader); col.addView(rowOf(floatStalyBtn, floatDotykBtn))
         col.addView(workHeader); col.addView(rowOf(workBtns["easy"]!!, workBtns["normal"]!!, workBtns["hard"]!!))
-        col.addView(payBtn); col.addView(personaBtn); col.addView(settings); col.addView(transcript)
+        col.addView(payBtn); col.addView(personaBtn); col.addView(chatBtn); col.addView(settings); col.addView(transcript)
         setContentView(outer)
 
         // Podświetl aktualny stan paneli i twarz.
@@ -189,22 +193,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }.start()
     }
 
-    // ── 🎭 SYSTEMY GADACZA — wybieralne osobowości. Klucze MUSZĄ zgadzać się z serwerem
-    // (server/routes/assistant.ts, PERSONAS). Wybór zapisuje się na serwerze, więc
-    // strona www i telefon zawsze widzą ten sam tryb.
-    private val personas = listOf(
-        Triple("niewidomi",  "🦯 Dla niewidomych", "Tryb podstawowy — ten, który trenujemy"),
-        Triple("ogolny",     "⚡ Ogólny",          "Krótko i na temat — dla widzących"),
-        Triple("prawnik",    "🧑‍⚖️ Prawnik",        "Prawo prostym językiem, pisma i odwołania"),
-        Triple("lekarz",     "🩺 Lekarz",          "Zdrowie i leki — nie zastępuje lekarza"),
-        Triple("zartownis",  "😂 Żartowniś",       "Żarty, anegdoty i dobry humor"),
-        Triple("bajerant",   "😎 Bajerant",        "Rozmowy z dziewczynami — z klasą"),
-        Triple("sprzedawca", "💼 Sprzedawca",      "Oferty, negocjacje, odpowiedzi klientom"),
-        Triple("programista","💻 Programowanie",   "Pisze i tłumaczy kod, buduje aplikacje"),
-    )
+    // ── 🎭 SYSTEMY GADACZA — wspólna lista twarzy mieszka w Personas.kt (używa jej
+    // też czat). Klucze MUSZĄ zgadzać się z serwerem (server/routes/assistant.ts).
+    private val personas get() = Personas.list
 
     // Twarze działające BEZ internetu (reszta wymaga chmury) — musi zgadzać się z Brain.faceWorksOffline.
-    private val offlineFaces = setOf("niewidomi", "ogolny")
+    private val offlineFaces get() = Personas.offline
 
     /** 🎭 ZWINIĘTA lista twarzy — jeden przycisk otwiera wybór. */
     private fun showPersonaPicker() {
