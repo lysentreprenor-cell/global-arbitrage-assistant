@@ -40,7 +40,8 @@ class CameraCaptureActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onCreate(savedInstanceState)
         mode = intent.getStringExtra("mode") ?: "describe"
         tts = TextToSpeech(this, this)
-        if (!Brain.isConfigured(this)) { finishSoon(); return }
+        // Tryb „ocr" czyta tekst LOKALNIE (ML Kit) — nie potrzebuje serwera ani klucza.
+        if (mode != "ocr" && !Brain.isConfigured(this)) { finishSoon(); return }
         if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 7); return
         }
@@ -69,6 +70,25 @@ class CameraCaptureActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onInit(status: Int) { if (status == TextToSpeech.SUCCESS) tts.language = Locale("pl", "PL") }
 
     private fun analyze(bmp: Bitmap) {
+        // 👁️ DARMOWE OCZY DO TEKSTU (ML Kit, offline, 0 zł): tekst z kartki czyta
+        // SAM TELEFON — bez chmury, bez internetu, bez wydawania środków z klucza.
+        if (mode == "ocr") {
+            speak("Czytam…")
+            try {
+                val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+                com.google.mlkit.vision.text.TextRecognition.getClient(
+                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
+                    .process(image)
+                    .addOnSuccessListener { r ->
+                        val t = r.text.replace('\n', ' ').replace(Regex("  +"), " ").trim()
+                        speakThenFinish(if (t.isBlank())
+                            "Nie widzę tekstu na tym zdjęciu. Przybliż kartkę, wyprostuj ją i spróbuj przy lepszym świetle."
+                        else t.take(4000))
+                    }
+                    .addOnFailureListener { speakThenFinish("Nie udało się przeczytać. Spróbuj jeszcze raz przy lepszym świetle.") }
+            } catch (_: Throwable) { speakThenFinish("Czytanie z kartki nie zadziałało na tym telefonie.") }
+            return
+        }
         speak(if (mode == "read") "Czytam…" else if (mode == "selfie") "Sprawdzam…" else "Patrzę…")
         Thread {
             try {

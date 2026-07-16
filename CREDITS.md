@@ -33,3 +33,9 @@ należy zaktualizować tę notkę zgodnie z licencją nowego modelu.
 - **JNA** (`net.java.dev.jna:jna`) — Apache License 2.0 / LGPL 2.1 (używana
   na warunkach Apache 2.0).
 - Pełny tekst licencji: https://www.apache.org/licenses/LICENSE-2.0
+
+## Oczy do tekstu (czytanie kartek offline)
+
+- **ML Kit Text Recognition** (`com.google.mlkit:text-recognition`), autor:
+  Google. Bezpłatna biblioteka działająca w całości na urządzeniu (bez chmury),
+  na warunkach ML Kit Terms of Service.

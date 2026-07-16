@@ -248,8 +248,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     /** ⚙ Centrum ustawień — cały dawny panel z ekranu głównego w jednym miejscu. */
     private fun showSettingsHub() {
-        val brainLabel = if (LocalBrain.available(this)) "🤏  Lokalny mózg: ${LocalBrain.installedShort(this)} — dotknij, by zmienić"
-                         else "🤏  Lokalny mózg: BRAK — dotknij, by pobrać"
         val items = arrayOf(
             "🔑  Adres serwera i klucz",
             "✅  Co jeszcze zostało (gotowość)",
@@ -259,10 +257,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🔄  Sprawdź aktualizację (v${Updater.currentVersion(this)})",
             "🧠  Nauka (włącz/wyłącz · kopiuj · kasuj)",
             "🏫  Naucz się całego telefonu",
-            brainLabel,
+            "🔩  SILNIKI (mózg · ucho · oczy) — pobieranie i stan",
             "⏳  Czas rozmowy: ${convWaitLabel(Brain.convWaitSec(this))} — ile czekam na Twój głos",
-            if (VoskEar.available(this)) "👂  Ucho: WGRANE — nasłuch ciągły, bez przerw"
-            else "👂  Ucho: BRAK — dotknij, by pobrać (nasłuch bez przerw)",
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -283,12 +279,51 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     5 -> doUpdate(manual = true)
                     6 -> showLearning()
                     7 -> confirmLearnDevice()
-                    8 -> confirmLocalBrain()
+                    8 -> showEngines()
                     9 -> showConvWaitPicker()
-                    10 -> confirmEar()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    // ── 🔩 SILNIKI GADACZA — jedno miejsce: co jest wgrane, co można pobrać i czy
+    // telefon to udźwignie. Pobieranie jak z mózgiem: dotknij i czekaj na procenty.
+    private fun showEngines() {
+        val brain = LocalBrain.installedShort(this)
+        val items = arrayOf(
+            if (brain == "brak") "🧠  Mózg lokalny: BRAK — dotknij, by pobrać"
+            else "🧠  Mózg lokalny: $brain — dotknij, by zmienić",
+            if (VoskEar.available(this)) "👂  Ucho (nasłuch ciągły): WGRANE — dotknij, by pobrać na nowo"
+            else "👂  Ucho (nasłuch ciągły): BRAK — dotknij, by pobrać",
+            "👁️  Oczy do tekstu: WBUDOWANE — powiedz „przeczytaj kartkę”",
+            "📏  Sprawdź, jaki mózg udźwignie ten telefon",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("🔩 Silniki Gadacza")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> confirmLocalBrain()
+                    1 -> confirmEar()
+                    2 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
+                    3 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
+                }
+            }
+            .setNegativeButton("Zamknij", null).show()
+    }
+
+    /** 📏 Ile RAM ma telefon i który mózg realnie udźwignie — po ludzku. */
+    private fun ramReport(): String {
+        val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        val gb = Math.round(mi.totalMem.toDouble() / (1024L * 1024 * 1024) * 10) / 10.0
+        val free = Math.round(mi.availMem.toDouble() / (1024L * 1024 * 1024) * 10) / 10.0
+        val rada = when {
+            gb >= 5.5 -> "Śmiało wgrywaj Średni mózg — będzie chodził wygodnie."
+            gb >= 3.5 -> "Średni mózg da radę, ale przy pierwszej odpowiedzi zamknij inne aplikacje. Mały będzie zawsze pewny i szybki."
+            else -> "Ten telefon pewnie udźwignie tylko Mały mózg — Średni by się dławił."
+        }
+        return "Telefon ma $gb gigabajta pamięci RAM, wolne teraz: $free. $rada"
     }
 
     // ⏳ CZAS ROZMOWY — jak długo po odpowiedzi Gadacz czeka na Twój kolejny głos,
@@ -365,8 +400,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     return@runOnUiThread
                 }
                 val items = opts.map { "${it.first}\n${it.second}" }.toTypedArray()
+                // 📏 Podpowiedź od telefonu: który mózg realnie udźwignie (po RAM).
+                val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+                val mi = android.app.ActivityManager.MemoryInfo(); am.getMemoryInfo(mi)
+                val gbRam = mi.totalMem.toDouble() / (1024L * 1024 * 1024)
+                val rec = if (gbRam >= 3.5) "Średni" else "Mały"
                 AlertDialog.Builder(this)
-                    .setTitle(if (ready) "🧠 Masz: ${LocalBrain.installedName(this)}. Zmienić?" else "🧠 Który silnik lokalny pobrać?")
+                    .setTitle(if (ready) "🧠 Masz: ${LocalBrain.installedName(this)}. Zmienić? (telefon poleca: $rec)"
+                              else "🧠 Który silnik pobrać? (telefon poleca: $rec)")
                     .setItems(items) { _, which ->
                         val (name, _, url) = opts[which]
                         downloadBrain(url, name)

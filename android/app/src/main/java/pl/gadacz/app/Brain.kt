@@ -707,6 +707,14 @@ object Brain {
                 return done(bluetoothConnect(ctx, target.replace("bluetooth", "").trim().ifBlank { "urządzeniem" }))
         }
 
+        // 👁️ DARMOWE OCZY DO TEKSTU: „przeczytaj kartkę" → zdjęcie → tekst czyta SAM
+        // telefon (ML Kit, offline, 0 zł). Ulotki leków, paragony, pisma, etykiety.
+        if (Regex("^(przeczytaj|odczytaj|czytaj)( mi)?( te| ta| ten| to)? ?(kartke|dokument|ulotke|paragon|pismo|list|etykiete|recepte|gazete|ksiazke|napis na czyms)( .*)?$").matches(n)) {
+            ctx.startActivity(Intent(ctx, CameraCaptureActivity::class.java)
+                .putExtra("mode", "ocr").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return done("")
+        }
+
         // 📄 Piętro 1: DARMOWE czytanie ekranu — telefon sam czyta napisy, bez AI
         // (zero kosztów). Mądry OPIS ekranu („co jest na ekranie") dalej robi AI.
         if (Regex("^(przeczytaj|odczytaj|czytaj)( mi)?( caly)?( wszystkie)?( napisy( z)?)? ekran(u)?$").matches(n)) {
