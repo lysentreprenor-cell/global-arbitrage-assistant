@@ -248,25 +248,42 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setNegativeButton("Zamknij", null).show()
     }
 
-    /** 🤏 Pobierz lokalny mózg — model AI do rozmów offline w trybie darmowym. */
+    /** 🤏 Pobierz lokalny mózg — WYBÓR silnika (mały/średni/duży) do rozmów offline. */
     private fun confirmLocalBrain() {
-        if (LocalBrain.available(this)) { speak("Masz już lokalny mózg. Działa w trybie darmowym, także bez internetu."); return }
-        AlertDialog.Builder(this)
-            .setTitle("🤏 Pobrać lokalny mózg?")
-            .setMessage("Mały model AI (około pół gigabajta) zamieszka w telefonie. Dzięki niemu w trybie darmowym Gadacz odpowie na pytania BEZ internetu i BEZ grosza z klucza — i będzie pamiętał Twoje fakty. Najlepiej pobierać na Wi-Fi. Powiedz „przerwij”, żeby zatrzymać.")
-            .setPositiveButton("Pobierz") { _, _ ->
-                speak("Pobieram lokalny mózg. To około pół gigabajta — daj mi kilka minut.")
-                Thread {
-                    LocalBrain.downloadModel(this,
-                        onProgress = { p -> runOnUiThread { setStatus("🤏 Pobieram mózg… $p%") } },
-                        onDone = { ok, err -> runOnUiThread {
-                            setStatus("Gotowy")
-                            speak(if (ok) "Mam lokalny mózg! Od teraz w trybie darmowym odpowiem też na pytania — nawet bez internetu."
-                                  else "Nie udało się pobrać mózgu. $err Możesz też wgrać plik ręcznie do folderu Pobrane pod nazwą gadacz-mozg kropka task.")
-                        } })
-                }.start()
+        val ready = LocalBrain.available(this)
+        setStatus("🧠 Sprawdzam dostępne silniki…")
+        Thread {
+            val opts = LocalBrain.brainOptions(this)   // (nazwa, opis, url) z serwera
+            runOnUiThread {
+                setStatus("Gotowy")
+                if (opts.isEmpty()) {
+                    // Serwer nie podał listy (stary/śpi) — pobierz domyślny.
+                    downloadBrain(null, "domyślny")
+                    return@runOnUiThread
+                }
+                val items = opts.map { "${it.first}\n${it.second}" }.toTypedArray()
+                AlertDialog.Builder(this)
+                    .setTitle(if (ready) "🧠 Zmienić silnik lokalny?" else "🧠 Który silnik lokalny pobrać?")
+                    .setItems(items) { _, which ->
+                        val (name, _, url) = opts[which]
+                        downloadBrain(url, name)
+                    }
+                    .setNegativeButton("Nie teraz", null).show()
             }
-            .setNegativeButton("Nie teraz", null).show()
+        }.start()
+    }
+
+    private fun downloadBrain(url: String?, name: String) {
+        speak("Pobieram silnik $name. Daj mi kilka minut, najlepiej na Wi-Fi. Powiedz przerwij, żeby zatrzymać.")
+        Thread {
+            LocalBrain.downloadModel(this, url,
+                onProgress = { p -> runOnUiThread { setStatus("🧠 Pobieram $name… $p%") } },
+                onDone = { ok, err -> runOnUiThread {
+                    setStatus("Gotowy")
+                    speak(if (ok) "Gotowe! Silnik $name działa. W trybie darmowym odpowiem teraz na pytania nawet bez internetu."
+                          else "Nie udało się pobrać. $err")
+                } })
+        }.start()
     }
 
     /** 🏫 Nauka całego telefonu: Gdacz otwiera po kolei aplikacje i pisze o nich ściągi. */

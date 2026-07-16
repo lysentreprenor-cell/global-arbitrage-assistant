@@ -1,17 +1,11 @@
-name: Opublikuj lokalny mozg Gadacza
+name: Opublikuj lokalne mozgi Gadacza
 
-# Pobiera maly model AI (MediaPipe .task) z publicznego zrodla i publikuje go
-# jako plik gadacz-mozg.task na wydaniu GitHub. Dzieki temu telefon pobiera mozg
-# z NASZEGO linku (bez licencji/logowania HuggingFace). Uruchom recznie:
-# Actions -> "Opublikuj lokalny mozg Gadacza" -> Run workflow (mozna podac inny URL).
+# Pobiera kilka malych modeli AI (MediaPipe .task) z publicznych zrodel i publikuje
+# je jako pliki na wydaniu GitHub 'gadacz-brain'. Telefon pobiera WYBRANY silnik
+# z NASZEGO linku (bez licencji/logowania). Kazdy model osobno (continue-on-error),
+# wiec jak jeden link padnie, reszta i tak sie opublikuje.
 on:
   workflow_dispatch:
-    inputs:
-      model_url:
-        description: "Adres modelu .task (puste = domyslny Qwen 2.5 0.5B)"
-        required: false
-        default: ""
-  # Odpala sie tez sam, gdy zmieni sie ten plik — tak wypuszczamy/odswiezamy mozg.
   push:
     branches: [ claude/teraz-YKMDA ]
     paths: [ ".github/workflows/publish-brain.yml" ]
@@ -22,26 +16,45 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - out: gadacz-mozg-mini.task
+            url: "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+          - out: gadacz-mozg-sredni.task
+            url: "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+          - out: gadacz-mozg-duzy.task
+            url: "https://huggingface.co/litert-community/SmolLM2-1.7B-Instruct/resolve/main/SmolLM2-1.7B-Instruct_multi-prefill-seq_q8_ekv1280.task"
     steps:
-      - name: Pobierz model
+      - name: Pobierz ${{ matrix.out }}
+        id: dl
+        continue-on-error: true
         run: |
-          URL="${{ github.event.inputs.model_url }}"
-          if [ -z "$URL" ]; then
-            URL="https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
-          fi
-          echo "Pobieram: $URL"
-          curl -fL --retry 3 -A "Gadacz-CI" -o gadacz-mozg.task "$URL"
-          SIZE=$(stat -c%s gadacz-mozg.task)
-          echo "Rozmiar: $SIZE bajtow"
-          if [ "$SIZE" -lt 52428800 ]; then
-            echo "Plik za maly (<50 MB) - pewnie blad/HTML zamiast modelu."; exit 1
-          fi
+          echo "Pobieram: ${{ matrix.url }}"
+          curl -fL --retry 3 -A "Gadacz-CI" -o "${{ matrix.out }}" "${{ matrix.url }}"
+          SIZE=$(stat -c%s "${{ matrix.out }}")
+          echo "Rozmiar: $SIZE"
+          if [ "$SIZE" -lt 52428800 ]; then echo "Za maly - blad"; rm -f "${{ matrix.out }}"; exit 1; fi
 
-      - name: Opublikuj jako wydanie
+      - name: Opublikuj ${{ matrix.out }}
+        if: steps.dl.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: gadacz-brain
-          name: "Gadacz — lokalny mozg"
-          body: "Model AI do trybu offline. Aplikacja pobiera go sama przyciskiem 'Pobierz lokalny mozg'."
+          name: "Gadacz — lokalne mozgi"
+          body: "Modele AI do trybu offline. Aplikacja pobiera wybrany przyciskiem 'Pobierz lokalny mozg'."
+          files: ${{ matrix.out }}
+          make_latest: false
+
+      # gadacz-mozg.task = domyslny (kompatybilnosc ze starymi wersjami): kopia mini.
+      - name: Domyslny (kopia mini)
+        if: matrix.out == 'gadacz-mozg-mini.task' && steps.dl.outcome == 'success'
+        run: cp gadacz-mozg-mini.task gadacz-mozg.task
+      - name: Opublikuj domyslny
+        if: matrix.out == 'gadacz-mozg-mini.task' && steps.dl.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-brain
           files: gadacz-mozg.task
           make_latest: false

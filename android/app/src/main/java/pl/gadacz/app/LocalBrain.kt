@@ -34,7 +34,7 @@ object LocalBrain {
     private const val MODEL_URL_FALLBACK =
         "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
 
-    /** Adres modelu z serwera (można go tam poprawić bez aktualizacji apki). */
+    /** Adres domyślnego modelu z serwera (można go tam poprawić bez aktualizacji apki). */
     private fun modelUrl(ctx: Context): String = try {
         val base = Brain.serverUrl(ctx).trimEnd('/')
         if (base.isBlank()) MODEL_URL_FALLBACK else {
@@ -46,6 +46,24 @@ object LocalBrain {
                 }
         }
     } catch (_: Exception) { MODEL_URL_FALLBACK }
+
+    /** 🧠 Lista SILNIKÓW lokalnych z serwera: (nazwa, opis, adres). Pusta = brak/serwer śpi. */
+    fun brainOptions(ctx: Context): List<Triple<String, String, String>> = try {
+        val base = Brain.serverUrl(ctx).trimEnd('/')
+        if (base.isBlank()) emptyList() else {
+            val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
+            client.newCall(Request.Builder().url("$base/api/assistant/brain-url").header("x-bot-pin", Brain.pin(ctx)).build())
+                .execute().use { r ->
+                    if (!r.isSuccessful) return emptyList()
+                    val arr = org.json.JSONObject(r.body?.string() ?: "{}").optJSONArray("options") ?: return emptyList()
+                    (0 until arr.length()).mapNotNull { i ->
+                        val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                        val u = o.optString("url"); if (!u.startsWith("http")) null
+                        else Triple(o.optString("name"), o.optString("desc"), u)
+                    }
+                }
+        }
+    } catch (_: Exception) { emptyList() }
 
     private fun downloadedFile(ctx: Context) = File(ctx.getExternalFilesDir(null), "gadacz-mozg.task")
 
@@ -131,7 +149,7 @@ object LocalBrain {
      * postępu i możliwością przerwania. Najpierw do pliku .part, na koniec
      * podmiana — przerwane pobieranie nie zostawia uszkodzonego mózgu.
      */
-    fun downloadModel(ctx: Context, onProgress: (Int) -> Unit, onDone: (Boolean, String) -> Unit) {
+    fun downloadModel(ctx: Context, chosenUrl: String? = null, onProgress: (Int) -> Unit, onDone: (Boolean, String) -> Unit) {
         downloadCancel = false
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -142,7 +160,7 @@ object LocalBrain {
         val out = downloadedFile(ctx)
         val tmp = File(out.absolutePath + ".part")
         try {
-            val url = modelUrl(ctx)
+            val url = chosenUrl ?: modelUrl(ctx)
             client.newCall(Request.Builder().url(url)
                 .header("User-Agent", "Gadacz/1.0").build()).execute().use { resp ->
                 if (resp.code == 401 || resp.code == 403) {

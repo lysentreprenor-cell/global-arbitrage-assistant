@@ -322,8 +322,20 @@ router.post("/persona", (req, res) => {
 // „Opublikuj lokalny mozg Gadacza" (GitHub ma otwarty internet, my nie), więc
 // telefon pobiera z naszego linku bez licencji HuggingFace. Gdyby link kiedyś
 // nie działał, zmień tę jedną linię (albo wskaż inny publiczny .task).
-const BRAIN_URL = "https://github.com/lysentreprenor-cell/global-arbitrage-assistant/releases/download/gadacz-brain/gadacz-mozg.task";
-router.get("/brain-url", (_req, res) => res.json({ url: BRAIN_URL }));
+const BRAIN_REL = "https://github.com/lysentreprenor-cell/global-arbitrage-assistant/releases/download/gadacz-brain";
+const BRAIN_URL = `${BRAIN_REL}/gadacz-mozg.task`; // domyślny (kompatybilność ze starą apką)
+// 🧠 SILNIKI LOKALNE do wyboru — telefon pokazuje listę, użytkownik pobiera ten,
+// który udźwignie jego telefon. Wszystkie na licencji Apache (Qwen / SmolLM).
+const BRAIN_OPTIONS = [
+  { key: "mini",   name: "🐭 Mały (szybki)",        desc: "Qwen 0.5B, ~0.5 GB — działa na każdym telefonie", file: "gadacz-mozg-mini.task" },
+  { key: "sredni", name: "🐇 Średni (mądrzejszy)",  desc: "Qwen 1.5B, ~1.3 GB — potrzeba 4 GB RAM",           file: "gadacz-mozg-sredni.task" },
+  { key: "duzy",   name: "🦉 Duży (najmądrzejszy)", desc: "SmolLM 1.7B, ~1.8 GB — mocny telefon, 6 GB+ RAM",  file: "gadacz-mozg-duzy.task" },
+];
+router.get("/brain-url", (_req, res) => res.json({
+  url: BRAIN_URL,
+  base: BRAIN_REL,
+  options: BRAIN_OPTIONS.map(o => ({ ...o, url: `${BRAIN_REL}/${o.file}` })),
+}));
 
 // 🚫 ZABLOKOWANE APLIKACJE — Gadacz NIE wykona żadnej akcji ekranowej (klik/wpisanie)
 // w tych apkach. „match" = fragment nazwy pakietu lub apki (np. „bank", „revolut").
