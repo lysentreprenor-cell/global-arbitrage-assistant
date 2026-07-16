@@ -163,9 +163,12 @@ object LocalBrain {
     }
 
     /**
-     * ⬇️ Pobierz model przyciskiem — bez limitu czasu (plik ~0.5 GB), z paskiem
-     * postępu i możliwością przerwania. Najpierw do pliku .part, na koniec
-     * podmiana — przerwane pobieranie nie zostawia uszkodzonego mózgu.
+     * ⬇️ Pobierz model przyciskiem — bez limitu czasu, z paskiem postępu i przerwaniem.
+     * ODPORNE NA DUŻE PLIKI (Średni ~1,5 GB — tu sieć LUBI paść w połowie):
+     *  - najpierw sprawdzamy, czy w telefonie JEST MIEJSCE (i mówimy po ludzku, ile brakuje),
+     *  - zerwane połączenie NIE kasuje tego, co już zeszło — WZNAWIAMY od tego miejsca
+     *    (nagłówek Range), automatycznie, do ośmiu prób,
+     *  - plik ląduje najpierw w .part; podmiana dopiero po KOMPLETNYM pobraniu.
      */
     fun downloadModel(ctx: Context, chosenUrl: String? = null, onProgress: (Int) -> Unit, onDone: (Boolean, String) -> Unit) {
         downloadCancel = false
@@ -177,35 +180,68 @@ object LocalBrain {
             .build()
         val out = downloadedFile(ctx)
         val tmp = File(out.absolutePath + ".part")
-        try {
-            val url = chosenUrl ?: modelUrl(ctx)
-            client.newCall(Request.Builder().url(url)
-                .header("User-Agent", "Gadacz/1.0").build()).execute().use { resp ->
-                if (resp.code == 401 || resp.code == 403) {
-                    onDone(false, "Ten model wymaga logowania i nie da się go pobrać automatycznie. Powiem opiekunowi, żeby podał inny link — a Ty możesz wgrać plik ręcznie do folderu Pobrane pod nazwą gadacz-mozg kropka task.")
-                    return
-                }
-                if (!resp.isSuccessful) { onDone(false, "Serwer modeli zwrócił błąd ${resp.code}."); return }
-                val body = resp.body ?: run { onDone(false, "Pusta odpowiedź serwera."); return }
-                val total = body.contentLength().coerceAtLeast(1)
-                body.byteStream().use { input ->
-                    tmp.outputStream().use { output ->
-                        val buf = ByteArray(256 * 1024); var read = 0L; var n: Int
-                        while (input.read(buf).also { n = it } >= 0) {
-                            if (downloadCancel) { tmp.delete(); onDone(false, "Przerwane."); return }
-                            output.write(buf, 0, n); read += n
-                            onProgress(((read * 100) / total).toInt())
+        val url = chosenUrl ?: modelUrl(ctx)
+        // Kawałek z POPRZEDNIEJ próby wznawiamy tylko, gdy to TEN SAM silnik —
+        // resztka po innym modelu dałaby posklejany, zepsuty mózg.
+        val prevUrl = Brain.prefs(ctx).getString("brain_part_url", "") ?: ""
+        if (tmp.exists() && prevUrl != url) tmp.delete()
+        Brain.prefs(ctx).edit().putString("brain_part_url", url).apply()
+        var lastErr = ""
+        for (attempt in 1..8) {
+            if (downloadCancel) { onDone(false, "Przerwane. To, co zeszło, zostaje — następna próba ruszy od tego miejsca."); return }
+            var finished = false
+            try {
+                val have = tmp.length()
+                val reqB = Request.Builder().url(url).header("User-Agent", "Gadacz/1.0")
+                if (have > 0) reqB.header("Range", "bytes=$have-")
+                client.newCall(reqB.build()).execute().use { resp ->
+                    if (resp.code == 401 || resp.code == 403) {
+                        onDone(false, "Ten model wymaga logowania i nie da się go pobrać automatycznie. Powiem opiekunowi, żeby podał inny link — a Ty możesz wgrać plik ręcznie do folderu Pobrane pod nazwą gadacz-mozg kropka task.")
+                        return
+                    }
+                    if (resp.code == 416) { tmp.delete(); lastErr = "zły zakres wznowienia — zaczynam od zera"; return@use }
+                    if (!resp.isSuccessful) { lastErr = "serwer modeli zwrócił błąd ${resp.code}"; return@use }
+                    val resumed = resp.code == 206 && have > 0
+                    if (!resumed && have > 0) tmp.delete()   // serwer nie umie wznowić — od zera
+                    val already = if (resumed) have else 0L
+                    val body = resp.body ?: run { lastErr = "pusta odpowiedź serwera"; return@use }
+                    val remaining = body.contentLength()
+                    val total = if (remaining > 0) remaining + already else -1L
+                    // 🧮 MIEJSCE: sprawdź ZANIM polecą gigabajty — i powiedz konkretnie, ile brakuje.
+                    val free = out.parentFile?.usableSpace ?: Long.MAX_VALUE
+                    if (remaining > 0 && free < remaining + 200L * 1024 * 1024) {
+                        val needMb = remaining / (1024 * 1024); val freeMb = free / (1024 * 1024)
+                        onDone(false, "Za mało miejsca w telefonie. Potrzebuję jeszcze około $needMb megabajtów, a wolne jest tylko $freeMb. Usuń trochę zdjęć, filmów albo aplikacji i spróbuj znowu — pobieranie ruszy od miejsca, w którym stanęło.")
+                        return
+                    }
+                    body.byteStream().use { input ->
+                        java.io.FileOutputStream(tmp, resumed).use { output ->
+                            val buf = ByteArray(256 * 1024); var read = already; var n: Int
+                            while (input.read(buf).also { n = it } >= 0) {
+                                if (downloadCancel) { onDone(false, "Przerwane. To, co zeszło, zostaje — następna próba ruszy od tego miejsca."); return }
+                                output.write(buf, 0, n); read += n
+                                if (total > 0) onProgress(((read * 100) / total).toInt())
+                            }
                         }
                     }
+                    // Połączenie padło w połowie? Plik krótszy niż zapowiedziany = wznów.
+                    if (total > 0 && tmp.length() < total) { lastErr = "połączenie przerwane w trakcie"; return@use }
+                    finished = true
                 }
+            } catch (e: Exception) {
+                lastErr = e.message ?: "błąd sieci"   // .part ZOSTAJE — wznowimy od tego miejsca
             }
-            if (tmp.length() < 50L * 1024 * 1024) { tmp.delete(); onDone(false, "Pobrany plik jest niekompletny."); return }
-            out.delete(); tmp.renameTo(out)
-            synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
-            onDone(true, "")
-        } catch (e: Exception) {
-            tmp.delete()
-            onDone(false, e.message ?: "błąd sieci")
+            if (finished) {
+                if (tmp.length() < 50L * 1024 * 1024) { tmp.delete(); onDone(false, "Pobrany plik jest niekompletny. Spróbuj jeszcze raz."); return }
+                out.delete(); tmp.renameTo(out)
+                Brain.prefs(ctx).edit().remove("brain_part_url").apply()
+                synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
+                onDone(true, "")
+                return
+            }
+            try { Thread.sleep(3000L * attempt.coerceAtMost(3)) } catch (_: Exception) {}
         }
+        val gotMb = tmp.length() / (1024 * 1024)
+        onDone(false, "Sieć zrywała się mimo ośmiu prób ($lastErr). Zdążyłem pobrać $gotMb megabajtów i to ZOSTAJE — spróbuj jeszcze raz, najlepiej na Wi-Fi, a dokończę od tego miejsca.")
     }
 }

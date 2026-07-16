@@ -200,6 +200,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         Triple("zartownis",  "😂 Żartowniś",       "Żarty, anegdoty i dobry humor"),
         Triple("bajerant",   "😎 Bajerant",        "Rozmowy z dziewczynami — z klasą"),
         Triple("sprzedawca", "💼 Sprzedawca",      "Oferty, negocjacje, odpowiedzi klientom"),
+        Triple("programista","💻 Programowanie",   "Pisze i tłumaczy kod, buduje aplikacje"),
     )
 
     // Twarze działające BEZ internetu (reszta wymaga chmury) — musi zgadzać się z Brain.faceWorksOffline.
@@ -265,6 +266,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🧠  Nauka (włącz/wyłącz · kopiuj · kasuj)",
             "🏫  Naucz się całego telefonu",
             brainLabel,
+            "⏳  Czas rozmowy: ${convWaitLabel(Brain.convWaitSec(this))} — ile czekam na Twój głos",
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -286,7 +288,34 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     6 -> showLearning()
                     7 -> confirmLearnDevice()
                     8 -> confirmLocalBrain()
+                    9 -> showConvWaitPicker()
                 }
+            }
+            .setNegativeButton("Zamknij", null).show()
+    }
+
+    // ⏳ CZAS ROZMOWY — jak długo po odpowiedzi Gadacz czeka na Twój kolejny głos,
+    // zanim wróci do czuwania. Każdy wybiera po swojemu: od 5 sekund po „ciągle".
+    private val convWaitChoices = listOf(5, 10, 15, 30, 60, 300, 600, 900, 1200, 3600, -1)
+    private fun convWaitLabel(sec: Int): String = when (sec) {
+        -1 -> "ciągle"
+        in 1..59 -> "$sec sekund"
+        60 -> "1 minuta"
+        3600 -> "1 godzina"
+        else -> "${sec / 60} minut"
+    }
+    private fun showConvWaitPicker() {
+        val cur = Brain.convWaitSec(this)
+        val items = convWaitChoices.map { s ->
+            (if (s == cur) "✓ " else "") + convWaitLabel(s) + (if (s == -1) " — rozmowa nigdy sama się nie kończy" else "")
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("⏳ Ile mam czekać na Twój głos w rozmowie?")
+            .setItems(items) { _, which ->
+                val s = convWaitChoices[which]
+                Brain.setConvWaitSec(this, s)
+                speak(if (s == -1) "Ustawione: rozmowa trwa ciągle, dopóki sam jej nie zakończysz słowem koniec. Pamiętaj, że to zużywa więcej baterii."
+                      else "Ustawione. W rozmowie poczekam na Ciebie ${convWaitLabel(s)}.")
             }
             .setNegativeButton("Zamknij", null).show()
     }
@@ -319,7 +348,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun downloadBrain(url: String?, name: String) {
-        speak("Pobieram silnik $name. Daj mi kilka minut, najlepiej na Wi-Fi. Powiedz przerwij, żeby zatrzymać.")
+        speak("Pobieram silnik $name. Daj mi kilka minut, najlepiej na Wi-Fi. Gdy sieć się zerwie, wznowię sam od tego samego miejsca. Powiedz przerwij, żeby zatrzymać.")
         Thread {
             LocalBrain.downloadModel(this, url,
                 onProgress = { p -> runOnUiThread { setStatus("🧠 Pobieram $name… $p%") } },

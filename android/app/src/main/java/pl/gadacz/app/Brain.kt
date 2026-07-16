@@ -47,6 +47,11 @@ object Brain {
     fun paidMode(ctx: Context): Boolean = prefs(ctx).getBoolean("paid_mode", true)
     fun setPaidMode(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("paid_mode", on).apply() }
 
+    /** ⏳ Ile sekund Gadacz czeka na Twój głos w rozmowie, zanim wróci do czuwania.
+     *  -1 = CIĄGLE (nigdy sam nie kończy rozmowy). Domyślnie 15 sekund. */
+    fun convWaitSec(ctx: Context): Int = prefs(ctx).getInt("conv_wait_sec", 15)
+    fun setConvWaitSec(ctx: Context, sec: Int) { prefs(ctx).edit().putInt("conv_wait_sec", sec).apply() }
+
     /**
      * 📶 Czym można sterować przez Bluetooth — wylicza SPAROWANE urządzenia i mówi,
      * co Gadacz z każdym potrafi. Smart-dom (żarówki, gniazdka) chodzi zwykle po
@@ -313,6 +318,129 @@ object Brain {
             .post(body.toString().toRequestBody("application/json".toMediaType())).build())
             .execute().use { it.isSuccessful }
     } catch (_: Exception) { false }
+
+    // ── 🗂 ROZMOWY Z TWARZAMI — auto-zapis każdej wymiany zdań na serwerze,
+    // projekty „na stałe" i wracanie do nich po nazwie. Wszystko głosem.
+
+    /** Dopisz wymianę zdań do bieżącej rozmowy aktywnej twarzy (w tle, bez hałasu). */
+    fun convAppend(ctx: Context, user: String, assistant: String) = try {
+        val body = JSONObject().put("persona", cachedPersona(ctx))
+            .put("user", user.take(2000)).put("assistant", assistant.take(4000))
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/append")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { }
+    } catch (_: Exception) {}
+
+    /** Zamknij bieżącą rozmowę twarzy — następne zdania trafią do świeżej. */
+    fun convNew(ctx: Context): Boolean = try {
+        val body = JSONObject().put("persona", cachedPersona(ctx))
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/new")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { it.isSuccessful }
+    } catch (_: Exception) { false }
+
+    /** Zapisz ostatnią rozmowę twarzy NA STAŁE (projekt). Zwraca nazwę albo null. */
+    fun convKeep(ctx: Context, title: String?): String? = try {
+        val body = JSONObject().put("persona", cachedPersona(ctx)).put("title", title ?: "")
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/keep")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { r ->
+                if (!r.isSuccessful) null
+                else JSONObject(r.body?.string() ?: "{}").optString("title", "").ifBlank { null }
+            }
+    } catch (_: Exception) { null }
+
+    /** Lista rozmów aktywnej twarzy: (tytuł, czy na stałe), od najnowszej. */
+    fun convList(ctx: Context): List<Pair<String, Boolean>> = try {
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') +
+            "/api/assistant/conversations?persona=" + java.net.URLEncoder.encode(cachedPersona(ctx), "UTF-8"))
+            .header("x-bot-pin", pin(ctx)).build())
+            .execute().use { r ->
+                if (!r.isSuccessful) emptyList()
+                else {
+                    val arr = JSONObject(r.body?.string() ?: "{}").optJSONArray("conversations") ?: return emptyList()
+                    (0 until arr.length()).mapNotNull { i ->
+                        val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                        o.optString("title") to o.optBoolean("permanent")
+                    }
+                }
+            }
+    } catch (_: Exception) { emptyList() }
+
+    /** Wczytaj rozmowę/projekt po nazwie: (tytuł, wiadomości rola→treść). null = brak. */
+    fun convLoad(ctx: Context, q: String): Pair<String, List<Pair<String, String>>>? = try {
+        val body = JSONObject().put("persona", cachedPersona(ctx)).put("q", q)
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/load")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { r ->
+                if (!r.isSuccessful) null
+                else {
+                    val o = JSONObject(r.body?.string() ?: "{}")
+                    val arr = o.optJSONArray("messages") ?: org.json.JSONArray()
+                    val msgs = (0 until arr.length()).mapNotNull { i ->
+                        val m = arr.optJSONObject(i) ?: return@mapNotNull null
+                        m.optString("role") to m.optString("text")
+                    }
+                    o.optString("title", "").ifBlank { null }?.let { it to msgs }
+                }
+            }
+    } catch (_: Exception) { null }
+
+    /**
+     * 🗂 Odruchy ROZMÓW — wołane z runTask, bo tylko tam mamy dostęp do pamięci
+     * rozmowy (history) telefonu. true = obsłużone, AI nie jest budzone.
+     */
+    fun convReflex(ctx: Context, raw: String, history: ArrayList<Pair<String, String>>, speak: (String) -> Unit): Boolean {
+        val n = normPl(raw).trim()
+        if (Regex("^(nowa rozmowa|zacznij nowa rozmowe|zaczynamy od nowa|nowy temat)$").matches(n)) {
+            history.clear()
+            Thread { convNew(ctx) }.start()
+            speak("Dobrze, zaczynam nową rozmowę. Poprzednia jest zapisana — możesz do niej wrócić.")
+            return true
+        }
+        Regex("^zapisz (te |ta )?(rozmowe|projekt)( na stale)?( jako (.+))?$").find(n)?.let { m ->
+            val title = m.groupValues[5].trim().ifBlank { null }
+            val saved = convKeep(ctx, title)
+            speak(if (saved != null) "Zapisane na stałe jako: $saved. Powiedz kiedyś: wczytaj projekt $saved — i wrócimy dokładnie tu, gdzie skończyliśmy."
+                  else "Nie udało się zapisać. Sprawdź połączenie z serwerem i czy jest zaktualizowany.")
+            return true
+        }
+        Regex("^(wczytaj|otworz|wroc do|przywroc) (rozmowe|rozmowy|projekt|projektu)( o nazwie)? (.+)$").find(n)?.let { m ->
+            val q = m.groupValues[4].trim()
+            val loaded = convLoad(ctx, q)
+            if (loaded == null) { speak("Nie znalazłem rozmowy o nazwie: $q. Powiedz: jakie mam projekty — to przeczytam listę."); return true }
+            val (title, msgs) = loaded
+            history.clear()
+            msgs.takeLast(12).forEach { history.add(it) }
+            val last = msgs.lastOrNull { it.first == "assistant" }?.second?.take(200)
+            speak("Wczytałem: $title." + (last?.let { " Ostatnio mówiłem: $it" } ?: "") + " Kontynuujemy.")
+            return true
+        }
+        if (Regex("^(jakie mam|wymien|lista|pokaz)( moje| zapisane)? (rozmowy|projekty)$").matches(n)) {
+            val list = convList(ctx)
+            if (list.isEmpty()) { speak("Ta twarz nie ma jeszcze zapisanych rozmów. Rozmowy zapisują się same — a duże projekty utrwalisz mówiąc: zapisz projekt na stałe."); return true }
+            val txt = list.take(10).joinToString(". ") { (t, perm) -> if (perm) "$t — na stałe" else t }
+            speak("Masz ${list.size} rozmów. Najnowsze: $txt. Powiedz: wczytaj projekt i nazwa — żeby wrócić.")
+            return true
+        }
+        Regex("^(usun|skasuj) (rozmowe|projekt)( o nazwie)? (.+)$").find(n)?.let { m ->
+            val q = m.groupValues[4].trim()
+            val ok = try {
+                val body = JSONObject().put("q", q)
+                http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/delete")
+                    .header("x-bot-pin", pin(ctx))
+                    .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                    .execute().use { it.isSuccessful }
+            } catch (_: Exception) { false }
+            speak(if (ok) "Usunąłem rozmowę: $q." else "Nie znalazłem rozmowy o nazwie: $q.")
+            return true
+        }
+        return false
+    }
 
     /** Wyczyść jedną sekcję nauki na serwerze. */
     fun clearSection(ctx: Context, clearPath: String): Boolean = try {
@@ -1013,6 +1141,9 @@ object Brain {
      */
     fun runTask(ctx: Context, goal: String, history: ArrayList<Pair<String, String>>, speak: (String) -> Unit) {
         cancelRequested = false   // wyzeruj u SAMEJ góry — stare „anuluj" nie może zabić nowego zadania. Audyt 10.07.
+        // 🗂 Odruchy rozmów (nowa rozmowa, zapisz projekt, wczytaj...) — tu, bo mają
+        // dostęp do pamięci rozmowy telefonu (history).
+        if (convReflex(ctx, goal, history, speak)) return
         // ⚡ Piętro 1: ODRUCHY — jednoznaczne komendy bez AI (natychmiast, 0 zł, offline).
         if (reflex(ctx, goal, speak)) return
         // 🧭 Piętro 2: AUTOPILOT — znana droga z przepisów bez AI; przy zgrzycie spada niżej.
@@ -1153,6 +1284,10 @@ object Brain {
                     Regex("utkn|nie udało|nie mogę|nie znalaz|nie ma pola", RegexOption.IGNORE_CASE)
                         .containsMatchIn("$say $spoken")
                 if (!looksFailed && steps.size >= 2) saveRecipe(ctx, goal, steps)
+                // 🗂 AUTO-ZAPIS rozmowy: każda dokończona wymiana zdań ląduje w rozmowie
+                // aktywnej twarzy na serwerze — sama, w tle, bez proszenia.
+                val finalAnswer = (if (spoken.isNotBlank()) spoken else say).take(4000)
+                if (finalAnswer.isNotBlank()) Thread { convAppend(ctx, goal, finalAnswer) }.start()
                 return
             }
             // Adaptive settle — wait only as long as each action needs, so it's fast.

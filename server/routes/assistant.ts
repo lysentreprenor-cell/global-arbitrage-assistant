@@ -292,6 +292,21 @@ OBSŁUGA KLIENTA: odpowiedzi krótkie, uprzejme, ZAWSZE domykające krok („mog
 PLATFORMY: znasz różnice — OLX (lokalnie, odbiór osobisty, uwaga na oszustów „kurierskich" z linkami do płatności — NIGDY nie klikać), Vinted (ubrania, wysyłka w apce), Allegro (opinie i gwarancje). Ostrzegaj przed oszustwami stanowczo.
 KODEKS MISTRZA: uczciwość sprzedaje najlepiej — nie wymyślasz cech, nie ukrywasz wad prawnych, nie pomagasz w niczym nielegalnym. Pomagasz sprzedać DOBRZE, nie wcisnąć.`,
   },
+  programista: {
+    name: "Programowanie", icon: "💻",
+    desc: "Pisze i tłumaczy kod, pomaga budować aplikacje i strony",
+    prompt: `🎭 SYSTEM: GADACZ PROGRAMISTA. Starszy inżynier oprogramowania i cierpliwy nauczyciel — poziom mistrzowski.
+PAMIĘTAJ O GŁOSIE: odpowiedzi są czytane NA GŁOS. Kod NIGDY nie idzie do mowy w całości — kod piszesz akcją "write" (ląduje w schowku i pliku), a głosem mówisz krótko, CO napisałeś i jak tego użyć. Nazwy w kodzie literuj tylko na prośbę.
+METODA PRACY (jak dobry senior):
+1) ZROZUM ZANIM NAPISZESZ: przy nowym zadaniu dopytaj o cel, dane wejściowe i gdzie to ma działać (telefon? strona? serwer?). Jedno pytanie naraz.
+2) NAJPROSTSZE DZIAŁAJĄCE ROZWIĄZANIE najpierw; ulepszenia proponuj po tym, jak podstawa działa.
+3) KOD KOMPLETNY: pełny plik albo pełna funkcja z importami — nie urywki, których nie da się wkleić. Zawsze powiedz, JAK uruchomić i sprawdzić, że działa.
+4) BŁĘDY: gdy użytkownik przeczyta Ci błąd, wyjaśnij po ludzku, co znaczy, wskaż najbardziej prawdopodobną przyczynę i podaj poprawkę. Ucz przy okazji, jak czytać takie błędy samemu.
+TWOJE SPECJALNOŚCI: Python, JavaScript/TypeScript, HTML i CSS, Kotlin/Android, SQL, automatyzacje i skrypty, Git i GitHub, API i JSON. Znasz darmowe narzędzia (Replit, GitHub, VS Code) i podpowiadasz je, gdy pasują.
+NAUCZYCIEL MISTRZ: tłumaczysz pojęcia na przykładach z życia (zmienna = pudełko z etykietą), bez wyższości; każde pytanie jest dobre. Postępy i ustalenia projektu zapamiętuj (akcja "remember") — wracaj do projektu po nazwie.
+DUŻE PROJEKTY: pomagaj dzielić na małe etapy i prowadź po jednym kroku; po każdym etapie krótko podsumuj, co już działa i co dalej. Przy pytaniu o najnowsze wersje bibliotek: „dodaj słowo najnowsze, a sprawdzę w internecie".
+UCZCIWOŚĆ: nie zgadujesz składni — gdy nie masz pewności, mówisz to i proponujesz, jak sprawdzić. Bez kodu szkodliwego (wirusy, włamania) — pomagasz budować, nie psuć.`,
+  },
 };
 function loadPersona(): string {
   try {
@@ -312,6 +327,111 @@ router.post("/persona", (req, res) => {
   if (!PERSONAS[p]) return res.status(400).json({ error: "Nieznany system: " + p });
   savePersona(p);
   res.json({ ok: true, persona: p });
+});
+
+// ── 🗂 ROZMOWY Z TWARZAMI — każda twarz ma swoje rozmowy, zapisywane AUTOMATYCZNIE.
+// Zwykłe rozmowy trzymamy do 25 na twarz (starsze same znikają). „Zapisz na stałe"
+// zamienia rozmowę w PROJEKT — nigdy nie jest kasowany, można do niego wracać po
+// nazwie tygodniami (duże projekty: aplikacja, sprawa w sądzie, plan leczenia).
+const CONV_FILE = path.resolve(process.cwd(), "data", "gadacz_conversations.json");
+type ConvMsg = { role: string; text: string; ts: number };
+type Conv = { id: string; persona: string; title: string; permanent: boolean; open: boolean; updated: number; messages: ConvMsg[] };
+function loadConvs(): Conv[] {
+  try { const d = JSON.parse(fs.readFileSync(CONV_FILE, "utf8")); return Array.isArray(d) ? d : []; } catch { return []; }
+}
+function saveConvs(list: Conv[]) {
+  try { fs.mkdirSync(path.dirname(CONV_FILE), { recursive: true }); fs.writeFileSync(CONV_FILE, JSON.stringify(list)); } catch {}
+}
+// Głos z telefonu przychodzi bez polskich ogonków — porównujemy tytuły „po odchudzeniu",
+// żeby „wczytaj projekt zalatw sprawe" trafiło w tytuł „Załatw sprawę w urzędzie".
+function convNorm(s: string): string {
+  const map: Record<string, string> = { "ą": "a", "ć": "c", "ę": "e", "ł": "l", "ń": "n", "ó": "o", "ś": "s", "ź": "z", "ż": "z" };
+  return s.toLowerCase().replace(/[ąćęłńóśźż]/g, ch => map[ch] ?? ch).trim();
+}
+function pruneConvs(list: Conv[]): Conv[] {
+  // Projekty na stałe zostają ZAWSZE; zwykłych rozmów trzymamy 25 najnowszych na twarz.
+  const perm = list.filter(c => c.permanent);
+  const rest = list.filter(c => !c.permanent).sort((a, b) => b.updated - a.updated);
+  const byPersona: Record<string, number> = {};
+  const kept = rest.filter(c => { byPersona[c.persona] = (byPersona[c.persona] ?? 0) + 1; return byPersona[c.persona] <= 25; });
+  return [...perm, ...kept];
+}
+// Telefon dokłada każdą wymianę zdań — rozmowa zapisuje się SAMA, bez proszenia.
+router.post("/conversation/append", (req, res) => {
+  const persona = String(req.body?.persona ?? "niewidomi");
+  const user = String(req.body?.user ?? "").slice(0, 2000);
+  const assistant = String(req.body?.assistant ?? "").slice(0, 4000);
+  if (!user && !assistant) return res.status(400).json({ error: "Pusta wymiana." });
+  const list = loadConvs();
+  let c = list.find(x => x.persona === persona && x.open);
+  if (!c) {
+    c = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), persona,
+      title: (user || "rozmowa").split(/\s+/).slice(0, 6).join(" ").slice(0, 60),
+      permanent: false, open: true, updated: Date.now(), messages: [] };
+    list.push(c);
+  }
+  const now = Date.now();
+  if (user) c.messages.push({ role: "user", text: user, ts: now });
+  if (assistant) c.messages.push({ role: "assistant", text: assistant, ts: now });
+  while (c.messages.length > 400) c.messages.shift();  // bezpiecznik na rozmiar pliku
+  c.updated = now;
+  saveConvs(pruneConvs(list));
+  res.json({ ok: true, id: c.id, title: c.title });
+});
+// „Nowa rozmowa" — bieżąca zostaje zapisana, następne zdania trafią do świeżej.
+router.post("/conversation/new", (req, res) => {
+  const persona = String(req.body?.persona ?? "niewidomi");
+  const list = loadConvs();
+  list.forEach(c => { if (c.persona === persona) c.open = false; });
+  saveConvs(list);
+  res.json({ ok: true });
+});
+// „Zapisz na stałe [jako NAZWA]" — ostatnia rozmowa tej twarzy staje się projektem.
+router.post("/conversation/keep", (req, res) => {
+  const persona = String(req.body?.persona ?? "niewidomi");
+  const title = String(req.body?.title ?? "").slice(0, 60).trim();
+  const list = loadConvs();
+  const c = list.filter(x => x.persona === persona).sort((a, b) => b.updated - a.updated)[0];
+  if (!c) return res.status(404).json({ error: "Nie ma jeszcze żadnej rozmowy z tą twarzą." });
+  c.permanent = true;
+  if (title) c.title = title;
+  saveConvs(list);
+  res.json({ ok: true, title: c.title });
+});
+// Lista rozmów (dla twarzy albo wszystkich) — tytuły do przeczytania na głos.
+router.get("/conversations", (req, res) => {
+  const persona = String(req.query?.persona ?? "");
+  const list = loadConvs().filter(c => !persona || c.persona === persona)
+    .sort((a, b) => b.updated - a.updated)
+    .map(c => ({ id: c.id, persona: c.persona, title: c.title, permanent: c.permanent, count: c.messages.length, updated: c.updated }));
+  res.json({ conversations: list.slice(0, 60) });
+});
+// „Wczytaj projekt X" — szukamy po nazwie, otwieramy z powrotem (dalsze zdania
+// dopisują się do NIEGO) i oddajemy treść, żeby telefon przypomniał sobie kontekst.
+router.post("/conversation/load", (req, res) => {
+  const persona = String(req.body?.persona ?? "");
+  const q = convNorm(String(req.body?.q ?? ""));
+  if (!q) return res.status(400).json({ error: "Podaj nazwę rozmowy." });
+  const list = loadConvs();
+  const pool = list.filter(c => !persona || c.persona === persona);
+  const hit = pool.find(c => convNorm(c.title) === q)
+    ?? pool.filter(c => convNorm(c.title).includes(q)).sort((a, b) => b.updated - a.updated)[0];
+  if (!hit) return res.status(404).json({ error: "Nie znalazłem rozmowy o nazwie: " + q });
+  list.forEach(c => { if (c.persona === hit.persona) c.open = false; });
+  hit.open = true;
+  saveConvs(list);
+  res.json({ ok: true, id: hit.id, title: hit.title, permanent: hit.permanent, persona: hit.persona,
+    messages: hit.messages.slice(-24).map(m => ({ role: m.role, text: m.text })) });
+});
+// Kasowanie rozmowy/projektu — po nazwie, świadomą decyzją użytkownika.
+router.post("/conversation/delete", (req, res) => {
+  const q = convNorm(String(req.body?.q ?? ""));
+  if (!q) return res.status(400).json({ error: "Podaj nazwę." });
+  const list = loadConvs();
+  const hit = list.filter(c => convNorm(c.title).includes(q)).sort((a, b) => b.updated - a.updated)[0];
+  if (!hit) return res.status(404).json({ error: "Nie znalazłem: " + q });
+  saveConvs(list.filter(c => c.id !== hit.id));
+  res.json({ ok: true, title: hit.title });
 });
 
 // 🤏 ADRES LOKALNEGO MÓZGU — z jakiego linku telefon pobiera model AI do trybu
@@ -715,6 +835,7 @@ Zasady "say" — POPRAWNY, NATURALNY POLSKI (ważne, bo to czyta osoba niewidoma
 - Numery telefonów wymawiaj cyframi z przerwami, np. "pięćset, sześćset, siedemset".
 - Przy opisie obrazu (action "none"): najpierw zagrożenia jeśli są, potem jedno zdanie co to jest, najważniejsze szczegóły, na końcu przeczytaj CAŁY widoczny tekst (nazwy, ceny, godziny, numery).
 - Gdy polecenie jest niejasne — dopytaj w "say" (action "none").
+- 🗂 ZAPISANE ROZMOWY: każda rozmowa zapisuje się SAMA (osobno dla każdej twarzy). Użytkownik może powiedzieć: „nowa rozmowa" (świeży temat), „zapisz projekt na stałe jako NAZWA" (duże projekty nigdy nie znikają), „wczytaj projekt NAZWA" (powrót do miejsca, gdzie skończył), „jakie mam projekty" (lista). Gdy widzisz, że użytkownik prowadzi duży, wielodniowy temat (budowa aplikacji, sprawa urzędowa, plan leczenia) — SAM zaproponuj raz: „chcesz, żebym zapisał to na stałe jako projekt? Powiedz: zapisz projekt na stałe".
 - 💬 ROZMOWNOŚĆ: gdy użytkownik ROZMAWIA (pyta o świat, opowiada, nudzi się, żartuje, pyta co słychać) — nie zbywaj go jednym zdaniem. Odpowiedz 2-4 pełnymi, ciekawymi zdaniami, dodaj coś od siebie i zakończ krótkim pytaniem podtrzymującym rozmowę. Krótkie potwierdzenia zostaw dla AKCJI; w rozmowie bądź towarzyski.
 - 🌱 UCZ SIĘ SAM, Z WŁASNEJ WOLI (bardzo ważne — użytkownik NIE ma Cię uczyć ręcznie, to TY masz chcieć się rozwijać):
   • Gdy w rozmowie padnie trwały FAKT o użytkowniku, jego bliskich, zwyczajach, preferencjach czy sposobie mówienia — od razu użyj akcji "remember" (bez pytania), a w "say" wpleć krótko „Zapamiętam to". Przykłady: „mój wnuk ma na imię Adaś", „nie lubię, jak mówisz za szybko", „leki biorę o ósmej", „mama to tak naprawdę Krystyna".

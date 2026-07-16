@@ -39,7 +39,13 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     // 💬 Tryb ROZMOWY: po skończeniu mówienia Gadacz sam otwiera mikrofon na kolejne
     // zdanie — bez dotykania przycisku. Cisza (brak mowy) zamyka rozmowę.
     private var convPending = false
-    private var convChances = 0   // ile jeszcze cichych pauz tolerujemy zanim rozmowa się kończy
+    // ⏳ Do KIEDY (zegar telefonu) rozmowa toleruje ciszę — ustawiane z wyboru
+    // użytkownika (Ustawienia → czas rozmowy). Long.MAX_VALUE = „ciągle".
+    private var convUntil = 0L
+    private fun convDeadline(): Long {
+        val s = Brain.convWaitSec(this)
+        return if (s < 0) Long.MAX_VALUE else android.os.SystemClock.elapsedRealtime() + s * 1000L
+    }
     private val pendingSpeech = java.util.concurrent.atomic.AtomicInteger(0)
     private var uttSeq = 0
     @Volatile private var taskRunning = false   // trwa zadanie — dotknięcie je przerywa
@@ -226,7 +232,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                         // (mikrofon otworzy się sam po „Słucham?" — tryb rozmowy).
                         speak("Słucham?")
                         convPending = true
-                        convChances = 4   // po „Słucham?" też rozmawiaj naturalnie, bez „Gadacz"
+                        convUntil = convDeadline()   // po „Słucham?" też rozmawiaj naturalnie, bez „Gadacz"
                         return
                     }
                     restartWake(300)
@@ -335,13 +341,12 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     }
 
     /**
-     * Cisza w trakcie rozmowy. Jak z człowiekiem — krótka pauza NIE kończy rozmowy:
-     * dajemy jeszcze kilka okien nasłuchu (convChances), żeby nie trzeba było
-     * powtarzać „Gadacz" po każdym zdaniu. Dopiero dłuższa cisza wraca do czuwania.
+     * Cisza w trakcie rozmowy. Jak z człowiekiem — pauza NIE kończy rozmowy:
+     * słuchamy dalej, aż minie CZAS wybrany przez użytkownika w Ustawieniach
+     * (5 sekund do godziny albo „ciągle"). Dopiero wtedy wracamy do czuwania.
      */
     private fun endConversation() {
-        if (convPending && convChances > 0) {
-            convChances--
+        if (convPending && android.os.SystemClock.elapsedRealtime() < convUntil) {
             bubble?.postDelayed({ if (convPending && !busy && !taskRunning) startListening(auto = true) }, 250)
             return
         }
@@ -380,10 +385,10 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                 if (pendingSpeech.get() <= 0) { pendingSpeech.set(0); duckStop() }
                 setBubble(if (wakeMode) "👂" else "🗣️")
                 // 💬 Tryb rozmowy: po odpowiedzi Gadacz sam otwiera mikrofon i słucha
-                // dalej — możesz mówić naturalnie, bez powtarzania „Gadacz". Kilka okien
-                // tolerancji na pauzę (convChances), żeby krótkie przerwy nie kończyły rozmowy.
+                // dalej — możesz mówić naturalnie, bez powtarzania „Gadacz". Cisza jest
+                // tolerowana przez czas wybrany w Ustawieniach (convUntil).
                 convPending = true
-                convChances = 4
+                convUntil = convDeadline()
                 if (pendingSpeech.get() <= 0) maybeContinueConversation()
             }
         }.start()
