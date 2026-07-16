@@ -288,9 +288,18 @@ object Brain {
         http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/persona")
             .header("x-bot-pin", pin(ctx)).build())
             .execute().use { r ->
-                if (!r.isSuccessful) "" else JSONObject(r.body?.string() ?: "{}").optString("persona", "")
+                val p = if (!r.isSuccessful) "" else JSONObject(r.body?.string() ?: "{}").optString("persona", "")
+                if (p.isNotBlank()) prefs(ctx).edit().putString("persona_cache", p).apply()  // zapamiętaj — offline też będziemy wiedzieć
+                p
             }
     } catch (_: Exception) { "" }
+
+    /** 🎭 Ostatnio znana twarz (z pamięci telefonu) — działa też bez internetu. */
+    fun cachedPersona(ctx: Context): String = prefs(ctx).getString("persona_cache", "niewidomi") ?: "niewidomi"
+
+    /** 🆓 Czy AKTYWNA twarz umie działać BEZ internetu? Tylko Ogólny i Dla niewidomych —
+     *  reszta (Prawnik, Lekarz...) potrzebuje mądrego mózgu z chmury. */
+    fun faceWorksOffline(ctx: Context): Boolean = cachedPersona(ctx) in setOf("niewidomi", "ogolny")
 
     /** 🎭 Ustaw SYSTEM (osobowość) na serwerze — telefon i strona www widzą to samo. */
     fun setPersona(ctx: Context, key: String): Boolean = try {
@@ -1004,13 +1013,19 @@ object Brain {
         // 🧭 Piętro 2: AUTOPILOT — znana droga z przepisów bez AI; przy zgrzycie spada niżej.
         if (floorOn(ctx, "autopilot") && tryAutopilot(ctx, goal, speak)) return
         // 🆓 TRYB DARMOWY: chmury nie budzimy. Odruchy i autopilot już próbowały,
-        // więc zostaje lokalny mózg w telefonie — a jak go brak, mówimy uczciwie.
+        // więc zostaje lokalny mózg — ale TYLKO gdy aktywna twarz umie działać offline
+        // (Ogólny / Dla niewidomych). Twarze fachowców (Prawnik, Lekarz...) potrzebują
+        // mądrego mózgu z chmury, więc uczciwie o tym mówimy.
         if (!paidMode(ctx)) {
+            if (!faceWorksOffline(ctx)) {
+                speak("Ta twarz — ${cachedPersona(ctx)} — potrzebuje internetu i mądrego mózgu. Przełącz na Ogólny albo Dla niewidomych, żeby działać bez sieci, albo powiedz: pracuj za opłatą.")
+                return
+            }
             val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
             speak(local ?: (if (LocalBrain.available(ctx))
                 "Lokalny mózg nie zna odpowiedzi. Powiedz: pracuj za opłatą — a zapytam mądrego mózgu w chmurze."
             else
-                "Jestem w trybie darmowym i tego nie umiem zrobić sam. Powiedz: pracuj za opłatą — a użyję mądrego mózgu w chmurze."))
+                "Nie mam wgranego lokalnego mózgu. Pobierz go w ustawieniach, albo powiedz: pracuj za opłatą."))
             return
         }
         // 🧠 Piętro 3: AI — pełne rozumienie (poniżej).
@@ -1047,9 +1062,14 @@ object Brain {
                 if (lastError.isNotBlank()) append("\n\nUWAGA: poprzedni krok NIE WYSZEDŁ: $lastError Spróbuj INACZEJ — inny dokładny napis z EKRANU, scroll żeby odsłonić element, paste zamiast type, albo inna droga do celu. Nie przerywaj zadania.")
             }
             val resp = try { ask(ctx, question, history, screen, shot) } catch (e: Exception) {
-                // 🤏 Piętro 6: serwer/sieć padły → próbuje lokalny mały mózg (offline).
-                val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
-                speak(local ?: "Błąd połączenia z serwerem.")
+                // 🤏 Piętro 6: serwer/sieć padły → lokalny mózg RATUJE, ale tylko dla twarzy
+                // działających offline (Ogólny / Dla niewidomych); fachowcy wymagają sieci.
+                if (faceWorksOffline(ctx)) {
+                    val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+                    speak(local ?: "Nie ma połączenia z internetem. Wgraj lokalny mózg w ustawieniach, a będę działał offline.")
+                } else {
+                    speak("Nie ma połączenia z internetem, a twarz ${cachedPersona(ctx)} go potrzebuje. Przełącz na Ogólny albo Dla niewidomych, żeby działać bez sieci.")
+                }
                 return
             }
             // 🔇 KONIEC MILCZENIA: serwer zgłosił błąd → resp nie ma "say" i Gadacz
