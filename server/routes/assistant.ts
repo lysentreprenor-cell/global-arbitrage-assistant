@@ -327,9 +327,8 @@ const BRAIN_URL = `${BRAIN_REL}/gadacz-mozg.task`; // domyślny (kompatybilnoś�
 // 🧠 SILNIKI LOKALNE do wyboru — telefon pokazuje listę, użytkownik pobiera ten,
 // który udźwignie jego telefon. Wszystkie na licencji Apache (Qwen / SmolLM).
 const BRAIN_OPTIONS = [
-  { key: "mini",   name: "🐭 Mały (szybki)",        desc: "Qwen 0.5B, ~0.5 GB — działa na każdym telefonie", file: "gadacz-mozg-mini.task" },
-  { key: "sredni", name: "🐇 Średni (mądrzejszy)",  desc: "Qwen 1.5B, ~1.3 GB — potrzeba 4 GB RAM",           file: "gadacz-mozg-sredni.task" },
-  { key: "duzy",   name: "🦉 Duży (najmądrzejszy)", desc: "SmolLM 1.7B, ~1.8 GB — mocny telefon, 6 GB+ RAM",  file: "gadacz-mozg-duzy.task" },
+  { key: "mini",   name: "🐭 Mały (szybki)",       desc: "Qwen 0.5B, ~0.5 GB — działa na każdym telefonie", file: "gadacz-mozg-mini.task" },
+  { key: "sredni", name: "🐇 Średni (mądrzejszy)", desc: "Qwen 1.5B, ~1.5 GB — mocniejszy, potrzeba 4 GB RAM", file: "gadacz-mozg-sredni.task" },
 ];
 router.get("/brain-url", (_req, res) => res.json({
   url: BRAIN_URL,
