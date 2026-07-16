@@ -460,7 +460,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         try { stopService(svc) } catch (_: Exception) {}
         if (mode != "off") {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
-            speak(if (mode == "staly") "Tryb stały włączony. Nasłuchuję cały czas — powiedz Gadacz i polecenie."
+            speak(if (mode == "staly") "Tryb stały włączony. Powiedz Gadacz raz, żeby zacząć — a potem rozmawiaj ze mną normalnie, nie musisz powtarzać."
                   else "Pływający przycisk włączony. Znajdziesz go w rogu ekranu — dotknij i mów.")
         } else speak("Pływający przycisk wyłączony.")
         refreshFloatButtons()

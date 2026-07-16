@@ -39,6 +39,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     // 💬 Tryb ROZMOWY: po skończeniu mówienia Gadacz sam otwiera mikrofon na kolejne
     // zdanie — bez dotykania przycisku. Cisza (brak mowy) zamyka rozmowę.
     private var convPending = false
+    private var convChances = 0   // ile jeszcze cichych pauz tolerujemy zanim rozmowa się kończy
     private val pendingSpeech = java.util.concurrent.atomic.AtomicInteger(0)
     private var uttSeq = 0
     @Volatile private var taskRunning = false   // trwa zadanie — dotknięcie je przerywa
@@ -225,6 +226,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                         // (mikrofon otworzy się sam po „Słucham?" — tryb rozmowy).
                         speak("Słucham?")
                         convPending = true
+                        convChances = 4   // po „Słucham?" też rozmawiaj naturalnie, bez „Gadacz"
                         return
                     }
                     restartWake(300)
@@ -332,8 +334,17 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         try { recognizer?.startListening(intent) } catch (e: Exception) { busy = false; setBubble("🗣️"); speak("Błąd mikrofonu.") }
     }
 
-    /** Cisza albo pożegnanie — rozmowa skończona; wraca zwykły czuwający stan. */
+    /**
+     * Cisza w trakcie rozmowy. Jak z człowiekiem — krótka pauza NIE kończy rozmowy:
+     * dajemy jeszcze kilka okien nasłuchu (convChances), żeby nie trzeba było
+     * powtarzać „Gadacz" po każdym zdaniu. Dopiero dłuższa cisza wraca do czuwania.
+     */
     private fun endConversation() {
+        if (convPending && convChances > 0) {
+            convChances--
+            bubble?.postDelayed({ if (convPending && !busy && !taskRunning) startListening(auto = true) }, 250)
+            return
+        }
         convPending = false
         if (wakeMode) restartWake(800)
     }
@@ -368,9 +379,11 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                 // licznik mowy utknął (TTS nie odpalił utterance). Audyt 10.07.
                 if (pendingSpeech.get() <= 0) { pendingSpeech.set(0); duckStop() }
                 setBubble(if (wakeMode) "👂" else "🗣️")
-                // 💬 Tryb rozmowy: gdy Gadacz skończy mówić odpowiedź, sam otworzy
-                // mikrofon na Twoje kolejne zdanie (maybeContinueConversation).
+                // 💬 Tryb rozmowy: po odpowiedzi Gadacz sam otwiera mikrofon i słucha
+                // dalej — możesz mówić naturalnie, bez powtarzania „Gadacz". Kilka okien
+                // tolerancji na pauzę (convChances), żeby krótkie przerwy nie kończyły rozmowy.
                 convPending = true
+                convChances = 4
                 if (pendingSpeech.get() <= 0) maybeContinueConversation()
             }
         }.start()
