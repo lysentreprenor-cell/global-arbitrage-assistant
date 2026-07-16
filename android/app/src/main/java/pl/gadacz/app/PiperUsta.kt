@@ -116,9 +116,8 @@ object PiperUsta {
                             .setSampleRate(sr)
                             .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                             .setEncoding(AudioFormat.ENCODING_PCM_FLOAT).build())
-                        .setTransferMode(AudioTrack.MODE_STREAMING)
                         .setBufferSizeInBytes(maxOf(minBuf, 32 * 1024))
-                        .build()
+                        .build()   // domyślny tryb Buildera to strumień (MODE_STREAMING)
                     track = at
                     at.play()
                     var off = 0
