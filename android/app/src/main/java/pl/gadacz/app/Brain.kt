@@ -221,6 +221,36 @@ object Brain {
     }
     fun serverUrl(ctx: Context) = prefs(ctx).getString("server_url", "") ?: ""
     fun anthropicKey(ctx: Context) = prefs(ctx).getString("anthropic_key", "") ?: ""
+
+    /**
+     * 🩺 POŁĄCZENIE Z SERWEREM (Replit): czy żyje, jak szybko odpowiada.
+     * wake=true → pukamy kilka razy z rzędu, żeby uśpiony serwer zdążył wstać.
+     * Zwraca gotowy tekst do przeczytania na głos — zawsze uczciwy.
+     */
+    fun serverReport(ctx: Context, wake: Boolean): String {
+        val base = serverUrl(ctx).trimEnd('/')
+        if (base.isBlank()) return "Nie masz ustawionego adresu serwera. Wejdź w Ustawienia, Połączenia, i wpisz adres z Replit."
+        val tries = if (wake) 6 else 1
+        for (i in 1..tries) {
+            val t0 = System.currentTimeMillis()
+            try {
+                http.newCall(Request.Builder().url("$base/api/assistant/persona").header("x-bot-pin", pin(ctx)).build())
+                    .execute().use { r ->
+                        if (r.isSuccessful) {
+                            val s = (System.currentTimeMillis() - t0) / 1000
+                            return if (s < 2) "Serwer działa i odpowiada od ręki. Wszystko gra."
+                            else "Serwer działa, odpowiedział po $s sekundach."
+                        }
+                        if (r.code == 401) return "Serwer działa, ale prosi o PIN aplikacji. Sprawdź PIN w Ustawieniach."
+                    }
+            } catch (_: Exception) {}
+            if (i < tries) try { Thread.sleep(4000) } catch (_: Exception) {}
+        }
+        return if (wake)
+            "Nie udało się dobudzić serwera. Darmowy Replit wstaje dopiero, gdy otworzysz go w przeglądarce i naciśniesz Run."
+        else
+            "Serwer nie odpowiada — pewnie śpi. Powiedz: obudź serwer, a spróbuję go dobudzić. Jak się nie uda, otwórz Replit i naciśnij Run."
+    }
     fun pin(ctx: Context) = prefs(ctx).getString("app_pin", "") ?: ""
     fun wakeWord(ctx: Context) = (prefs(ctx).getString("wake_word", "") ?: "").lowercase().trim().ifBlank { "gadacz" }
     /**
@@ -693,6 +723,14 @@ object Brain {
                 Thread { runTask(ctx, g, ArrayList(), speak) }.start()
                 return true
             }
+        }
+
+        // 🩺 SERWER (Replit): sprawdzanie i budzenie — głosem, bez przeglądarki.
+        if (Regex("^(sprawdz|zbadaj) serwer(a)?$|^czy serwer (dziala|zyje|odpowiada)$|^jak serwer$").matches(n))
+            return done(serverReport(ctx, false))
+        if (Regex("^(obudz|wybudz|dobudz|uruchom) serwer(a)?$").matches(n)) {
+            speak("Budzę serwer, daj mi pół minuty.")
+            return done(serverReport(ctx, true))
         }
 
         // 📶 BLUETOOTH: czym można sterować + łączenie ze sparowanym urządzeniem.

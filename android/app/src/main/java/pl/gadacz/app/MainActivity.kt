@@ -249,7 +249,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     /** ⚙ Centrum ustawień — cały dawny panel z ekranu głównego w jednym miejscu. */
     private fun showSettingsHub() {
         val items = arrayOf(
-            "🔑  Adres serwera i klucz",
+            "🔌  POŁĄCZENIA (Claude · Replit · GitHub)",
             "✅  Co jeszcze zostało (gotowość)",
             "♿  Włącz sterowanie ekranem",
             "🔓  Odblokuj (jeśli szare) — 3 kropki",
@@ -264,7 +264,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setTitle("⚙ Ustawienia Gadacza")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> showSettings()
+                    0 -> showConnections()
                     1 -> { val s = readinessSummary(false); appendLine("✅ $s"); speak(s) }
                     2 -> enableAccessibilityFlow()
                     3 -> {
@@ -875,6 +875,58 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     private fun appendLine(s: String) { runOnUiThread { transcript.text = "$s\n\n${transcript.text}" } }
+
+    // ── 🔌 POŁĄCZENIA — jedno miejsce na wszystkie „kable" Gadacza do świata:
+    // Claude (mądry mózg w chmurze), Replit (Twój serwer) i GitHub (aktualizacje).
+    // Każde ze statusem, testem i podpinaniem — jak porządna integracja.
+    private fun showConnections() {
+        val claudeOk = Brain.anthropicKey(this).isNotBlank()
+        val srv = Brain.serverUrl(this)
+        val items = arrayOf(
+            if (claudeOk) "🤖  Claude (mądry mózg): PODŁĄCZONY — dotknij, by zmienić klucz"
+            else "🤖  Claude (mądry mózg): BRAK KLUCZA — dotknij i wklej klucz",
+            if (srv.isNotBlank()) "☁️  Replit (Twój serwer): ${srv.removePrefix("https://").take(38)}"
+            else "☁️  Replit (Twój serwer): BRAK ADRESU — dotknij i wpisz",
+            "🩺  Sprawdź serwer (działa? śpi?)",
+            "⏰  Obudź serwer (darmowy Replit zasypia)",
+            "🐙  GitHub (aktualizacje i silniki): sprawdź połączenie",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("🔌 Połączenia Gadacza")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0, 1 -> showSettings()
+                    2 -> pingServer(wake = false)
+                    3 -> pingServer(wake = true)
+                    4 -> checkGithub()
+                }
+            }
+            .setNegativeButton("Zamknij", null).show()
+    }
+
+    private fun pingServer(wake: Boolean) {
+        setStatus(if (wake) "⏰ Budzę serwer…" else "🩺 Sprawdzam serwer…")
+        if (wake) speak("Budzę serwer, daj mi pół minuty.")
+        Thread {
+            val r = Brain.serverReport(this, wake)
+            runOnUiThread { setStatus("Gotowy"); appendLine("🩺 $r"); speak(r) }
+        }.start()
+    }
+
+    private fun checkGithub() {
+        setStatus("🐙 Sprawdzam GitHub…")
+        Thread {
+            val latest = Updater.checkLatest()
+            val cur = Updater.currentVersion(this)
+            val r = if (latest == null)
+                "Nie mogę się połączyć z GitHubem. Sprawdź internet i spróbuj za chwilę."
+            else if (latest == cur)
+                "GitHub połączony. Masz najnowszą wersję: $cur. Stąd też pobierają się silniki."
+            else
+                "GitHub połączony. Jest nowsza wersja: $latest, Ty masz $cur — wejdź w Sprawdź aktualizację."
+            runOnUiThread { setStatus("Gotowy"); appendLine("🐙 $r"); speak(r) }
+        }.start()
+    }
 
     private fun showSettings() {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 20, 40, 0) }
