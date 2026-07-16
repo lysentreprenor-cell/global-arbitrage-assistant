@@ -95,6 +95,7 @@ export default function AssistantPage() {
   type PersonaInfo = { key: string; name: string; icon: string; desc: string };
   const [personas, setPersonas] = useState<PersonaInfo[]>([]);
   const [persona, setPersona] = useState("niewidomi");
+  const [personaOpen, setPersonaOpen] = useState(false);  // twarze zwinięte domyślnie
   useEffect(() => {
     fetch("/api/assistant/persona").then(r => r.json())
       .then(d => { setPersonas(d.list ?? []); if (d.persona) setPersona(d.persona); }).catch(() => {});
@@ -538,26 +539,37 @@ export default function AssistantPage() {
           </span>
         </div>
 
-        {/* 🎭 SYSTEMY GADACZA — wybór osobowości */}
+        {/* 🎭 TWARZE GADACZA — ZWINIĘTE pod nagłówek (koniec siatki kafelków) */}
         {personas.length > 0 && (
-          <div style={{ border: "3px solid #d97706", borderRadius: 16, background: "#292013", padding: 14 }}>
-            <div style={{ color: "#fde68a", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
-              🎭 TWARZ GADACZA: {personas.find(p => p.key === persona)?.icon} {personas.find(p => p.key === persona)?.name}
-            </div>
-            <div style={{ color: "#d6b98c", fontSize: 13, marginBottom: 10 }}>
-              Jeden Gadacz, różne twarze — wybierz, kim ma być. Podstawa zostaje ta sama, zmienia się specjalność i sposób mówienia. Działa też w aplikacji na telefonie.
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {personas.map(p => (
-                <button key={p.key} onClick={() => pickPersona(p.key)}
-                  style={{ textAlign: "left", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
-                    border: persona === p.key ? "2px solid #fbbf24" : "2px solid #57534e",
-                    background: persona === p.key ? "#78350f" : "#1c1917" }}>
-                  <div style={{ color: "#fef3c7", fontSize: 15, fontWeight: 800 }}>{p.icon} {p.name}{persona === p.key ? " ✓" : ""}</div>
-                  <div style={{ color: "#a8a29e", fontSize: 12, marginTop: 2 }}>{p.desc}</div>
-                </button>
-              ))}
-            </div>
+          <div style={{ border: "3px solid #d97706", borderRadius: 16, background: "#292013", overflow: "hidden" }}>
+            <button onClick={() => setPersonaOpen(o => !o)}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
+                background: "transparent", border: "none", color: "#fde68a", fontSize: 17, fontWeight: 800, padding: "0 16px", cursor: "pointer" }}>
+              <span>🎭 TWARZ: {personas.find(p => p.key === persona)?.icon} {personas.find(p => p.key === persona)?.name}</span>
+              <span style={{ fontSize: 20 }}>{personaOpen ? "▲" : "▼"}</span>
+            </button>
+            {personaOpen && (
+              <div style={{ padding: "0 12px 12px" }}>
+                <div style={{ color: "#d6b98c", fontSize: 13, marginBottom: 10 }}>
+                  Ogólny i Dla niewidomych działają też bez internetu (lokalny mózg). Pozostałe twarze wymagają internetu.
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {personas.map(p => {
+                    const offline = p.key === "niewidomi" || p.key === "ogolny";
+                    return (
+                      <button key={p.key} onClick={() => { pickPersona(p.key); setPersonaOpen(false); }}
+                        style={{ textAlign: "left", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
+                          border: persona === p.key ? "2px solid #fbbf24" : "2px solid #57534e",
+                          background: persona === p.key ? "#78350f" : "#1c1917" }}>
+                        <div style={{ color: "#fef3c7", fontSize: 15, fontWeight: 800 }}>{p.icon} {p.name}{persona === p.key ? " ✓" : ""}</div>
+                        <div style={{ color: offline ? "#86efac" : "#fca5a5", fontSize: 11, marginTop: 2 }}>{offline ? "🆓 działa też offline" : "🌐 wymaga internetu"}</div>
+                        <div style={{ color: "#a8a29e", fontSize: 12, marginTop: 2 }}>{p.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
