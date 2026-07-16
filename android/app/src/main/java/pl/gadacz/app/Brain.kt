@@ -40,6 +40,10 @@ object Brain {
      * Przełączany przyciskiem i głosem; gdy skończą się środki na kluczu,
      * Gadacz przechodzi na darmowy SAM i mówi o tym.
      */
+    /** 🎚️ Stopień pracy chmury: "easy" (taniej) / "normal" / "hard" (najlepszy). */
+    fun workLevel(ctx: Context): String = prefs(ctx).getString("work_level", "normal") ?: "normal"
+    fun setWorkLevel(ctx: Context, lvl: String) { prefs(ctx).edit().putString("work_level", lvl).apply() }
+
     fun paidMode(ctx: Context): Boolean = prefs(ctx).getBoolean("paid_mode", true)
     fun setPaidMode(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("paid_mode", on).apply() }
 
@@ -989,6 +993,7 @@ object Brain {
             put("history", msgs)
             put("clientTime", SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale("pl", "PL")).format(Date()))
             put("learn", learnJournalOn(ctx))   // 🧠 serwer nie zapisuje dziennika, gdy ta sekcja wyłączona
+            put("work", workLevel(ctx))          // 🎚️ stopień pracy: easy / normal / hard → dobór modeli
             // 📸 Zrzut ekranu — AI widzi ekran naprawdę, nie tylko listę napisów.
             if (imageBase64 != null) { put("imageBase64", imageBase64); put("mediaType", "image/jpeg") }
         }

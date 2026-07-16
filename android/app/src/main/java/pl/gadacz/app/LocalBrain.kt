@@ -78,6 +78,13 @@ object LocalBrain {
 
     fun available(ctx: Context): Boolean = modelPath(ctx) != null
 
+    /** 🏷️ Krótka nazwa wgranego mózgu do napisu na kafelku: „Mały" / „Średni" / „brak". */
+    fun installedShort(ctx: Context): String {
+        val p = modelPath(ctx) ?: return "brak"
+        val mb = File(p).length() / (1024 * 1024)
+        return when { mb >= 1000 -> "Średni"; mb >= 300 -> "Mały"; else -> "jest" }
+    }
+
     /** 🏷️ Który mózg jest wgrany — rozpoznawany po ROZMIARZE pliku. */
     fun installedName(ctx: Context): String {
         val p = modelPath(ctx) ?: return "brak"

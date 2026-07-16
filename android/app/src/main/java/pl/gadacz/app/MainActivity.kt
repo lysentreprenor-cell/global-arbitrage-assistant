@@ -33,6 +33,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var transcript: TextView
     private lateinit var personaBtn: Button
     private lateinit var payBtn: Button
+    private lateinit var floatStalyBtn: Button
+    private lateinit var floatDotykBtn: Button
+    private val workBtns = HashMap<String, Button>()
     private val history = ArrayList<Pair<String, String>>()
     private var lastAnswer = ""
 
@@ -73,6 +76,36 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val s = Brain.bluetoothReport(this); lastAnswer = s; appendLine("📶 $s"); speak(s)
         }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
+
+        // 🎈 PANEL PŁYWAJĄCEGO PRZYCISKU — dwa kwadraciki (włącz/wyłącz na 1 stronie):
+        //   Stały = nasłuch słowa „Gadacz" cały czas; Dotyk = przycisk, klikasz i mówisz.
+        //   Dotknięcie WŁĄCZONEGO trybu = wyłączenie pływającego przycisku.
+        fun sq(label: String, onClick: () -> Unit) = Button(this).apply {
+            text = label; textSize = 15f; setTextColor(0xFFE5E5E5.toInt()); setBackgroundColor(0xFF1C1917.toInt()); isAllCaps = false
+            layoutParams = LinearLayout.LayoutParams(0, dp(76), 1f).apply { marginStart = dp(3); marginEnd = dp(3) }
+            setOnClickListener { onClick() }
+        }
+        fun rowOf(vararg bs: Button) = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) }
+            for (b in bs) addView(b)
+        }
+        val floatHeader = TextView(this).apply {
+            text = "🎈 Pływający przycisk (dostęp w każdej apce):"
+            textSize = 15f; setTextColor(0xFFA8A29E.toInt()); setPadding(0, dp(14), 0, 0)
+        }
+        floatStalyBtn = sq("🔴 Tryb stały\n(nasłuch)") { toggleFloat("staly") }
+        floatDotykBtn = sq("👆 Na dotknięcie\n(klikasz)") { toggleFloat("dotyk") }
+
+        // 🎚️ STOPIEŃ PRACY — trzy kwadraciki: taniej ↔ najlepiej.
+        val workHeader = TextView(this).apply {
+            text = "🎚️ Jak mocno ma pracować mądry mózg:"
+            textSize = 15f; setTextColor(0xFFA8A29E.toInt()); setPadding(0, dp(14), 0, 0)
+        }
+        workBtns["easy"]   = sq("💚 Łatwy\n(taniej)")   { setWork("easy") }
+        workBtns["normal"] = sq("⚖️ Normalny")          { setWork("normal") }
+        workBtns["hard"]   = sq("🏆 Trudny\n(najlepiej)"){ setWork("hard") }
+
         // 💰/🆓 Tryb pracy: płatny (mądry mózg w chmurze) albo darmowy (telefon sam).
         payBtn = btn("", 0xFFFDE68A.toInt(), 0xFF3B2A06.toInt(), 66) { togglePaidMode() }
         refreshPayButton()
@@ -83,12 +116,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(repeat); col.addView(payBtn)
-        col.addView(personaBtn); col.addView(settings); col.addView(transcript)
+        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(repeat)
+        col.addView(floatHeader); col.addView(rowOf(floatStalyBtn, floatDotykBtn))
+        col.addView(workHeader); col.addView(rowOf(workBtns["easy"]!!, workBtns["normal"]!!, workBtns["hard"]!!))
+        col.addView(payBtn); col.addView(personaBtn); col.addView(settings); col.addView(transcript)
         setContentView(outer)
 
-        // Pokaż na przycisku, która twarz jest teraz wybrana (pobierane z serwera).
-        refreshPersonaButtons()
+        // Podświetl aktualny stan paneli i twarz.
+        refreshFloatButtons(); refreshWorkButtons(); refreshPersonaButtons()
 
         // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).
         Thread {
@@ -218,17 +253,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     /** ⚙ Centrum ustawień — cały dawny panel z ekranu głównego w jednym miejscu. */
     private fun showSettingsHub() {
+        val brainLabel = if (LocalBrain.available(this)) "🤏  Lokalny mózg: ${LocalBrain.installedShort(this)} — dotknij, by zmienić"
+                         else "🤏  Lokalny mózg: BRAK — dotknij, by pobrać"
         val items = arrayOf(
             "🔑  Adres serwera i klucz",
             "✅  Co jeszcze zostało (gotowość)",
-            "🟢  Włącz pływający przycisk",
             "♿  Włącz sterowanie ekranem",
             "🔓  Odblokuj (jeśli szare) — 3 kropki",
             "📢  Czytaj powiadomienia na głos",
             "🔄  Sprawdź aktualizację (v${Updater.currentVersion(this)})",
             "🧠  Nauka (włącz/wyłącz · kopiuj · kasuj)",
             "🏫  Naucz się całego telefonu",
-            "🤏  Pobierz lokalny mózg (rozmowy offline)",
+            brainLabel,
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -236,21 +272,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 when (which) {
                     0 -> showSettings()
                     1 -> { val s = readinessSummary(false); appendLine("✅ $s"); speak(s) }
-                    2 -> enableOverlay()
-                    3 -> enableAccessibilityFlow()
-                    4 -> {
+                    2 -> enableAccessibilityFlow()
+                    3 -> {
                         speak("Naciśnij trzy kropki w prawym górnym rogu i wybierz: Zezwól na ustawienia z ograniczeniami. Potem wróć i włącz sterowanie ekranem.")
                         try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
                     }
-                    5 -> {
+                    4 -> {
                         Brain.prefs(this).edit().putBoolean("read_notifications", true).apply()
                         speak("Włącz Gadacza na liście dostępu do powiadomień.")
                         try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (_: Exception) {}
                     }
-                    6 -> doUpdate(manual = true)
-                    7 -> showLearning()
-                    8 -> confirmLearnDevice()
-                    9 -> confirmLocalBrain()
+                    5 -> doUpdate(manual = true)
+                    6 -> showLearning()
+                    7 -> confirmLearnDevice()
+                    8 -> confirmLocalBrain()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
@@ -403,15 +438,63 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     /** Overlay permission → start the always-on floating button. */
-    private fun enableOverlay() {
+    private fun enableOverlay() { toggleFloat("dotyk") }
+
+    /** 🎈 Włącz/wyłącz/przełącz pływający przycisk. Dotknięcie WŁĄCZONEGO trybu = wyłącz. */
+    private fun toggleFloat(mode: String) {
+        val cur = Brain.prefs(this).getString("float_mode", "off")
+        // Ten sam tryb dotknięty drugi raz → wyłączamy.
+        if (cur == mode) { setFloat("off"); return }
+        // Włączenie wymaga zgody na rysowanie nad aplikacjami.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            speak("Zezwól Gadaczowi na wyświetlanie nad innymi aplikacjami.")
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            speak("Zezwól Gadaczowi na wyświetlanie nad innymi aplikacjami, potem dotknij jeszcze raz.")
+            try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Exception) {}
             return
         }
+        setFloat(mode)
+    }
+
+    private fun setFloat(mode: String) {
+        Brain.prefs(this).edit().putString("float_mode", mode).putBoolean("wake_mode", mode == "staly").apply()
         val svc = Intent(this, GadaczOverlayService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
-        speak("Pływający przycisk włączony. Znajdziesz go w rogu ekranu, w każdej aplikacji.")
+        try { stopService(svc) } catch (_: Exception) {}
+        if (mode != "off") {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
+            speak(if (mode == "staly") "Tryb stały włączony. Nasłuchuję cały czas — powiedz Gadacz i polecenie."
+                  else "Pływający przycisk włączony. Znajdziesz go w rogu ekranu — dotknij i mów.")
+        } else speak("Pływający przycisk wyłączony.")
+        refreshFloatButtons()
+    }
+
+    private fun refreshFloatButtons() {
+        val mode = Brain.prefs(this).getString("float_mode", "off")
+        fun paint(b: Button, on: Boolean, onBg: Int) {
+            b.setBackgroundColor(if (on) onBg else 0xFF1C1917.toInt())
+            b.setTextColor(if (on) 0xFF000000.toInt() else 0xFFE5E5E5.toInt())
+        }
+        paint(floatStalyBtn, mode == "staly", 0xFFF87171.toInt())
+        paint(floatDotykBtn, mode == "dotyk", 0xFF86EFAC.toInt())
+    }
+
+    /** 🎚️ Ustaw stopień pracy mądrego mózgu. */
+    private fun setWork(lvl: String) {
+        Brain.setWorkLevel(this, lvl)
+        speak(when (lvl) {
+            "easy" -> "Tryb łatwy. Pracuję taniej, na prostszych modelach."
+            "hard" -> "Tryb trudny. Najlepsze modele, nie oszczędzam."
+            else   -> "Tryb normalny. Zrównoważona jakość i koszt."
+        })
+        refreshWorkButtons()
+    }
+
+    private fun refreshWorkButtons() {
+        val cur = Brain.workLevel(this)
+        val colors = mapOf("easy" to 0xFF86EFAC.toInt(), "normal" to 0xFFFDE68A.toInt(), "hard" to 0xFFFCA5A5.toInt())
+        for ((k, b) in workBtns) {
+            val on = k == cur
+            b.setBackgroundColor(if (on) colors[k]!! else 0xFF1C1917.toInt())
+            b.setTextColor(if (on) 0xFF000000.toInt() else 0xFFE5E5E5.toInt())
+        }
     }
 
     // ── Auto-update ──────────────────────────────────────────────────────────

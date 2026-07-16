@@ -926,7 +926,15 @@ router.post("/ask", async (req: Request, res: Response) => {
     //  • ROZMOWA i pytania → Sonnet 5 (dużo mądrzejszy od Haiku, wciąż tani).
     //  • WYKONANIE kroku ekranowego z gotowym planem → Haiku (tych wywołań jest DUŻO,
     //    każde ze zrzutem ekranu; drogi model tutaj zrobiłby misje kosztowne).
-    const screenModel = (hasPlan && !hadError) ? "claude-haiku-4-5-20251001" : "claude-opus-4-8";
+    // 🎚️ STOPIEŃ PRACY (z telefonu): easy=taniej, normal=zrównoważony, hard=najlepszy.
+    // Steruje doborem modeli. Wykonanie kroku ekranowego zawsze na tanim Haiku (dużo wywołań).
+    const work = String(req.body?.work ?? "normal");
+    const TIER = work === "hard"
+      ? { routine: "claude-opus-4-8",             deep: "claude-opus-4-8", planner: "claude-opus-4-8" }
+      : work === "easy"
+      ? { routine: "claude-haiku-4-5-20251001",   deep: "claude-sonnet-5", planner: "claude-sonnet-5" }
+      : { routine: "claude-sonnet-5",             deep: "claude-opus-4-8", planner: "claude-opus-4-8" };
+    const screenModel = (hasPlan && !hadError) ? "claude-haiku-4-5-20251001" : TIER.planner;
     // ✍️ WARSZTAT PISARSKI: twórcze i dłuższe pisanie (wiersz, piosenka, opowiadanie,
     // pismo urzędowe, romantyczny list...) → mocniejszy mózg i więcej miejsca,
     // żeby tekst był piękny i CAŁY (700 tokenów ucinało wiersze w połowie).
@@ -940,7 +948,7 @@ router.post("/ask", async (req: Request, res: Response) => {
       body: JSON.stringify({
         // 🧠 „Pomyśl…” / pisanie = GŁĘBOKIE myślenie → Opus 4.8 (najlepszy). Zwykła
         // rozmowa → Sonnet 5 (mądra, tania). Proste karty (feedback) i tak nie tu.
-        model: isScreenWork ? screenModel : ((isCreative || isDeep) ? "claude-opus-4-8" : "claude-sonnet-5"),
+        model: isScreenWork ? screenModel : ((isCreative || isDeep) ? TIER.deep : TIER.routine),
         max_tokens: (isCreative || isDeep) ? 2400 : 700,
         // 💰 Dwa bloki: [księga z cache] + [części zmienne]. Księga po pierwszym
         // poleceniu kosztuje ~10× mniej przez kolejne minuty aktywnego używania.
