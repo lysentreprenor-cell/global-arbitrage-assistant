@@ -910,7 +910,12 @@ router.post("/ask", async (req: Request, res: Response) => {
     const isScreenWork = q.includes("EKRAN") || q.includes("PLAN ZADANIA");
     const hasPlan = q.includes("PLAN ZADANIA");
     const hadError = q.includes("NIE WYSZEDŁ");
-    const screenModel = (hasPlan && !hadError) ? "claude-haiku-4-5-20251001" : "claude-sonnet-5";
+    // 🏆 NAJLEPSZE SILNIKI — mądrze dobrane, żeby jakość rosła, a koszt nie wystrzelił:
+    //  • STRATEG (plan zadania, po porażce, „pomyśl", pisanie) → Opus 4.8, najmocniejszy.
+    //  • ROZMOWA i pytania → Sonnet 5 (dużo mądrzejszy od Haiku, wciąż tani).
+    //  • WYKONANIE kroku ekranowego z gotowym planem → Haiku (tych wywołań jest DUŻO,
+    //    każde ze zrzutem ekranu; drogi model tutaj zrobiłby misje kosztowne).
+    const screenModel = (hasPlan && !hadError) ? "claude-haiku-4-5-20251001" : "claude-opus-4-8";
     // ✍️ WARSZTAT PISARSKI: twórcze i dłuższe pisanie (wiersz, piosenka, opowiadanie,
     // pismo urzędowe, romantyczny list...) → mocniejszy mózg i więcej miejsca,
     // żeby tekst był piękny i CAŁY (700 tokenów ucinało wiersze w połowie).
@@ -922,9 +927,9 @@ router.post("/ask", async (req: Request, res: Response) => {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        // 🧠 „Pomyśl…” na początku pytania = użytkownik prosi o GŁĘBOKIE myślenie —
-        // trudna decyzja, porównanie, plan. Wtedy mocniejszy mózg i więcej miejsca.
-        model: isScreenWork ? screenModel : ((isCreative || isDeep) ? "claude-sonnet-5" : "claude-haiku-4-5-20251001"),
+        // 🧠 „Pomyśl…” / pisanie = GŁĘBOKIE myślenie → Opus 4.8 (najlepszy). Zwykła
+        // rozmowa → Sonnet 5 (mądra, tania). Proste karty (feedback) i tak nie tu.
+        model: isScreenWork ? screenModel : ((isCreative || isDeep) ? "claude-opus-4-8" : "claude-sonnet-5"),
         max_tokens: (isCreative || isDeep) ? 2400 : 700,
         // 💰 Dwa bloki: [księga z cache] + [części zmienne]. Księga po pierwszym
         // poleceniu kosztuje ~10× mniej przez kolejne minuty aktywnego używania.
