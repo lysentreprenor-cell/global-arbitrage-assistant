@@ -239,7 +239,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             val now = android.os.SystemClock.elapsedRealtime()
             if (now - lastEarBarge < 2500) return   // częściówki rosną — nie strzelaj seriami
             lastEarBarge = now
-            try { tts.stop() } catch (_: Exception) {}
+            try { tts.stop() } catch (_: Exception) {}; PiperUsta.stopNow()
             pendingSpeech.set(0); duckStop()
             if (taskRunning) { Brain.cancelRequested = true; speak("Już przerywam."); return }
             if (cmd != null && cmd.isNotBlank()) { VoskEar.stop(); handle(cmd); return }
@@ -318,7 +318,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         if (cmd == null && !stop) return false
         bargeDone = true
         stopGuard()
-        try { tts.stop() } catch (_: Exception) {}
+        try { tts.stop() } catch (_: Exception) {}; PiperUsta.stopNow()
         pendingSpeech.set(0); duckStop()
         // ⏹ W TRAKCIE ZADANIA: głosowe „stop" przerywa je natychmiast — bez szukania
         // przycisku palcem. Nowe polecenie podasz za chwilę (stary wątek musi zgasnąć).
@@ -430,13 +430,13 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private fun startListening(auto: Boolean = false) {
         // Dotknięcie w TRAKCIE zadania = „stop, przerwij" — użytkownik musi mieć
         // hamulec, gdy Gadacz klika coś nie tak.
-        if (taskRunning) { if (!auto) { Brain.cancelRequested = true; try { tts.stop() } catch (_: Exception) {}; pendingSpeech.set(0); duckStop(); speak("Przerywam.") }; return }
+        if (taskRunning) { if (!auto) { Brain.cancelRequested = true; try { tts.stop() } catch (_: Exception) {}; PiperUsta.stopNow(); pendingSpeech.set(0); duckStop(); speak("Przerywam.") }; return }
         if (busy) return
         // Dotknięcie w trakcie mówienia = PRZERWIJ i słuchaj od razu (jak przerywa się
         // człowiekowi) — zamiast wymagać drugiego dotknięcia.
-        if (tts.isSpeaking) {
+        if (tts.isSpeaking || pendingSpeech.get() > 0) {
             if (auto) return
-            try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}
+            try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}; PiperUsta.stopNow()
         }
         if (!Brain.isConfigured(this)) { speak("Najpierw otwórz Gadacza i podaj adres serwera oraz klucz."); return }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { speak("Brak rozpoznawania mowy na tym telefonie."); return }
@@ -509,7 +509,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             return
         }
         setBubble("🧠")
-        try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}   // clear old speech, then QUEUE step announcements
+        try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}; PiperUsta.stopNow()   // clear old speech, then QUEUE step announcements
         taskRunning = true
         startGuard()   // 🗡️ od PIERWSZEJ sekundy zadania głosowe „stop" działa
         Thread {
@@ -565,6 +565,17 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     // Unikalne id + licznik: wiemy, kiedy OSTATNIE zdanie wybrzmiało → tryb rozmowy.
     private fun speak(text: String) {
         if (pendingSpeech.incrementAndGet() == 1) duckStart()
+        // 👄 USTA PIPER: piękny głos offline — gdy wgrany i włączony. Ten sam
+        // rytm rozmowy co przy głosie systemowym: po wybrzmieniu otwieramy mikrofon.
+        if (PiperUsta.enabled(this)) {
+            val ok = PiperUsta.speak(this, text) {
+                if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); bubble?.post { afterSpeech() }; maybeContinueConversation() }
+            }
+            if (ok) {
+                if (wakeMode || convPending || taskRunning) bubble?.post { startGuard() }
+                return
+            }
+        }
         tts.speak(text, TextToSpeech.QUEUE_ADD, null, "g${uttSeq++}")
     }
     private fun setBubble(emoji: String) { bubble?.post { bubble?.text = emoji } }
@@ -575,7 +586,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         try { wakeRec?.destroy() } catch (_: Exception) {}
         try { guardRec?.destroy() } catch (_: Exception) {}
         VoskEar.stop()
-        recognizer?.destroy(); tts.stop(); tts.shutdown()
+        PiperUsta.stopNow(); recognizer?.destroy(); tts.stop(); tts.shutdown()
         super.onDestroy()
     }
 }

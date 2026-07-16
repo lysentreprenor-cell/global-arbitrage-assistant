@@ -39,3 +39,13 @@ należy zaktualizować tę notkę zgodnie z licencją nowego modelu.
 - **ML Kit Text Recognition** (`com.google.mlkit:text-recognition`), autor:
   Google. Bezpłatna biblioteka działająca w całości na urządzeniu (bez chmury),
   na warunkach ML Kit Terms of Service.
+
+## Usta Gadacza (piękny głos offline)
+
+- **Silnik:** sherpa-onnx (`com.k2fsa.sherpa.onnx:sherpa-onnx-android`),
+  autor: k2-fsa / Next-gen Kaldi. Licencja: Apache License 2.0.
+- **Głos:** Piper `pl_PL-gosia-medium` (projekt Piper Rhasspy, autor: Michael
+  Hansen i społeczność). Licencja Piper: MIT; model głosu udostępniony
+  publicznie w kolekcji modeli sherpa-onnx.
+- Pełne teksty licencji: https://www.apache.org/licenses/LICENSE-2.0 ·
+  https://opensource.org/licenses/MIT

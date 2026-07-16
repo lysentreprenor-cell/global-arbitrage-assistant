@@ -112,3 +112,27 @@ jobs:
           tag_name: gadacz-brain
           files: gadacz-ucho.zip
           make_latest: false
+
+  # 👄 USTA GADACZA: polski glos Piper (Gosia) w formacie sherpa-onnx — piekny,
+  # naturalny glos offline. Przepakowujemy tar.bz2 na zip (telefon umie zip).
+  usta:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pobierz glos Piper (polski, Gosia)
+        id: mouth
+        continue-on-error: true
+        run: |
+          curl -fL --retry 3 -A "Gadacz-CI" -o glos.tar.bz2 \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-pl_PL-gosia-medium.tar.bz2"
+          mkdir un && tar -xjf glos.tar.bz2 -C un
+          (cd un && zip -qr ../gadacz-usta.zip .)
+          SIZE=$(stat -c%s gadacz-usta.zip)
+          echo "Rozmiar: $SIZE"
+          if [ "$SIZE" -lt 20000000 ]; then echo "Za maly - blad"; rm -f gadacz-usta.zip; exit 1; fi
+      - name: Opublikuj usta
+        if: steps.mouth.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-brain
+          files: gadacz-usta.zip
+          make_latest: false

@@ -11,8 +11,8 @@ android {
         applicationId "pl.gadacz.app"
         minSdk 26
         targetSdk 34
-        versionCode 79
-        versionName "7.9"
+        versionCode 80
+        versionName "8.0"
 
         // 📦 MNIEJSZA APKA: silnik AI (MediaPipe) ma natywne biblioteki na 4 typy
         // procesorów. Nowoczesne telefony używają WYŁĄCZNIE arm64-v8a — budujemy tylko
@@ -65,4 +65,6 @@ dependencies {
     implementation 'net.java.dev.jna:jna:5.13.0@aar'
     // 👁️ Oczy do tekstu: czytanie kartek/ulotek BEZ chmury (ML Kit OCR, wbudowane)
     implementation 'com.google.mlkit:text-recognition:16.0.1'
+    // 👄 Usta Gadacza: piękny polski głos offline (Piper/Gosia przez sherpa-onnx)
+    implementation 'com.k2fsa.sherpa.onnx:sherpa-onnx-android:1.13.2'
 }
