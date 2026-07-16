@@ -96,9 +96,13 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             // Wiemy, KIEDY Gadacz skończył mówić — wtedy (w trybie rozmowy) sam
             // otwieramy mikrofon na odpowiedź użytkownika.
             tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                override fun onStart(id: String?) {}
-                override fun onDone(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); maybeContinueConversation() } }
-                @Deprecated("api") override fun onError(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); maybeContinueConversation() } }
+                override fun onStart(id: String?) {
+                    // 🗡️ Gdy Gadacz ZACZYNA mówić — włącz strażnika przerwania: można
+                    // mu wejść w słowo, jak człowiekowi (tryb stały i tryb rozmowy).
+                    if (wakeMode || convPending) bubble?.post { startGuard() }
+                }
+                override fun onDone(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); bubble?.post { stopGuard() }; maybeContinueConversation() } }
+                @Deprecated("api") override fun onError(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); bubble?.post { stopGuard() }; maybeContinueConversation() } }
             })
         }
     }
@@ -206,6 +210,71 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         }
     }
 
+    // ── 🗡️ STRAŻNIK PRZERWANIA — słucha, GDY GADACZ MÓWI, żeby dało się mu wejść
+    // w słowo jak człowiekowi. Mikrofon słyszy wtedy też WŁASNY głos Gadacza, więc
+    // strażnik reaguje WYŁĄCZNIE na: „stop / cicho / zamilcz / dość" (ucina mowę
+    // i słucha) oraz „Gadacz + polecenie" (ucina i od razu wykonuje). Zwykłe słowa
+    // ignoruje — inaczej echo odpowiedzi udawałoby polecenia. Działa też na
+    // wynikach CZĘŚCIOWYCH — reaguje w pół słowa, bez czekania na koniec zdania.
+    private var guardRec: SpeechRecognizer? = null
+    @Volatile private var bargeDone = false
+    private fun startGuard() {
+        if (busy || taskRunning || guardRec != null) return
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
+        bargeDone = false
+        guardRec = SpeechRecognizer.createSpeechRecognizer(this).apply {
+            setRecognitionListener(object : RecognitionListener {
+                override fun onResults(results: Bundle?) {
+                    val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull() ?: ""
+                    if (!handleBargeIn(text)) restartGuardSoon()
+                }
+                override fun onPartialResults(p: Bundle?) {
+                    val text = p?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull() ?: ""
+                    handleBargeIn(text)
+                }
+                override fun onError(error: Int) { restartGuardSoon() }
+                override fun onReadyForSpeech(p0: Bundle?) {}
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(p0: Float) {}
+                override fun onBufferReceived(p0: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+                override fun onEvent(p0: Int, p1: Bundle?) {}
+            })
+        }
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+        try { guardRec?.startListening(intent) } catch (_: Exception) { stopGuard() }
+    }
+    private fun stopGuard() { try { guardRec?.destroy() } catch (_: Exception) {}; guardRec = null }
+    private fun restartGuardSoon() {
+        stopGuard()
+        // Wznów strażnika tylko, jeśli Gadacz WCIĄŻ mówi — po ciszy nie ma czego pilnować.
+        bubble?.postDelayed({ if ((tts.isSpeaking || pendingSpeech.get() > 0) && !busy && !taskRunning) startGuard() }, 150)
+    }
+    /** true = przerwanie obsłużone (mowa ucięta; mikrofon otwarty albo nowe polecenie w toku). */
+    private fun handleBargeIn(text: String): Boolean {
+        if (text.isBlank() || bargeDone) return bargeDone
+        val n = normPl(text)
+        val cmd = findWakeCommand(text)
+        val stop = Regex("\\b(stop|cicho|zamilcz|dosc|dosyc)\\b").containsMatchIn(n)
+        if (cmd == null && !stop) return false
+        bargeDone = true
+        stopGuard()
+        try { tts.stop() } catch (_: Exception) {}
+        pendingSpeech.set(0); duckStop()
+        if (cmd != null && cmd.isNotBlank()) {
+            handle(cmd)   // „Gadacz, zrób X" w trakcie mowy = ucina i robi X
+        } else {
+            // Samo „stop"/„Gadacz" — ucina mowę i od razu słucha, co powiesz.
+            convPending = true; convUntil = convDeadline()
+            bubble?.postDelayed({ if (!busy && !taskRunning) startListening(auto = true) }, 200)
+        }
+        return true
+    }
+
     // ── Wake word "Gadacz" — continuous listening loop (opt-in; uses battery) ──
     private fun toggleWake() {
         wakeMode = !wakeMode
@@ -238,10 +307,14 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
                     restartWake(300)
                 }
                 override fun onError(error: Int) {
-                    // Narastający odstęp: 1s, 2s, 4s... do 8s — czuwanie nie zżera baterii,
-                    // gdy w pokoju jest cicho albo rozpoznawanie chwilowo szwankuje.
-                    wakeErrors = (wakeErrors + 1).coerceAtMost(4)
-                    restartWake((500L shl wakeErrors).coerceAtMost(8000L))
+                    // 🗡️ CISZA to nie błąd: „nikt nic nie mówił" (NO_MATCH/TIMEOUT) to
+                    // normalny rytm czuwania — wracaj do słuchania NATYCHMIAST, żeby
+                    // tryb stały nie miał głuchych dziur. Narastający odstęp (do 4s)
+                    // zostaje tylko przy PRAWDZIWYCH błędach (sieć, zajęty mikrofon).
+                    val cisza = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    if (cisza) { wakeErrors = 0; restartWake(350); return }
+                    wakeErrors = (wakeErrors + 1).coerceAtMost(3)
+                    restartWake((500L shl wakeErrors).coerceAtMost(4000L))
                 }
                 override fun onReadyForSpeech(p0: Bundle?) {}
                 override fun onBeginningOfSpeech() {}
@@ -305,6 +378,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { speak("Brak rozpoznawania mowy na tym telefonie."); return }
         // Pause the wake-word recognizer so two mics don't fight (it resumes after handle()).
         try { wakeRec?.cancel(); wakeRec?.destroy() } catch (_: Exception) {}; wakeRec = null
+        stopGuard()   // strażnik przerwania też oddaje mikrofon
         busy = true
         setBubble("🎤")
         recognizer?.destroy()
@@ -433,6 +507,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         GadaczAccessibilityService.onScreenChange = null   // koniec świadomości ekranu
         try { bubble?.let { wm.removeView(it) } } catch (_: Exception) {}
         try { wakeRec?.destroy() } catch (_: Exception) {}
+        try { guardRec?.destroy() } catch (_: Exception) {}
         recognizer?.destroy(); tts.stop(); tts.shutdown()
         super.onDestroy()
     }
