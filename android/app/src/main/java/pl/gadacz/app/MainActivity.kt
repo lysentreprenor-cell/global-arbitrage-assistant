@@ -838,7 +838,26 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // WŁASNĄ linijkę — gdy schodzą dwa naraz, widać oba postępy, jeden pod drugim.
     private var baseStatus = "Gotowy"
     private val progressLines = LinkedHashMap<String, String>()
-    private fun setStatus(s: String) { runOnUiThread { baseStatus = s; refreshStatus() } }
+    // ⏳ Kręciołek przy myśleniu — widać, że Gadacz PRACUJE, a nie wisi.
+    private val spinFrames = listOf("◐", "◓", "◑", "◒")
+    private var spinPhase = 0
+    private var spinArmed = false
+    private val spinTick = object : Runnable {
+        override fun run() {
+            if (baseStatus.contains("Myślę") || baseStatus.contains("Czytam ekran")) {
+                spinPhase = (spinPhase + 1) % spinFrames.size
+                refreshStatus()
+            }
+            status.postDelayed(this, 280)
+        }
+    }
+    private fun setStatus(s: String) {
+        runOnUiThread {
+            baseStatus = s
+            if (!spinArmed) { spinArmed = true; status.postDelayed(spinTick, 280) }
+            refreshStatus()
+        }
+    }
     private fun setProgress(key: String, text: String?) {
         runOnUiThread {
             if (text == null) progressLines.remove(key) else progressLines[key] = text
@@ -846,11 +865,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     private fun refreshStatus() {
+        val base = if (baseStatus.contains("Myślę") || baseStatus.contains("Czytam ekran"))
+            "${spinFrames[spinPhase]} $baseStatus" else baseStatus
         val extra = progressLines.values.joinToString("\n")
         status.text = when {
-            extra.isBlank() -> baseStatus
+            extra.isBlank() -> base
             baseStatus.isBlank() || baseStatus == "Gotowy" -> extra
-            else -> baseStatus + "\n" + extra
+            else -> base + "\n" + extra
         }
     }
     private fun appendLine(s: String) { runOnUiThread { transcript.text = "$s\n\n${transcript.text}" } }
