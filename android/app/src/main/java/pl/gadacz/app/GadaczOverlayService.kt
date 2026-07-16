@@ -98,11 +98,11 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
             tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                 override fun onStart(id: String?) {
                     // 🗡️ Gdy Gadacz ZACZYNA mówić — włącz strażnika przerwania: można
-                    // mu wejść w słowo, jak człowiekowi (tryb stały i tryb rozmowy).
-                    if (wakeMode || convPending) bubble?.post { startGuard() }
+                    // mu wejść w słowo, jak człowiekowi (tryb stały, rozmowa, zadania).
+                    if (wakeMode || convPending || taskRunning) bubble?.post { startGuard() }
                 }
-                override fun onDone(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); bubble?.post { stopGuard() }; maybeContinueConversation() } }
-                @Deprecated("api") override fun onError(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); bubble?.post { stopGuard() }; maybeContinueConversation() } }
+                override fun onDone(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); bubble?.post { afterSpeech() }; maybeContinueConversation() } }
+                @Deprecated("api") override fun onError(id: String?) { if (pendingSpeech.decrementAndGet() <= 0) { duckStop(); bubble?.post { afterSpeech() }; maybeContinueConversation() } }
             })
         }
     }
@@ -112,7 +112,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         if (!convPending || busy) return
         bubble?.postDelayed({
             if (convPending && !busy) { convPending = false; startListening(auto = true) }
-        }, 350)
+        }, 150)   // mikrofon otwiera się niemal od razu po ostatnim słowie Gadacza
     }
 
     private fun buildNotification(): Notification {
@@ -219,8 +219,11 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private var guardRec: SpeechRecognizer? = null
     @Volatile private var bargeDone = false
     private fun startGuard() {
-        if (busy || taskRunning || guardRec != null) return
+        if (busy || guardRec != null) return
         if (!SpeechRecognizer.isRecognitionAvailable(this)) return
+        // Strażnik PRZEJMUJE mikrofon od czuwania na czas mówienia/zadania —
+        // dwa rozpoznawacze naraz walczą o mikrofon. Czuwanie wraca w afterSpeech().
+        try { wakeRec?.cancel(); wakeRec?.destroy() } catch (_: Exception) {}; wakeRec = null
         bargeDone = false
         guardRec = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
@@ -251,10 +254,18 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
     private fun stopGuard() { try { guardRec?.destroy() } catch (_: Exception) {}; guardRec = null }
     private fun restartGuardSoon() {
         stopGuard()
-        // Wznów strażnika tylko, jeśli Gadacz WCIĄŻ mówi — po ciszy nie ma czego pilnować.
-        bubble?.postDelayed({ if ((tts.isSpeaking || pendingSpeech.get() > 0) && !busy && !taskRunning) startGuard() }, 150)
+        // Wznów strażnika, póki jest czego pilnować: Gadacz mówi ALBO trwa zadanie
+        // (w zadaniu głosowe „stop" musi działać cały czas, nie tylko przy mowie).
+        bubble?.postDelayed({ if ((tts.isSpeaking || pendingSpeech.get() > 0 || taskRunning) && !busy) startGuard() }, 150)
     }
-    /** true = przerwanie obsłużone (mowa ucięta; mikrofon otwarty albo nowe polecenie w toku). */
+    /** Po WYBRZMIENIU ostatniego zdania: strażnik schodzi z posterunku, a gdy nie
+     *  trwa rozmowa ani zadanie — czuwanie na słowo „Gadacz" wraca na swoje miejsce. */
+    private fun afterSpeech() {
+        if (taskRunning) return   // zadanie trwa — strażnik pilnuje dalej (głosowe „stop")
+        stopGuard()
+        if (wakeMode && !convPending && !busy) restartWake(250)
+    }
+    /** true = przerwanie obsłużone (mowa ucięta; mikrofon otwarty albo zadanie przerwane). */
     private fun handleBargeIn(text: String): Boolean {
         if (text.isBlank() || bargeDone) return bargeDone
         val n = normPl(text)
@@ -265,6 +276,13 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         stopGuard()
         try { tts.stop() } catch (_: Exception) {}
         pendingSpeech.set(0); duckStop()
+        // ⏹ W TRAKCIE ZADANIA: głosowe „stop" przerywa je natychmiast — bez szukania
+        // przycisku palcem. Nowe polecenie podasz za chwilę (stary wątek musi zgasnąć).
+        if (taskRunning) {
+            Brain.cancelRequested = true
+            speak("Już przerywam." + if (cmd != null && cmd.isNotBlank()) " Powiedz za chwilę jeszcze raz, co mam zrobić." else "")
+            return true
+        }
         if (cmd != null && cmd.isNotBlank()) {
             handle(cmd)   // „Gadacz, zrób X" w trakcie mowy = ucina i robi X
         } else {
@@ -421,11 +439,11 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
      */
     private fun endConversation() {
         if (convPending && android.os.SystemClock.elapsedRealtime() < convUntil) {
-            bubble?.postDelayed({ if (convPending && !busy && !taskRunning) startListening(auto = true) }, 250)
+            bubble?.postDelayed({ if (convPending && !busy && !taskRunning) startListening(auto = true) }, 150)
             return
         }
         convPending = false
-        if (wakeMode) restartWake(800)
+        if (wakeMode) restartWake(500)
     }
 
     private fun handle(text: String) {
@@ -445,8 +463,9 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         }
         setBubble("🧠")
         try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}   // clear old speech, then QUEUE step announcements
+        taskRunning = true
+        startGuard()   // 🗡️ od PIERWSZEJ sekundy zadania głosowe „stop" działa
         Thread {
-            taskRunning = true
             try {
                 // Full task loop — Gadacz drives across screens until the goal is done.
                 Brain.runTask(this, text, history) { s -> speak(s) }
