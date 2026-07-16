@@ -24,8 +24,6 @@ jobs:
             url: "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
           - out: gadacz-mozg-sredni.task
             url: "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
-          - out: gadacz-mozg-duzy.task
-            url: "https://huggingface.co/litert-community/SmolLM2-1.7B-Instruct/resolve/main/SmolLM2-1.7B-Instruct_multi-prefill-seq_q8_ekv1280.task"
     steps:
       - name: Pobierz ${{ matrix.out }}
         id: dl
@@ -57,4 +55,38 @@ jobs:
         with:
           tag_name: gadacz-brain
           files: gadacz-mozg.task
+          make_latest: false
+
+  # 🦉 DUZY: probuje 3 kandydatow PO KOLEI i publikuje PIERWSZY, ktory zejdzie bez
+  # bramki (401/404). Dzieki temu z trzech linkow wystarczy, ze zadziala jeden.
+  duzy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Znajdz dzialajacego kandydata
+        id: pick
+        run: |
+          CANDIDATES=(
+            "https://huggingface.co/litert-community/Qwen2.5-3B-Instruct/resolve/main/Qwen2.5-3B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+            "https://huggingface.co/litert-community/Phi-3.5-mini-instruct/resolve/main/Phi-3.5-mini-instruct_multi-prefill-seq_q8_ekv1280.task"
+            "https://huggingface.co/litert-community/Llama-3.2-3B-Instruct/resolve/main/Llama-3.2-3B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+          )
+          for URL in "${CANDIDATES[@]}"; do
+            echo "Probuje: $URL"
+            if curl -fL --retry 2 -A "Gadacz-CI" -o gadacz-mozg-duzy.task "$URL"; then
+              SIZE=$(stat -c%s gadacz-mozg-duzy.task 2>/dev/null || echo 0)
+              echo "  pobrano, rozmiar: $SIZE"
+              if [ "$SIZE" -ge 52428800 ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; echo "ZADZIALALO: $URL"; exit 0; fi
+            fi
+            echo "  ten nie dziala, probuje nastepny"
+            rm -f gadacz-mozg-duzy.task
+          done
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "Zaden z kandydatow na duzy nie zadzialal (wszystkie za bramka)."
+
+      - name: Opublikuj duzy
+        if: steps.pick.outputs.ok == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-brain
+          files: gadacz-mozg-duzy.task
           make_latest: false
