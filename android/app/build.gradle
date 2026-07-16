@@ -65,6 +65,7 @@ dependencies {
     implementation 'net.java.dev.jna:jna:5.13.0@aar'
     // 👁️ Oczy do tekstu: czytanie kartek/ulotek BEZ chmury (ML Kit OCR, wbudowane)
     implementation 'com.google.mlkit:text-recognition:16.0.1'
-    // 👄 Usta Gadacza: piękny polski głos offline (Piper/Gosia przez sherpa-onnx)
-    implementation 'com.k2fsa.sherpa.onnx:sherpa-onnx-android:1.13.2'
+    // 👄 Usta Gadacza: piękny polski głos offline (Piper/Gosia przez sherpa-onnx).
+    // Biblioteki natywne + API Kotlin pobiera CI z oficjalnego wydania k2-fsa
+    // (nie ma ich na Maven Central) — patrz .github/workflows/build-gadacz-apk.yml.
 }

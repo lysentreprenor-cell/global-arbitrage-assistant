@@ -29,6 +29,24 @@ jobs:
       - name: Nadaj prawa gradlew
         run: chmod +x android/gradlew || true
 
+      # 👄 SILNIK UST (sherpa-onnx): nie ma go na Maven Central — oficjalna droga to
+      # pobranie bibliotek natywnych i API Kotlin z wydania GitHub k2-fsa (Apache 2.0).
+      # Wersja PRZYPIĘTA (v1.13.2), żeby build był powtarzalny.
+      - name: Pobierz silnik ust (sherpa-onnx v1.13.2)
+        run: |
+          curl -fL --retry 3 -o sherpa.tar.bz2 \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-v1.13.2-android.tar.bz2"
+          mkdir -p sherpa-libs && tar -xjf sherpa.tar.bz2 -C sherpa-libs
+          echo "Zawartosc paczki:" && find sherpa-libs -name "*.so" | head -20
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          find sherpa-libs -path "*arm64-v8a*" -name "*.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \;
+          ls -la android/app/src/main/jniLibs/arm64-v8a/
+          # API Kotlin (klasy OfflineTts itd.) — z tego samego, przypietego taga.
+          mkdir -p android/app/src/main/java/com/k2fsa/sherpa/onnx
+          curl -fL --retry 3 -o android/app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt \
+            "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.2/sherpa-onnx/kotlin-api/Tts.kt"
+          head -30 android/app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt
+
       - name: Zbuduj debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
