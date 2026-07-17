@@ -40,25 +40,18 @@ class ChatActivity : Activity() {
     private var attachText: String? = null
     private val pickReq = 31
 
-    // ⏳ „Myślę" — kręcący się wskaźnik; w Trybie Neo zamiast kółka DEKODOWANIE:
-    // migające losowe znaki Matriksa z blokowym kursorem, jak na monitorze Neo.
+    // ⏳ „Myślę" = DEKODOWANIE: migające japońskie znaki z blokowym kursorem,
+    // jak na monitorze Neo — zawsze, bo wygląda najlepiej (w Neo i poza nim).
     private var thinkView: TextView? = null
-    private var thinkPhase = 0
-    private val spinFrames = listOf("|", "/", "—", "\\")
     private val neoThinkGlyphs = "アイウエオカキクケコサシスセソタチツテト日月火水木金人中大電脳0123456789"
     private val thinkRnd = java.util.Random()
     private val thinkTick = object : Runnable {
         override fun run() {
             val tv = thinkView ?: return
-            if (neoActive()) {
-                val sb = StringBuilder()
-                repeat(7) { sb.append(neoThinkGlyphs[thinkRnd.nextInt(neoThinkGlyphs.length)]) }
-                tv.text = "$sb █"
-            } else {
-                thinkPhase = (thinkPhase + 1) % spinFrames.size
-                tv.text = "${spinFrames[thinkPhase]} myślę…"
-            }
-            tv.postDelayed(this, if (neoActive()) 110 else 250)
+            val sb = StringBuilder()
+            repeat(7) { sb.append(neoThinkGlyphs[thinkRnd.nextInt(neoThinkGlyphs.length)]) }
+            tv.text = "$sb █"
+            tv.postDelayed(this, 110)
         }
     }
 
@@ -232,9 +225,9 @@ class ChatActivity : Activity() {
         hideThinking()
         val pad = (resources.displayMetrics.density * 10).toInt()
         thinkView = TextView(this).apply {
-            text = if (neoActive()) "█" else "| myślę…"
+            text = "█"
             textSize = 17f
-            setTextColor(if (neoActive()) 0xFF00FF66.toInt() else 0xFFA8A29E.toInt())
+            setTextColor(if (neoActive()) 0xFF00FF66.toInt() else 0xFF86EFAC.toInt())
             setPadding(pad, pad, pad, pad)
         }
         list.addView(thinkView)

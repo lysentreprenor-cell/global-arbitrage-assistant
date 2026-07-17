@@ -839,16 +839,19 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var baseStatus = "Gotowy"
     private val progressLines = LinkedHashMap<String, String>()
     // ⏳ Kręciołek przy myśleniu — widać, że Gadacz PRACUJE, a nie wisi.
-    private val spinFrames = listOf("|", "/", "—", "\\")
-    private var spinPhase = 0
+    private val thinkGlyphs = "アイウエオカキクケコサシスセソタチツテト日月火水木金人中大電脳0123456789"
+    private val spinRnd = java.util.Random()
+    private var spinTxt = "█"
     private var spinArmed = false
     private val spinTick = object : Runnable {
         override fun run() {
             if (baseStatus.contains("Myślę") || baseStatus.contains("Czytam ekran")) {
-                spinPhase = (spinPhase + 1) % spinFrames.size
+                val sb = StringBuilder()
+                repeat(4) { sb.append(thinkGlyphs[spinRnd.nextInt(thinkGlyphs.length)]) }
+                spinTxt = sb.toString()
                 refreshStatus()
             }
-            status.postDelayed(this, 280)
+            status.postDelayed(this, 120)
         }
     }
     private fun setStatus(s: String) {
@@ -866,7 +869,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     private fun refreshStatus() {
         val base = if (baseStatus.contains("Myślę") || baseStatus.contains("Czytam ekran"))
-            "${spinFrames[spinPhase]} $baseStatus" else baseStatus
+            "$spinTxt█ $baseStatus" else baseStatus
         val extra = progressLines.values.joinToString("\n")
         status.text = when {
             extra.isBlank() -> base
