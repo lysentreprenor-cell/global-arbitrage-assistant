@@ -40,16 +40,25 @@ class ChatActivity : Activity() {
     private var attachText: String? = null
     private val pickReq = 31
 
-    // ⏳ „Myślę" — kręcący się wskaźnik, jak u prawdziwego asystenta.
+    // ⏳ „Myślę" — kręcący się wskaźnik; w Trybie Neo zamiast kółka DEKODOWANIE:
+    // migające losowe znaki Matriksa z blokowym kursorem, jak na monitorze Neo.
     private var thinkView: TextView? = null
     private var thinkPhase = 0
     private val spinFrames = listOf("◐", "◓", "◑", "◒")
+    private val neoThinkGlyphs = "アイウエオカキクケコサシスセソタチツテト日月火水木金人中大電脳0123456789"
+    private val thinkRnd = java.util.Random()
     private val thinkTick = object : Runnable {
         override fun run() {
             val tv = thinkView ?: return
-            thinkPhase = (thinkPhase + 1) % spinFrames.size
-            tv.text = "${spinFrames[thinkPhase]} myślę…"
-            tv.postDelayed(this, 250)
+            if (neoActive()) {
+                val sb = StringBuilder()
+                repeat(7) { sb.append(neoThinkGlyphs[thinkRnd.nextInt(neoThinkGlyphs.length)]) }
+                tv.text = "$sb █"
+            } else {
+                thinkPhase = (thinkPhase + 1) % spinFrames.size
+                tv.text = "${spinFrames[thinkPhase]} myślę…"
+            }
+            tv.postDelayed(this, if (neoActive()) 110 else 250)
         }
     }
 
@@ -140,11 +149,11 @@ class ChatActivity : Activity() {
         col.setBackgroundColor(if (neo) 0x00000000 else 0xFF0C0A09.toInt())
         faceBtn.text = "💬 ${Personas.nameOf(Brain.cachedPersona(this))}"
         if (neo) {
-            faceBtn.setTextColor(0xFF00FF66.toInt()); faceBtn.setBackgroundColor(0xE6001A00.toInt())
-            projBtn.setTextColor(0xFF00FF66.toInt()); projBtn.setBackgroundColor(0xE6001A00.toInt())
-            neoBtn.setTextColor(0xFF00FF66.toInt()); neoBtn.setBackgroundColor(0xE6003300.toInt()); neoBtn.text = "🟢 NEO"
-            attachBtn.setTextColor(0xFF00FF66.toInt()); attachBtn.setBackgroundColor(0xE6001A00.toInt())
-            input.setTextColor(0xFF00FF66.toInt()); input.setHintTextColor(0xFF00802F.toInt()); input.setBackgroundColor(0xE6001300.toInt())
+            faceBtn.setTextColor(0xFF00FF66.toInt()); faceBtn.setBackgroundColor(0x99001A00.toInt())
+            projBtn.setTextColor(0xFF00FF66.toInt()); projBtn.setBackgroundColor(0x99001A00.toInt())
+            neoBtn.setTextColor(0xFF00FF66.toInt()); neoBtn.setBackgroundColor(0x99003300.toInt()); neoBtn.text = "🟢 NEO"
+            attachBtn.setTextColor(0xFF00FF66.toInt()); attachBtn.setBackgroundColor(0x99001A00.toInt())
+            input.setTextColor(0xFF00FF66.toInt()); input.setHintTextColor(0xFF00802F.toInt()); input.setBackgroundColor(0x99001300.toInt())
             sendBtn.setTextColor(0xFF001A00.toInt()); sendBtn.setBackgroundColor(0xFF00CC44.toInt())
         } else {
             faceBtn.setTextColor(0xFF3B2A06.toInt()); faceBtn.setBackgroundColor(0xFFFDE68A.toInt())
@@ -197,9 +206,10 @@ class ChatActivity : Activity() {
             textSize = 17f
             setTextIsSelectable(true)   // kod/pisma można zaznaczyć i skopiować
             if (neo) {
+                // Prawie przezroczyste dymki — deszcz znaków PRZEŚWITUJE zza tekstu.
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(if (mine) 0xFFB7FFC9.toInt() else 0xFF00FF66.toInt())
-                setBackgroundColor(if (mine) 0xD90A0F0A.toInt() else 0xD9001A00.toInt())
+                setBackgroundColor(if (mine) 0x4D0A0F0A else 0x4D001A00)
             } else {
                 setTextColor(if (mine) 0xFFE7E5E4.toInt() else 0xFFDCFCE7.toInt())
                 setBackgroundColor(if (mine) 0xFF292524.toInt() else 0xFF052E16.toInt())
@@ -222,7 +232,7 @@ class ChatActivity : Activity() {
         hideThinking()
         val pad = (resources.displayMetrics.density * 10).toInt()
         thinkView = TextView(this).apply {
-            text = "◐ myślę…"
+            text = if (neoActive()) "█" else "◐ myślę…"
             textSize = 17f
             setTextColor(if (neoActive()) 0xFF00FF66.toInt() else 0xFFA8A29E.toInt())
             setPadding(pad, pad, pad, pad)
