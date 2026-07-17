@@ -338,7 +338,7 @@ object Brain {
 
     /** 🆓 Czy AKTYWNA twarz umie działać BEZ internetu? Tylko Ogólny i Dla niewidomych —
      *  reszta (Prawnik, Lekarz...) potrzebuje mądrego mózgu z chmury. */
-    fun faceWorksOffline(ctx: Context): Boolean = cachedPersona(ctx) in setOf("niewidomi", "ogolny")
+    fun faceWorksOffline(ctx: Context): Boolean = cachedPersona(ctx) in setOf("niewidomi", "ogolny", "auto")
 
     /** 🎭 Ustaw SYSTEM (osobowość) na serwerze — telefon i strona www widzą to samo. */
     fun setPersona(ctx: Context, key: String): Boolean = try {
@@ -419,6 +419,23 @@ object Brain {
                 }
             }
     } catch (_: Exception) { null }
+
+    /** ⏳ Ile dni żyją zwykłe czaty na serwerze (0 = bez limitu, -1 = nie udało się pobrać). */
+    fun convKeepDays(ctx: Context): Int = try {
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/config")
+            .header("x-bot-pin", pin(ctx)).build())
+            .execute().use { r ->
+                if (!r.isSuccessful) -1 else JSONObject(r.body?.string() ?: "{}").optInt("keepDays", -1)
+            }
+    } catch (_: Exception) { -1 }
+
+    fun convSetKeepDays(ctx: Context, days: Int): Boolean = try {
+        val body = JSONObject().put("keepDays", days)
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/config")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { it.isSuccessful }
+    } catch (_: Exception) { false }
 
     /**
      * 🗂 Odruchy ROZMÓW — wołane z runTask, bo tylko tam mamy dostęp do pamięci

@@ -6,6 +6,7 @@ package pl.gadacz.app
  */
 object Personas {
     val list = listOf(
+        Triple("auto",       "🤖 Auto",            "Sam dobieram twarz do sprawy"),
         Triple("niewidomi",  "🦯 Dla niewidomych", "Tryb podstawowy — ten, który trenujemy"),
         Triple("ogolny",     "⚡ Ogólny",          "Krótko i na temat — dla widzących"),
         Triple("prawnik",    "🧑‍⚖️ Prawnik",        "Prawo prostym językiem, pisma i odwołania"),
@@ -17,7 +18,7 @@ object Personas {
     )
 
     /** Twarze działające BEZ internetu — musi zgadzać się z Brain.faceWorksOffline. */
-    val offline = setOf("niewidomi", "ogolny")
+    val offline = setOf("niewidomi", "ogolny", "auto")
 
     fun nameOf(key: String): String = list.firstOrNull { it.first == key }?.second ?: "Dla niewidomych"
 }

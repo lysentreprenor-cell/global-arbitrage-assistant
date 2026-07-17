@@ -307,7 +307,31 @@ NAUCZYCIEL MISTRZ: tłumaczysz pojęcia na przykładach z życia (zmienna = pude
 DUŻE PROJEKTY: pomagaj dzielić na małe etapy i prowadź po jednym kroku; po każdym etapie krótko podsumuj, co już działa i co dalej. Przy pytaniu o najnowsze wersje bibliotek: „dodaj słowo najnowsze, a sprawdzę w internecie".
 UCZCIWOŚĆ: nie zgadujesz składni — gdy nie masz pewności, mówisz to i proponujesz, jak sprawdzić. Bez kodu szkodliwego (wirusy, włamania) — pomagasz budować, nie psuć.`,
   },
+  auto: {
+    name: "Auto", icon: "🤖",
+    desc: "Sam dobiera twarz do sprawy — jak automatyczna skrzynia biegów",
+    // Prompt pusty — twarz wybiera autoPersona() od PYTANIA, przy każdym zapytaniu.
+    prompt: "",
+  },
 };
+
+// 🤖 AUTO: dobierz twarz PO TREŚCI pytania — proste słowa-klucze, zero kosztów.
+// Nie trafi w 100%, ale trafia w oczywiste sprawy; reszta leci trybem bazowym.
+function autoPersona(q: string): string {
+  const n = q.toLowerCase();
+  if (/(paragraf|prawn|sąd|sad(u|zie)?\b|pozew|umow[aęy]|mandat|odwołan|odwolan|spadk|reklamacj|najem|wypowiedzeni|alimenty|notariusz)/.test(n)) return "prawnik";
+  if (/(boli|bol[eą]|choro|lekarz|objaw|recept|badan[i ]|ciśnieni|cisnieni|cukrzyc|zdrowi|tabletk|dawk|szczepi)/.test(n)) return "lekarz";
+  if (/(kod(u|em)?\b|program(uj|ow|ist)|aplikacj|python|javascript|kotlin|serwer|github|replit|funkcj[aęi]|zmienn[aey]|kompiluj|debug)/.test(n)) return "programista";
+  if (/(sprzeda|ogłoszeni|ogloszeni|klient|negocjuj|wycen|allegro|olx|vinted|kupujac)/.test(n)) return "sprzedawca";
+  if (/(żart|zart|dowcip|rozśmiesz|rozsmiesz|suchar|kawał|kawal)/.test(n)) return "zartownis";
+  if (/(dziewczyn|randk|tinder|podryw|napisała mi|napisala mi|umówić się|umowic sie)/.test(n)) return "bajerant";
+  return "niewidomi";
+}
+/** Twarz do TEGO pytania: wybrana ręcznie albo dobrana automatycznie (Auto). */
+function activePersona(question: string) {
+  const p = loadPersona();
+  return PERSONAS[p === "auto" ? autoPersona(question) : p] ?? PERSONAS.niewidomi;
+}
 function loadPersona(): string {
   try {
     const d = JSON.parse(fs.readFileSync(PERSONA_FILE, "utf8"));
@@ -348,10 +372,25 @@ function convNorm(s: string): string {
   const map: Record<string, string> = { "ą": "a", "ć": "c", "ę": "e", "ł": "l", "ń": "n", "ó": "o", "ś": "s", "ź": "z", "ż": "z" };
   return s.toLowerCase().replace(/[ąćęłńóśźż]/g, ch => map[ch] ?? ch).trim();
 }
+// ⏳ ILE DNI żyją ZWYKŁE czaty (projekty „na stałe" żyją zawsze). 0 = bez limitu
+// czasu (kasuje tylko nadmiar ponad 25 na twarz). Ustawiane z telefonu.
+const CONV_CFG_FILE = path.resolve(process.cwd(), "data", "gadacz_conv_config.json");
+function convKeepDays(): number {
+  try { return Math.max(0, Number(JSON.parse(fs.readFileSync(CONV_CFG_FILE, "utf8")).keepDays) || 0); } catch { return 0; }
+}
+router.get("/conversation/config", (_req, res) => res.json({ keepDays: convKeepDays() }));
+router.post("/conversation/config", (req, res) => {
+  const d = Math.max(0, Number(req.body?.keepDays) || 0);
+  try { fs.mkdirSync(path.dirname(CONV_CFG_FILE), { recursive: true }); fs.writeFileSync(CONV_CFG_FILE, JSON.stringify({ keepDays: d })); } catch {}
+  res.json({ ok: true, keepDays: d });
+});
 function pruneConvs(list: Conv[]): Conv[] {
-  // Projekty na stałe zostają ZAWSZE; zwykłych rozmów trzymamy 25 najnowszych na twarz.
+  // Projekty na stałe zostają ZAWSZE; zwykłe czaty żyją keepDays dni (0 = bez
+  // limitu czasu) i maksymalnie 25 najnowszych na twarz.
   const perm = list.filter(c => c.permanent);
-  const rest = list.filter(c => !c.permanent).sort((a, b) => b.updated - a.updated);
+  const days = convKeepDays();
+  const cutoff = days > 0 ? Date.now() - days * 86400000 : 0;
+  const rest = list.filter(c => !c.permanent && c.updated >= cutoff).sort((a, b) => b.updated - a.updated);
   const byPersona: Record<string, number> = {};
   const kept = rest.filter(c => { byPersona[c.persona] = (byPersona[c.persona] ?? 0) + 1; return byPersona[c.persona] <= 25; });
   return [...perm, ...kept];
@@ -976,7 +1015,7 @@ router.post("/ask", async (req: Request, res: Response) => {
       /najnowsz|aktualn|śwież|swiez|dzisiejsz|wczorajsz|co nowego|co słychać w|co slychac w|nowe (prawo|przepisy|zasady|zalecenia|leki|stawki)|zmiany w (prawie|przepisach|podatkach)|zmienił[oa]? się|zmienil[oa]? sie|wiadomości|wiadomosci|sprawdź w internecie|sprawdz w internecie|z internetu|w internecie|ile (teraz |dziś |dzis )?kosztuje|jaki jest (teraz |dziś |dzis )?kurs/i.test(q);
     if (wantsFresh) {
       try {
-        const personaNow = PERSONAS[loadPersona()];
+        const personaNow = activePersona(q);
         const rr = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -1083,8 +1122,8 @@ router.post("/ask", async (req: Request, res: Response) => {
           // jest niezmienna (zmienia się tylko przy przełączeniu systemu), więc po
           // pierwszym pytaniu kosztuje ~10× mniej — a księga przed nią zostaje w cache
           // nawet po zmianie systemu. Części naprawdę zmienne (pamięć, zegar) dalej za nią.
-          ...(PERSONAS[loadPersona()].prompt
-            ? [{ type: "text", text: PERSONAS[loadPersona()].prompt, cache_control: { type: "ephemeral" } }]
+          ...(activePersona(String(question ?? "")).prompt
+            ? [{ type: "text", text: activePersona(String(question ?? "")).prompt, cache_control: { type: "ephemeral" } }]
             : []),
           { type: "text", text: SYSTEM_DYNAMIC
               .replace("{USER_MEMORY}", memText)
