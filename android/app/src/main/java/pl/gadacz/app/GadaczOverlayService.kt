@@ -512,6 +512,7 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         try { tts.stop(); pendingSpeech.set(0) } catch (_: Exception) {}; PiperUsta.stopNow()   // clear old speech, then QUEUE step announcements
         taskRunning = true
         startGuard()   // 🗡️ od PIERWSZEJ sekundy zadania głosowe „stop" działa
+        startSlash()   // 🌀 ukośnik pracy na pływającym przycisku
         Thread {
             try {
                 // Full task loop — Gadacz drives across screens until the goal is done.
@@ -579,6 +580,20 @@ class GadaczOverlayService : Service(), TextToSpeech.OnInitListener {
         tts.speak(text, TextToSpeech.QUEUE_ADD, null, "g${uttSeq++}")
     }
     private fun setBubble(emoji: String) { bubble?.post { bubble?.text = emoji } }
+
+    // 🌀 UKOŚNIK PRACY: gdy Gadacz robi zadanie w tle, pływający przycisk kręci
+    // klasycznym ukośnikiem terminala | / — \ — widać, że PRACUJE, nie wisi.
+    private val slashFrames = listOf("|", "/", "—", "\\")
+    private var slashIdx = 0
+    private val slashTick = object : Runnable {
+        override fun run() {
+            if (!taskRunning) return   // koniec zadania — bąbelek wraca do emoji
+            slashIdx = (slashIdx + 1) % slashFrames.size
+            bubble?.text = slashFrames[slashIdx]
+            bubble?.postDelayed(this, 140)
+        }
+    }
+    private fun startSlash() { bubble?.post { bubble?.postDelayed(slashTick, 140) } }
 
     override fun onDestroy() {
         GadaczAccessibilityService.onScreenChange = null   // koniec świadomości ekranu

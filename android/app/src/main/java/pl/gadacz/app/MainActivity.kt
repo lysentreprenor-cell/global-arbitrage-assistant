@@ -839,7 +839,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var baseStatus = "Gotowy"
     private val progressLines = LinkedHashMap<String, String>()
     // ⏳ Kręciołek przy myśleniu — widać, że Gadacz PRACUJE, a nie wisi.
-    private val spinFrames = listOf("◐", "◓", "◑", "◒")
+    private val spinFrames = listOf("|", "/", "—", "\\")
     private var spinPhase = 0
     private var spinArmed = false
     private val spinTick = object : Runnable {

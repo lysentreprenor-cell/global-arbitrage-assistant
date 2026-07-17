@@ -44,7 +44,7 @@ class ChatActivity : Activity() {
     // migające losowe znaki Matriksa z blokowym kursorem, jak na monitorze Neo.
     private var thinkView: TextView? = null
     private var thinkPhase = 0
-    private val spinFrames = listOf("◐", "◓", "◑", "◒")
+    private val spinFrames = listOf("|", "/", "—", "\\")
     private val neoThinkGlyphs = "アイウエオカキクケコサシスセソタチツテト日月火水木金人中大電脳0123456789"
     private val thinkRnd = java.util.Random()
     private val thinkTick = object : Runnable {
@@ -232,7 +232,7 @@ class ChatActivity : Activity() {
         hideThinking()
         val pad = (resources.displayMetrics.density * 10).toInt()
         thinkView = TextView(this).apply {
-            text = if (neoActive()) "█" else "◐ myślę…"
+            text = if (neoActive()) "█" else "| myślę…"
             textSize = 17f
             setTextColor(if (neoActive()) 0xFF00FF66.toInt() else 0xFFA8A29E.toInt())
             setPadding(pad, pad, pad, pad)
