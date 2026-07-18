@@ -19,10 +19,10 @@ import android.widget.TextView
 
 /**
  * ⌨️ CZAT Z TWARZAMI — pisanie ORAZ mówienie z Gadaczem jak w komunikatorze.
- * Rozmowa zapisuje się SAMA na serwerze; menu ⋮ (prawy górny róg) daje ustawienia:
- *  🔊 czytanie odpowiedzi na głos, 🎙️ tryb rozmowy głosowej (mówisz — Gadacz
- *  odpowiada głosem i wszystko zapisuje), 🎭 pisanie ze WSZYSTKIMI twarzami naraz
- *  (narada), 🗂 projekty i czaty, 🟢 tryb Neo (u Programowania).
+ * Rozmowa zapisuje się SAMA na serwerze; menu ⋮ (prawy górny róg) — TE SAME
+ * ustawienia dla KAŻDEJ twarzy: 🔊 czytanie odpowiedzi na głos, 🎙️ tryb rozmowy
+ * głosowej (mówisz — Gadacz odpowiada głosem i wszystko zapisuje), 🟢 wygląd
+ * Matrix (Neo), 🗂 projekty i czaty, ⏳ kasowanie.
  *  🎤 mikrofon dyktuje tekst, 📎 spinacz dołącza zdjęcie/plik.
  */
 class ChatActivity : Activity(), TextToSpeech.OnInitListener {
@@ -52,8 +52,7 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
     private var recognizer: SpeechRecognizer? = null
     private var pendingAutoSend = false
 
-    // 🎭 Pisanie ze WSZYSTKIMI twarzami · 🎙️ tryb rozmowy głosowej (mowa+głos).
-    private var allFaces = false
+    // 🎙️ tryb rozmowy głosowej (mowa + głos, wszystko zapisywane).
     private var voiceConvo = false
 
     // ⏳ „Myślę" = DEKODOWANIE: migające japońskie znaki z blokowym kursorem.
@@ -70,9 +69,8 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun neoOn(): Boolean = Brain.prefs(this).getBoolean("neo_mode", false)
-    private fun isProgramista(): Boolean = Brain.cachedPersona(this) == "programista"
-    private fun neoActive(): Boolean = neoOn() && isProgramista() && !allFaces
+    // 🟢 Tryb Matrix (Neo) dostępny dla KAŻDEJ twarzy — z menu ⋮.
+    private fun neoActive(): Boolean = Brain.prefs(this).getBoolean("neo_mode", false)
     private fun ttsOn(): Boolean = Brain.prefs(this).getBoolean("chat_tts", false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,7 +143,7 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
         applyTheme()
         if (neoActive()) neoIntro()
         else hint("Napisz albo dotknij 🎤 i mów — odpowiem tekstem. Rozmowa zapisuje się sama. " +
-            "Menu ⋮ w prawym górnym rogu: czytanie na głos, rozmowa głosowa, wszystkie twarze, projekty.")
+            "Menu ⋮ w prawym górnym rogu: czytanie na głos, rozmowa głosowa, tryb Matrix, projekty.")
     }
 
     override fun onInit(status: Int) {
@@ -165,7 +163,7 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
         val neo = neoActive()
         rain.visibility = if (neo) View.VISIBLE else View.GONE
         col.setBackgroundColor(if (neo) 0x00000000 else 0xFF0C0A09.toInt())
-        faceBtn.text = if (allFaces) "💬 🎭 Wszystkie twarze (narada)" else "💬 ${Personas.nameOf(Brain.cachedPersona(this))}"
+        faceBtn.text = "💬 ${Personas.nameOf(Brain.cachedPersona(this))}"
         if (neo) {
             faceBtn.setTextColor(0xFF00FF66.toInt()); faceBtn.setBackgroundColor(0x99001A00.toInt())
             menuBtn.setTextColor(0xFF00FF66.toInt()); menuBtn.setBackgroundColor(0x99001A00.toInt())
@@ -174,7 +172,7 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
             input.setTextColor(0xFF00FF66.toInt()); input.setHintTextColor(0xFF00802F.toInt()); input.setBackgroundColor(0x99001300.toInt())
             sendBtn.setTextColor(0xFF001A00.toInt()); sendBtn.setBackgroundColor(0xFF00CC44.toInt())
         } else {
-            faceBtn.setTextColor(0xFF3B2A06.toInt()); faceBtn.setBackgroundColor(if (allFaces) 0xFFA7F3D0.toInt() else 0xFFFDE68A.toInt())
+            faceBtn.setTextColor(0xFF3B2A06.toInt()); faceBtn.setBackgroundColor(0xFFFDE68A.toInt())
             menuBtn.setTextColor(0xFFFDE68A.toInt()); menuBtn.setBackgroundColor(0xFF292524.toInt())
             micBtn.setTextColor(0xFFE7E5E4.toInt()); micBtn.setBackgroundColor(0xFF292524.toInt())
             attachBtn.setTextColor(0xFFE7E5E4.toInt()); attachBtn.setBackgroundColor(0xFF292524.toInt())
@@ -183,19 +181,18 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // ── ⋮ MENU USTAWIEŃ WIADOMOŚCI — czytanie na głos, rozmowa głosowa, narada… ──
+    // ── ⋮ MENU USTAWIEŃ WIADOMOŚCI — te same opcje dla KAŻDEJ twarzy ──
     private fun showMenu() {
-        val hasNeo = isProgramista()
-        val labels = ArrayList<String>()
-        labels.add((if (ttsOn()) "✓ " else "") + "🔊 Czytaj odpowiedzi na głos")
-        labels.add((if (voiceConvo) "✓ " else "") + "🎙️ Tryb rozmowy głosowej (mów, ja piszę i mówię)")
-        labels.add((if (allFaces) "✓ " else "") + "🎭 Pisz ze WSZYSTKIMI twarzami (narada)")
-        labels.add("🗂 Projekty i czaty")
-        labels.add("⏳ Kiedy kasować zwykłe czaty")
-        if (hasNeo) labels.add((if (neoOn()) "✓ " else "") + "🟢 Tryb Neo (Matrix)")
+        val labels = arrayOf(
+            (if (ttsOn()) "✓ " else "") + "🔊 Czytaj odpowiedzi na głos",
+            (if (voiceConvo) "✓ " else "") + "🎙️ Tryb rozmowy głosowej (mów, ja piszę i mówię)",
+            (if (neoActive()) "✓ " else "") + "🟢 Wygląd Matrix (Neo)",
+            "🗂 Projekty i czaty",
+            "⏳ Kiedy kasować zwykłe czaty",
+        )
         AlertDialog.Builder(this)
             .setTitle("⋮ Ustawienia wiadomości")
-            .setItems(labels.toTypedArray()) { _, i ->
+            .setItems(labels) { _, i ->
                 when (i) {
                     0 -> {
                         val on = !ttsOn()
@@ -205,17 +202,12 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
                     }
                     1 -> toggleVoiceConvo()
                     2 -> {
-                        allFaces = !allFaces
-                        applyTheme()
-                        bubble(if (allFaces) "🎭 Teraz odpowiada CAŁA narada: prawnik, lekarz, sprzedawca, programista, kucharz, żartowniś i bajerant — każdy po swojemu. Napisz pytanie." else "Wracam do pisania z jedną twarzą: ${Personas.nameOf(Brain.cachedPersona(this)).substringAfter(" ")}.", false)
-                    }
-                    3 -> showProjects()
-                    4 -> showDeleteTiming()
-                    5 -> if (hasNeo) {
-                        Brain.prefs(this).edit().putBoolean("neo_mode", !neoOn()).apply()
+                        Brain.prefs(this).edit().putBoolean("neo_mode", !neoActive()).apply()
                         applyTheme()
                         if (neoActive()) neoIntro() else bubble("Wyszedłeś z Matriksa.", false)
                     }
+                    3 -> showProjects()
+                    4 -> showDeleteTiming()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
@@ -493,13 +485,12 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
     private fun pickFace() {
         val cur = Brain.cachedPersona(this)
         val items = Personas.list.map { (key, name, desc) ->
-            (if (key == cur && !allFaces) "✓ " else "") + name + "\n" + desc
+            (if (key == cur) "✓ " else "") + name + "\n" + desc
         }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle("🎭 Z kim chcesz pisać?")
             .setItems(items) { _, which ->
                 val (key, name, _) = Personas.list[which]
-                allFaces = false
                 history.clear()   // nowa twarz = świeży wątek (stary został zapisany)
                 Thread {
                     val ok = Brain.setPersona(this, key)
@@ -561,7 +552,7 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
 
     private fun send() {
         val typed = input.text.toString().trim()
-        if (typed.isNotBlank() && !allFaces && trySelfCode(typed)) return
+        if (typed.isNotBlank() && trySelfCode(typed)) return
         val hasAttach = attachB64 != null || attachText != null
         if (typed.isBlank() && !hasAttach) return
         val t = typed.ifBlank { "Przeczytaj załącznik i powiedz dokładnie, co w nim jest." }
@@ -569,9 +560,6 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
         bubble(if (hasAttach) "$t 📎" else t, true)
         sendBtn.isEnabled = false
         showThinking()
-
-        // 🎭 NARADA — pytanie do wszystkich twarzy (bez załączników, bez głosu).
-        if (allFaces && !hasAttach) { sendRoundtable(t); return }
 
         val img = attachB64
         val fileTxt = attachText
@@ -609,26 +597,6 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
                 history.add("user" to t); history.add("assistant" to answer)
                 while (history.size > 16) history.removeAt(0)
                 try { Brain.convAppend(this, t, answer) } catch (_: Exception) {}
-            }
-        }.start()
-    }
-
-    /** 🎭 Wyślij pytanie do NARADY — każda twarz odpowiada w osobnym dymku. */
-    private fun sendRoundtable(t: String) {
-        attachB64 = null; attachText = null
-        Thread {
-            val answers = Brain.roundtable(this, t, history)
-            runOnUiThread {
-                sendBtn.isEnabled = true
-                hideThinking()
-                if (answers.isEmpty()) bubble("Narada nie odpowiedziała. Spróbuj jeszcze raz.", false)
-                else answers.forEach { (label, ans) -> bubble("$label:\n$ans", false) }
-            }
-            if (answers.isNotEmpty()) {
-                val joined = answers.joinToString("\n\n") { "${it.first}: ${it.second}" }
-                history.add("user" to t); history.add("assistant" to joined)
-                while (history.size > 16) history.removeAt(0)
-                try { Brain.convAppend(this, t, joined) } catch (_: Exception) {}
             }
         }.start()
     }
