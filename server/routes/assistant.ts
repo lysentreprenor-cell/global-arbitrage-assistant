@@ -375,6 +375,47 @@ router.post("/persona", (req, res) => {
   res.json({ ok: true, persona: p });
 });
 
+// ── 🎭 NARADA — jedno pytanie, odpowiada KAŻDA twarz ze swojej perspektywy.
+// Jedno wywołanie Claude (tanio): każdy ekspert mówi krótko, w swoim stylu.
+router.post("/roundtable", async (req: Request, res: Response) => {
+  const { question, history = [], anthropicKey, faces } = req.body ?? {};
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Brak klucza Anthropic." });
+  if (!question) return res.status(400).json({ error: "question required" });
+  // Domyślnie radzą fachowcy (bez trybów pomocniczych auto/ogólny/niewidomi).
+  const all = ["prawnik", "lekarz", "sprzedawca", "programista", "kucharz", "zartownis", "bajerant"];
+  const wanted: string[] = (Array.isArray(faces) && faces.length ? faces : all).filter((f: string) => PERSONAS[f]);
+  const panel = wanted.map(k => `- ${k} = ${PERSONAS[k].icon} ${PERSONAS[k].name}: ${PERSONAS[k].desc}`).join("\n");
+  const sys = `Jesteś NARADĄ ekspertów Gadacza. Na pytanie użytkownika odpowiada KAŻDY ekspert ze swojej perspektywy — KRÓTKO (2-4 zdania), po polsku, zwykłym tekstem do czytania na głos (bez gwiazdek, bez list, bez markdown). Każdy mówi w swoim stylu. Jeśli dla kogoś to nie jego działka, mówi to jednym zdaniem.
+EKSPERCI:
+${panel}
+Zwróć TYLKO JSON, bez markdown: {"answers":[{"face":"klucz","answer":"tekst"}]} — dokładnie w kolejności ekspertów wyżej.`;
+  const msgs = (Array.isArray(history) ? history : []).slice(-6).map((h: any) => ({
+    role: h.role === "assistant" ? "assistant" : "user", content: String(h.content ?? "").slice(0, 1500),
+  }));
+  msgs.push({ role: "user", content: String(question).slice(0, 2000) });
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 4000, system: sys, messages: msgs }),
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!r.ok) { const e = await r.json().catch(() => ({})) as any; return res.status(502).json({ error: e.error?.message || `Claude ${r.status}` }); }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { const m = text.match(/\{[\s\S]*\}/); if (m) try { parsed = JSON.parse(m[0]); } catch {} }
+    const answers = Array.isArray(parsed?.answers) ? parsed.answers : [];
+    const out = answers.map((a: any) => {
+      const p = PERSONAS[a.face];
+      return { face: a.face, label: p ? `${p.icon} ${p.name}` : String(a.face ?? "Ekspert"), answer: String(a.answer ?? "") };
+    }).filter((a: any) => a.answer);
+    if (!out.length) return res.status(502).json({ error: "Narada nie zwróciła odpowiedzi." });
+    return res.json({ answers: out });
+  } catch (e: any) { return res.status(500).json({ error: e.message || "błąd narady" }); }
+});
+
 // ── 🗂 ROZMOWY Z TWARZAMI — każda twarz ma swoje rozmowy, zapisywane AUTOMATYCZNIE.
 // Zwykłe rozmowy trzymamy do 25 na twarz (starsze same znikają). „Zapisz na stałe"
 // zamienia rozmowę w PROJEKT — nigdy nie jest kasowany, można do niego wracać po

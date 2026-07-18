@@ -420,6 +420,30 @@ object Brain {
             }
     } catch (_: Exception) { null }
 
+    /** 🎭 NARADA — pytanie do WSZYSTKICH twarzy naraz. Lista (etykieta, odpowiedź). */
+    fun roundtable(ctx: Context, question: String, history: List<Pair<String, String>>): List<Pair<String, String>> = try {
+        val msgs = org.json.JSONArray()
+        history.takeLast(6).forEach { (role, content) ->
+            msgs.put(JSONObject().put("role", role).put("content", content))
+        }
+        val body = JSONObject()
+            .put("question", question)
+            .put("history", msgs)
+            .put("anthropicKey", anthropicKey(ctx))
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/roundtable")
+            .header("x-bot-pin", pin(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { r ->
+                val o = JSONObject(r.body?.string() ?: "{}")
+                if (!r.isSuccessful) return listOf("Błąd" to o.optString("error", "Narada się nie udała."))
+                val arr = o.optJSONArray("answers") ?: return emptyList()
+                (0 until arr.length()).mapNotNull { i ->
+                    val a = arr.optJSONObject(i) ?: return@mapNotNull null
+                    a.optString("label") to a.optString("answer")
+                }
+            }
+    } catch (_: Exception) { listOf("Błąd" to "Nie mam połączenia z serwerem.") }
+
     // ── 🖐️ RĘCE GADACZA — czytanie i zapisywanie własnego kodu (przez serwer → GitHub).
     fun githubToken(ctx: Context): String = prefs(ctx).getString("github_token", "") ?: ""
     fun setGithubToken(ctx: Context, t: String) { prefs(ctx).edit().putString("github_token", t.trim()).apply() }
