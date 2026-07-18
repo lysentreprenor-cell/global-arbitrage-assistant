@@ -742,6 +742,21 @@ object Brain {
             }
         }
 
+        // 🎬 NAGRYWANIE EKRANU — start/stop głosem. Zgodę systemową pokazuje
+        // ekran główny Gadacza (usługa w tle nie może o nią poprosić).
+        if (Regex("^(nagrywaj|nagraj|zacznij nagrywac) ekran(u)?$").matches(n)) {
+            if (ScreenRecordService.running) return done("Już nagrywam ekran. Powiedz: zakończ nagrywanie — żeby zapisać film.")
+            ctx.startActivity(Intent(ctx, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("start_recording", true))
+            return done("Otwieram zgodę na nagrywanie — potwierdź na ekranie.")
+        }
+        if (Regex("^(zakoncz|zatrzymaj|skoncz|stop) nagrywani(e|a)( ekranu)?$").matches(n)) {
+            return if (ScreenRecordService.running) {
+                ScreenRecordService.requestStop()
+                done("Zapisane. Film jest w galerii, w folderze Gadacz.")
+            } else done("Nie nagrywam teraz ekranu.")
+        }
+
         // 🩺 SERWER (Replit): sprawdzanie i budzenie — głosem, bez przeglądarki.
         if (Regex("^(sprawdz|zbadaj) serwer(a)?$|^czy serwer (dziala|zyje|odpowiada)$|^jak serwer$").matches(n))
             return done(serverReport(ctx, false))

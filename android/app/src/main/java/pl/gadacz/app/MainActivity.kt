@@ -46,6 +46,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (!said.isNullOrBlank()) handleCommand(said) else setStatus("Nic nie usłyszałem.")
     }
 
+    // 🎬 Zgoda systemowa na nagrywanie ekranu → start usługi nagrywania.
+    private val screenRecLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val i = Intent(this, ScreenRecordService::class.java)
+                .putExtra("code", result.resultCode).putExtra("data", result.data)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
+            speak("Nagrywam ekran z dźwiękiem z mikrofonu. Powiedz: zakończ nagrywanie — a zapiszę film w galerii, w folderze Gadacz.")
+        } else speak("Nie dostałem zgody na nagrywanie ekranu.")
+    }
+
+    /** 🎬 Start/stop nagrywania ekranu — z Ustawień albo głosem. */
+    fun toggleScreenRecording() {
+        if (ScreenRecordService.running) {
+            ScreenRecordService.requestStop()
+            speak("Kończę nagrywanie. Film jest w galerii, w folderze Gadacz.")
+            return
+        }
+        val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+        try { screenRecLauncher.launch(mpm.createScreenCaptureIntent()) }
+        catch (_: Exception) { speak("Ten telefon nie pozwala nagrywać ekranu.") }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tts = TextToSpeech(this, this)
@@ -128,6 +152,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         // Podświetl aktualny stan paneli i twarz.
         refreshFloatButtons(); refreshWorkButtons(); refreshPersonaButtons()
+
+        // 🎬 Głosowe „nagrywaj ekran" otwiera ten ekran z prośbą o start nagrywania
+        // (zgodę systemową może pokazać tylko Aktywność, nie usługa w tle).
+        if (intent?.getBooleanExtra("start_recording", false) == true) {
+            intent.removeExtra("start_recording")
+            toggleScreenRecording()
+        }
 
         // Silent auto-check: if a newer version is published, offer it (no nagging if up to date).
         Thread {
@@ -259,6 +290,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🏫  Naucz się całego telefonu",
             "🔩  SILNIKI (mózg · ucho · oczy) — pobieranie i stan",
             "⏳  Czas rozmowy: ${convWaitLabel(Brain.convWaitSec(this))} — ile czekam na Twój głos",
+            if (ScreenRecordService.running) "🎬  Nagrywanie ekranu: 🔴 TRWA — dotknij, by zakończyć"
+            else "🎬  Nagrywaj ekran (film z dźwiękiem do galerii)",
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -281,6 +314,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     7 -> confirmLearnDevice()
                     8 -> showEngines()
                     9 -> showConvWaitPicker()
+                    10 -> toggleScreenRecording()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
