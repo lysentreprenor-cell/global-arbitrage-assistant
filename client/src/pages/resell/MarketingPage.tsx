@@ -166,6 +166,13 @@ export default function MarketingPage() {
   const [influencer, setInfluencer] = useState<any>(null);
   const [influencerLoading, setInfluencerLoading] = useState(false);
   const [influencerError, setInfluencerError] = useState<string | null>(null);
+
+  // 🌍 SEO wielojęzyczne — pakiet pozycjonujący we wszystkich językach naraz
+  const [seoLangs, setSeoLangs] = useState<string[]>(["polski", "angielski", "niemiecki", "francuski", "hiszpański", "włoski", "czeski", "ukraiński"]);
+  const [seoUrl, setSeoUrl] = useState("");
+  const [seoMulti, setSeoMulti] = useState<any>(null);
+  const [seoMultiLoading, setSeoMultiLoading] = useState(false);
+  const [seoMultiError, setSeoMultiError] = useState<string | null>(null);
   // Media upload
   const [uploadedImages, setUploadedImages] = useState<{ name: string; url: string }[]>([]);
   const [uploadedVideos, setUploadedVideos] = useState<{ name: string; url: string }[]>([]);
@@ -513,6 +520,32 @@ export default function MarketingPage() {
     } catch (e: any) { setInfluencerError(e.message); }
     setInfluencerLoading(false);
   };
+
+  // 🌍 Wszystkie języki do wyboru — chipsy w sekcji SEO wielojęzycznego.
+  const SEO_ALL_LANGS = ["polski", "angielski", "niemiecki", "francuski", "hiszpański", "włoski", "niderlandzki", "czeski", "ukraiński", "portugalski", "szwedzki", "japoński"];
+  const genSeoMulti = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setSeoMultiError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    if (!seoLangs.length) { setSeoMultiError("Zaznacz przynajmniej jeden język"); return; }
+    setSeoMultiLoading(true); setSeoMultiError(null);
+    try {
+      const r = await fetch("/api/marketing/gen-seo-multi", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          product: product.trim(), description: description.trim(),
+          url: seoUrl.trim(), languages: seoLangs, anthropicKey: key,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania SEO");
+      setSeoMulti(data);
+    } catch (e: any) { setSeoMultiError(e.message); }
+    setSeoMultiLoading(false);
+  };
+  /** Cały pakiet jednego języka jako tekst do skopiowania. */
+  const seoLangToText = (x: any): string =>
+    `=== SEO (${x.lang}) ===\nTYTUŁ: ${x.pageTitle}\nMETA: ${x.metaDescription}\nH1: ${x.h1}\nSŁOWA KLUCZOWE: ${(x.keywords ?? []).join(", ")}\nLONG TAIL: ${(x.longTail ?? []).join(", ")}\n\nOPIS SEO:\n${x.seoDescription}\n\nHASHTAGI: ${(x.hashtags ?? []).join(" ")}\nALT ZDJĘCIA: ${x.altText}\n\nHTML:\n${x.metaHtml}`;
 
   const copyText = async (text: string, key: string) => {
     try { await navigator.clipboard.writeText(text); } catch {}
@@ -1644,6 +1677,78 @@ export default function MarketingPage() {
                         )}
                       </div>
                     )}
+                  </Ch>
+
+                  {/* ── 🌍 SEO WIELOJĘZYCZNE (AUTO) ── */}
+                  <Ch id="seo-multi" icon="🌍" label="SEO wielojęzyczne (Auto)" subtitle="Pozycjonowanie we wszystkich językach naraz" description="Jeden klik = kompletny pakiet SEO dla każdego zaznaczonego języka: tytuł, meta opis, H1, słowa kluczowe (takie, jakie tubylcy naprawdę wpisują w Google), opis, hashtagi, gotowy HTML i blok hreflang. Wklejasz na stronę/aukcję — pozycjonuje się w każdym języku." color="#34d399"
+                    status={seoMulti ? "done" : "generator"}>
+                    <div style={{ marginTop: 14 }}>
+                    {!seoMulti ? (
+                      <div style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 12, padding: "22px 20px" }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 5, textAlign: "center" }}>🌍 Auto-SEO — wszystkie języki jednym kliknięciem</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 14, textAlign: "center" }}>Zaznacz języki (domyślnie 8 głównych rynków), opcjonalnie podaj adres strony — a AI złoży pakiet pozycjonujący dla każdego z nich.</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
+                          {SEO_ALL_LANGS.map(l => {
+                            const on = seoLangs.includes(l);
+                            return (
+                              <button key={l} onClick={() => setSeoLangs(prev => on ? prev.filter(x => x !== l) : [...prev, l])}
+                                style={{ padding: "5px 12px", borderRadius: 99, border: on ? "1px solid rgba(52,211,153,0.6)" : "1px solid rgba(255,255,255,0.12)", background: on ? "rgba(52,211,153,0.18)" : "transparent", color: on ? "#6ee7b7" : "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                {on ? "✓ " : ""}{l}
+                              </button>
+                            );
+                          })}
+                          <button onClick={() => setSeoLangs(seoLangs.length === SEO_ALL_LANGS.length ? [] : [...SEO_ALL_LANGS])}
+                            style={{ padding: "5px 12px", borderRadius: 99, border: "1px solid rgba(52,211,153,0.4)", background: "rgba(52,211,153,0.08)", color: "#34d399", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+                            {seoLangs.length === SEO_ALL_LANGS.length ? "✕ Odznacz wszystkie" : "🌍 KAŻDY JĘZYK"}
+                          </button>
+                        </div>
+                        <input value={seoUrl} onChange={e => setSeoUrl(e.target.value)} placeholder="(opcjonalnie) adres strony, np. https://mojsklep.pl — do bloku hreflang"
+                          style={{ width: "100%", boxSizing: "border-box", marginBottom: 12, padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.3)", color: "#fff", fontSize: 12 }} />
+                        {seoMultiError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{seoMultiError}</div>}
+                        <div style={{ textAlign: "center" }}>
+                          <button onClick={genSeoMulti} disabled={seoMultiLoading} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 24px", borderRadius: 10, border: "none", background: seoMultiLoading ? "rgba(52,211,153,0.2)" : "linear-gradient(135deg,#34d399,#059669)", color: seoMultiLoading ? "rgba(255,255,255,0.4)" : "#022c22", fontWeight: 800, fontSize: 13, cursor: seoMultiLoading ? "not-allowed" : "pointer" }}>
+                            {seoMultiLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Generuję {seoLangs.length} języków…</> : <><Globe size={14} /> Generuj SEO ({seoLangs.length} języków)</>}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
+                          <button onClick={() => copyText((seoMulti.results ?? []).map(seoLangToText).join("\n\n") + (seoMulti.hreflang ? `\n\n=== HREFLANG ===\n${seoMulti.hreflang}` : ""), "seoMultiAll")}
+                            style={{ padding: "8px 16px", borderRadius: 9, border: "1px solid rgba(52,211,153,0.4)", background: "rgba(52,211,153,0.12)", color: "#6ee7b7", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                            {copied["seoMultiAll"] ? "✓ Skopiowane!" : "📋 Kopiuj WSZYSTKIE języki"}
+                          </button>
+                          <button onClick={() => { setSeoMulti(null); setSeoMultiError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Regeneruj</button>
+                        </div>
+                        {(seoMulti.results ?? []).map((x: any, i: number) => (
+                          <div key={i} style={{ background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.18)", borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                              <div style={{ color: "#6ee7b7", fontWeight: 900, fontSize: 14 }}>🌐 {x.lang} {x.langCode ? `(${x.langCode})` : ""}</div>
+                              <button onClick={() => copyText(seoLangToText(x), `seoL${i}`)} style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(52,211,153,0.35)", background: "transparent", color: "#6ee7b7", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                {copied[`seoL${i}`] ? "✓" : "📋 Kopiuj język"}
+                              </button>
+                            </div>
+                            <div style={{ color: "#fff", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{x.pageTitle}</div>
+                            <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginBottom: 6 }}>{x.metaDescription}</div>
+                            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 6 }}>H1: <span style={{ color: "rgba(255,255,255,0.7)" }}>{x.h1}</span></div>
+                            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+                              {(x.keywords ?? []).map((k: string) => <span key={k} style={{ background: "rgba(52,211,153,0.12)", borderRadius: 99, padding: "2px 9px", color: "#6ee7b7", fontSize: 10, fontWeight: 700 }}>{k}</span>)}
+                              {(x.longTail ?? []).map((k: string) => <span key={k} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "2px 9px", color: "rgba(255,255,255,0.5)", fontSize: 10 }}>{k}</span>)}
+                            </div>
+                            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, lineHeight: 1.5, marginBottom: 6 }}>{x.seoDescription}</div>
+                            <div style={{ color: "#93c5fd", fontSize: 10, marginBottom: 6 }}>{(x.hashtags ?? []).join(" ")}</div>
+                            <pre style={{ background: "rgba(0,0,0,0.35)", borderRadius: 8, padding: "8px 10px", color: "#86efac", fontSize: 10, overflowX: "auto", whiteSpace: "pre-wrap", margin: 0 }}>{x.metaHtml}</pre>
+                          </div>
+                        ))}
+                        {seoMulti.hreflang && (
+                          <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 12, padding: "12px 14px" }}>
+                            <div style={{ color: "#6ee7b7", fontWeight: 800, fontSize: 12, marginBottom: 6 }}>🔗 HREFLANG — wklej raz w sekcji head strony (mówi Google o wszystkich wersjach językowych)</div>
+                            <pre style={{ background: "transparent", color: "#86efac", fontSize: 10, overflowX: "auto", whiteSpace: "pre-wrap", margin: 0 }}>{seoMulti.hreflang}</pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    </div>
                   </Ch>
 
                   {/* ── 10. PLAN KAMPANII ── */}

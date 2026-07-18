@@ -1062,4 +1062,74 @@ Write all user-facing text in ${language}. Keep JSON keys in English.`;
   }
 });
 
+// ── 🌍 SEO WIELOJĘZYCZNE — kompletny pakiet pozycjonujący w wielu językach ─────
+// Jedno wywołanie generuje dla KAŻDEGO języka: tytuł SEO, meta opis, H1, słowa
+// kluczowe (te, które tubylcy naprawdę wpisują — nie tłumaczenia), opis, hashtagi
+// i gotowe znaczniki HTML + blok hreflang. Wklejasz i strona pozycjonuje się
+// we wszystkich językach naraz.
+router.post("/gen-seo-multi", async (req: Request, res: Response) => {
+  const { product, description = "", url = "", languages = [], anthropicKey } = req.body ?? {};
+  if (!product) return res.status(400).json({ error: "product required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+  const productSafe = sanitize(product, 120);
+  const descSafe = sanitize(description, 600);
+  const urlSafe = sanitize(url, 200);
+  const langs: string[] = (Array.isArray(languages) ? languages : [])
+    .map((l: any) => sanitize(String(l), 30)).filter(Boolean).slice(0, 12);
+  if (!langs.length) return res.status(400).json({ error: "languages required" });
+
+  const prompt = `You are a world-class multilingual SEO specialist. Create a complete SEO pack for EACH language listed, for this product/business:
+Product/Business: ${productSafe}
+Description: ${descSafe || "N/A"}
+Website URL: ${urlSafe || "N/A"}
+Languages: ${langs.join(", ")}
+
+Return ONLY valid JSON (no markdown):
+{
+  "results": [
+    {
+      "lang": "language name in Polish",
+      "langCode": "ISO 639-1 code",
+      "pageTitle": "SEO title, max 60 chars, main keyword first",
+      "metaDescription": "meta description, max 155 chars, with a call to action",
+      "h1": "main page heading",
+      "keywords": ["5 primary keywords natives ACTUALLY type into Google in this language"],
+      "longTail": ["5 long-tail phrases with buying intent"],
+      "seoDescription": "150-200 word SEO description in natural language with keywords woven in",
+      "hashtags": ["8 social hashtags used in this language market"],
+      "altText": "image alt text",
+      "metaHtml": "<title>...</title>\\n<meta name=\\"description\\" content=\\"...\\">\\n<meta property=\\"og:title\\" content=\\"...\\">\\n<meta property=\\"og:description\\" content=\\"...\\">"
+    }
+  ],
+  "hreflang": "one ready-to-paste block of <link rel=\\"alternate\\" hreflang=\\"xx\\" href=\\"...\\"> lines for ALL the languages (use the given URL, or https://example.com if none)"
+}
+All CONTENT in the target language of each entry (keywords must be real native search phrases, not translations). Keep JSON keys in English. Cover every requested language.`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-5",
+        max_tokens: 16000,
+        system: "You are a multilingual SEO expert. Always respond with valid JSON only.",
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: claudeSignal(),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const parsed = parseJsonSalvage(text) as any;
+    if (!parsed || !Array.isArray(parsed.results)) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 400) });
+    return res.json(parsed);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
 export default router;
