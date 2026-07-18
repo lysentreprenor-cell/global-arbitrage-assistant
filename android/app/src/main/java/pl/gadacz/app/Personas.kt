@@ -15,6 +15,7 @@ object Personas {
         Triple("bajerant",   "😎 Bajerant",        "Rozmowy z dziewczynami — z klasą"),
         Triple("sprzedawca", "💼 Sprzedawca",      "Oferty, negocjacje, odpowiedzi klientom"),
         Triple("programista","💻 Programowanie",   "Pisze i tłumaczy kod, buduje aplikacje"),
+        Triple("kucharz",    "👨‍🍳 Kucharz",         "Przepisy krok po kroku, z tego co masz"),
     )
 
     /** Twarze działające BEZ internetu — musi zgadzać się z Brain.faceWorksOffline. */

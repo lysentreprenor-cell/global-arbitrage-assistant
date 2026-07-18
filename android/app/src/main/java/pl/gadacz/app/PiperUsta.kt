@@ -11,40 +11,55 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
 /**
- * 👄 USTA GADACZA — piękny, naturalny polski głos OFFLINE (Piper „Gosia"
- * uruchamiany silnikiem sherpa-onnx; wszystko otwarte, licencje Apache/MIT).
+ * 👄 USTA GADACZA — piękne, naturalne polskie głosy OFFLINE (Piper przez
+ * sherpa-onnx; wszystko otwarte, licencje Apache/MIT).
  *
- * Po co, skoro Android ma swój głos? Bo najładniejsze głosy systemowe działają
- * tylko z internetem — offline zostaje „stara Ivona". Usta brzmią jak człowiek
- * ZAWSZE, także bez sieci i bez wydawania grosza.
- *
- * Model (~80 MB) pobiera się raz w Ustawieniach → SILNIKI. Brak modelu albo
- * wyłączenie w ustawieniach = mówi głos systemowy, jak dotąd.
+ * 🗣️ GŁOSY DO WYBORU (każdy ~70 MB, pobierany osobno w Ustawieniach → GŁOSY):
+ *  - gosia    — kobiecy, ciepły,
+ *  - darkman  — męski, głęboki,
+ *  - mcspeech — męski, wyraźny, spikerski.
+ * Wybrany głos pamiętamy; wyłączone usta = mówi głos systemowy, jak dotąd.
  */
 object PiperUsta {
     @Volatile private var engine: com.k2fsa.sherpa.onnx.OfflineTts? = null
+    @Volatile private var loadedKey: String? = null
     @Volatile private var track: AudioTrack? = null
     @Volatile private var worker: Thread? = null
     @Volatile private var generation = 0   // stopNow() podbija — stare zlecenia gasną
     @Volatile var downloadCancel = false
     private val queue = LinkedBlockingQueue<Triple<String, Int, () -> Unit>>()
 
-    private const val MOUTH_URL_FALLBACK =
-        "https://github.com/lysentreprenor-cell/global-arbitrage-assistant/releases/download/gadacz-brain/gadacz-usta.zip"
+    val VOICE_KEYS = listOf("gosia", "darkman", "mcspeech")
+    private const val BRAIN_REL =
+        "https://github.com/lysentreprenor-cell/global-arbitrage-assistant/releases/download/gadacz-brain"
+    private fun fallbackUrl(key: String) = when (key) {
+        "darkman" -> "$BRAIN_REL/gadacz-usta-darkman.zip"
+        "mcspeech" -> "$BRAIN_REL/gadacz-usta-mcspeech.zip"
+        else -> "$BRAIN_REL/gadacz-usta.zip"
+    }
 
-    private fun dir(ctx: Context) = File(ctx.getExternalFilesDir(null), "gadacz-usta")
+    // Gosia mieszka w starym folderze gadacz-usta (zgodność z tym, co już pobrane).
+    private fun dirFor(ctx: Context, key: String) = File(ctx.getExternalFilesDir(null),
+        if (key == "gosia") "gadacz-usta" else "gadacz-usta-$key")
 
-    /** Folder z modelem: szukamy pliku .onnx (zip ma podfolder z nazwą głosu). */
-    private fun modelDir(ctx: Context): File? {
-        val d = dir(ctx)
+    private fun modelDirFor(ctx: Context, key: String): File? {
+        val d = dirFor(ctx, key)
         fun has(f: File) = f.listFiles()?.any { it.name.endsWith(".onnx") } == true
         if (has(d)) return d
         return d.listFiles()?.firstOrNull { it.isDirectory && has(it) }
     }
 
-    fun available(ctx: Context): Boolean = modelDir(ctx) != null
+    fun voiceInstalled(ctx: Context, key: String): Boolean = modelDirFor(ctx, key) != null
+    fun available(ctx: Context): Boolean = VOICE_KEYS.any { voiceInstalled(ctx, it) }
 
-    /** Włączone = wgrane ORAZ nie wyłączone ręcznie w Ustawieniach. */
+    /** 🗣️ Który głos jest WYBRANY (może nie być jeszcze pobrany). */
+    fun selectedVoice(ctx: Context): String = Brain.prefs(ctx).getString("piper_voice_key", "gosia") ?: "gosia"
+    fun setSelectedVoice(ctx: Context, key: String) {
+        Brain.prefs(ctx).edit().putString("piper_voice_key", key).apply()
+        synchronized(this) { engine?.let { try { it.release() } catch (_: Throwable) {} }; engine = null; loadedKey = null }
+    }
+
+    /** Włączone = jakiś głos wgrany ORAZ nie wyłączone ręcznie w Ustawieniach. */
     fun enabled(ctx: Context): Boolean =
         available(ctx) && Brain.prefs(ctx).getBoolean("piper_on", true)
 
@@ -52,8 +67,13 @@ object PiperUsta {
 
     @Synchronized
     private fun ensure(ctx: Context): com.k2fsa.sherpa.onnx.OfflineTts? {
-        engine?.let { return it }
-        val md = modelDir(ctx) ?: return null
+        // Graj wybranym głosem; gdy niepobrany — pierwszym, który JEST w telefonie.
+        val key = selectedVoice(ctx).takeIf { voiceInstalled(ctx, it) }
+            ?: VOICE_KEYS.firstOrNull { voiceInstalled(ctx, it) } ?: return null
+        engine?.let { if (loadedKey == key) return it }
+        engine?.let { try { it.release() } catch (_: Throwable) {} }
+        engine = null; loadedKey = null
+        val md = modelDirFor(ctx, key) ?: return null
         val onnx = md.listFiles()?.firstOrNull { it.name.endsWith(".onnx") } ?: return null
         val tokens = File(md, "tokens.txt")
         val espeak = File(md, "espeak-ng-data")
@@ -69,7 +89,7 @@ object PiperUsta {
                     numThreads = 2,
                 ),
             )
-            com.k2fsa.sherpa.onnx.OfflineTts(config = cfg).also { engine = it }
+            com.k2fsa.sherpa.onnx.OfflineTts(config = cfg).also { engine = it; loadedKey = key }
         } catch (_: Throwable) { null }
     }
 
@@ -144,20 +164,27 @@ object PiperUsta {
         }.apply { priority = Thread.NORM_PRIORITY + 1; start() }
     }
 
-    private fun mouthUrl(ctx: Context): String = try {
+    /** Adres głosu z serwera (lista "voices" w /brain-url); zapas — nasz GitHub. */
+    private fun voiceUrl(ctx: Context, key: String): String = try {
         val base = Brain.serverUrl(ctx).trimEnd('/')
-        if (base.isBlank()) MOUTH_URL_FALLBACK else {
+        if (base.isBlank()) fallbackUrl(key) else {
             val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
             client.newCall(Request.Builder().url("$base/api/assistant/brain-url").header("x-bot-pin", Brain.pin(ctx)).build())
                 .execute().use { r ->
-                    val u = if (r.isSuccessful) org.json.JSONObject(r.body?.string() ?: "{}").optString("mouth", "") else ""
-                    if (u.startsWith("http")) u else MOUTH_URL_FALLBACK
+                    if (!r.isSuccessful) return fallbackUrl(key)
+                    val arr = org.json.JSONObject(r.body?.string() ?: "{}").optJSONArray("voices")
+                    var u = ""
+                    if (arr != null) for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        if (o.optString("key") == key) { u = o.optString("url"); break }
+                    }
+                    if (u.startsWith("http")) u else fallbackUrl(key)
                 }
         }
-    } catch (_: Exception) { MOUTH_URL_FALLBACK }
+    } catch (_: Exception) { fallbackUrl(key) }
 
-    /** ⬇️ Pobierz i rozpakuj głos (~80 MB) — jak ucho: postęp, miejsce, 3 próby. */
-    fun download(ctx: Context, onProgress: (Int) -> Unit, onDone: (Boolean, String) -> Unit) {
+    /** ⬇️ Pobierz i rozpakuj WYBRANY głos (~70 MB): postęp, miejsce, 3 próby. */
+    fun download(ctx: Context, key: String, onProgress: (Int) -> Unit, onDone: (Boolean, String) -> Unit) {
         downloadCancel = false
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -165,8 +192,8 @@ object PiperUsta {
             .readTimeout(0, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()
-        val zip = File(ctx.getExternalFilesDir(null), "gadacz-usta.zip.part")
-        val url = mouthUrl(ctx)
+        val zip = File(ctx.getExternalFilesDir(null), "gadacz-usta-$key.zip.part")
+        val url = voiceUrl(ctx, key)
         var lastErr = ""
         for (attempt in 1..3) {
             if (downloadCancel) { zip.delete(); onDone(false, "Przerwane."); return }
@@ -192,7 +219,7 @@ object PiperUsta {
                     }
                 }
                 if (zip.length() < 20L * 1024 * 1024) { lastErr = "plik niekompletny"; zip.delete(); continue }
-                val target = dir(ctx)
+                val target = dirFor(ctx, key)
                 target.deleteRecursively()
                 target.mkdirs()
                 var done = 0
@@ -211,8 +238,8 @@ object PiperUsta {
                     }
                 }
                 zip.delete()
-                if (!available(ctx)) { onDone(false, "Rozpakowany głos wygląda na niekompletny. Spróbuj jeszcze raz."); return }
-                synchronized(this) { engine?.let { try { it.release() } catch (_: Throwable) {} }; engine = null }
+                if (!voiceInstalled(ctx, key)) { onDone(false, "Rozpakowany głos wygląda na niekompletny. Spróbuj jeszcze raz."); return }
+                setSelectedVoice(ctx, key)   // świeżo pobrany głos od razu przejmuje mowę
                 setEnabled(ctx, true)
                 onProgress(100)
                 onDone(true, "")
@@ -223,6 +250,6 @@ object PiperUsta {
             try { Thread.sleep(2500) } catch (_: Exception) {}
         }
         zip.delete()
-        onDone(false, "Nie udało się pobrać ust ($lastErr). Spróbuj na Wi-Fi.")
+        onDone(false, "Nie udało się pobrać głosu ($lastErr). Spróbuj na Wi-Fi.")
     }
 }

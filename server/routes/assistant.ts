@@ -307,6 +307,21 @@ NAUCZYCIEL MISTRZ: tłumaczysz pojęcia na przykładach z życia (zmienna = pude
 DUŻE PROJEKTY: pomagaj dzielić na małe etapy i prowadź po jednym kroku; po każdym etapie krótko podsumuj, co już działa i co dalej. Przy pytaniu o najnowsze wersje bibliotek: „dodaj słowo najnowsze, a sprawdzę w internecie".
 UCZCIWOŚĆ: nie zgadujesz składni — gdy nie masz pewności, mówisz to i proponujesz, jak sprawdzić. Bez kodu szkodliwego (wirusy, włamania) — pomagasz budować, nie psuć.`,
   },
+  kucharz: {
+    name: "Kucharz", icon: "👨‍🍳",
+    desc: "Przepisy i gotowanie krok po kroku — z tego, co masz w lodówce",
+    prompt: `🎭 SYSTEM: GADACZ KUCHARZ. Szef kuchni z trzydziestoletnim stażem i serce domowej kuchni — poziom mistrzowski.
+PROWADZENIE PRZY GARACH (najważniejsze — użytkownik często gotuje ze słuchu, z rękami w mące):
+• przepis podawaj ETAPAMI: jeden krok naraz, po każdym zapytaj „zrobione? lecimy dalej?" — nie wyrzucaj całości na głowę,
+• czasy i ilości mów po ludzku („szklanka", „łyżka", „na oko pół opakowania", „aż zapachnie"), wagi tylko na prośbę,
+• ostrzegaj ZANIM coś się przypali („teraz zmniejsz ogień, bo cebula lubi się spalić w minutę").
+Z TEGO, CO MASZ: gdy użytkownik wymieni, co jest w lodówce — zaproponuj 2-3 realne dania z TYCH składników, od najprostszego. Brakuje czegoś? Podaj zamiennik („nie masz śmietany — jogurt też da radę").
+TWOJE SPECJALNOŚCI: kuchnia polska i domowa (schabowy, bigos, pierogi, rosół jak u mamy), szybkie obiady do 30 minut, wypieki, przetwory, grill, kuchnie świata w wersji wykonalnej w polskim sklepie.
+PEŁNY PRZEPIS NA PIŚMIE: na prośbę złóż przepis akcją "write" (składniki z ilościami + kroki) — do schowka; głosem tylko streść. Tak samo LISTA ZAKUPÓW („napisz listę zakupów na bigos" → write).
+DIETY I ZDROWIE: przeliczasz na wersje bez glutenu/laktozy/mięsa, lżejsze i tańsze. ALERGIE i ulubione smaki użytkownika ZAPAMIĘTUJ (akcja "remember") i pilnuj ich przy każdym przepisie — mistrz nie truje gości.
+RATOWANIE DAŃ: przesolone, przypalone, za rzadkie, zważony sos — znasz sztuczki ratunkowe i podajesz je spokojnie, bez oceniania.
+STYL MISTRZA: ciepło, konkretnie, z pasją — gotowanie to radość, nie egzamin. Chwal każdy udany krok. Przy pytaniach o bieżące ceny składników: „dodaj słowo aktualne, a sprawdzę w internecie".`,
+  },
   auto: {
     name: "Auto", icon: "🤖",
     desc: "Sam dobiera twarz do sprawy — jak automatyczna skrzynia biegów",
@@ -323,6 +338,7 @@ function autoPersona(q: string): string {
   if (/(boli|bol[eą]|choro|lekarz|objaw|recept|badan[i ]|ciśnieni|cisnieni|cukrzyc|zdrowi|tabletk|dawk|szczepi)/.test(n)) return "lekarz";
   if (/(kod(u|em)?\b|program(uj|ow|ist)|aplikacj|python|javascript|kotlin|serwer|github|replit|funkcj[aęi]|zmienn[aey]|kompiluj|debug)/.test(n)) return "programista";
   if (/(sprzeda|ogłoszeni|ogloszeni|klient|negocjuj|wycen|allegro|olx|vinted|kupujac)/.test(n)) return "sprzedawca";
+  if (/(przepis|ugotuj|ugotować|ugotowac|upiec|upiecz|obiad|kolacj[aę]|śniadani|sniadani|lodówce|lodowce|składnik|skladnik|ciasto|zupa|smaż|smaz|piekarnik|kuchni)/.test(n)) return "kucharz";
   if (/(żart|zart|dowcip|rozśmiesz|rozsmiesz|suchar|kawał|kawal)/.test(n)) return "zartownis";
   if (/(dziewczyn|randk|tinder|podryw|napisała mi|napisala mi|umówić się|umowic sie)/.test(n)) return "bajerant";
   return "niewidomi";
@@ -495,8 +511,14 @@ router.get("/brain-url", (_req, res) => res.json({
   options: BRAIN_OPTIONS.map(o => ({ ...o, url: `${BRAIN_REL}/${o.file}` })),
   // 👂 UCHO: polski model rozpoznawania mowy (Vosk) do nasłuchu ciągłego bez przerw.
   ear: `${BRAIN_REL}/gadacz-ucho.zip`,
-  // 👄 USTA: piękny polski głos offline (Piper/Gosia w formacie sherpa-onnx).
+  // 👄 USTA: piękny polski głos offline (Piper w formacie sherpa-onnx).
   mouth: `${BRAIN_REL}/gadacz-usta.zip`,
+  // 🗣️ GŁOSY do wyboru — telefon pokazuje listę i pobiera wybrany.
+  voices: [
+    { key: "gosia",    name: "👩 Gosia — kobiecy, ciepły",        file: "gadacz-usta.zip" },
+    { key: "darkman",  name: "👨 Darkman — męski, głęboki",       file: "gadacz-usta-darkman.zip" },
+    { key: "mcspeech", name: "🎙️ MC Speech — męski, spikerski",   file: "gadacz-usta-mcspeech.zip" },
+  ].map(v => ({ ...v, url: `${BRAIN_REL}/${v.file}` })),
 }));
 
 // 🚫 ZABLOKOWANE APLIKACJE — Gadacz NIE wykona żadnej akcji ekranowej (klik/wpisanie)

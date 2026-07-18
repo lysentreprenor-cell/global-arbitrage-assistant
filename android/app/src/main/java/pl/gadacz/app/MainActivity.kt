@@ -292,6 +292,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "⏳  Czas rozmowy: ${convWaitLabel(Brain.convWaitSec(this))} — ile czekam na Twój głos",
             if (ScreenRecordService.running) "🎬  Nagrywanie ekranu: 🔴 TRWA — dotknij, by zakończyć"
             else "🎬  Nagrywaj ekran (film z dźwiękiem do galerii)",
+            "🗣️  GŁOSY — wybierz i pobierz głos Gadacza",
         )
         AlertDialog.Builder(this)
             .setTitle("⚙ Ustawienia Gadacza")
@@ -315,6 +316,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     8 -> showEngines()
                     9 -> showConvWaitPicker()
                     10 -> toggleScreenRecording()
+                    11 -> showVoices()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
@@ -329,11 +331,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             else "🧠  Mózg lokalny: $brain — dotknij, by zmienić",
             if (VoskEar.available(this)) "👂  Ucho (nasłuch ciągły): WGRANE — dotknij, by pobrać na nowo"
             else "👂  Ucho (nasłuch ciągły): BRAK — dotknij, by pobrać",
-            when {
-                !PiperUsta.available(this) -> "👄  Usta (piękny głos offline): BRAK — dotknij, by pobrać"
-                PiperUsta.enabled(this)    -> "👄  Usta (piękny głos offline): WŁĄCZONE — dotknij, by zmienić"
-                else                       -> "👄  Usta (piękny głos offline): WYŁĄCZONE — dotknij, by włączyć"
-            },
+            "🗣️  GŁOSY (Gosia · Darkman · MC Speech) — wybierz i pobierz",
             "👁️  Oczy do tekstu: WBUDOWANE — powiedz „przeczytaj kartkę”",
             "📏  Sprawdź, jaki mózg udźwignie ten telefon",
         )
@@ -343,7 +341,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 when (which) {
                     0 -> confirmLocalBrain()
                     1 -> confirmEar()
-                    2 -> confirmUsta()
+                    2 -> showVoices()
                     3 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
                     4 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
                 }
@@ -351,45 +349,54 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setNegativeButton("Zamknij", null).show()
     }
 
-    // 👄 USTA — piękny polski głos offline (Piper/Gosia). Pobierz raz, potem
-    // włączaj/wyłączaj; wyłączone = mówi głos systemowy jak dotąd.
-    private fun confirmUsta() {
-        if (!PiperUsta.available(this)) {
-            AlertDialog.Builder(this)
-                .setTitle("👄 Pobrać usta Gadacza?")
-                .setMessage("Usta to piękny, naturalny polski głos (Gosia), który działa CAŁKOWICIE bez internetu — około 80 megabajtów. Po pobraniu Gadacz od razu zacznie nim mówić. Zawsze możesz wrócić do głosu systemowego w tym samym miejscu.")
-                .setPositiveButton("Pobierz") { _, _ -> downloadUsta() }
-                .setNegativeButton("Nie teraz", null).show()
-            return
-        }
-        val on = PiperUsta.enabled(this)
+    // ── 🗣️ GŁOSY GADACZA — każdy do pobrania osobno (~70 MB), wybór jednym
+    // dotknięciem. Wyłączone usta = głos systemowy Google, jak dotąd.
+    private val voiceInfo = listOf(
+        Triple("gosia",    "👩 Gosia",     "kobiecy, ciepły"),
+        Triple("darkman",  "👨 Darkman",   "męski, głęboki"),
+        Triple("mcspeech", "🎙️ MC Speech", "męski, wyraźny, spikerski"),
+    )
+    private fun showVoices() {
+        val sel = PiperUsta.selectedVoice(this)
+        val pOn = PiperUsta.enabled(this)
+        val items = voiceInfo.map { (k, n, d) ->
+            val inst = PiperUsta.voiceInstalled(this, k)
+            when {
+                inst && pOn && sel == k -> "✓ $n ($d) — TYM GŁOSEM MÓWIĘ"
+                inst                    -> "$n ($d) — WGRANY, dotknij, by nim mówić"
+                else                    -> "$n ($d) — dotknij, by pobrać (~70 MB)"
+            }
+        }.toMutableList()
+        items.add((if (!pOn) "✓ " else "") + "🔈 Głos systemowy Google — dotknij, by przełączyć")
         AlertDialog.Builder(this)
-            .setTitle("👄 Usta Gadacza")
-            .setItems(arrayOf(
-                if (on) "🔇  Wyłącz (wróć do głosu systemowego)" else "🔊  Włącz piękny głos",
-                "⬇️  Pobierz na nowo",
-            )) { _, which ->
-                when (which) {
-                    0 -> {
-                        PiperUsta.setEnabled(this, !on)
-                        PiperUsta.stopNow()
-                        speak(if (!on) "Włączone. Od teraz mówię tym głosem — także bez internetu." else "Wyłączone. Wracam do głosu systemowego.")
-                    }
-                    1 -> downloadUsta()
+            .setTitle("🗣️ Którym głosem mam mówić?")
+            .setItems(items.toTypedArray()) { _, i ->
+                if (i == voiceInfo.size) {
+                    PiperUsta.setEnabled(this, false)
+                    PiperUsta.stopNow()
+                    speak("Przełączone na głos systemowy.")
+                    return@setItems
                 }
+                val (k, n, _) = voiceInfo[i]
+                if (PiperUsta.voiceInstalled(this, k)) {
+                    PiperUsta.setSelectedVoice(this, k)
+                    PiperUsta.setEnabled(this, true)
+                    PiperUsta.stopNow()
+                    speak("Cześć! Od teraz mówię głosem: ${n.substringAfter(" ")}. Jak Ci się podobam?")
+                } else downloadVoice(k, n)
             }
             .setNegativeButton("Zamknij", null).show()
     }
 
-    private fun downloadUsta() {
-        speak("Pobieram usta Gadacza, około osiemdziesiąt megabajtów. Powiedz przerwij, żeby zatrzymać.")
+    private fun downloadVoice(key: String, name: String) {
+        speak("Pobieram głos ${name.substringAfter(" ")}, około siedemdziesiąt megabajtów. Powiedz przerwij, żeby zatrzymać.")
         Thread {
-            PiperUsta.download(this,
-                onProgress = { p -> setProgress("usta", "👄 Pobieram usta… $p%") },
+            PiperUsta.download(this, key,
+                onProgress = { p -> setProgress("glos", "🗣️ Pobieram głos ${name.substringAfter(" ")}… $p%") },
                 onDone = { ok, err -> runOnUiThread {
-                    setProgress("usta", null)
-                    speak(if (ok) "Gotowe! Od teraz mówię nowym głosem — posłuchaj, jak brzmię. Działa też całkiem bez internetu."
-                          else "Nie udało się pobrać ust. $err")
+                    setProgress("glos", null)
+                    speak(if (ok) "Gotowe! Od teraz mówię głosem: ${name.substringAfter(" ")}. Posłuchaj, jak brzmię — zmienisz mnie w każdej chwili w Ustawieniach, w Głosach."
+                          else "Nie udało się pobrać głosu. $err")
                 } })
         }.start()
     }

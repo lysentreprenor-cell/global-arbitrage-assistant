@@ -113,26 +113,36 @@ jobs:
           files: gadacz-ucho.zip
           make_latest: false
 
-  # 👄 USTA GADACZA: polski glos Piper (Gosia) w formacie sherpa-onnx — piekny,
-  # naturalny glos offline. Przepakowujemy tar.bz2 na zip (telefon umie zip).
+  # 👄 USTA GADACZA: polskie glosy Piper w formacie sherpa-onnx — piekne,
+  # naturalne glosy offline. Przepakowujemy tar.bz2 na zip (telefon umie zip).
   usta:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - out: gadacz-usta.zip
+            model: vits-piper-pl_PL-gosia-medium
+          - out: gadacz-usta-darkman.zip
+            model: vits-piper-pl_PL-darkman-medium
+          - out: gadacz-usta-mcspeech.zip
+            model: vits-piper-pl_PL-mc_speech-medium
     steps:
-      - name: Pobierz glos Piper (polski, Gosia)
+      - name: Pobierz glos ${{ matrix.model }}
         id: mouth
         continue-on-error: true
         run: |
           curl -fL --retry 3 -A "Gadacz-CI" -o glos.tar.bz2 \
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-pl_PL-gosia-medium.tar.bz2"
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/${{ matrix.model }}.tar.bz2"
           mkdir un && tar -xjf glos.tar.bz2 -C un
-          (cd un && zip -qr ../gadacz-usta.zip .)
-          SIZE=$(stat -c%s gadacz-usta.zip)
+          (cd un && zip -qr "../${{ matrix.out }}" .)
+          SIZE=$(stat -c%s "${{ matrix.out }}")
           echo "Rozmiar: $SIZE"
-          if [ "$SIZE" -lt 20000000 ]; then echo "Za maly - blad"; rm -f gadacz-usta.zip; exit 1; fi
-      - name: Opublikuj usta
+          if [ "$SIZE" -lt 20000000 ]; then echo "Za maly - blad"; rm -f "${{ matrix.out }}"; exit 1; fi
+      - name: Opublikuj ${{ matrix.out }}
         if: steps.mouth.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: gadacz-brain
-          files: gadacz-usta.zip
+          files: ${{ matrix.out }}
           make_latest: false
