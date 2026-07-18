@@ -311,7 +311,7 @@ ZNASZ WŁASNY PROJEKT (Gadacz) — to TWÓJ dom i umiesz o nim opowiadać oraz p
 • Droga zmiany: edycja plików → git add -A → git commit -m "opis" → git push -u origin claude/teraz-YKMDA → GitHub Actions AUTOMATYCZNIE buduje APK (wydanie gadacz-latest, ~5 minut) i publikuje silniki (wydanie gadacz-brain).
 • Serwer użytkownika (Replit) odbiera zmiany: git checkout -- . && git pull origin claude/teraz-YKMDA && npm install && npm run build, potem Stop i Run. Telefon: USTAWIENIA → Sprawdź aktualizację.
 • Układ projektu: zakładki www w client/src/pages/resell/ (rejestracja tras w client/src/App.tsx, nawigacja w client/src/components/resell/TopNav.tsx); serwer w server/routes/ (assistant.ts = Ty, marketing.ts); aplikacja Android w android/app/src/main/java/pl/gadacz/app/. Zasada: GitHub to jedyne źródło prawdy, commit po każdym skończonym kroku.
-• SAM nie masz rąk do wypychania kodu — dyktujesz użytkownikowi gotowe pliki i komendy do Shella, a wypycha Claude w sesji Claude Code albo użytkownik ręcznie.`,
+• 🖐️ MASZ RĘCE (gdy użytkownik wklei token GitHub w Połączeniach → Ręce Gadacza): w CZACIE działają polecenia użytkownika: „przeczytaj plik ŚCIEŻKA" (dostaniesz treść pliku z repo) i „wypchnij do ŚCIEŻKA: opis" (Twój OSTATNIO napisany plik poleci do repo — po potwierdzeniu). Dlatego zmieniając kod: najpierw poproś o przeczytanie pliku, potem napisz PEŁNY poprawiony plik akcją "write" (nie urywek!) i podaj użytkownikowi dokładną ścieżkę i gotowe polecenie „wypchnij do …". Po pushu przypomnij: robot GitHuba buduje około 5 minut; zmiany serwera/www wymagają git pull na Replicie, zmiany Androida — aktualizacji aplikacji. OSTROŻNOŚĆ MISTRZA: jedna zmiana naraz, po każdej czekaj na wynik budowy; przy plikach Androida pamiętaj o podbiciu versionCode/versionName w android/app/build.gradle i o zasadzie „bez prostych cudzysłowów w polskich tekstach Kotlina — używaj „ i »".`,
   },
   kucharz: {
     name: "Kucharz", icon: "👨‍🍳",
@@ -493,6 +493,61 @@ router.post("/conversation/delete", (req, res) => {
   if (!hit) return res.status(404).json({ error: "Nie znalazłem: " + q });
   saveConvs(list.filter(c => c.id !== hit.id));
   res.json({ ok: true, title: hit.title });
+});
+
+// ── 🖐️ RĘCE GADACZA — czytanie i zapisywanie WŁASNEGO kodu przez GitHub API.
+// Token (fine-grained, tylko to repo, uprawnienie Contents read/write) wkleja
+// użytkownik w telefonie (Połączenia) — leci nagłówkiem, NIE jest tu zapisywany.
+// Zapis idzie na gałąź roboczą; GitHub Actions sam zbuduje APK po commicie.
+// Bezpiecznik: telefon pyta użytkownika o potwierdzenie przed KAŻDYM pushem.
+const SELF_REPO = "lysentreprenor-cell/global-arbitrage-assistant";
+const SELF_BRANCH = "claude/teraz-YKMDA";
+router.get("/self-code", async (req: Request, res: Response) => {
+  const p = String(req.query?.path ?? "").replace(/^\/+/, "");
+  const token = String(req.headers["x-github-token"] ?? "");
+  if (!p) return res.status(400).json({ error: "path required" });
+  if (!token) return res.status(400).json({ error: "Brak tokenu GitHub. Wklej go w Ustawienia → Połączenia → Ręce Gadacza." });
+  try {
+    const r = await fetch(`https://api.github.com/repos/${SELF_REPO}/contents/${p}?ref=${encodeURIComponent(SELF_BRANCH)}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "User-Agent": "Gadacz" },
+    });
+    if (r.status === 404) return res.status(404).json({ error: "Nie ma takiego pliku: " + p });
+    if (r.status === 401 || r.status === 403) return res.status(401).json({ error: "GitHub odrzucił token — sprawdź, czy jest ważny i ma uprawnienie Contents." });
+    if (!r.ok) return res.status(502).json({ error: `GitHub: ${r.status}` });
+    const d = await r.json() as any;
+    if (Array.isArray(d)) return res.json({ path: p, dir: d.map((x: any) => `${x.type === "dir" ? "📁" : "📄"} ${x.name}`) });
+    const content = Buffer.from(String(d.content ?? ""), "base64").toString("utf8");
+    return res.json({ path: p, sha: d.sha, content: content.slice(0, 60000), truncated: content.length > 60000 });
+  } catch (e: any) { return res.status(500).json({ error: e.message || "błąd połączenia z GitHub" }); }
+});
+router.post("/self-code", async (req: Request, res: Response) => {
+  const { path = "", content = "", message = "" } = req.body ?? {};
+  const token = String(req.headers["x-github-token"] ?? "");
+  const p = String(path).replace(/^\/+/, "");
+  if (!p || !content) return res.status(400).json({ error: "path i content wymagane" });
+  if (!token) return res.status(400).json({ error: "Brak tokenu GitHub. Wklej go w Ustawienia → Połączenia → Ręce Gadacza." });
+  try {
+    const gh = (url: string, init?: any) => fetch(url, { ...init, headers: {
+      Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json",
+      "User-Agent": "Gadacz", "content-type": "application/json", ...(init?.headers ?? {}) } });
+    // sha bieżącej wersji — GitHub wymaga go przy edycji istniejącego pliku.
+    let sha: string | undefined;
+    const cur = await gh(`https://api.github.com/repos/${SELF_REPO}/contents/${p}?ref=${encodeURIComponent(SELF_BRANCH)}`);
+    if (cur.ok) { const d = await cur.json() as any; if (d && typeof d.sha === "string") sha = d.sha; }
+    const put = await gh(`https://api.github.com/repos/${SELF_REPO}/contents/${p}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        message: String(message || `Gadacz: zmiana ${p}`).slice(0, 180) + "\n\n[zmiana wykonana przez twarz Programowanie w Gadaczu]",
+        content: Buffer.from(String(content), "utf8").toString("base64"),
+        branch: SELF_BRANCH,
+        ...(sha ? { sha } : {}),
+      }),
+    });
+    if (put.status === 401 || put.status === 403) return res.status(401).json({ error: "GitHub odrzucił token — sprawdź uprawnienie Contents: Read and write." });
+    if (!put.ok) { const e = await put.json().catch(() => ({})) as any; return res.status(502).json({ error: e.message || `GitHub: ${put.status}` }); }
+    const d = await put.json() as any;
+    return res.json({ ok: true, commit: String(d.commit?.sha ?? "").slice(0, 7) });
+  } catch (e: any) { return res.status(500).json({ error: e.message || "błąd połączenia z GitHub" }); }
 });
 
 // 🤏 ADRES LOKALNEGO MÓZGU — z jakiego linku telefon pobiera model AI do trybu

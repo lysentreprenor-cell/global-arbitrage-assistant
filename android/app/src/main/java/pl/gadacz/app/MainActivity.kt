@@ -934,6 +934,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🩺  Sprawdź serwer (działa? śpi?)",
             "⏰  Obudź serwer (darmowy Replit zasypia)",
             "🐙  GitHub (aktualizacje i silniki): sprawdź połączenie",
+            if (Brain.githubToken(this).isNotBlank()) "🖐️  Ręce Gadacza (token GitHub): PODŁĄCZONE — dotknij, by zmienić"
+            else "🖐️  Ręce Gadacza (token GitHub): BRAK — pozwól mi zmieniać własny kod",
         )
         AlertDialog.Builder(this)
             .setTitle("🔌 Połączenia Gadacza")
@@ -943,9 +945,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     2 -> pingServer(wake = false)
                     3 -> pingServer(wake = true)
                     4 -> checkGithub()
+                    5 -> showHandsToken()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    /** 🖐️ Ręce Gadacza: token GitHub, dzięki któremu twarz Programowanie może
+     *  czytać i wypychać WŁASNY kod (zawsze z Twoim potwierdzeniem przed pushem). */
+    private fun showHandsToken() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 20, 40, 0) }
+        val tokenIn = EditText(this).apply {
+            hint = "Token GitHub (github_pat_… albo ghp_…)"
+            setText(Brain.githubToken(this@MainActivity))
+        }
+        box.addView(tokenIn)
+        AlertDialog.Builder(this)
+            .setTitle("🖐️ Ręce Gadacza")
+            .setMessage("Zrób token na github.com: Settings → Developer settings → Fine-grained tokens → tylko to repozytorium, uprawnienie Contents: Read and write. Wklej niżej. W czacie z Programowaniem zadziałają wtedy: „przeczytaj plik ŚCIEŻKA” i „wypchnij do ŚCIEŻKA” — push zawsze z Twoim potwierdzeniem.")
+            .setView(box)
+            .setPositiveButton("Zapisz") { _, _ ->
+                Brain.setGithubToken(this, tokenIn.text.toString())
+                speak(if (Brain.githubToken(this).isNotBlank()) "Mam ręce! Od teraz w czacie z twarzą Programowanie mogę czytać i wypychać własny kod — zawsze z Twoim potwierdzeniem." else "Token usunięty — ręce schowane.")
+            }
+            .setNegativeButton("Anuluj", null).show()
     }
 
     private fun pingServer(wake: Boolean) {

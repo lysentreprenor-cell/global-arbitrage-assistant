@@ -420,6 +420,42 @@ object Brain {
             }
     } catch (_: Exception) { null }
 
+    // ── 🖐️ RĘCE GADACZA — czytanie i zapisywanie własnego kodu (przez serwer → GitHub).
+    fun githubToken(ctx: Context): String = prefs(ctx).getString("github_token", "") ?: ""
+    fun setGithubToken(ctx: Context, t: String) { prefs(ctx).edit().putString("github_token", t.trim()).apply() }
+
+    /** Przeczytaj plik z WŁASNEGO repo. Zwraca treść/listę folderu albo komunikat błędu. */
+    fun selfRead(ctx: Context, path: String): Pair<Boolean, String> = try {
+        http.newCall(Request.Builder()
+            .url(serverUrl(ctx).trimEnd('/') + "/api/assistant/self-code?path=" + java.net.URLEncoder.encode(path, "UTF-8"))
+            .header("x-bot-pin", pin(ctx)).header("x-github-token", githubToken(ctx)).build())
+            .execute().use { r ->
+                val o = JSONObject(r.body?.string() ?: "{}")
+                when {
+                    !r.isSuccessful -> false to o.optString("error", "Błąd serwera ${r.code}.")
+                    o.has("dir") -> {
+                        val arr = o.optJSONArray("dir")
+                        val names = (0 until (arr?.length() ?: 0)).joinToString("\n") { arr!!.optString(it) }
+                        true to "To folder. Zawartość:\n$names"
+                    }
+                    else -> true to o.optString("content", "")
+                }
+            }
+    } catch (_: Exception) { false to "Nie mogę połączyć się z serwerem." }
+
+    /** Zapisz plik do WŁASNEGO repo (commit na gałąź roboczą). Zwraca komunikat. */
+    fun selfWrite(ctx: Context, path: String, content: String, message: String): Pair<Boolean, String> = try {
+        val body = JSONObject().put("path", path).put("content", content).put("message", message)
+        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/self-code")
+            .header("x-bot-pin", pin(ctx)).header("x-github-token", githubToken(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { r ->
+                val o = JSONObject(r.body?.string() ?: "{}")
+                if (!r.isSuccessful) false to o.optString("error", "Błąd serwera ${r.code}.")
+                else true to "Wypchnięte! Commit ${o.optString("commit")}. Robot GitHuba buduje około pięciu minut."
+            }
+    } catch (_: Exception) { false to "Nie mogę połączyć się z serwerem." }
+
     /** ⏳ Ile dni żyją zwykłe czaty na serwerze (0 = bez limitu, -1 = nie udało się pobrać). */
     fun convKeepDays(ctx: Context): Int = try {
         http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/config")

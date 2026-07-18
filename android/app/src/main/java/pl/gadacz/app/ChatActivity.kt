@@ -366,8 +366,62 @@ class ChatActivity : Activity() {
             .setNegativeButton("Zamknij", null).show()
     }
 
+    // ── 🖐️ RĘCE GADACZA — komendy czatu do WŁASNEGO kodu: czytanie pliku z repo
+    // i wypychanie świeżo napisanego pliku (zawsze z potwierdzeniem na ekranie).
+    @Volatile private var lastCode: String? = null
+    private fun trySelfCode(t: String): Boolean {
+        val readM = Regex("^(?:przeczytaj|pokaż|pokaz|otwórz|otworz)\\s+(?:swój\\s+|swoj\\s+)?plik\\s+(\\S+)$", RegexOption.IGNORE_CASE).find(t)
+        if (readM != null) {
+            val path = readM.groupValues[1].trim()
+            input.setText(""); bubble(t, true); showThinking()
+            Thread {
+                val (ok, res) = Brain.selfRead(this, path)
+                if (ok) {
+                    history.add("user" to "Przeczytaj plik $path")
+                    history.add("assistant" to "TREŚĆ PLIKU $path:\n${res.take(9000)}")
+                    while (history.size > 16) history.removeAt(0)
+                }
+                runOnUiThread {
+                    hideThinking()
+                    bubble(if (ok) "📄 $path:\n\n${res.take(6000)}" else res, false)
+                }
+            }.start()
+            return true
+        }
+        val pushM = Regex("^(?:wypchnij|wyślij|wyslij|push)\\s+do\\s+(\\S+)(?:\\s*[:,]\\s*(.+))?$", RegexOption.IGNORE_CASE).find(t)
+        if (pushM != null) {
+            val path = pushM.groupValues[1].trim().trimEnd(':', ',')
+            val msg = pushM.groupValues[2].trim().ifBlank { "Zmiana przez twarz Programowanie" }
+            val code = lastCode
+            input.setText(""); bubble(t, true)
+            if (Brain.githubToken(this).isBlank()) {
+                bubble("Nie mam jeszcze rąk — wklej token GitHub w Ustawienia → Połączenia → Ręce Gadacza.", false); return true
+            }
+            if (code == null) {
+                bubble("Nie mam świeżo napisanego pliku do wypchnięcia. Najpierw poproś mnie o napisanie PEŁNEGO pliku — potem powiedz: wypchnij do ŚCIEŻKA.", false); return true
+            }
+            AlertDialog.Builder(this)
+                .setTitle("🖐️ Wypchnąć do repozytorium?")
+                .setMessage("Plik: $path\nOpis: $msg\nRozmiar: ${code.length} znaków\n\nPo wypchnięciu robot GitHuba zbuduje projekt (ok. 5 minut).")
+                .setPositiveButton("Wypchnij") { _, _ ->
+                    showThinking()
+                    Thread {
+                        val (ok, res) = Brain.selfWrite(this, path, code, msg)
+                        runOnUiThread {
+                            hideThinking()
+                            bubble(res + if (ok) " Pamiętaj: zmiany serwera i www wymagają git pull na Replicie, a zmiany Androida — aktualizacji aplikacji." else "", false)
+                        }
+                    }.start()
+                }
+                .setNegativeButton("Anuluj", null).show()
+            return true
+        }
+        return false
+    }
+
     private fun send() {
         val typed = input.text.toString().trim()
+        if (typed.isNotBlank() && trySelfCode(typed)) return
         val hasAttach = attachB64 != null || attachText != null
         if (typed.isBlank() && !hasAttach) return
         val t = typed.ifBlank { "Przeczytaj załącznik i powiedz dokładnie, co w nim jest." }
@@ -396,7 +450,10 @@ class ChatActivity : Activity() {
                         // ✍️ Gdy twarz coś NAPISAŁA (pismo, kod, wiersz) — pokaż całość w dymku.
                         if (resp.optString("action") == "write") {
                             val txt = resp.optJSONObject("args")?.optString("text") ?: ""
-                            if (txt.isNotBlank()) say = (if (say.isBlank()) "" else say + "\n\n") + txt
+                            if (txt.isNotBlank()) {
+                                lastCode = txt   // 🖐️ gotowe do „wypchnij do ŚCIEŻKA"
+                                say = (if (say.isBlank()) "" else say + "\n\n") + txt
+                            }
                         }
                         if (say.isBlank()) "Nie mam na to odpowiedzi. Napisz to inaczej." else say
                     }
