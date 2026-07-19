@@ -1,8 +1,8 @@
 name: Sprawdz budowe (serwer i strona)
 
-# 🛡️ STRAŻNIK BUDOWY: po KAZDYM pushu (zwlaszcza od samodzielnego agenta Gadacza)
-# probuje zbudowac serwer i strone www. Jak cos jest zepsute (np. agent nadpisal
-# plik), commit dostaje czerwony krzyzyk — od razu widac wpadke, zanim trafi na Replit.
+# 🛡️ STRAŻNIK BUDOWY + SAMONAPRAWA: po KAZDYM pushu probuje zbudowac serwer i
+# strone. Jak cos jest zepsute (np. agent Gadacza nadpisal plik), AUTOMATYCZNIE
+# COFA ten commit (revert) i przywraca zdrowa galaz — kod nigdy nie zostaje zepsuty.
 on:
   push:
     branches: [ claude/teraz-YKMDA ]
@@ -14,11 +14,17 @@ on:
       - "package.json"
       - ".github/workflows/check-build.yml"
 
+permissions:
+  contents: write
+
 jobs:
   build-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 2
       - name: Node 20
         uses: actions/setup-node@v4
         with:
@@ -27,3 +33,14 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Zbuduj (serwer + www)
         run: npm run build
+
+      # 🔁 SAMONAPRAWA: budowa padla → cofnij ostatni commit i przywroc zdrowy stan.
+      # Guard [auto-rollback] chroni przed petla (revert sam siebie nie cofa).
+      - name: Cofnij zmiane gdy budowa padla
+        if: failure() && !contains(github.event.head_commit.message, '[auto-rollback]')
+        run: |
+          git config user.name "Gadacz Rollback"
+          git config user.email "noreply@anthropic.com"
+          git revert --no-commit HEAD
+          git commit -m "Auto-rollback: ta zmiana psula budowe serwera/strony [auto-rollback]"
+          git push origin HEAD:${{ github.ref_name }}
