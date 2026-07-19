@@ -167,6 +167,13 @@ export default function MarketingPage() {
   const [influencerLoading, setInfluencerLoading] = useState(false);
   const [influencerError, setInfluencerError] = useState<string | null>(null);
 
+  // 📝 Treść pod frazę (SEO): artykuł / opis / prośby o opinie
+  const [seoKind, setSeoKind] = useState("article");
+  const [seoKw, setSeoKw] = useState("");
+  const [seoContent, setSeoContent] = useState<string | null>(null);
+  const [seoContentLoading, setSeoContentLoading] = useState(false);
+  const [seoContentError, setSeoContentError] = useState<string | null>(null);
+
   // 🌍 SEO wielojęzyczne — pakiet pozycjonujący we wszystkich językach naraz
   const [seoLangs, setSeoLangs] = useState<string[]>(["polski", "angielski", "niemiecki", "francuski", "hiszpański", "włoski", "czeski", "ukraiński"]);
   const [seoUrl, setSeoUrl] = useState("");
@@ -519,6 +526,23 @@ export default function MarketingPage() {
       setInfluencer(data);
     } catch (e: any) { setInfluencerError(e.message); }
     setInfluencerLoading(false);
+  };
+
+  const genSeoContent = async () => {
+    const key = getAnthropicKey();
+    if (!key) { setSeoContentError("Dodaj klucz Anthropic API w ⚙ API"); return; }
+    if (!product.trim()) { setSeoContentError("Najpierw podaj produkt/biznes u góry"); return; }
+    setSeoContentLoading(true); setSeoContentError(null);
+    try {
+      const r = await fetch("/api/marketing/gen-seo-content", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ product: product.trim(), keyword: seoKw.trim(), kind: seoKind, anthropicKey: key }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Błąd generowania treści");
+      setSeoContent(data.text || "");
+    } catch (e: any) { setSeoContentError(e.message); }
+    setSeoContentLoading(false);
   };
 
   // 🌍 Wszystkie języki do wyboru — chipsy w sekcji SEO wielojęzycznego.
@@ -1746,6 +1770,42 @@ export default function MarketingPage() {
                             <pre style={{ background: "transparent", color: "#86efac", fontSize: 10, overflowX: "auto", whiteSpace: "pre-wrap", margin: 0 }}>{seoMulti.hreflang}</pre>
                           </div>
                         )}
+                      </div>
+                    )}
+                    </div>
+                  </Ch>
+
+                  {/* ── 📝 TREŚĆ POD FRAZĘ (SEO) ── */}
+                  <Ch id="seo-content" icon="📝" label="Treść pod frazę (SEO)" subtitle="Artykuł · opis produktu · prośby o opinie" description="To, co NAPRAWDĘ podnosi pozycję w Google: wartościowa treść z frazą wplecioną naturalnie. Wybierz rodzaj, podaj słowo kluczowe — dostajesz gotowy tekst do wklejenia na stronę, aukcję albo bloga." color="#22d3ee"
+                    status={seoContent ? "done" : "generator"}>
+                    <div style={{ marginTop: 14 }}>
+                    {!seoContent ? (
+                      <div style={{ background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.2)", borderRadius: 12, padding: "20px", textAlign: "center" }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 12 }}>📝 Wygeneruj treść pozycjonującą</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
+                          {[{ k: "article", l: "📰 Artykuł blogowy" }, { k: "description", l: "🏷️ Opis produktu" }, { k: "reviews", l: "⭐ Prośby o opinie" }].map(o => (
+                            <button key={o.k} onClick={() => setSeoKind(o.k)}
+                              style={{ padding: "7px 14px", borderRadius: 99, border: seoKind === o.k ? "1px solid rgba(34,211,238,0.6)" : "1px solid rgba(255,255,255,0.12)", background: seoKind === o.k ? "rgba(34,211,238,0.18)" : "transparent", color: seoKind === o.k ? "#67e8f9" : "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                              {o.l}
+                            </button>
+                          ))}
+                        </div>
+                        <input value={seoKw} onChange={e => setSeoKw(e.target.value)} placeholder={seoKind === "reviews" ? "(opcjonalnie) nazwa produktu" : "Główna fraza, np. rower górski używany Kraków"}
+                          style={{ width: "100%", boxSizing: "border-box", marginBottom: 12, padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.3)", color: "#fff", fontSize: 12 }} />
+                        {seoContentError && <div style={{ background: "rgba(248,113,113,0.1)", borderRadius: 9, padding: "8px 14px", marginBottom: 12, color: "#fca5a5", fontSize: 12 }}><AlertCircle size={12} style={{ marginRight: 6, verticalAlign: "middle" }} />{seoContentError}</div>}
+                        <button onClick={genSeoContent} disabled={seoContentLoading} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 24px", borderRadius: 10, border: "none", background: seoContentLoading ? "rgba(34,211,238,0.2)" : "linear-gradient(135deg,#22d3ee,#0891b2)", color: seoContentLoading ? "rgba(255,255,255,0.4)" : "#042f2e", fontWeight: 800, fontSize: 13, cursor: seoContentLoading ? "not-allowed" : "pointer" }}>
+                          {seoContentLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Piszę…</> : <><Search size={14} /> Generuj treść</>}
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, gap: 8 }}>
+                          <button onClick={() => copyText(seoContent, "seoContent")} style={{ padding: "8px 16px", borderRadius: 9, border: "1px solid rgba(34,211,238,0.4)", background: "rgba(34,211,238,0.12)", color: "#67e8f9", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                            {copied["seoContent"] ? "✓ Skopiowane!" : "📋 Kopiuj treść"}
+                          </button>
+                          <button onClick={() => { setSeoContent(null); setSeoContentError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer" }}>↺ Nowa</button>
+                        </div>
+                        <pre style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(34,211,238,0.18)", borderRadius: 10, padding: "14px 16px", color: "#e0f2fe", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0, fontFamily: "inherit" }}>{seoContent}</pre>
                       </div>
                     )}
                     </div>

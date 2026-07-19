@@ -1132,4 +1132,36 @@ All CONTENT in the target language of each entry (keywords must be real native s
   }
 });
 
+// ── 📝 TREŚĆ POD FRAZĘ (SEO) — artykuł / opis produktu / prośby o opinie ────────
+// To, co NAPRAWDĘ podnosi pozycję: wartościowa treść nafaszerowana frazą naturalnie.
+router.post("/gen-seo-content", async (req: Request, res: Response) => {
+  const { product, keyword = "", kind = "article", language = "polski", anthropicKey } = req.body ?? {};
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+  if (!product) return res.status(400).json({ error: "product required" });
+  const productSafe = sanitize(product, 120);
+  const kw = sanitize(keyword, 100);
+  const lang = sanitize(String(language), 30);
+  const briefs: Record<string, string> = {
+    article: `Napisz artykuł blogowy (500-700 słów) w języku ${lang}, zoptymalizowany pod frazę „${kw || productSafe}". Struktura: chwytliwy tytuł H1, wstęp z frazą w pierwszym zdaniu, 3-4 śródtytuły H2, naturalnie wplecione słowo kluczowe i jego warianty (bez upychania), praktyczna wartość dla czytelnika, na końcu wezwanie do działania. Zwróć czysty tekst z oznaczeniami H1:/H2: przed nagłówkami.`,
+    description: `Napisz sprzedażowy opis produktu (150-250 słów) w języku ${lang}, zoptymalizowany pod frazę „${kw || productSafe}". Pierwsze zdanie = najważniejsza korzyść z frazą, potem konkrety (cechy, zastosowanie), zaufanie (uczciwie o stanie), na końcu wezwanie. Naturalnie, bez upychania słów.`,
+    reviews: `Napisz 4 gotowe, uprzejme WIADOMOŚCI z prośbą o opinię/recenzję do wysłania klientom po zakupie (${lang}) — różne tony: krótka, ciepła, z drobnym rabatem na kolejny zakup, oraz przypominająca po tygodniu. Każda podpisana [Twoje imię]. Realne, ludzkie, nie nachalne.`,
+  };
+  const brief = briefs[String(kind)] || briefs.article;
+  const prompt = `Produkt/biznes: ${productSafe}\nGłówna fraza: ${kw || productSafe}\n\n${brief}\n\nPisz zwykłym tekstem, gotowym do wklejenia. Bez markdownu z gwiazdkami.`;
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 2500, messages: [{ role: "user", content: prompt }] }),
+      signal: claudeSignal(),
+    });
+    if (!r.ok) { const e = await r.json().catch(() => ({})) as any; return res.status(502).json({ error: e.error?.message || `Claude ${r.status}` }); }
+    const data = await r.json() as any;
+    const text: string = (data.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n").trim();
+    if (!text) return res.status(502).json({ error: "Pusta odpowiedź." });
+    return res.json({ text });
+  } catch (e: any) { return res.status(500).json({ error: e.message || "błąd" }); }
+});
+
 export default router;

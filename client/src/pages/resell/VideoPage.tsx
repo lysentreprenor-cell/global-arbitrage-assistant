@@ -25,12 +25,14 @@ type Scenorys = { tytul: string; sceny: Scena[] };
 const W = 1280, H = 720;
 
 const PRESETS: { icon: string; name: string; prompt: string }[] = [
+  { icon: "🎵", name: "TikTok / Shorts",       prompt: "Pionowy krótki filmik TikTok/YouTube Shorts, format 9 na 16, 15-30 sekund, MOCNY hak w pierwszej sekundzie, dynamiczne 4-6 scen, wciągająco i szybko, na końcu wezwanie obserwuj lub kup — temat: " },
+  { icon: "📢", name: "Short reklamowy",       prompt: "Krótki pionowy short REKLAMOWY (TikTok/Shorts), 15-25 sekund: hak z problemem, produkt jako rozwiązanie, korzyść, cena/oferta i wezwanie do zakupu na końcu — reklamujemy: " },
+  { icon: "📸", name: "Short ze zdjęcia/opisu", prompt: "Krótki pionowy short pokazujący i zachwalający konkretny przedmiot na sprzedaż, 4-6 dynamicznych scen (wygląd, stan, zalety, cena, jak kupić) — przedmiot: " },
   { icon: "📚", name: "Bajka do nauki języka", prompt: "Bajka dla dzieci ucząca podstawowych słów po angielsku (zwierzęta): " },
   { icon: "🐱", name: "Animacja / bajka",      prompt: "Krótka animowana bajka z morałem o: " },
-  { icon: "📢", name: "Filmik reklamowy",      prompt: "Filmik reklamowy, który sprzedaje: " },
   { icon: "🧠", name: "Filmik edukacyjny",     prompt: "Filmik edukacyjny tłumaczący prosto: " },
   { icon: "🎂", name: "Życzenia wideo",        prompt: "Filmik z życzeniami z okazji: " },
-  { icon: "🎵", name: "Piosenka z napisami",   prompt: "Filmik z tekstem prostej piosenki (napisy jak karaoke) o: " },
+  { icon: "🎤", name: "Piosenka z napisami",   prompt: "Filmik z tekstem prostej piosenki (napisy jak karaoke) o: " },
 ];
 
 // ── 🎥 KAMERA → ANIMACJA: filtry klatek na żywo ────────────────────────────────
