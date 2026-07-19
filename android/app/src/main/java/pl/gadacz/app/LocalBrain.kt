@@ -96,11 +96,28 @@ object LocalBrain {
         }
     }
 
+    /** 🧮 Czy telefon UDŹWIGNIE ten mózg? Model potrzebuje w RAM mniej więcej tyle,
+     *  ile waży plik. Jeśli wolnej pamięci jest mniej — NIE ładujemy (inaczej cały
+     *  proces pada z OutOfMemory). Zwraca komunikat błędu albo null gdy OK. */
+    fun tooBigForRam(ctx: Context): String? {
+        val p = modelPath(ctx) ?: return null
+        val fileMb = File(p).length() / (1024 * 1024)
+        val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo(); am.getMemoryInfo(mi)
+        val freeMb = mi.availMem / (1024 * 1024)
+        // Zapas 300 MB dla reszty apki; model bierze ~rozmiar pliku.
+        return if (freeMb < fileMb + 300)
+            "Ten mózg (${fileMb} megabajtów) nie mieści się w wolnej pamięci telefonu (${freeMb} megabajtów wolne). Pobierz MNIEJSZY mózg — Mały — w Ustawieniach, Silniki, albo zamknij inne aplikacje. Do mądrzejszych odpowiedzi użyj internetu i serwera."
+        else null
+    }
+
     @Synchronized  // dwa wątki nie mogą naraz utworzyć modelu (wyciek ~GB). Audyt 10.07.
     private fun ensure(ctx: Context): com.google.mediapipe.tasks.genai.llminference.LlmInference? {
         val path = modelPath(ctx) ?: return null
         // Nowy plik (np. po pobraniu albo podmianie na większy) → przeładuj silnik.
         if (llm != null && loadedPath == path) return llm
+        // 🛡️ Za duży model na tę pamięć → NIE ładuj (inaczej OOM ubija całą apkę).
+        if (tooBigForRam(ctx) != null) return null
         llm?.let { try { it.close() } catch (_: Throwable) {} }
         llm = null
         return try {
@@ -147,6 +164,8 @@ object LocalBrain {
 
     /** Odpowiedz lokalnie (offline). null = mózg niedostępny albo zawiódł. */
     fun answer(ctx: Context, question: String): String? {
+        // 🛡️ Za duży model na tę pamięć → powiedz to wprost (zamiast wywalać apkę).
+        tooBigForRam(ctx)?.let { return it }
         val engine = ensure(ctx) ?: return null
         return try {
             val facts = memoryFor(ctx, question)
