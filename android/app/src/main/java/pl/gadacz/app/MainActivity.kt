@@ -99,6 +99,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val bt = btn("📶  SPRAWDŹ BLUETOOTH", 0xFFBFDBFE.toInt(), 0xFF0C1E3A.toInt(), 66) {
             val s = Brain.bluetoothReport(this); lastAnswer = s; appendLine("📶 $s"); speak(s)
         }
+        val tv = btn("📺  POŁĄCZ Z TELEWIZOREM", 0xFFC7D2FE.toInt(), 0xFF1E1B4B.toInt(), 66) {
+            val s = Brain.castToTv(this); lastAnswer = s; appendLine("📺 $s"); speak(s)
+        }
         val repeat = btn("🔁  POWTÓRZ", 0xFFDCFCE7.toInt(), 0xFF052E16.toInt(), 66) { if (lastAnswer.isNotBlank()) speak(lastAnswer) else speak("Nie mam jeszcze odpowiedzi.") }
 
         // 🎈 PANEL PŁYWAJĄCEGO PRZYCISKU — dwa kwadraciki (włącz/wyłącz na 1 stronie):
@@ -144,7 +147,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         transcript = TextView(this).apply { textSize = 16f; setTextColor(0xFFD6D3D1.toInt()); setPadding(0, dp(12), 0, 0) }
 
-        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(repeat)
+        col.addView(talk); col.addView(status); col.addView(readScreen); col.addView(readPlain); col.addView(bt); col.addView(tv); col.addView(repeat)
         col.addView(floatHeader); col.addView(rowOf(floatStalyBtn, floatDotykBtn))
         col.addView(workHeader); col.addView(rowOf(workBtns["easy"]!!, workBtns["normal"]!!, workBtns["hard"]!!))
         col.addView(payBtn); col.addView(personaBtn); col.addView(chatBtn); col.addView(settings); col.addView(transcript)

@@ -91,6 +91,24 @@ object Brain {
     }
 
     /** 📶 Połącz z sparowanym urządzeniem po fragmencie nazwy (otwiera ustawienia BT). */
+    /**
+     * 📺 POŁĄCZ Z TV — otwiera systemowe przesyłanie ekranu (Chromecast / Smart View /
+     * Miracast) i mówi, w co dotknąć. Telewizor musi być w tej samej sieci Wi-Fi,
+     * a najprościej i najpewniej działa kabel USB-C do HDMI.
+     */
+    fun castToTv(ctx: Context): String {
+        val tryOpen = { action: String ->
+            try { ctx.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        }
+        val ok = tryOpen("android.settings.CAST_SETTINGS") ||
+            tryOpen("android.settings.WIFI_DISPLAY_SETTINGS") ||
+            tryOpen(android.provider.Settings.ACTION_SETTINGS)
+        return if (ok)
+            "Otwieram przesyłanie ekranu. Wybierz swój telewizor z listy — musi być włączony i w tej samej sieci Wi-Fi. Jeśli telewizora nie ma na liście, najpewniej zadziała kabel z telefonu do gniazda HDMI w telewizorze."
+        else
+            "Nie mogę otworzyć przesyłania ekranu na tym telefonie. Wejdź w ustawienia telefonu i poszukaj: Przesyłaj ekran, Smart View albo Ekran bezprzewodowy. Zawsze zadziała kabel USB-C do HDMI."
+    }
+
     fun bluetoothConnect(ctx: Context, namePart: String): String {
         // Realne łączenie profili audio jest zależne od producenta; najpewniej i
         // najbezpieczniej: otwórz ekran Bluetooth, gdzie jednym dotknięciem łączysz.
@@ -823,6 +841,15 @@ object Brain {
         if (Regex("^(obudz|wybudz|dobudz|uruchom) serwer(a)?$").matches(n)) {
             speak("Budzę serwer, daj mi pół minuty.")
             return done(serverReport(ctx, true))
+        }
+
+        // 📺 TELEWIZOR: przesyłanie EKRANU telefonu na TV (Chromecast / Smart View).
+        // Telewizor łączy się przez przesyłanie ekranu, nie przez Bluetooth — otwieramy
+        // właściwy ekran systemu i mówimy, w co dotknąć.
+        if (Regex("^(polacz|lacz|podlacz)( sie)?( z)?( do)? (telewizor|telewizorem|telewizora|tv|telewizja)( .*)?$").matches(n)
+            || Regex("^(pokaz|wyswietl|przeslij|rzuc)( ekran)?( na)? (telewizor|telewizorze|tv|telewizji)$").matches(n)
+            || n == "tv" || n == "telewizor") {
+            return done(castToTv(ctx))
         }
 
         // 📶 BLUETOOTH: czym można sterować + łączenie ze sparowanym urządzeniem.
