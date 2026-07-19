@@ -226,7 +226,7 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
         }
         codeMode = !codeMode
         bubble(if (codeMode)
-            "🤖 Samodzielne kodowanie WŁĄCZONE. Pisz zadania normalnie — np. „dodaj przycisk X na ekranie głównym" albo „napraw Y w pliku Z". Sam przeczytam pliki, zmienię je i wypchnę. Po commicie robot GitHuba buduje. Wyłącz w menu ⋮."
+            "🤖 Samodzielne kodowanie WŁĄCZONE. Pisz zadania normalnie — np. „dodaj przycisk X na ekranie głównym” albo „napraw Y w pliku Z”. Sam przeczytam pliki, zmienię je i wypchnę. Po commicie robot GitHuba buduje. Wyłącz w menu ⋮."
         else "Samodzielne kodowanie wyłączone. Wracam do zwykłej rozmowy.", false)
     }
 
@@ -574,7 +574,12 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
             input.setText(""); bubble(typed, true); sendBtn.isEnabled = false; showThinking()
             Thread {
                 val (ok, res) = Brain.selfAgent(this, typed)
-                runOnUiThread { sendBtn.isEnabled = true; hideThinking(); bubble(res, false) }
+                runOnUiThread {
+                    sendBtn.isEnabled = true; hideThinking(); bubble(res, false)
+                    // 🔊 RĘCE + USTA w SYNCHRONII: po pracy Gadacz mówi, co zrobił;
+                    // w rozmowie głosowej po wybrzmieniu znów słucha kolejnego zadania.
+                    if (voiceConvo || ttsOn()) speakOut(res) { if (voiceConvo) startDictation(true) }
+                }
                 history.add("user" to typed); history.add("assistant" to res)
                 while (history.size > 16) history.removeAt(0)
                 try { Brain.convAppend(this, typed, res) } catch (_: Exception) {}
