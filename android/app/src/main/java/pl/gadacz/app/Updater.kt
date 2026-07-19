@@ -18,15 +18,14 @@ object Updater {
     private const val BASE = "https://github.com/lysentreprenor-cell/global-arbitrage-assistant/releases/latest/download"
     private const val VERSION_URL = "$BASE/version.txt"
     private const val APK_URL = "$BASE/Gadacz.apk"
+    @Volatile var downloadCancel = false
     private val http = OkHttpClient.Builder()
-        // ⏳ POBIERANIE BEZ LIMITU CZASU — apka może kiedyś ważyć bardzo dużo (lokalny
-        // mózg AI, modele głosu itd.). Zero = brak ograniczenia: plik pobiera się tak
-        // długo, jak trzeba, byle dane płynęły. Zostaje TYLKO limit na NAWIĄZANIE
-        // połączenia (30 s), żeby przy braku internetu od razu powiedzieć „nie ma sieci"
-        // zamiast wisieć w nieskończoność.
+        // ⏳ Limit na NAWIĄZANIE połączenia (30 s) i na CISZĘ w transmisji (60 s) — gdy
+        // 5G mrugnie i dane przestaną płynąć, po 60 s rzucamy błąd i WZNAWIAMY od miejsca,
+        // w którym stanęło (Range), zamiast wisieć w nieskończoność na 27%.
         .connectTimeout(30, TimeUnit.SECONDS)
-        .callTimeout(0, TimeUnit.SECONDS)   // 0 = bez limitu na całe pobieranie
-        .readTimeout(0, TimeUnit.SECONDS)   // 0 = bez limitu na oczekiwanie na dane
+        .callTimeout(0, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(0, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
@@ -42,33 +41,62 @@ object Updater {
         } catch (e: Exception) { null }
     }
 
-    /** Download Gadacz.apk to cache and launch the installer. onProgress in %. Blocking. */
+    /**
+     * Pobierz Gadacz.apk i uruchom instalator. ODPORNE NA ZRYWY SIECI: gdy 5G mrugnie
+     * i pobieranie stanie, WZNAWIAMY od tego samego miejsca (nagłówek Range), do 8 prób.
+     * Plik zbiera się w .part, na koniec podmiana — przerwane pobieranie nie instaluje
+     * uszkodzonej apki. onProgress w %.
+     */
     fun downloadAndInstall(ctx: Context, onProgress: (Int) -> Unit, onError: (String) -> Unit) {
-        try {
-            val req = Request.Builder().url(APK_URL).build()
-            http.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) { onError("Serwer zwrócił ${resp.code}"); return }
-                val body = resp.body ?: run { onError("Pusta odpowiedź"); return }
-                val total = body.contentLength().coerceAtLeast(1)
-                val out = File(ctx.cacheDir, "Gadacz-update.apk")
-                body.byteStream().use { input ->
-                    out.outputStream().use { output ->
-                        val buf = ByteArray(64 * 1024); var read = 0L; var n: Int
-                        while (input.read(buf).also { n = it } >= 0) {
-                            output.write(buf, 0, n); read += n
-                            onProgress(((read * 100) / total).toInt())
+        downloadCancel = false
+        val out = File(ctx.cacheDir, "Gadacz-update.apk")
+        val tmp = File(ctx.cacheDir, "Gadacz-update.apk.part")
+        var lastErr = ""
+        for (attempt in 1..8) {
+            if (downloadCancel) { tmp.delete(); onError("Przerwane."); return }
+            var finished = false
+            try {
+                val have = tmp.length()
+                val reqB = Request.Builder().url(APK_URL)
+                if (have > 0) reqB.header("Range", "bytes=$have-")
+                http.newCall(reqB.build()).execute().use { resp ->
+                    if (resp.code == 416) { tmp.delete(); lastErr = "zły zakres, zaczynam od zera"; return@use }
+                    if (!resp.isSuccessful) { lastErr = "serwer zwrócił ${resp.code}"; return@use }
+                    val resumed = resp.code == 206 && have > 0
+                    if (!resumed && have > 0) tmp.delete()
+                    val already = if (resumed) have else 0L
+                    val body = resp.body ?: run { lastErr = "pusta odpowiedź"; return@use }
+                    val remaining = body.contentLength()
+                    val total = if (remaining > 0) remaining + already else -1L
+                    body.byteStream().use { input ->
+                        java.io.FileOutputStream(tmp, resumed).use { output ->
+                            val buf = ByteArray(64 * 1024); var read = already; var n: Int
+                            while (input.read(buf).also { n = it } >= 0) {
+                                if (downloadCancel) { onError("Przerwane."); return }
+                                output.write(buf, 0, n); read += n
+                                if (total > 0) onProgress(((read * 100) / total).toInt())
+                            }
                         }
                     }
+                    if (total > 0 && tmp.length() < total) { lastErr = "połączenie przerwane w trakcie"; return@use }
+                    finished = true
                 }
+            } catch (e: Exception) {
+                lastErr = e.message ?: "błąd sieci"   // .part ZOSTAJE — wznowimy od tego miejsca
+            }
+            if (finished) {
+                if (tmp.length() < 1_000_000) { tmp.delete(); onError("Pobrany plik jest niekompletny."); return }
+                out.delete(); tmp.renameTo(out)
                 val uri: Uri = FileProvider.getUriForFile(ctx, "pl.gadacz.app.fileprovider", out)
                 val install = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(uri, "application/vnd.android.package-archive")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 ctx.startActivity(install)
+                return
             }
-        } catch (e: Exception) {
-            onError(e.message ?: "Błąd pobierania")
+            try { Thread.sleep(2500L * attempt.coerceAtMost(3)) } catch (_: Exception) {}
         }
+        onError("Sieć zrywała się mimo prób ($lastErr). To, co pobrano, zostaje — spróbuj jeszcze raz, najlepiej na Wi-Fi.")
     }
 }
