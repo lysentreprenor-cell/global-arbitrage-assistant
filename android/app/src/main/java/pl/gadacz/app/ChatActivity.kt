@@ -54,6 +54,8 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
 
     // 🎙️ tryb rozmowy głosowej (mowa + głos, wszystko zapisywane).
     private var voiceConvo = false
+    // 🤖 samodzielne kodowanie — wiadomości stają się zadaniami dla agenta.
+    private var codeMode = false
 
     // ⏳ „Myślę" = DEKODOWANIE: migające japońskie znaki z blokowym kursorem.
     private var thinkView: TextView? = null
@@ -184,6 +186,7 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
     // ── ⋮ MENU USTAWIEŃ WIADOMOŚCI — te same opcje dla KAŻDEJ twarzy ──
     private fun showMenu() {
         val labels = arrayOf(
+            (if (codeMode) "✓ " else "") + "🤖 Samodzielne kodowanie (Gadacz sam zmienia kod)",
             (if (ttsOn()) "✓ " else "") + "🔊 Czytaj odpowiedzi na głos",
             (if (voiceConvo) "✓ " else "") + "🎙️ Tryb rozmowy głosowej (mów, ja piszę i mówię)",
             (if (neoActive()) "✓ " else "") + "🟢 Wygląd Matrix (Neo)",
@@ -194,23 +197,37 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
             .setTitle("⋮ Ustawienia wiadomości")
             .setItems(labels) { _, i ->
                 when (i) {
-                    0 -> {
+                    0 -> toggleCodeMode()
+                    1 -> {
                         val on = !ttsOn()
                         Brain.prefs(this).edit().putBoolean("chat_tts", on).apply()
                         if (!on) { PiperUsta.stopNow(); tts?.stop() }
                         bubble(if (on) "Będę czytał odpowiedzi na głos. Wyłącz w menu, gdy zechcesz ciszy." else "Cisza — już nie czytam na głos.", false)
                     }
-                    1 -> toggleVoiceConvo()
-                    2 -> {
+                    2 -> toggleVoiceConvo()
+                    3 -> {
                         Brain.prefs(this).edit().putBoolean("neo_mode", !neoActive()).apply()
                         applyTheme()
                         if (neoActive()) neoIntro() else bubble("Wyszedłeś z Matriksa.", false)
                     }
-                    3 -> showProjects()
-                    4 -> showDeleteTiming()
+                    4 -> showProjects()
+                    5 -> showDeleteTiming()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    /** 🤖 Samodzielne kodowanie: każda wiadomość staje się ZADANIEM — Gadacz sam
+     *  czyta pliki, zmienia je i wypycha, bez pytania o pozwolenia. */
+    private fun toggleCodeMode() {
+        if (!codeMode && Brain.githubToken(this).isBlank()) {
+            bubble("Najpierw daj mi ręce: Ustawienia → Połączenia → Ręce Gadacza — wklej token GitHub. Bez niego nie zmienię kodu.", false)
+            return
+        }
+        codeMode = !codeMode
+        bubble(if (codeMode)
+            "🤖 Samodzielne kodowanie WŁĄCZONE. Pisz zadania normalnie — np. „dodaj przycisk X na ekranie głównym" albo „napraw Y w pliku Z". Sam przeczytam pliki, zmienię je i wypchnę. Po commicie robot GitHuba buduje. Wyłącz w menu ⋮."
+        else "Samodzielne kodowanie wyłączone. Wracam do zwykłej rozmowy.", false)
     }
 
     /** 🎙️ Rozmowa głosowa: mówisz → Gadacz zapisuje, odpowiada i CZYTA na głos,
@@ -552,6 +569,18 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
 
     private fun send() {
         val typed = input.text.toString().trim()
+        // 🤖 Samodzielne kodowanie: wiadomość = zadanie, agent robi wszystko sam.
+        if (codeMode && typed.isNotBlank()) {
+            input.setText(""); bubble(typed, true); sendBtn.isEnabled = false; showThinking()
+            Thread {
+                val (ok, res) = Brain.selfAgent(this, typed)
+                runOnUiThread { sendBtn.isEnabled = true; hideThinking(); bubble(res, false) }
+                history.add("user" to typed); history.add("assistant" to res)
+                while (history.size > 16) history.removeAt(0)
+                try { Brain.convAppend(this, typed, res) } catch (_: Exception) {}
+            }.start()
+            return
+        }
         if (typed.isNotBlank() && trySelfCode(typed)) return
         val hasAttach = attachB64 != null || attachText != null
         if (typed.isBlank() && !hasAttach) return

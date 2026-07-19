@@ -555,6 +555,33 @@ object Brain {
             }
     } catch (_: Exception) { false to "Nie mogę połączyć się z serwerem." }
 
+    /**
+     * 🤖 SAMODZIELNY PROGRAMISTA — dajesz zadanie, Gadacz sam czyta pliki, zmienia je
+     * i commituje, bez pytania o pozwolenia. Pętla trwa, więc długi czas oczekiwania.
+     */
+    fun selfAgent(ctx: Context, task: String): Pair<Boolean, String> = try {
+        val body = JSONObject().put("task", task).put("anthropicKey", anthropicKey(ctx))
+        val client = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(300, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+        client.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/self-agent")
+            .header("x-bot-pin", pin(ctx)).header("x-github-token", githubToken(ctx))
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
+            .execute().use { r ->
+                val o = JSONObject(r.body?.string() ?: "{}")
+                if (!r.isSuccessful) false to o.optString("error", "Błąd serwera ${r.code}.")
+                else {
+                    val changed = o.optJSONArray("changed")
+                    val files = if (changed != null && changed.length() > 0)
+                        " Zmienione pliki: " + (0 until changed.length()).joinToString(", ") { changed.optString(it) } +
+                        ". Robot GitHuba buduje około pięciu minut." else ""
+                    true to (o.optString("summary", "Gotowe.") + files)
+                }
+            }
+    } catch (_: Exception) { false to "Nie mogę połączyć się z serwerem albo zadanie trwało za długo." }
+
     /** ⏳ Ile dni żyją zwykłe czaty (0 = bez limitu) — trzymane w TELEFONIE. */
     fun convKeepDays(ctx: Context): Int = prefs(ctx).getInt("conv_keep_days", 0)
 

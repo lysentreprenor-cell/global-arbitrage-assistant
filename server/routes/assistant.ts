@@ -591,6 +591,90 @@ router.post("/self-code", async (req: Request, res: Response) => {
   } catch (e: any) { return res.status(500).json({ error: e.message || "błąd połączenia z GitHub" }); }
 });
 
+// ── 🤖 SAMODZIELNY PROGRAMISTA — dajesz zadanie, Gadacz sam czyta pliki, wprowadza
+// zmiany i commituje na gałąź (pętla narzędzi Claude), BEZ pytania o pozwolenia.
+// Bezpiecznik: max 12 kroków, tylko to repo, każda zmiana to osobny commit (da się
+// cofnąć). Robot GitHuba zbuduje po commicie; ja (Neo) jestem od ratunku.
+router.post("/self-agent", async (req: Request, res: Response) => {
+  const task = String(req.body?.task ?? "").trim().slice(0, 2000);
+  const key: string = req.body?.anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  const token = String(req.headers["x-github-token"] ?? "");
+  if (!task) return res.status(400).json({ error: "Napisz, co mam zrobić." });
+  if (!key) return res.status(400).json({ error: "Brak klucza Anthropic." });
+  if (!token) return res.status(400).json({ error: "Brak tokenu GitHub. Wklej go w Ustawienia → Połączenia → Ręce Gadacza." });
+
+  const gh = (url: string, init?: any) => fetch(url, { ...init, headers: {
+    Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json",
+    "User-Agent": "Gadacz", "content-type": "application/json", ...(init?.headers ?? {}) } });
+  const ghRead = async (p: string): Promise<string> => {
+    const r = await gh(`https://api.github.com/repos/${SELF_REPO}/contents/${p.replace(/^\/+/, "")}?ref=${encodeURIComponent(SELF_BRANCH)}`);
+    if (r.status === 404) return `BŁĄD: nie ma pliku ${p}`;
+    if (!r.ok) return `BŁĄD GitHub ${r.status} przy ${p}`;
+    const d = await r.json() as any;
+    if (Array.isArray(d)) return "FOLDER:\n" + d.map((x: any) => `${x.type === "dir" ? "📁" : "📄"} ${x.name}`).join("\n");
+    return Buffer.from(String(d.content ?? ""), "base64").toString("utf8").slice(0, 50000);
+  };
+  const ghWrite = async (p: string, content: string, message: string): Promise<string> => {
+    const path = p.replace(/^\/+/, "");
+    let sha: string | undefined;
+    const cur = await gh(`https://api.github.com/repos/${SELF_REPO}/contents/${path}?ref=${encodeURIComponent(SELF_BRANCH)}`);
+    if (cur.ok) { const d = await cur.json() as any; if (d && typeof d.sha === "string") sha = d.sha; }
+    const put = await gh(`https://api.github.com/repos/${SELF_REPO}/contents/${path}`, {
+      method: "PUT", body: JSON.stringify({
+        message: (message || `Gadacz: ${path}`).slice(0, 180) + "\n\n[samodzielna zmiana twarzy Programowanie]",
+        content: Buffer.from(content, "utf8").toString("base64"), branch: SELF_BRANCH, ...(sha ? { sha } : {}),
+      }),
+    });
+    if (!put.ok) { const e = await put.json().catch(() => ({})) as any; return `BŁĄD zapisu ${path}: ${e.message || put.status}`; }
+    const d = await put.json() as any;
+    return `OK, zapisano ${path}, commit ${String(d.commit?.sha ?? "").slice(0, 7)}`;
+  };
+
+  const tools = [
+    { name: "read_file", description: "Przeczytaj plik albo wylistuj folder z repo.", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+    { name: "write_file", description: "Zapisz PEŁNĄ nową treść pliku i zacommituj na gałąź.", input_schema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string" } }, required: ["path", "content", "message"] } },
+    { name: "finish", description: "Zakończ i podsumuj po polsku, co zrobiłeś.", input_schema: { type: "object", properties: { summary: { type: "string" } }, required: ["summary"] } },
+  ];
+  const system = `Jesteś Gadaczem-programistą pracującym na WŁASNYM repozytorium ${SELF_REPO}, gałąź ${SELF_BRANCH}. Wykonaj zadanie użytkownika SAMODZIELNIE: przeczytaj potrzebne pliki (read_file), wprowadź zmiany zapisując PEŁNĄ nową treść pliku (write_file — od razu commituje), na koniec wywołaj finish z krótkim podsumowaniem po polsku. NIE pytaj użytkownika o zgodę — działaj.
+ZASADY PROJEKTU: zakładki www są w client/src/pages/resell/ (trasy w client/src/App.tsx, nawigacja w client/src/components/resell/TopNav.tsx); serwer w server/routes/; aplikacja Android w android/app/src/main/java/pl/gadacz/app/. Przy ZMIANIE w android/ ZAWSZE podbij versionCode i versionName w android/app/build.gradle. W plikach Kotlin (.kt) w polskich tekstach NIE używaj prostych cudzysłowów — używaj „ oraz " (proste " kończą string i psują budowę). Rób MINIMALNE, bezpieczne zmiany, zwykle 1-3 pliki. Po commicie robot GitHuba sam zbuduje.`;
+
+  const messages: any[] = [{ role: "user", content: task }];
+  const changed: string[] = [];
+  let summary = "";
+  try {
+    for (let step = 0; step < 12; step++) {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 8000, system, tools, messages }),
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})) as any; return res.status(502).json({ error: e.error?.message || `Claude ${r.status}` }); }
+      const data = await r.json() as any;
+      messages.push({ role: "assistant", content: data.content });
+      const toolUses = (data.content ?? []).filter((b: any) => b.type === "tool_use");
+      if (!toolUses.length) { summary = (data.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join(" ").trim(); break; }
+      const results: any[] = [];
+      let done = false;
+      for (const tu of toolUses) {
+        if (tu.name === "finish") { summary = String(tu.input?.summary ?? "Gotowe."); done = true; results.push({ type: "tool_result", tool_use_id: tu.id, content: "ok" }); continue; }
+        if (tu.name === "read_file") {
+          const out = await ghRead(String(tu.input?.path ?? ""));
+          results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
+        } else if (tu.name === "write_file") {
+          const p = String(tu.input?.path ?? "");
+          const out = await ghWrite(p, String(tu.input?.content ?? ""), String(tu.input?.message ?? ""));
+          if (out.startsWith("OK")) changed.push(p);
+          results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
+        } else results.push({ type: "tool_result", tool_use_id: tu.id, content: "nieznane narzędzie" });
+      }
+      if (done) break;
+      messages.push({ role: "user", content: results });
+    }
+    return res.json({ ok: true, summary: summary || "Gotowe.", changed });
+  } catch (e: any) { return res.status(500).json({ error: e.message || "błąd agenta" }); }
+});
+
 // 🤏 ADRES LOKALNEGO MÓZGU — z jakiego linku telefon pobiera model AI do trybu
 // offline. Trzymany TU (nie w apce), żeby dało się go poprawić bez nowej wersji
 // aplikacji, gdy dany link przestanie działać albo pojawi się lepszy model.
