@@ -40,9 +40,13 @@ class NeoRainView(ctx: Context) : View(ctx) {
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
         super.onSizeChanged(w, h, ow, oh)
         if (w <= 0 || h <= 0) return
-        bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also {
-            cv = Canvas(it).apply { drawColor(Color.BLACK) }
-        }
+        // 🛡️ RGB_565 zamiast ARGB_8888 = POŁOWA pamięci; a gdy telefon nie ma jej ani
+        // tyle (OutOfMemory), po prostu wyłączamy deszcz zamiast wywalać apkę.
+        bmp = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565).also {
+                cv = Canvas(it).apply { drawColor(Color.BLACK) }
+            }
+        } catch (_: Throwable) { cv = null; null }
         val cols = (w / head.textSize).toInt().coerceAtLeast(1)
         drops = FloatArray(cols) { rnd.nextFloat() * h }
         speeds = FloatArray(cols) { 10f + rnd.nextFloat() * 22f }
@@ -50,6 +54,7 @@ class NeoRainView(ctx: Context) : View(ctx) {
 
     private fun step() {
         val c = cv ?: return
+        try {
         // Każda klatka lekko przyciemnia całość — stare znaki gasną = zielony ogon.
         c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fade)
         for (i in drops.indices) {
@@ -62,7 +67,8 @@ class NeoRainView(ctx: Context) : View(ctx) {
                 speeds[i] = 10f + rnd.nextFloat() * 22f
             }
         }
+        } catch (_: Throwable) {}
     }
 
-    override fun onDraw(canvas: Canvas) { bmp?.let { canvas.drawBitmap(it, 0f, 0f, null) } }
+    override fun onDraw(canvas: Canvas) { try { bmp?.let { canvas.drawBitmap(it, 0f, 0f, null) } } catch (_: Throwable) {} }
 }
