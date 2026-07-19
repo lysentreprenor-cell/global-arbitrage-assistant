@@ -11,8 +11,8 @@ android {
         applicationId "pl.gadacz.app"
         minSdk 26
         targetSdk 34
-        versionCode 99
-        versionName "9.9"
+        versionCode 100
+        versionName "10.0"
 
         // 📦 MNIEJSZA APKA: silnik AI (MediaPipe) ma natywne biblioteki na 4 typy
         // procesorów. Nowoczesne telefony używają WYŁĄCZNIE arm64-v8a — budujemy tylko

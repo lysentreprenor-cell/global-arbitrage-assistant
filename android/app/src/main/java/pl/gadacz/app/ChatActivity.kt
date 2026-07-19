@@ -608,6 +608,12 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
                 val question = t + (fileTxt?.let { "\n\nTREŚĆ ZAŁĄCZNIKA:\n$it" } ?: "")
                 val resp = try { Brain.ask(this, question, history, null, img) } catch (_: Exception) { null }
                 when {
+                    // 🤏 SERWER PADŁ → dla twarzy offline (Ogólny/Dla niewidomych/Auto) pisze
+                    // LOKALNY mózg z telefonu (jeśli wgrany) — czat działa bez internetu.
+                    resp == null && img == null && Brain.faceWorksOffline(this) ->
+                        (try { LocalBrain.answer(this, t) } catch (_: Throwable) { null })
+                            ?: (if (LocalBrain.available(this)) "Lokalny mózg nie zna odpowiedzi na to pytanie."
+                                else "Nie mam połączenia z serwerem, a nie mam wgranego lokalnego mózgu. Pobierz go w Ustawieniach → Silniki, a będę pisał też bez internetu.")
                     resp == null -> "Nie mam połączenia z serwerem. Sprawdź internet i czy serwer działa."
                     resp.optString("error", "").isNotBlank() -> "Błąd serwera: " + resp.optString("error")
                     else -> {
