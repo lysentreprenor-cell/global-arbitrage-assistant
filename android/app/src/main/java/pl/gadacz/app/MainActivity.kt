@@ -72,6 +72,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        installCrashCatcher()
         tts = TextToSpeech(this, this)
 
         // Everything lives in a ScrollView so NO button is ever cut off, on any screen.
@@ -1012,6 +1013,41 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .putString("sos_number", sosIn.text.toString().trim()).apply()
                 speak("Zapisane. Dotknij dużego przycisku i mów.")
             }.setNegativeButton("Anuluj", null).show()
+    }
+
+    /**
+     * 🪤 ŁAPACZ BŁĘDÓW: gdy Gadacz się wywali (błąd programu), zapisujemy powód do
+     * pliku. Przy następnym otwarciu pokazujemy go z przyciskiem „Kopiuj" — dzięki
+     * temu widać, CO naprawdę pękło, zamiast zgadywać.
+     */
+    private fun installCrashCatcher() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                val sw = java.io.StringWriter()
+                e.printStackTrace(java.io.PrintWriter(sw))
+                java.io.File(filesDir, "last_crash.txt").writeText("Gadacz padł:\n" + sw.toString().take(4000))
+            } catch (_: Throwable) {}
+            prev?.uncaughtException(t, e)
+        }
+        val f = java.io.File(filesDir, "last_crash.txt")
+        if (f.exists()) {
+            val txt = try { f.readText() } catch (_: Exception) { "" }
+            try { f.delete() } catch (_: Exception) {}
+            if (txt.isNotBlank()) window.decorView.post {
+                AlertDialog.Builder(this)
+                    .setTitle("⚠️ Gadacz się wcześniej wywalił")
+                    .setMessage(txt.take(2500))
+                    .setPositiveButton("Kopiuj błąd") { _, _ ->
+                        try {
+                            val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", txt))
+                            speak("Skopiowałem błąd. Wklej go w rozmowie, a naprawię przyczynę.")
+                        } catch (_: Exception) {}
+                    }
+                    .setNegativeButton("Zamknij", null).show()
+            }
+        }
     }
 
     override fun onDestroy() { tts.stop(); tts.shutdown(); super.onDestroy() }
