@@ -253,18 +253,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     /** Zapisz wybór twarzy na serwerze i odśwież podpis przycisku. */
     private fun selectPersona(key: String, name: String) {
-        setStatus("🎭 Przełączam…")
-        Thread {
-            val ok = Brain.setPersona(this, key)
-            if (ok) Brain.prefs(this).edit().putString("persona_cache", key).apply()  // offline też ma wiedzieć
-            runOnUiThread {
-                setStatus("Gotowy")
-                if (ok) {
-                    val net = if (key in offlineFaces) "" else " Ta twarz wymaga internetu."
-                    speak("Przełączone. Od teraz jestem: ${name.substringAfter(" ")}.$net"); markActivePersona(key)
-                } else speak("Nie udało się przełączyć. Sprawdź połączenie z serwerem i czy jest zaktualizowany.")
-            }
-        }.start()
+        // 🔀 TWARZ ZMIENIA SIĘ OD RAZU W TELEFONIE (bez czekania na serwer) — inaczej
+        // nie dało się wskoczyć na Ogólny przy śpiącym serwerze, choć on działa offline.
+        // Wysyłkę na serwer (dla www) robimy w tle, best-effort.
+        Brain.prefs(this).edit().putString("persona_cache", key).apply()
+        markActivePersona(key)
+        val net = if (key in offlineFaces) " Ta twarz działa też bez internetu." else " Ta twarz wymaga internetu."
+        speak("Przełączone. Od teraz jestem: ${name.substringAfter(" ")}.$net")
+        Thread { try { Brain.setPersona(this, key) } catch (_: Exception) {} }.start()
     }
 
     /** Podpis na jednym przycisku twarzy: pokazuje włączoną twarz. */
