@@ -358,6 +358,30 @@ object Brain {
      *  reszta (Prawnik, Lekarz...) potrzebuje mądrego mózgu z chmury. */
     fun faceWorksOffline(ctx: Context): Boolean = cachedPersona(ctx) in setOf("niewidomi", "ogolny", "auto")
 
+    /**
+     * 🔀 AUTO-PRZEŁĄCZANIE TWARZY: gdy fachowiec (Prawnik, Programista...) potrzebuje
+     * internetu, a sieci nie ma — Gadacz SAM przeskakuje na Ogólny (działa offline),
+     * żeby nie zamilknąć. Zapamiętuje poprzednią twarz i wraca do niej, gdy sieć
+     * wróci. true = przełączył się teraz.
+     */
+    fun autoOfflineSwitch(ctx: Context, speak: (String) -> Unit): Boolean {
+        if (faceWorksOffline(ctx)) return false
+        val prev = cachedPersona(ctx)
+        prefs(ctx).edit().putString("face_offline_backup", prev)
+            .putString("persona_cache", "ogolny").apply()
+        speak("Nie ma internetu, a twarz ${prev} go potrzebuje. Przełączam się na Ogólny, żeby działać dalej — wrócę do niej, gdy sieć wróci.")
+        return true
+    }
+
+    /** 🔙 Sieć wróciła — wróć do twarzy sprzed auto-przełączenia (jeśli była). */
+    fun restoreFaceIfNeeded(ctx: Context, speak: (String) -> Unit) {
+        val back = prefs(ctx).getString("face_offline_backup", "") ?: ""
+        if (back.isBlank()) return
+        prefs(ctx).edit().putString("persona_cache", back).remove("face_offline_backup").apply()
+        Thread { try { setPersona(ctx, back) } catch (_: Exception) {} }.start()
+        speak("Internet wrócił — wracam do twarzy: $back.")
+    }
+
     /** 🎭 Ustaw SYSTEM (osobowość) na serwerze — telefon i strona www widzą to samo. */
     fun setPersona(ctx: Context, key: String): Boolean = try {
         val body = JSONObject().put("persona", key)
@@ -1399,10 +1423,8 @@ object Brain {
         // (Ogólny / Dla niewidomych). Twarze fachowców (Prawnik, Lekarz...) potrzebują
         // mądrego mózgu z chmury, więc uczciwie o tym mówimy.
         if (!paidMode(ctx)) {
-            if (!faceWorksOffline(ctx)) {
-                speak("Ta twarz — ${cachedPersona(ctx)} — potrzebuje internetu i mądrego mózgu. Przełącz na Ogólny albo Dla niewidomych, żeby działać bez sieci, albo powiedz: pracuj za opłatą.")
-                return
-            }
+            // 🔀 Fachowiec bez sieci → SAM przeskocz na Ogólny (zamiast prosić usera).
+            autoOfflineSwitch(ctx, speak)
             val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
             speak(local ?: (if (LocalBrain.available(ctx))
                 "Lokalny mózg nie zna odpowiedzi. Powiedz: pracuj za opłatą — a zapytam mądrego mózgu w chmurze."
@@ -1443,15 +1465,17 @@ object Brain {
                 if (plan.isNotBlank()) append("\n\nPLAN ZADANIA (trzymaj się go): $plan\nWykonano już kroków: $step. Sprawdź na EKRANIE, który etap jest zrobiony, i wykonaj następny.")
                 if (lastError.isNotBlank()) append("\n\nUWAGA: poprzedni krok NIE WYSZEDŁ: $lastError Spróbuj INACZEJ — inny dokładny napis z EKRANU, scroll żeby odsłonić element, paste zamiast type, albo inna droga do celu. Nie przerywaj zadania.")
             }
-            val resp = try { ask(ctx, question, history, screen, shot) } catch (e: Exception) {
-                // 🤏 Piętro 6: serwer/sieć padły → lokalny mózg RATUJE, ale tylko dla twarzy
-                // działających offline (Ogólny / Dla niewidomych); fachowcy wymagają sieci.
-                if (faceWorksOffline(ctx)) {
-                    val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
-                    speak(local ?: "Nie ma połączenia z internetem. Wgraj lokalny mózg w ustawieniach, a będę działał offline.")
-                } else {
-                    speak("Nie ma połączenia z internetem, a twarz ${cachedPersona(ctx)} go potrzebuje. Przełącz na Ogólny albo Dla niewidomych, żeby działać bez sieci.")
-                }
+            val resp = try {
+                val r = ask(ctx, question, history, screen, shot)
+                // 🔙 Sieć działa (odpowiedź przyszła) → wróć do twarzy sprzed auto-skoku.
+                if (r.optString("error", "").isBlank()) restoreFaceIfNeeded(ctx, speak)
+                r
+            } catch (e: Exception) {
+                // 🤏 Piętro 6: serwer/sieć padły → SAM przeskocz na Ogólny i ratuj lokalnym
+                // mózgiem (fachowca wróci, gdy sieć wróci).
+                autoOfflineSwitch(ctx, speak)
+                val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+                speak(local ?: "Nie ma połączenia z internetem. Wgraj lokalny mózg w ustawieniach, a będę działał offline.")
                 return
             }
             // 🔇 KONIEC MILCZENIA: serwer zgłosił błąd → resp nie ma "say" i Gadacz
