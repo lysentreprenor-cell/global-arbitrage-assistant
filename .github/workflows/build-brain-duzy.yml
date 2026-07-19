@@ -74,8 +74,16 @@ jobs:
             sentencepiece \
             protobuf \
             --extra-index-url https://download.pytorch.org/whl/cpu
-          echo "--- wersje ---"
-          python -c "import ai_edge_torch, ai_edge_litert, mediapipe, transformers, torch; print('ai_edge_torch', ai_edge_torch.__version__); print('ai_edge_litert', getattr(ai_edge_litert,'__version__','?')); print('mediapipe', mediapipe.__version__); print('transformers', transformers.__version__); print('torch', torch.__version__)"
+          echo "--- wersje (niekrytyczne) ---"
+          python - <<'PY'
+          import importlib
+          for m in ("ai_edge_torch","litert_torch","ai_edge_litert","mediapipe","transformers","torch"):
+              try:
+                  mod = importlib.import_module(m)
+                  print(m, getattr(mod, "__version__", "(brak __version__, ale zaimportowany)"))
+              except Exception as e:
+                  print(m, "NIEDOSTEPNY:", e)
+          PY
 
       - name: Pobierz surowy model ($REPO)
         run: |
@@ -107,7 +115,22 @@ jobs:
             *) FAMILY="qwen" ;;
           esac
           echo "Rodzina: $FAMILY"
-          python -m ai_edge_torch.generative.examples.$FAMILY.convert_to_tflite \
+          # Pakiet przemianowano ai_edge_torch -> litert_torch. Szukamy modulu
+          # przykladu-konwertera w OBU nazwach (ktora zadziala, tej uzyjemy).
+          MOD=""
+          for ROOT in litert_torch ai_edge_torch; do
+            if python -c "import importlib,sys; importlib.import_module('$ROOT.generative.examples.$FAMILY.convert_to_tflite')" 2>/dev/null; then
+              MOD="$ROOT.generative.examples.$FAMILY.convert_to_tflite"; break
+            fi
+          done
+          if [ -z "$MOD" ]; then
+            echo "Nie znalazlem modulu konwertera dla rodziny '$FAMILY' ani w litert_torch, ani w ai_edge_torch."
+            echo "Dostepne przyklady:"; python -c "import litert_torch.generative.examples as e, os; print(os.listdir(os.path.dirname(e.__file__)))" 2>/dev/null || \
+                                        python -c "import ai_edge_torch.generative.examples as e, os; print(os.listdir(os.path.dirname(e.__file__)))" 2>/dev/null || true
+            exit 1
+          fi
+          echo "Uzywam modulu: $MOD"
+          python -m "$MOD" \
             --checkpoint_path ckpt \
             --output_path out \
             --output_name_prefix mozg \
