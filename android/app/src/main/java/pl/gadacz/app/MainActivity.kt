@@ -334,6 +334,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🗣️  GŁOSY (Gosia · Darkman · MC Speech) — wybierz i pobierz",
             "👁️  Oczy do tekstu: WBUDOWANE — powiedz „przeczytaj kartkę”",
             "📏  Sprawdź, jaki mózg udźwignie ten telefon",
+            "🔄  Sprawdź najnowsze silniki (największy mózg)",
             "🗑️  Usuń silniki (zwolnij miejsce)",
         )
         AlertDialog.Builder(this)
@@ -345,10 +346,41 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     2 -> showVoices()
                     3 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
                     4 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
-                    5 -> showDeleteEngines()
+                    5 -> checkNewestEngines()
+                    6 -> showDeleteEngines()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    // 🔄 SPRAWDŹ NAJNOWSZE SILNIKI — pyta serwer o aktualną listę mózgów do pobrania
+    // i pokazuje ją z oznaczeniem NAJWIĘKSZEGO. Gdy dojdzie większy mózg (np. po
+    // odblokowaniu tokenem), pojawi się tu sam, bez nowej wersji apki.
+    private fun checkNewestEngines() {
+        speak("Sprawdzam, jaki najnowszy i największy mózg jest teraz do pobrania.")
+        setStatus("🔄 Sprawdzam najnowsze silniki…")
+        Thread {
+            val opts = LocalBrain.brainOptions(this)   // (nazwa, opis, url) — serwer podaje od najmniejszego
+            runOnUiThread {
+                setStatus("Gotowy")
+                if (opts.isEmpty()) {
+                    speak("Nie udało się sprawdzić — serwer śpi albo nie ma internetu. Uruchom serwer na Replit, naciśnij Run i spróbuj jeszcze raz.")
+                    return@runOnUiThread
+                }
+                val installed = LocalBrain.installedShort(this)
+                val items = opts.mapIndexed { i, t ->
+                    val star = if (i == opts.size - 1) "  ⭐ NAJWIĘKSZY" else ""
+                    "${t.first}$star\n${t.second}"
+                }.toTypedArray()
+                AlertDialog.Builder(this)
+                    .setTitle("🔄 Najnowsze silniki (masz wgrany: $installed)")
+                    .setItems(items) { _, which ->
+                        val (name, _, url) = opts[which]
+                        downloadBrain(url, name)
+                    }
+                    .setNegativeButton("Zamknij", null).show()
+            }
+        }.start()
     }
 
     // 🗑️ USUWANIE SILNIKÓW — zwalnia miejsce (mózg ~0,5–1,5 GB, głosy ~70 MB każdy,
