@@ -371,71 +371,128 @@ object Brain {
     // projekty „na stałe" i wracanie do nich po nazwie. Wszystko głosem.
 
     /** Dopisz wymianę zdań do bieżącej rozmowy aktywnej twarzy (w tle, bez hałasu). */
-    fun convAppend(ctx: Context, user: String, assistant: String) = try {
-        val body = JSONObject().put("persona", cachedPersona(ctx))
-            .put("user", user.take(2000)).put("assistant", assistant.take(4000))
-        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/append")
-            .header("x-bot-pin", pin(ctx))
-            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
-            .execute().use { }
-    } catch (_: Exception) {}
+    // 🗂 ROZMOWY MIESZKAJĄ NA TELEFONIE (stabilny dysk) — serwer to tylko kopia dla
+    // strony www. Dzięki temu restart Replita NIGDY nie kasuje Twoich rozmów.
+    private fun convFile(ctx: Context) = java.io.File(ctx.filesDir, "gadacz_convs.json")
+    private fun convLoadAll(ctx: Context): org.json.JSONArray = try {
+        val f = convFile(ctx); if (!f.exists()) org.json.JSONArray() else org.json.JSONArray(f.readText())
+    } catch (_: Exception) { org.json.JSONArray() }
+    private fun convSaveAll(ctx: Context, arr: org.json.JSONArray) { try { convFile(ctx).writeText(arr.toString()) } catch (_: Exception) {} }
+    /** Projekty na stałe zostają ZAWSZE; zwykłe czaty: 25 najnowszych na twarz i w oknie dni. */
+    private fun convPrune(ctx: Context, arr: org.json.JSONArray): org.json.JSONArray {
+        val days = prefs(ctx).getInt("conv_keep_days", 0)
+        val cutoff = if (days > 0) System.currentTimeMillis() - days * 86400000L else 0L
+        val keep = org.json.JSONArray()
+        val perPersona = HashMap<String, Int>()
+        val items = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.sortedByDescending { it.optLong("updated") }
+        for (o in items) {
+            if (o.optBoolean("permanent")) { keep.put(o); continue }
+            if (cutoff > 0 && o.optLong("updated") < cutoff) continue
+            val p = o.optString("persona"); val c = (perPersona[p] ?: 0) + 1; perPersona[p] = c
+            if (c <= 25) keep.put(o)
+        }
+        return keep
+    }
+
+    fun convAppend(ctx: Context, user: String, assistant: String) {
+        try {
+            val persona = cachedPersona(ctx)
+            val arr = convLoadAll(ctx)
+            var conv = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+                .firstOrNull { it.optString("persona") == persona && it.optBoolean("open") }
+            val now = System.currentTimeMillis()
+            if (conv == null) {
+                conv = JSONObject().put("id", now.toString() + "_" + arr.length()).put("persona", persona)
+                    .put("title", user.take(60).ifBlank { "rozmowa" }).put("permanent", false)
+                    .put("open", true).put("updated", now).put("messages", org.json.JSONArray())
+                arr.put(conv)
+            }
+            val msgs = conv.optJSONArray("messages") ?: org.json.JSONArray().also { conv.put("messages", it) }
+            if (user.isNotBlank()) msgs.put(JSONObject().put("role", "user").put("text", user.take(2000)))
+            if (assistant.isNotBlank()) msgs.put(JSONObject().put("role", "assistant").put("text", assistant.take(4000)))
+            while (msgs.length() > 400) msgs.remove(0)
+            conv.put("updated", now)
+            convSaveAll(ctx, convPrune(ctx, arr))
+        } catch (_: Exception) {}
+        // Kopia na serwer (dla www) — best-effort, brak sieci nic nie psuje.
+        try {
+            val body = JSONObject().put("persona", cachedPersona(ctx)).put("user", user.take(2000)).put("assistant", assistant.take(4000))
+            http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/append")
+                .header("x-bot-pin", pin(ctx)).post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                .execute().use { }
+        } catch (_: Exception) {}
+    }
 
     /** Zamknij bieżącą rozmowę twarzy — następne zdania trafią do świeżej. */
-    fun convNew(ctx: Context): Boolean = try {
-        val body = JSONObject().put("persona", cachedPersona(ctx))
-        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/new")
-            .header("x-bot-pin", pin(ctx))
-            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
-            .execute().use { it.isSuccessful }
-    } catch (_: Exception) { false }
+    fun convNew(ctx: Context): Boolean {
+        try {
+            val persona = cachedPersona(ctx)
+            val arr = convLoadAll(ctx)
+            (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.filter { it.optString("persona") == persona }.forEach { it.put("open", false) }
+            convSaveAll(ctx, arr)
+        } catch (_: Exception) {}
+        try {
+            val body = JSONObject().put("persona", cachedPersona(ctx))
+            http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/new")
+                .header("x-bot-pin", pin(ctx)).post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                .execute().use { }
+        } catch (_: Exception) {}
+        return true
+    }
 
     /** Zapisz ostatnią rozmowę twarzy NA STAŁE (projekt). Zwraca nazwę albo null. */
-    fun convKeep(ctx: Context, title: String?): String? = try {
-        val body = JSONObject().put("persona", cachedPersona(ctx)).put("title", title ?: "")
-        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/keep")
-            .header("x-bot-pin", pin(ctx))
-            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
-            .execute().use { r ->
-                if (!r.isSuccessful) null
-                else JSONObject(r.body?.string() ?: "{}").optString("title", "").ifBlank { null }
+    fun convKeep(ctx: Context, title: String?): String? {
+        var result: String? = null
+        try {
+            val persona = cachedPersona(ctx)
+            val arr = convLoadAll(ctx)
+            val best = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+                .filter { it.optString("persona") == persona }.maxByOrNull { it.optLong("updated") }
+            if (best != null) {
+                best.put("permanent", true)
+                if (!title.isNullOrBlank()) best.put("title", title.take(60))
+                convSaveAll(ctx, arr)
+                result = best.optString("title").ifBlank { null }
             }
-    } catch (_: Exception) { null }
+        } catch (_: Exception) {}
+        try {
+            val body = JSONObject().put("persona", cachedPersona(ctx)).put("title", title ?: "")
+            http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/keep")
+                .header("x-bot-pin", pin(ctx)).post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                .execute().use { }
+        } catch (_: Exception) {}
+        return result
+    }
 
-    /** Lista rozmów aktywnej twarzy: (tytuł, czy na stałe), od najnowszej. */
+    /** Lista rozmów aktywnej twarzy: (tytuł, czy na stałe), od najnowszej — z TELEFONU. */
     fun convList(ctx: Context): List<Pair<String, Boolean>> = try {
-        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') +
-            "/api/assistant/conversations?persona=" + java.net.URLEncoder.encode(cachedPersona(ctx), "UTF-8"))
-            .header("x-bot-pin", pin(ctx)).build())
-            .execute().use { r ->
-                if (!r.isSuccessful) emptyList()
-                else {
-                    val arr = JSONObject(r.body?.string() ?: "{}").optJSONArray("conversations") ?: return emptyList()
-                    (0 until arr.length()).mapNotNull { i ->
-                        val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                        o.optString("title") to o.optBoolean("permanent")
-                    }
-                }
-            }
+        val persona = cachedPersona(ctx)
+        val arr = convLoadAll(ctx)
+        (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+            .filter { it.optString("persona") == persona }
+            .sortedByDescending { it.optLong("updated") }
+            .map { it.optString("title") to it.optBoolean("permanent") }
     } catch (_: Exception) { emptyList() }
 
-    /** Wczytaj rozmowę/projekt po nazwie: (tytuł, wiadomości rola→treść). null = brak. */
+    /** Wczytaj rozmowę/projekt po nazwie (z TELEFONU): (tytuł, wiadomości). null = brak. */
     fun convLoad(ctx: Context, q: String): Pair<String, List<Pair<String, String>>>? = try {
-        val body = JSONObject().put("persona", cachedPersona(ctx)).put("q", q)
-        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/load")
-            .header("x-bot-pin", pin(ctx))
-            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
-            .execute().use { r ->
-                if (!r.isSuccessful) null
-                else {
-                    val o = JSONObject(r.body?.string() ?: "{}")
-                    val arr = o.optJSONArray("messages") ?: org.json.JSONArray()
-                    val msgs = (0 until arr.length()).mapNotNull { i ->
-                        val m = arr.optJSONObject(i) ?: return@mapNotNull null
-                        m.optString("role") to m.optString("text")
-                    }
-                    o.optString("title", "").ifBlank { null }?.let { it to msgs }
-                }
+        val persona = cachedPersona(ctx)
+        val nq = normPl(q).trim()
+        val arr = convLoadAll(ctx)
+        val pool = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.filter { it.optString("persona") == persona }
+        val hit = pool.firstOrNull { normPl(it.optString("title")).trim() == nq }
+            ?: pool.filter { normPl(it.optString("title")).contains(nq) }.maxByOrNull { it.optLong("updated") }
+        if (hit == null) null else {
+            pool.forEach { it.put("open", false) }
+            hit.put("open", true)
+            convSaveAll(ctx, arr)
+            val msgs = hit.optJSONArray("messages") ?: org.json.JSONArray()
+            val listMsgs = (0 until msgs.length()).mapNotNull { i ->
+                val m = msgs.optJSONObject(i) ?: return@mapNotNull null
+                m.optString("role") to m.optString("text")
             }
+            hit.optString("title").ifBlank { "rozmowa" } to listMsgs.takeLast(24)
+        }
     } catch (_: Exception) { null }
 
     /** 🎭 NARADA — pytanie do WSZYSTKICH twarzy naraz. Lista (etykieta, odpowiedź). */
@@ -498,22 +555,19 @@ object Brain {
             }
     } catch (_: Exception) { false to "Nie mogę połączyć się z serwerem." }
 
-    /** ⏳ Ile dni żyją zwykłe czaty na serwerze (0 = bez limitu, -1 = nie udało się pobrać). */
-    fun convKeepDays(ctx: Context): Int = try {
-        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/config")
-            .header("x-bot-pin", pin(ctx)).build())
-            .execute().use { r ->
-                if (!r.isSuccessful) -1 else JSONObject(r.body?.string() ?: "{}").optInt("keepDays", -1)
-            }
-    } catch (_: Exception) { -1 }
+    /** ⏳ Ile dni żyją zwykłe czaty (0 = bez limitu) — trzymane w TELEFONIE. */
+    fun convKeepDays(ctx: Context): Int = prefs(ctx).getInt("conv_keep_days", 0)
 
-    fun convSetKeepDays(ctx: Context, days: Int): Boolean = try {
-        val body = JSONObject().put("keepDays", days)
-        http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/config")
-            .header("x-bot-pin", pin(ctx))
-            .post(body.toString().toRequestBody("application/json".toMediaType())).build())
-            .execute().use { it.isSuccessful }
-    } catch (_: Exception) { false }
+    fun convSetKeepDays(ctx: Context, days: Int): Boolean {
+        prefs(ctx).edit().putInt("conv_keep_days", days).apply()
+        try {
+            val body = JSONObject().put("keepDays", days)
+            http.newCall(Request.Builder().url(serverUrl(ctx).trimEnd('/') + "/api/assistant/conversation/config")
+                .header("x-bot-pin", pin(ctx)).post(body.toString().toRequestBody("application/json".toMediaType())).build())
+                .execute().use { }
+        } catch (_: Exception) {}
+        return true
+    }
 
     /**
      * 🗂 Odruchy ROZMÓW — wołane z runTask, bo tylko tam mamy dostęp do pamięci
