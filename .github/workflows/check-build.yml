@@ -1,0 +1,29 @@
+name: Sprawdz budowe (serwer i strona)
+
+# 🛡️ STRAŻNIK BUDOWY: po KAZDYM pushu (zwlaszcza od samodzielnego agenta Gadacza)
+# probuje zbudowac serwer i strone www. Jak cos jest zepsute (np. agent nadpisal
+# plik), commit dostaje czerwony krzyzyk — od razu widac wpadke, zanim trafi na Replit.
+on:
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths:
+      - "client/**"
+      - "server/**"
+      - "shared/**"
+      - "script/**"
+      - "package.json"
+      - ".github/workflows/check-build.yml"
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Instaluj zaleznosci
+        run: npm install --no-audit --no-fund
+      - name: Zbuduj (serwer + www)
+        run: npm run build
