@@ -334,6 +334,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             "🗣️  GŁOSY (Gosia · Darkman · MC Speech) — wybierz i pobierz",
             "👁️  Oczy do tekstu: WBUDOWANE — powiedz „przeczytaj kartkę”",
             "📏  Sprawdź, jaki mózg udźwignie ten telefon",
+            "🗑️  Usuń silniki (zwolnij miejsce)",
         )
         AlertDialog.Builder(this)
             .setTitle("🔩 Silniki Gadacza")
@@ -344,7 +345,39 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     2 -> showVoices()
                     3 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
                     4 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
+                    5 -> showDeleteEngines()
                 }
+            }
+            .setNegativeButton("Zamknij", null).show()
+    }
+
+    // 🗑️ USUWANIE SILNIKÓW — zwalnia miejsce (mózg ~0,5–1,5 GB, głosy ~70 MB każdy,
+    // ucho ~50 MB). Kasuje TYLKO pobrany plik silnika; ustawienia i rozmowy zostają.
+    private fun showDeleteEngines() {
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        if (LocalBrain.available(this)) items.add("🧠 Mózg lokalny (${LocalBrain.installedShort(this)})" to {
+            LocalBrain.deleteBrain(this); speak("Usunąłem lokalny mózg. Zwolniłem miejsce.")
+        })
+        if (VoskEar.available(this)) items.add("👂 Ucho (nasłuch ciągły)" to {
+            VoskEar.deleteEar(this); speak("Usunąłem ucho.")
+        })
+        voiceInfo.forEach { (k, n, _) ->
+            if (PiperUsta.voiceInstalled(this, k)) items.add("🗣️ Głos: ${n.substringAfter(" ")}" to {
+                PiperUsta.deleteVoice(this, k)
+                if (!PiperUsta.available(this)) PiperUsta.setEnabled(this, false)
+                speak("Usunąłem głos ${n.substringAfter(" ")}.")
+            })
+        }
+        if (items.isEmpty()) { speak("Nie masz wgranych żadnych silników do usunięcia."); return }
+        val labels = items.map { "🗑️ Usuń: ${it.first}" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("🗑️ Co usunąć? (zwalnia miejsce)")
+            .setItems(labels) { _, i ->
+                AlertDialog.Builder(this)
+                    .setTitle("Na pewno usunąć?")
+                    .setMessage("${items[i].first} zostanie skasowany z telefonu. W każdej chwili pobierzesz go na nowo w Silnikach.")
+                    .setPositiveButton("Usuń") { _, _ -> Thread { items[i].second() }.start() }
+                    .setNegativeButton("Anuluj", null).show()
             }
             .setNegativeButton("Zamknij", null).show()
     }

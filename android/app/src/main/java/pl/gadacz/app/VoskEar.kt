@@ -39,6 +39,13 @@ object VoskEar {
 
     fun available(ctx: Context): Boolean = modelDir(ctx) != null
 
+    /** 🗑️ Usuń model ucha (zwalnia ~50 MB). Najpierw zatrzymujemy nasłuch. */
+    fun deleteEar(ctx: Context): Boolean {
+        stop()
+        synchronized(this) { model?.let { try { it.close() } catch (_: Throwable) {} }; model = null }
+        return try { dir(ctx).deleteRecursively() } catch (_: Exception) { false }
+    }
+
     @Synchronized
     private fun ensure(ctx: Context): org.vosk.Model? {
         model?.let { return it }

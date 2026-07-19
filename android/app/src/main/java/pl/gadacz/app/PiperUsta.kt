@@ -52,6 +52,13 @@ object PiperUsta {
     fun voiceInstalled(ctx: Context, key: String): Boolean = modelDirFor(ctx, key) != null
     fun available(ctx: Context): Boolean = VOICE_KEYS.any { voiceInstalled(ctx, it) }
 
+    /** 🗑️ Usuń pobrany głos (zwalnia ~70 MB). Jeśli to aktywny głos, zwalniamy silnik. */
+    fun deleteVoice(ctx: Context, key: String): Boolean {
+        stopNow()
+        synchronized(this) { if (loadedKey == key) { engine?.let { try { it.release() } catch (_: Throwable) {} }; engine = null; loadedKey = null } }
+        return try { dirFor(ctx, key).deleteRecursively() } catch (_: Exception) { false }
+    }
+
     /** 🗣️ Który głos jest WYBRANY (może nie być jeszcze pobrany). */
     fun selectedVoice(ctx: Context): String = Brain.prefs(ctx).getString("piper_voice_key", "gosia") ?: "gosia"
     fun setSelectedVoice(ctx: Context, key: String) {

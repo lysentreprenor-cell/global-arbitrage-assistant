@@ -78,6 +78,16 @@ object LocalBrain {
 
     fun available(ctx: Context): Boolean = modelPath(ctx) != null
 
+    /** 🗑️ Usuń pobrany lokalny mózg (zwalnia miejsce). Silnik najpierw zamykamy. */
+    fun deleteBrain(ctx: Context): Boolean {
+        synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
+        return try {
+            downloadedFile(ctx).delete()
+            File(downloadedFile(ctx).absolutePath + ".part").delete()
+            true
+        } catch (_: Exception) { false }
+    }
+
     /** 🏷️ Krótka nazwa wgranego mózgu do napisu na kafelku: „Mały" / „Średni" / „brak". */
     fun installedShort(ctx: Context): String {
         val p = modelPath(ctx) ?: return "brak"
