@@ -1,0 +1,164 @@
+name: Zbuduj duzy mozg (konwersja Qwen -> .task)
+
+# 🦉 NASZ WLASNY DUZY MOZG. Bierze OTWARTY model Qwen (licencja Apache, bez bramki
+# i bez logowania) i przerabia go na format .task, ktory rozumie telefon
+# (narzedzia Google AI Edge / LiteRT: konwersja + kwantyzacja = "sciśniecie").
+# Publikuje jako gadacz-mozg-duzy.task na wydaniu gadacz-brain.
+#
+# To EKSPERYMENT: konwersja duzych modeli na darmowym runnerze bywa ciezka
+# (pamiec/dysk/wersje narzedzi). Kazdy przebieg to zarazem diagnostyka - logi
+# pokazuja dokladnie, gdzie sie zacina, i poprawiamy krok po kroku.
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Model HuggingFace (otwarty, Apache)"
+        default: "Qwen/Qwen2.5-3B-Instruct"
+      prefill:
+        description: "Dlugosc kontekstu (prefill)"
+        default: "1024"
+      kv:
+        description: "kv_cache_max_len"
+        default: "1280"
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths: [ ".github/workflows/build-brain-duzy.yml" ]
+
+permissions:
+  contents: write
+
+jobs:
+  konwersja:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      REPO:    ${{ github.event.inputs.repo || 'Qwen/Qwen2.5-3B-Instruct' }}
+      PREFILL: ${{ github.event.inputs.prefill || '1024' }}
+      KV:      ${{ github.event.inputs.kv || '1280' }}
+    steps:
+      - name: Zwolnij miejsce na dysku
+        run: |
+          echo "=== przed czyszczeniem ==="; df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+                      "$AGENT_TOOLSDIRECTORY" || true
+          echo "=== po czyszczeniu ==="; df -h /
+
+      - name: Dorzuc pamiec wymiany (swap 12 GB) na wypadek duzego modelu
+        run: |
+          sudo swapoff -a || true
+          sudo fallocate -l 12G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Zainstaluj narzedzia AI Edge + MediaPipe
+        run: |
+          python -m pip install --upgrade pip
+          # Torch CPU (lzejszy). Nightly ai-edge-torch ma najswiezsze konwertery.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install ai-edge-torch-nightly mediapipe transformers huggingface_hub accelerate sentencepiece protobuf || \
+          pip install ai-edge-torch          mediapipe transformers huggingface_hub accelerate sentencepiece protobuf
+          echo "--- wersje ---"
+          python -c "import ai_edge_torch, mediapipe, transformers; print('ai_edge_torch', ai_edge_torch.__version__); print('mediapipe', mediapipe.__version__); print('transformers', transformers.__version__)"
+
+      - name: Pobierz surowy model ($REPO)
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import snapshot_download
+          repo = os.environ["REPO"]
+          p = snapshot_download(
+              repo_id=repo,
+              local_dir="ckpt",
+              # bierzemy safetensors + tokenizer + config; pomijamy zbedne pliki
+              ignore_patterns=["*.bin", "*.pth", "*.gguf", "original/*", "*.onnx"],
+          )
+          print("Pobrano do:", p)
+          import subprocess; subprocess.run(["ls","-la","ckpt"])
+          PY
+
+      - name: Konwersja do .tflite (AI Edge, kwantyzacja int8)
+        id: tflite
+        run: |
+          mkdir -p out
+          set -o pipefail
+          # Wybieramy przyklad konwertera pasujacy do rodziny modelu.
+          FAMILY="qwen"
+          case "$REPO" in
+            *gemma*|*Gemma*) FAMILY="gemma" ;;
+            *Phi*|*phi*)     FAMILY="phi2" ;;
+            *Llama*|*llama*) FAMILY="llama" ;;
+            *) FAMILY="qwen" ;;
+          esac
+          echo "Rodzina: $FAMILY"
+          python -m ai_edge_torch.generative.examples.$FAMILY.convert_to_tflite \
+            --checkpoint_path ckpt \
+            --output_path out \
+            --output_name_prefix mozg \
+            --prefill_seq_lens "$PREFILL" \
+            --kv_cache_max_len "$KV" \
+            --quantize dynamic_int8 2>&1 | tee konwersja.log
+          echo "--- pliki wynikowe ---"; ls -la out
+          TFL=$(ls out/*.tflite 2>/dev/null | head -1 || true)
+          if [ -z "$TFL" ]; then echo "Brak .tflite - konwersja nie wyszla"; exit 1; fi
+          echo "tflite=$TFL" >> "$GITHUB_OUTPUT"
+
+      - name: Zbuduj .task (bundle z tokenizerem)
+        if: steps.tflite.outputs.tflite != ''
+        run: |
+          python - <<'PY'
+          import glob, os
+          from mediapipe.tasks.python.genai import bundler
+          tfl = sorted(glob.glob("out/*.tflite"))[0]
+          # Qwen/Llama/Gemma to tokenizery BPE - MediaPipe czyta tokenizer.json.
+          tok = None
+          for c in ("ckpt/tokenizer.json", "ckpt/tokenizer.model"):
+              if os.path.exists(c): tok = c; break
+          assert tok, "Brak pliku tokenizera w ckpt/"
+          print("tflite:", tfl, "tokenizer:", tok)
+          cfg = bundler.BundleConfig(
+              tflite_model=tfl,
+              tokenizer_model=tok,
+              start_token="<|im_start|>",
+              stop_tokens=["<|im_end|>", "<|endoftext|>"],
+              output_filename="gadacz-mozg-duzy.task",
+              enable_bytes_to_unicode_mapping=True,
+          )
+          bundler.create_bundle(cfg)
+          print("Rozmiar .task:", os.path.getsize("gadacz-mozg-duzy.task"))
+          PY
+          echo "--- gotowy plik ---"; ls -la gadacz-mozg-duzy.task
+
+      - name: Sprawdz rozmiar
+        id: check
+        run: |
+          if [ ! -f gadacz-mozg-duzy.task ]; then echo "Brak .task"; exit 1; fi
+          SIZE=$(stat -c%s gadacz-mozg-duzy.task)
+          echo "Rozmiar: $SIZE"
+          # Duzy mozg (3B int8) powinien miec > 1 GB. Mniej = cos poszlo nie tak.
+          if [ "$SIZE" -lt 1073741824 ]; then echo "Za maly - odrzucam"; exit 1; fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Opublikuj duzy mozg
+        if: steps.check.outputs.ok == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-brain
+          name: "Gadacz — lokalne mozgi"
+          files: gadacz-mozg-duzy.task
+          make_latest: false
+
+      - name: Zachowaj log konwersji (do diagnostyki)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-konwersji
+          path: |
+            konwersja.log
+          if-no-files-found: ignore

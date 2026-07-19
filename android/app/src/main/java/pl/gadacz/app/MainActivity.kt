@@ -329,6 +329,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val items = arrayOf(
             if (brain == "brak") "🧠  Mózg lokalny: BRAK — dotknij, by pobrać"
             else "🧠  Mózg lokalny: $brain — dotknij, by zmienić",
+            "🎯  Dostrój mózg do mojego telefonu (auto)",
             if (VoskEar.available(this)) "👂  Ucho (nasłuch ciągły): WGRANE — dotknij, by pobrać na nowo"
             else "👂  Ucho (nasłuch ciągły): BRAK — dotknij, by pobrać",
             "🗣️  GŁOSY (Gosia · Darkman · MC Speech) — wybierz i pobierz",
@@ -342,15 +343,73 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> confirmLocalBrain()
-                    1 -> confirmEar()
-                    2 -> showVoices()
-                    3 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
-                    4 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
-                    5 -> checkNewestEngines()
-                    6 -> showDeleteEngines()
+                    1 -> tuneBrainToDevice()
+                    2 -> confirmEar()
+                    3 -> showVoices()
+                    4 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
+                    5 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
+                    6 -> checkNewestEngines()
+                    7 -> showDeleteEngines()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    // 🎯 DOSTRÓJ MÓZG DO TELEFONU — czyta sprzęt (RAM, wolna pamięć, rdzenie, miejsce),
+    // sam dobiera NAJWIĘKSZY mózg, jaki telefon bezpiecznie uniesie, i ustawia silnik
+    // pod ten telefon (długość odpowiedzi). Za darmo, w kilka sekund, na telefonie.
+    private fun tuneBrainToDevice() {
+        speak("Sprawdzam Twój telefon i dobieram mózg pod niego.")
+        setStatus("🎯 Sprawdzam telefon…")
+        Thread {
+            val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+            val mi = android.app.ActivityManager.MemoryInfo(); am.getMemoryInfo(mi)
+            val ramGb  = Math.round(mi.totalMem.toDouble() / (1024.0 * 1024 * 1024) * 10) / 10.0
+            val freeGb = Math.round(mi.availMem.toDouble() / (1024.0 * 1024 * 1024) * 10) / 10.0
+            val cores  = Runtime.getRuntime().availableProcessors()
+            val diskGb = Math.round(((getExternalFilesDir(null)?.usableSpace ?: 0L) / (1024.0 * 1024 * 1024)) * 10) / 10.0
+            val opts   = LocalBrain.brainOptions(this)   // serwer: od najmniejszego do największego
+            runOnUiThread {
+                setStatus("Gotowy")
+                if (opts.isEmpty()) {
+                    speak("Nie mam teraz listy mózgów — serwer śpi albo brak internetu. Uruchom serwer na Replit, naciśnij Run i spróbuj jeszcze raz.")
+                    return@runOnUiThread
+                }
+                // 1️⃣ Docelowy rozmiar wg RAM: mocny telefon = największy dostępny.
+                var pick = when {
+                    ramGb >= 7.0 -> opts.size - 1
+                    ramGb >= 3.5 -> if (opts.size >= 2) 1 else 0
+                    else         -> 0
+                }
+                // 2️⃣ Sprawdź MIEJSCE: szacowany rozmiar (mini~0,7 / średni~1,7 / duży~3 GB)
+                //     razy 1,6 (pobranie + rozpakowanie). Za mało → schodzimy niżej.
+                val estGb = doubleArrayOf(0.7, 1.7, 3.0)
+                while (pick > 0 && diskGb < estGb[pick.coerceAtMost(2)] * 1.6) pick--
+                // 3️⃣ Dostrojenie silnika pod telefon: dłuższe odpowiedzi na mocniejszym sprzęcie.
+                val maxTok = when { ramGb >= 7.0 -> 1024; ramGb >= 4.0 -> 768; else -> 384 }
+                Brain.prefs(this).edit().putInt("brain_max_tokens", maxTok).apply()
+
+                val (name, desc, url) = opts[pick]
+                val inst = LocalBrain.installedShort(this)   // „Mały"/„Średni"/„brak"
+                val already = inst != "brak" && name.contains(inst, ignoreCase = true)
+                val spec = "Twój telefon: $ramGb GB pamięci RAM (wolne $freeGb), $cores rdzeni, $diskGb GB wolnego miejsca."
+                if (already) {
+                    val msg = "$spec\n\nMasz już dobrze dobrany mózg ($inst) — pasuje do Twojego telefonu. Dostroiłem tylko ustawienia silnika pod sprzęt (długość odpowiedzi)."
+                    appendLine("🎯 $msg")
+                    speak("Masz już dobrze dobrany mózg pod ten telefon. Dostroiłem ustawienia silnika. Wszystko gotowe.")
+                    AlertDialog.Builder(this).setTitle("🎯 Dostrojenie mózgu").setMessage(msg).setPositiveButton("OK", null).show()
+                    return@runOnUiThread
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("🎯 Dostrojenie mózgu")
+                    .setMessage("$spec\n\nDobrałem dla Ciebie: $name.\n$desc\n\nUstawienia silnika już dostroiłem pod Twój telefon. Pobrać ten mózg teraz? (najlepiej na Wi-Fi)")
+                    .setPositiveButton("Pobierz i dostrój") { _, _ ->
+                        speak("Dobrałem $name pod Twój telefon i ustawiłem silnik. Pobieram.")
+                        downloadBrain(url, name)
+                    }
+                    .setNegativeButton("Nie teraz", null).show()
+            }
+        }.start()
     }
 
     // 🔄 SPRAWDŹ NAJNOWSZE SILNIKI — pyta serwer o aktualną listę mózgów do pobrania

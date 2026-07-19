@@ -131,9 +131,12 @@ object LocalBrain {
         llm?.let { try { it.close() } catch (_: Throwable) {} }
         llm = null
         return try {
+            // 🎯 Długość odpowiedzi dostrojona pod telefon (przycisk „Dostrój mózg").
+            // Domyślnie 512; mocniejszy sprzęt dostaje więcej, słabszy mniej.
+            val maxTok = Brain.prefs(ctx).getInt("brain_max_tokens", 512).coerceIn(256, 1024)
             val opts = com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(path)
-                .setMaxTokens(512)
+                .setMaxTokens(maxTok)
                 .build()
             com.google.mediapipe.tasks.genai.llminference.LlmInference
                 .createFromOptions(ctx.applicationContext, opts)
