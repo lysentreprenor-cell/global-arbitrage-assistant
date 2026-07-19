@@ -617,8 +617,18 @@ router.post("/self-agent", async (req: Request, res: Response) => {
   const ghWrite = async (p: string, content: string, message: string): Promise<string> => {
     const path = p.replace(/^\/+/, "");
     let sha: string | undefined;
+    let oldLen = 0;
     const cur = await gh(`https://api.github.com/repos/${SELF_REPO}/contents/${path}?ref=${encodeURIComponent(SELF_BRANCH)}`);
-    if (cur.ok) { const d = await cur.json() as any; if (d && typeof d.sha === "string") sha = d.sha; }
+    if (cur.ok) {
+      const d = await cur.json() as any;
+      if (d && typeof d.sha === "string") sha = d.sha;
+      if (d && typeof d.content === "string") oldLen = Buffer.from(d.content, "base64").toString("utf8").length;
+    }
+    // 🛡️ BEZPIECZNIK NEO: nie pozwól nadpisać sporego pliku garstką znaków (klasyczne
+    // „zapisałem TEST zamiast całego pliku"). Chroni przed skasowaniem 800 linii.
+    if (oldLen > 400 && content.trim().length < oldLen * 0.5) {
+      return `ODRZUCONO: próbujesz zastąpić plik ${path} (${oldLen} znaków) treścią ${content.trim().length} znaków — to za mało, wygląda na przypadkowe skasowanie. Najpierw PRZECZYTAJ plik i zapisz jego PEŁNĄ, kompletną treść z Twoją zmianą.`;
+    }
     const put = await gh(`https://api.github.com/repos/${SELF_REPO}/contents/${path}`, {
       method: "PUT", body: JSON.stringify({
         message: (message || `Gadacz: ${path}`).slice(0, 180) + "\n\n[samodzielna zmiana twarzy Programowanie]",
@@ -636,7 +646,8 @@ router.post("/self-agent", async (req: Request, res: Response) => {
     { name: "finish", description: "Zakończ i podsumuj po polsku, co zrobiłeś.", input_schema: { type: "object", properties: { summary: { type: "string" } }, required: ["summary"] } },
   ];
   const system = `Jesteś Gadaczem-programistą pracującym na WŁASNYM repozytorium ${SELF_REPO}, gałąź ${SELF_BRANCH}. Wykonaj zadanie użytkownika SAMODZIELNIE: przeczytaj potrzebne pliki (read_file), wprowadź zmiany zapisując PEŁNĄ nową treść pliku (write_file — od razu commituje), na koniec wywołaj finish z krótkim podsumowaniem po polsku. NIE pytaj użytkownika o zgodę — działaj.
-ZASADY PROJEKTU: zakładki www są w client/src/pages/resell/ (trasy w client/src/App.tsx, nawigacja w client/src/components/resell/TopNav.tsx); serwer w server/routes/; aplikacja Android w android/app/src/main/java/pl/gadacz/app/. Przy ZMIANIE w android/ ZAWSZE podbij versionCode i versionName w android/app/build.gradle. W plikach Kotlin (.kt) w polskich tekstach NIE używaj prostych cudzysłowów — używaj „ oraz " (proste " kończą string i psują budowę). Rób MINIMALNE, bezpieczne zmiany, zwykle 1-3 pliki. Po commicie robot GitHuba sam zbuduje.`;
+ZASADY PROJEKTU: zakładki www są w client/src/pages/resell/ (trasy w client/src/App.tsx, nawigacja w client/src/components/resell/TopNav.tsx); serwer w server/routes/; aplikacja Android w android/app/src/main/java/pl/gadacz/app/. Przy ZMIANIE w android/ ZAWSZE podbij versionCode i versionName w android/app/build.gradle. W plikach Kotlin (.kt) w polskich tekstach NIE używaj prostych cudzysłowów — używaj „ oraz " (proste " kończą string i psują budowę). Rób MINIMALNE, bezpieczne zmiany, zwykle 1-3 pliki. Po commicie robot GitHuba sam zbuduje.
+🛡️ ŻELAZNA ZASADA ZAPISU: write_file ZASTĘPUJE CAŁY plik. ZAWSZE zapisuj PEŁNĄ, kompletną treść pliku (cały kod od góry do dołu) z naniesioną zmianą — NIGDY skrótu, placeholdera ani słowa typu „test". Jeśli nie masz pełnej treści, NAJPIERW przeczytaj plik read_file, dopiero potem zapisz całość. Nadpisanie dużego pliku garstką znaków KASUJE go — nigdy tego nie rób.`;
 
   const messages: any[] = [{ role: "user", content: task }];
   const changed: string[] = [];
