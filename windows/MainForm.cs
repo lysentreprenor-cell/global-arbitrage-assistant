@@ -25,7 +25,9 @@ public class MainForm : Form
     private readonly CheckBox _control = new();
     private readonly CheckBox _ollama = new();
     private readonly TextBox _ollamaModel = new();
+    private readonly CheckBox _wakeCb = new();
     private SpeechRecognitionEngine? _rec;
+    private SpeechRecognitionEngine? _wake;
     private readonly NotifyIcon _tray = new();
 
     // ⌨️ Globalny skrót: Ctrl+Alt+G — otwiera Gadacza i od razu słucha (z każdego miejsca).
@@ -104,6 +106,11 @@ public class MainForm : Form
         var fileBtn = new Button { Text = "📄 Czytaj plik", AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(40, 70, 70) };
         fileBtn.Click += (_, _) => ReadFile();
         top2.Controls.Add(fileBtn);
+        // 👂 Nasłuch słowa-klucza „Gadacz…" — bez rąk. Powiedz „Gadacz <polecenie>".
+        _wakeCb.Text = "👂 Nasłuch (Gadacz…)"; _wakeCb.AutoSize = true;
+        _wakeCb.ForeColor = Color.FromArgb(180, 255, 180); _wakeCb.Padding = new Padding(10, 10, 0, 0);
+        _wakeCb.CheckedChanged += (_, _) => ToggleWake();
+        top2.Controls.Add(_wakeCb);
         Controls.Add(top2);
 
         // Dół: pole do pisania + Wyślij.
@@ -144,6 +151,7 @@ public class MainForm : Form
             try { _tray.Visible = false; _tray.Dispose(); } catch { }
             try { _tts.Dispose(); } catch { }
             try { _rec?.Dispose(); } catch { }
+            try { _wake?.RecognizeAsyncStop(); _wake?.Dispose(); } catch { }
         };
         Shown += (_, _) => _input.Focus();
         Append("Gadacz na Windows. Wpisz u góry adres serwera z Replita i PIN, a potem pisz. Odpowiedzi czytam na głos.\n");
@@ -390,6 +398,45 @@ public class MainForm : Form
         catch (Exception ex)
         {
             return "Nie mogę połączyć się z Ollamą. Zainstaluj ją z ollama.com, uruchom i pobierz model poleceniem: ollama pull " + _ollamaModel.Text.Trim() + ". (" + ex.Message + ")";
+        }
+    }
+
+    // 👂 NASŁUCH SŁOWA-KLUCZA „Gadacz…" — ciągle słucha; gdy usłyszy „Gadacz" na
+    // początku, resztę traktuje jak polecenie i wykonuje. Ręce wolne.
+    private void ToggleWake()
+    {
+        try
+        {
+            if (_wakeCb.Checked)
+            {
+                if (_wake == null)
+                {
+                    SpeechRecognitionEngine eng;
+                    try { eng = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("pl-PL")); }
+                    catch { eng = new SpeechRecognitionEngine(); }
+                    eng.LoadGrammar(new DictationGrammar());
+                    eng.SetInputToDefaultAudioDevice();
+                    eng.SpeechRecognized += (_, e) =>
+                    {
+                        if (e.Result == null) return;
+                        var t = e.Result.Text.Trim();
+                        if (t.ToLowerInvariant().StartsWith("gadacz"))
+                        {
+                            var cmd = t.Substring(6).TrimStart(' ', ',', '.', '!').Trim();
+                            if (cmd.Length > 0) BeginInvoke(new Action(async () => { _input.Text = cmd; await Send(); }));
+                        }
+                    };
+                    _wake = eng;
+                }
+                _wake.RecognizeAsync(RecognizeMode.Multiple);
+                Append("👂 Nasłuchuję — powiedz „Gadacz” i polecenie.\n");
+            }
+            else { try { _wake?.RecognizeAsyncStop(); } catch { } }
+        }
+        catch (Exception ex)
+        {
+            _wakeCb.Checked = false;
+            Append("Nie mogę włączyć nasłuchu: " + ex.Message + " (może brakować polskiego pakietu mowy Windows).\n");
         }
     }
 
