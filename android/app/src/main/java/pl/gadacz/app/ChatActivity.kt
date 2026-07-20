@@ -611,9 +611,10 @@ class ChatActivity : Activity(), TextToSpeech.OnInitListener {
                     // 🤏 SERWER PADŁ → dla twarzy offline (Ogólny/Dla niewidomych/Auto) pisze
                     // LOKALNY mózg z telefonu (jeśli wgrany) — czat działa bez internetu.
                     resp == null && img == null && Brain.faceWorksOffline(this) ->
-                        (try { LocalBrain.answer(this, t) } catch (_: Throwable) { null })
-                            ?: (if (LocalBrain.available(this)) "Lokalny mózg nie zna odpowiedzi na to pytanie."
-                                else "Nie mam połączenia z serwerem, a nie mam wgranego lokalnego mózgu. Pobierz go w Ustawieniach → Silniki, a będę pisał też bez internetu.")
+                        // ✍️ Najpierw NOWY, stabilny silnik pisania (llama.cpp), potem stary mózg.
+                        (try { LlamaCpp.answer(this, t) ?: LocalBrain.answer(this, t) } catch (_: Throwable) { null })
+                            ?: (if (LlamaCpp.available(this) || LocalBrain.available(this)) "Silnik offline nie zna odpowiedzi na to pytanie."
+                                else "Nie mam połączenia z serwerem, a nie mam wgranego silnika offline. Pobierz silnik pisania w Ustawieniach → Silniki, a będę pisał też bez internetu.")
                     resp == null -> "Nie mam połączenia z serwerem. Sprawdź internet i czy serwer działa."
                     resp.optString("error", "").isNotBlank() -> "Błąd serwera: " + resp.optString("error")
                     else -> {

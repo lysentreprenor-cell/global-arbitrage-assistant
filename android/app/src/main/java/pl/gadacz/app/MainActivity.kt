@@ -337,7 +337,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             else "👂  Ucho (nasłuch ciągły): BRAK — dotknij, by pobrać",
             "🗣️  GŁOSY (Gosia · Darkman · MC Speech) — wybierz i pobierz",
             "👁️  Oczy do tekstu: WBUDOWANE — powiedz „przeczytaj kartkę”",
-            "✍️  Silnik pisania (nowy, stabilny) — w budowie",
+            if (LlamaCpp.available(this)) "✍️  Silnik pisania: WGRANY — dotknij (na nowo / usuń)"
+            else "✍️  Silnik pisania (nowy, stabilny) — dotknij, by pobrać",
             "📏  Sprawdź, jaki mózg udźwignie ten telefon",
             "🔄  Sprawdź najnowsze silniki (największy mózg)",
             "🗑️  Usuń silniki (zwolnij miejsce)",
@@ -352,7 +353,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     3 -> confirmEar()
                     4 -> showVoices()
                     5 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
-                    6 -> writingEngineInfo()
+                    6 -> confirmWritingEngine()
                     7 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
                     8 -> checkNewestEngines()
                     9 -> showDeleteEngines()
@@ -362,14 +363,41 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     // ✍️ SILNIK PISANIA (llama.cpp) — nowy, STABILNY silnik do pisania offline, „brat"
-    // ucha i ust. Buduję go etapami; gdy będzie gotowy, TU pojawi się pobieranie
-    // małego modelu do pisania. Na razie uczciwie: w budowie.
-    private fun writingEngineInfo() {
+    // ucha i ust. Zastępuje kapryśny MediaPipe. Model GGUF (~1 GB) pobiera się raz.
+    private fun confirmWritingEngine() {
+        if (!LlamaCpp.libReady()) {
+            speak("Ta wersja apki nie ma jeszcze wbudowanego silnika pisania. Zaktualizuj Gadacza do najnowszej wersji.")
+            return
+        }
+        if (LlamaCpp.available(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("✍️ Silnik pisania — WGRANY")
+                .setMessage("Masz wgrany nowy, stabilny silnik pisania (llama.cpp). Offline Gadacz pisze nim — bez wywalania, za darmo i bez limitu.")
+                .setPositiveButton("Pobierz na nowo") { _, _ -> downloadWritingEngine() }
+                .setNeutralButton("Usuń (zwolnij ~1 GB)") { _, _ ->
+                    Thread { LlamaCpp.deleteModel(this) }.start(); speak("Usunąłem silnik pisania. Zwolniłem miejsce.")
+                }
+                .setNegativeButton("Zamknij", null).show()
+            return
+        }
         AlertDialog.Builder(this)
-            .setTitle("✍️ Silnik pisania (w budowie)")
-            .setMessage("To będzie NOWY, stabilny silnik do pisania offline (llama.cpp) — taki „brat” Twojego ucha i ust. Ma zastąpić kapryśny silnik Google, który się wywala.\n\nWłaśnie go buduję krok po kroku. Gdy będzie gotowy, TUTAJ pojawi się przycisk do pobrania małego modelu do pisania — darmowego, bez opłat za użycie.\n\nNa razie do pisania używaj:\n• internetu (chmura) — najmądrzej,\n• albo Małego mózgu offline (Silniki → Przełącz mózg) — prościej, ale bez wywalania.")
-            .setPositiveButton("Rozumiem", null).show()
-        speak("Silnik pisania jest w budowie. Gdy będzie gotowy, tutaj go pobierzesz. Na razie do pisania używaj internetu albo Małego mózgu.")
+            .setTitle("✍️ Pobrać silnik pisania?")
+            .setMessage("To NOWY, stabilny silnik do pisania offline (llama.cpp) — taki „brat” Twojego ucha i ust, zastępuje ten, który się wywalał.\n\nPobiorę model około 1 gigabajta (najlepiej na Wi-Fi). Potem Gadacz pisze bez internetu, za darmo, bez wywalania. Powiedz „przerwij”, żeby zatrzymać.")
+            .setPositiveButton("Pobierz") { _, _ -> downloadWritingEngine() }
+            .setNegativeButton("Nie teraz", null).show()
+    }
+
+    private fun downloadWritingEngine() {
+        speak("Pobieram silnik pisania, około jeden gigabajt. Najlepiej na Wi-Fi. Gdy sieć się zerwie, wznowię sam. Powiedz przerwij, żeby zatrzymać.")
+        Thread {
+            LlamaCpp.download(this,
+                onProgress = { p -> setProgress("pisanie", "✍️ Pobieram silnik pisania… $p%") },
+                onDone = { ok, err -> runOnUiThread {
+                    setProgress("pisanie", null)
+                    speak(if (ok) "Gotowe! Nowy silnik pisania działa. Od teraz offline piszę nim — stabilnie i bez wywalania."
+                          else "Nie udało się pobrać silnika pisania. $err")
+                } })
+        }.start()
     }
 
     // 🔀 PRZEŁĄCZANIE MÓZGU — gdy masz wgrany więcej niż jeden (np. Mały i Średni),
@@ -1224,6 +1252,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .setPositiveButton("Skasuj mózg (pobiorę świeży)") { _, _ ->
                         Thread { LocalBrain.deleteBrain(this) }.start()
                         speak("Skasowałem lokalny mózg. Wejdź w Ustawienia, Silniki i pobierz go na nowo — świeży plik powinien już nie wywalać.")
+                    }
+                    .setNegativeButton("Zamknij", null).show()
+            }
+        }
+        // 🪤 Ten sam czujnik dla NOWEGO silnika pisania (llama.cpp) — na wypadek
+        //   uszkodzonego pliku GGUF (llama.cpp jest stabilny, ale plik może paść).
+        LlamaCpp.crashedInWriting(this)?.let { what ->
+            window.decorView.post {
+                AlertDialog.Builder(this)
+                    .setTitle("⚠️ Wywaliło przy silniku pisania")
+                    .setMessage("Gadacz zamknął się nagle, gdy pisał offline nowym silnikiem. Najczęściej znaczy to, że plik silnika pisania jest USZKODZONY (pobrał się nie do końca). Najpewniejsza naprawa: pobierz go na nowo.\n\n($what)")
+                    .setPositiveButton("Pobierz na nowo") { _, _ ->
+                        Thread { LlamaCpp.deleteModel(this) }.start()
+                        speak("Usunąłem silnik pisania. Wejdź w Ustawienia, Silniki, Silnik pisania i pobierz go świeżo.")
                     }
                     .setNegativeButton("Zamknij", null).show()
             }

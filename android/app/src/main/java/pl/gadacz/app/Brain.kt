@@ -908,7 +908,7 @@ object Brain {
 
         // ⏹ PRZERWIJ — zatrzymaj naukę telefonu i/lub bieżące zadanie.
         if (n == "przerwij" || n == "przerwij nauke" || n == "stop nauka" || n == "zatrzymaj") {
-            deviceLearnCancel = true; cancelRequested = true; LocalBrain.downloadCancel = true; VoskEar.downloadCancel = true; PiperUsta.downloadCancel = true; Updater.downloadCancel = true
+            deviceLearnCancel = true; cancelRequested = true; LocalBrain.downloadCancel = true; VoskEar.downloadCancel = true; PiperUsta.downloadCancel = true; Updater.downloadCancel = true; LlamaCpp.downloadCancel = true
             return done("Dobrze, przerywam.")
         }
 
@@ -1434,7 +1434,8 @@ object Brain {
         if (!paidMode(ctx)) {
             // 🔀 Fachowiec bez sieci → SAM przeskocz na Ogólny (zamiast prosić usera).
             autoOfflineSwitch(ctx, speak)
-            val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+            // ✍️ Najpierw NOWY, stabilny silnik pisania (llama.cpp); dopiero potem stary mózg.
+            val local = try { LlamaCpp.answer(ctx, goal) ?: LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
             speak(local ?: (if (LocalBrain.available(ctx))
                 "Lokalny mózg nie zna odpowiedzi. Powiedz: pracuj za opłatą — a zapytam mądrego mózgu w chmurze."
             else
@@ -1500,7 +1501,8 @@ object Brain {
                 // 🤏 Piętro 6: serwer/sieć padły → SAM przeskocz na Ogólny i ratuj lokalnym
                 // mózgiem (fachowca wróci, gdy sieć wróci).
                 autoOfflineSwitch(ctx, speak)
-                val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+                // ✍️ Najpierw NOWY, stabilny silnik pisania (llama.cpp); dopiero potem stary mózg.
+            val local = try { LlamaCpp.answer(ctx, goal) ?: LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
                 speak(local ?: "Nie ma połączenia z internetem. Wgraj lokalny mózg w ustawieniach, a będę działał offline.")
                 return
             }
@@ -1512,7 +1514,8 @@ object Brain {
                 // darmowy (odruchy, autopilot, lokalny mózg) i mówi, jak wrócić.
                 if (srvErr.contains("credit", true) || srvErr.contains("billing", true)) {
                     setPaidMode(ctx, false)
-                    val local = try { LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
+                    // ✍️ Najpierw NOWY, stabilny silnik pisania (llama.cpp); dopiero potem stary mózg.
+            val local = try { LlamaCpp.answer(ctx, goal) ?: LocalBrain.answer(ctx, goal) } catch (_: Throwable) { null }
                     speak("Skończyły się środki na kluczu, więc przechodzę na darmowy tryb — proste komendy i znane drogi działają dalej za darmo. Doładuj konto Anthropic i powiedz: pracuj za opłatą, żeby wrócić." +
                         (local?.let { " A na Twoje pytanie lokalny mózg odpowiada: $it" } ?: ""))
                     return
