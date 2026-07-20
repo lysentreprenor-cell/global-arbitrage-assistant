@@ -275,7 +275,7 @@ public class MainForm : Form
             if (doc.RootElement.TryGetProperty("memory", out var mem) && mem.ValueKind == JsonValueKind.Array)
                 foreach (var f in mem.EnumerateArray()) sb.AppendLine("  " + (i++) + ". " + (f.GetString() ?? ""));
             if (i == 1) sb.AppendLine("  (jeszcze nic nie zapamiętałem)");
-            sb.AppendLine("Aby usunąć — napisz np. „zapomnij 3". Aby dodać — „zapamiętaj …".");
+            sb.AppendLine("Aby usunąć — napisz np. „zapomnij 3”. Aby dodać — „zapamiętaj …”.");
             Append(sb.ToString());
             Speak("Wypisałem, co o Tobie wiem.");
         }
