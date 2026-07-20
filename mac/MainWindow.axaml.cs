@@ -10,23 +10,17 @@ using System.Text.Json;
 namespace GadaczMac;
 
 // 🍎 Gadacz na Macu — Faza 1: czat z tym samym mózgiem (serwer + chmura) co telefon,
-// z czytaniem odpowiedzi na głos (macOS „say"). Głos-wejście i sterowanie programami
+// z czytaniem odpowiedzi na głos (macOS „say”). Głos-wejście i sterowanie programami
 // (Accessibility API) w kolejnych fazach.
-public class MainWindow : Window
+public partial class MainWindow : Window
 {
     private static readonly HttpClient Http = new() { Timeout = System.TimeSpan.FromMinutes(3) };
     private readonly List<object> _history = new();
 
-    private TextBox Url => this.FindControl<TextBox>("Url")!;
-    private TextBox Pin => this.FindControl<TextBox>("Pin")!;
-    private TextBox Output => this.FindControl<TextBox>("Output")!;
-    private TextBox Input => this.FindControl<TextBox>("Input")!;
-    private CheckBox SpeakCb => this.FindControl<CheckBox>("SpeakCb")!;
-
     public MainWindow()
     {
-        AvaloniaXamlLoader.Load(this);
-        this.FindControl<Button>("SendBtn")!.Click += async (_, _) => await Send();
+        InitializeComponent();
+        SendBtn.Click += async (_, _) => await Send();
         Input.KeyDown += async (_, e) => { if (e.Key == Key.Enter) await Send(); };
         Append("Gadacz na Macu. Wpisz adres serwera z Replita i PIN, potem pisz. Odpowiedzi czytam na głos.\n");
     }
