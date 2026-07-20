@@ -154,13 +154,25 @@ jobs:
           MOD="$(cat mod.txt 2>/dev/null || true)"
           if [ -z "$MOD" ]; then echo "Brak modulu konwersji (szczegoly wyzej)."; exit 1; fi
           echo "Uzywam modulu: $MOD"
-          python -m "$MOD" \
-            --checkpoint_path ckpt \
-            --output_path out \
-            --output_name_prefix mozg \
-            --prefill_seq_lens "$PREFILL" \
-            --kv_cache_max_len "$KV" \
-            --quantize dynamic_int8 2>&1 | tee konwersja.log
+          # 🔎 Diagnostyka: pokaz dozwolone wartosci --quantize (na wypadek innej nazwy).
+          echo "=== opcje konwertera (--help) ==="; python -m "$MOD" --help 2>&1 | tee help.log || true
+          # 🪶 int4 zamiast int8: mniejszy plik (< 2 GB, omija limit formatu) i mniej RAM
+          #   przy zapisie (byl OOM na 3B). Probujemy kilku nazw recepty 4-bit po kolei.
+          OK=0
+          for Q in dynamic_int4_block32 dynamic_int4_block128 weight_only_int4 dynamic_int4; do
+            echo "=== Proba kwantyzacji: $Q ==="
+            if python -m "$MOD" \
+                --checkpoint_path ckpt \
+                --output_path out \
+                --output_name_prefix mozg \
+                --prefill_seq_lens "$PREFILL" \
+                --kv_cache_max_len "$KV" \
+                --quantize "$Q" 2>&1 | tee konwersja.log; then
+              if ls out/*.tflite >/dev/null 2>&1; then OK=1; echo "UDALO SIE z: $Q"; break; fi
+            fi
+            echo "  $Q nie wyszlo, czyszcze i probuje nastepny"; rm -f out/*.tflite 2>/dev/null || true
+          done
+          if [ "$OK" != "1" ]; then echo "Zadna recepta 4-bit nie wyprodukowala .tflite"; exit 1; fi
           echo "--- pliki wynikowe ---"; ls -la out
           TFL=$(ls out/*.tflite 2>/dev/null | head -1 || true)
           if [ -z "$TFL" ]; then echo "Brak .tflite - konwersja nie wyszla"; exit 1; fi
