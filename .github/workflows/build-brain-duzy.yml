@@ -115,20 +115,42 @@ jobs:
             *) FAMILY="qwen" ;;
           esac
           echo "Rodzina: $FAMILY"
-          # Pakiet przemianowano ai_edge_torch -> litert_torch. Szukamy modulu
-          # przykladu-konwertera w OBU nazwach (ktora zadziala, tej uzyjemy).
-          MOD=""
-          for ROOT in litert_torch ai_edge_torch; do
-            if python -c "import importlib,sys; importlib.import_module('$ROOT.generative.examples.$FAMILY.convert_to_tflite')" 2>/dev/null; then
-              MOD="$ROOT.generative.examples.$FAMILY.convert_to_tflite"; break
-            fi
-          done
-          if [ -z "$MOD" ]; then
-            echo "Nie znalazlem modulu konwertera dla rodziny '$FAMILY' ani w litert_torch, ani w ai_edge_torch."
-            echo "Dostepne przyklady:"; python -c "import litert_torch.generative.examples as e, os; print(os.listdir(os.path.dirname(e.__file__)))" 2>/dev/null || \
-                                        python -c "import ai_edge_torch.generative.examples as e, os; print(os.listdir(os.path.dirname(e.__file__)))" 2>/dev/null || true
-            exit 1
-          fi
+          # Pakiet przemianowano ai_edge_torch -> litert_torch, a skrypt konwersji
+          # bywa nazwany roznie. Robot SAM znajduje wlasciwy modul: listuje folder
+          # przykladu i probuje kandydatow; gdy import padnie, pokazuje PRAWDZIWY blad.
+          python - "$FAMILY" <<'PY' | tee wybor.log
+          import importlib, os, sys, traceback
+          fam = sys.argv[1]
+          root = pkgdir = None
+          for r in ("litert_torch", "ai_edge_torch"):
+              try:
+                  m = importlib.import_module(f"{r}.generative.examples.{fam}")
+                  root, pkgdir = r, os.path.dirname(m.__file__); break
+              except Exception as e:
+                  print(f"[{r}] brak przykladu {fam}: {e}")
+          if not pkgdir:
+              print("NIE MA przykladu dla rodziny", fam); sys.exit(1)
+          print("ROOT:", root)
+          files = sorted(os.listdir(pkgdir))
+          print("PLIKI w przykladzie:", files)
+          # kandydaci: najpierw typowe nazwy, potem KAZDY plik z 'convert' w nazwie
+          cands = ["convert_to_tflite", f"convert_{fam}_to_tflite", "convert"]
+          cands += [f[:-3] for f in files if f.endswith(".py") and "convert" in f and f[:-3] not in cands]
+          chosen = None
+          for name in cands:
+              mod = f"{root}.generative.examples.{fam}.{name}"
+              try:
+                  importlib.import_module(mod); chosen = mod; print("DZIALA IMPORT:", mod); break
+              except SystemExit:
+                  chosen = mod; print("DZIALA (argparse):", mod); break
+              except Exception:
+                  print(f"--- {mod} nie importuje sie:"); traceback.print_exc()
+          if not chosen:
+              print("Nie znalazlem dzialajacego skryptu konwersji."); sys.exit(1)
+          open("mod.txt", "w").write(chosen)
+          PY
+          MOD="$(cat mod.txt 2>/dev/null || true)"
+          if [ -z "$MOD" ]; then echo "Brak modulu konwersji (szczegoly wyzej)."; exit 1; fi
           echo "Uzywam modulu: $MOD"
           python -m "$MOD" \
             --checkpoint_path ckpt \
