@@ -68,6 +68,7 @@ jobs:
           pip install \
             ai-edge-torch \
             "transformers<5" \
+            tensorflow-cpu \
             mediapipe \
             huggingface_hub \
             accelerate \
