@@ -138,6 +138,7 @@ public class MainForm : Form
         _tray.DoubleClick += (_, _) => ShowFromTray();
         var menu = new ContextMenuStrip();
         menu.Items.Add("Pokaż Gadacza", null, (_, _) => ShowFromTray());
+        menu.Items.Add("🔄 Sprawdź aktualizację", null, (_, _) => _ = CheckUpdate(false));
         menu.Items.Add("🎤 Mów (Ctrl+Alt+G)", null, (_, _) => { ShowFromTray(); StartDictation(); });
         menu.Items.Add("Zamknij", null, (_, _) => { _tray.Visible = false; Application.Exit(); });
         _tray.ContextMenuStrip = menu;
@@ -153,7 +154,7 @@ public class MainForm : Form
             try { _rec?.Dispose(); } catch { }
             try { _wake?.RecognizeAsyncStop(); _wake?.Dispose(); } catch { }
         };
-        Shown += (_, _) => _input.Focus();
+        Shown += (_, _) => { _input.Focus(); _ = CheckUpdate(true); };
         Append("Gadacz na Windows. Wpisz u góry adres serwera z Replita i PIN, a potem pisz. Odpowiedzi czytam na głos.\n");
     }
 
@@ -399,6 +400,67 @@ public class MainForm : Form
         {
             return "Nie mogę połączyć się z Ollamą. Zainstaluj ją z ollama.com, uruchom i pobierz model poleceniem: ollama pull " + _ollamaModel.Text.Trim() + ". (" + ex.Message + ")";
         }
+    }
+
+    // 🔄 AUTO-AKTUALIZACJA — sprawdza wydanie na GitHubie; gdy nowsza wersja Gadacz.exe
+    // niż lokalny plik, pobiera i podmienia sam (bez ręcznego pobierania).
+    private async Task CheckUpdate(bool silent)
+    {
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exe)) return;
+            using var req = new HttpRequestMessage(HttpMethod.Get,
+                "https://api.github.com/repos/lysentreprenor-cell/global-arbitrage-assistant/releases/tags/gadacz-windows");
+            req.Headers.Add("User-Agent", "Gadacz");
+            using var resp = await _http.SendAsync(req);
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            string url = ""; DateTime relTime = DateTime.MinValue;
+            if (doc.RootElement.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+                foreach (var a in assets.EnumerateArray())
+                {
+                    if ((a.TryGetProperty("name", out var nm) ? nm.GetString() : "") == "Gadacz.exe")
+                    {
+                        url = a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
+                        if (a.TryGetProperty("updated_at", out var ua) && DateTime.TryParse(ua.GetString(), out var dt)) relTime = dt.ToUniversalTime();
+                    }
+                }
+            if (url.Length == 0) { if (!silent) BeginInvoke(new Action(() => Append("Nie znalazłem aktualizacji.\n"))); return; }
+            var local = File.GetLastWriteTimeUtc(exe);
+            if (relTime > local.AddMinutes(2))
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (MessageBox.Show(this, "Jest nowsza wersja Gadacza. Pobrać i zainstalować teraz?", "Aktualizacja Gadacza", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                        _ = DoUpdate(url, exe);
+                }));
+            }
+            else if (!silent) BeginInvoke(new Action(() => Append("Masz najnowszą wersję Gadacza.\n")));
+        }
+        catch (Exception ex) { if (!silent) BeginInvoke(new Action(() => Append("Nie mogę sprawdzić aktualizacji: " + ex.Message + "\n"))); }
+    }
+
+    private async Task DoUpdate(string url, string exe)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(exe)!;
+            var newExe = Path.Combine(dir, "Gadacz.new.exe");
+            using (var req = new HttpRequestMessage(HttpMethod.Get, url))
+            {
+                req.Headers.Add("User-Agent", "Gadacz");
+                using var resp = await _http.SendAsync(req);
+                using var fs = File.Create(newExe);
+                await resp.Content.CopyToAsync(fs);
+            }
+            var bat = Path.Combine(dir, "gadacz-update.bat");
+            File.WriteAllText(bat,
+                "@echo off\r\ntimeout /t 2 /nobreak >nul\r\nmove /y \"" + newExe + "\" \"" + exe + "\" >nul\r\nstart \"\" \"" + exe + "\"\r\ndel \"%~f0\"\r\n");
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c \"" + bat + "\"")
+            { UseShellExecute = true, CreateNoWindow = true, WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden });
+            Application.Exit();
+        }
+        catch (Exception ex) { BeginInvoke(new Action(() => Append("Aktualizacja nie powiodła się: " + ex.Message + "\n"))); }
     }
 
     // 👂 NASŁUCH SŁOWA-KLUCZA „Gadacz…" — ciągle słucha; gdy usłyszy „Gadacz" na
