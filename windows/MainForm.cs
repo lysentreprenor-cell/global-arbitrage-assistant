@@ -98,6 +98,12 @@ public class MainForm : Form
         var memBtn = new Button { Text = "🧠 Pamięć", AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(60, 40, 90) };
         memBtn.Click += (_, _) => ShowMemory();
         top2.Controls.Add(memBtn);
+        var faceBtn = new Button { Text = "🎭 Twarz", AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(90, 60, 40) };
+        faceBtn.Click += (_, _) => PickPersona();
+        top2.Controls.Add(faceBtn);
+        var fileBtn = new Button { Text = "📄 Czytaj plik", AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(40, 70, 70) };
+        fileBtn.Click += (_, _) => ReadFile();
+        top2.Controls.Add(fileBtn);
         Controls.Add(top2);
 
         // Dół: pole do pisania + Wyślij.
@@ -280,6 +286,71 @@ public class MainForm : Form
             Speak("Wypisałem, co o Tobie wiem.");
         }
         catch (Exception ex) { Append("Nie mogę pobrać pamięci: " + ex.Message + "\n"); }
+    }
+
+    // 🎭 Wybór twarzy (persony) — wspólny z telefonem (serwer /persona).
+    private async void PickPersona()
+    {
+        var list = new List<(string key, string label)>();
+        string cur = "";
+        try
+        {
+            var baseUrl = _url.Text.Trim().TrimEnd('/');
+            using var req = new HttpRequestMessage(HttpMethod.Get, baseUrl + "/api/assistant/persona");
+            req.Headers.Add("x-bot-pin", _pin.Text.Trim());
+            using var resp = await _http.SendAsync(req);
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            var root = doc.RootElement;
+            cur = root.TryGetProperty("persona", out var p) ? p.GetString() ?? "" : "";
+            if (root.TryGetProperty("list", out var l) && l.ValueKind == JsonValueKind.Array)
+                foreach (var it in l.EnumerateArray())
+                {
+                    var key = it.TryGetProperty("key", out var k) ? k.GetString() ?? "" : "";
+                    var name = it.TryGetProperty("name", out var n) ? n.GetString() ?? key : key;
+                    var icon = it.TryGetProperty("icon", out var ic) ? ic.GetString() ?? "" : "";
+                    if (key.Length > 0) list.Add((key, (icon + " " + name).Trim()));
+                }
+        }
+        catch (Exception ex) { Append("Nie mogę pobrać twarzy: " + ex.Message + "\n"); return; }
+
+        using var dlg = new Form { Text = "Wybierz twarz Gadacza", Width = 440, Height = 480, BackColor = Color.Black, ForeColor = Color.LightGreen, StartPosition = FormStartPosition.CenterParent };
+        var lb = new ListBox { Dock = DockStyle.Fill, BackColor = Color.FromArgb(15, 15, 15), ForeColor = Color.LightGreen, Font = new Font("Segoe UI", 13F) };
+        int sel = 0;
+        for (int i = 0; i < list.Count; i++) { lb.Items.Add(list[i].label + (list[i].key == cur ? "  ✓" : "")); if (list[i].key == cur) sel = i; }
+        if (list.Count > 0) lb.SelectedIndex = sel;
+        var ok = new Button { Text = "Wybierz", Dock = DockStyle.Bottom, Height = 42, BackColor = Color.Green, ForeColor = Color.White };
+        ok.Click += async (_, _) => { if (lb.SelectedIndex >= 0 && lb.SelectedIndex < list.Count) await SetPersona(list[lb.SelectedIndex].key, list[lb.SelectedIndex].label); dlg.Close(); };
+        dlg.Controls.Add(lb); dlg.Controls.Add(ok);
+        dlg.ShowDialog(this);
+    }
+
+    private async Task SetPersona(string key, string label)
+    {
+        try
+        {
+            var baseUrl = _url.Text.Trim().TrimEnd('/');
+            using var req = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/api/assistant/persona");
+            req.Headers.Add("x-bot-pin", _pin.Text.Trim());
+            req.Content = new StringContent(JsonSerializer.Serialize(new { persona = key }), Encoding.UTF8, "application/json");
+            await _http.SendAsync(req);
+            Append("Gadacz: Przełączyłem twarz na " + label + ".\n"); Speak("Przełączyłem twarz na " + label + ".");
+        }
+        catch (Exception ex) { Append("Nie udało się przełączyć twarzy: " + ex.Message + "\n"); }
+    }
+
+    // 📄 Czytaj plik tekstowy na głos (dokument, notatka).
+    private void ReadFile()
+    {
+        using var d = new OpenFileDialog { Filter = "Teksty (*.txt;*.md;*.csv)|*.txt;*.md;*.csv|Wszystkie pliki (*.*)|*.*" };
+        if (d.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            var txt = File.ReadAllText(d.FileName);
+            Append("\n📄 " + Path.GetFileName(d.FileName) + ":\n" + (txt.Length > 2000 ? txt.Substring(0, 2000) + "…" : txt) + "\n");
+            _speak.Checked = true;
+            Speak(txt.Length > 4000 ? txt.Substring(0, 4000) : txt);
+        }
+        catch (Exception ex) { Append("Nie mogę odczytać pliku: " + ex.Message + "\n"); }
     }
 
     private async Task MemDelete(int index)
