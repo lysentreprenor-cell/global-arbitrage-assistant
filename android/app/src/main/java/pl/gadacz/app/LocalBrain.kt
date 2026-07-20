@@ -65,30 +65,95 @@ object LocalBrain {
         }
     } catch (_: Exception) { emptyList() }
 
-    private fun downloadedFile(ctx: Context) = File(ctx.getExternalFilesDir(null), "gadacz-mozg.task")
+    // 🧩 SLOTY MÓZGÓW: każdy rozmiar w OSOBNYM pliku, więc może być kilka naraz
+    //   (np. Mały i Średni), a przełączasz je jednym dotknięciem BEZ pobierania.
+    //   Stary pojedynczy plik „gadacz-mozg.task" nadal działa (stare instalacje = „legacy").
+    private val KNOWN_KEYS = listOf("maly", "sredni", "duzy")
+    private fun keyLabel(key: String) = when (key) {
+        "maly" -> "🐭 Mały"; "sredni" -> "🐇 Średni"; "duzy" -> "🦉 Duży"; else -> "🧠 Mózg"
+    }
+    private fun slotFile(ctx: Context, key: String) =
+        File(ctx.getExternalFilesDir(null), "gadacz-mozg-$key.task")
+    private fun legacyFile(ctx: Context) =
+        File(ctx.getExternalFilesDir(null), "gadacz-mozg.task")
 
-    private fun candidatePaths(ctx: Context): List<String> = listOf(
-        downloadedFile(ctx).absolutePath,
-        "/sdcard/Download/gadacz-mozg.task",
-        "/storage/emulated/0/Download/gadacz-mozg.task",
-    )
+    /** Z adresu pobierania rozpoznaj slot (sredni / duzy; mini i domyślny = maly). */
+    fun slotKeyForUrl(url: String): String = when {
+        url.contains("sredni", true) -> "sredni"
+        url.contains("duzy", true)   -> "duzy"
+        else                         -> "maly"   // mini albo domyślny gadacz-mozg.task (kopia mini)
+    }
 
-    private fun modelPath(ctx: Context): String? =
-        candidatePaths(ctx).firstOrNull { File(it).length() > 50L * 1024 * 1024 }
+    /** Wszystkie realnie wgrane mózgi: (klucz, plik). Pusta = brak. */
+    private fun installedFiles(ctx: Context): List<Pair<String, File>> {
+        val out = ArrayList<Pair<String, File>>()
+        for (k in KNOWN_KEYS) { val f = slotFile(ctx, k); if (f.length() > 50L * 1024 * 1024) out.add(k to f) }
+        val leg = legacyFile(ctx); if (leg.length() > 50L * 1024 * 1024) out.add("legacy" to leg)
+        return out
+    }
+
+    /** 🔀 Lista wgranych mózgów do przełączania: (klucz, etykieta z rozmiarem, czy aktywny). */
+    fun installedList(ctx: Context): List<Triple<String, String, Boolean>> {
+        val active = activeKey(ctx)
+        return installedFiles(ctx).map { (k, f) ->
+            val mb = f.length() / (1024 * 1024)
+            val lbl = if (k == "legacy") "🧠 Wgrany (~$mb MB)" else "${keyLabel(k)} (~$mb MB)"
+            Triple(k, lbl, k == active)
+        }
+    }
+
+    /** Który slot jest AKTYWNY (ładowany do silnika). Gdy zapisany nie istnieje — pierwszy z brzegu. */
+    fun activeKey(ctx: Context): String {
+        val saved = Brain.prefs(ctx).getString("active_brain_key", "") ?: ""
+        val files = installedFiles(ctx)
+        if (saved.isNotBlank() && files.any { it.first == saved }) return saved
+        return files.firstOrNull()?.first ?: ""
+    }
+
+    /** 🔀 Przełącz aktywny mózg (bez pobierania). Zamykamy silnik, żeby przeładował nowy plik. */
+    fun setActive(ctx: Context, key: String) {
+        Brain.prefs(ctx).edit().putString("active_brain_key", key).apply()
+        synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
+    }
+
+    private fun activeFile(ctx: Context): File? {
+        val k = activeKey(ctx)
+        if (k.isBlank()) return null
+        return if (k == "legacy") legacyFile(ctx) else slotFile(ctx, k)
+    }
+
+    private fun modelPath(ctx: Context): String? {
+        activeFile(ctx)?.let { if (it.length() > 50L * 1024 * 1024) return it.absolutePath }
+        // fallback: plik wgrany RĘCZNIE do Pobranych
+        return listOf("/sdcard/Download/gadacz-mozg.task", "/storage/emulated/0/Download/gadacz-mozg.task")
+            .firstOrNull { File(it).length() > 50L * 1024 * 1024 }
+    }
 
     fun available(ctx: Context): Boolean = modelPath(ctx) != null
 
-    /** 🗑️ Usuń pobrany lokalny mózg (zwalnia miejsce). Silnik najpierw zamykamy. */
+    /** 🗑️ Usuń KONKRETNY mózg (slot). Jeśli był aktywny — czyścimy silnik i znacznik crasha. */
+    fun deleteBrain(ctx: Context, key: String): Boolean {
+        val wasActive = key == activeKey(ctx)
+        if (wasActive) synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
+        val f = if (key == "legacy") legacyFile(ctx) else slotFile(ctx, key)
+        val ok = try { f.delete(); File(f.absolutePath + ".part").delete(); true } catch (_: Exception) { false }
+        if (wasActive) {
+            try { Brain.prefs(ctx).edit().remove("brain_crash_sig").remove("active_brain_key").apply() } catch (_: Exception) {}
+            try { watchdogFile(ctx).delete() } catch (_: Exception) {}
+        }
+        return ok
+    }
+
+    /** 🗑️ Usuń AKTYWNY mózg (zgodność ze starymi wywołaniami: przycisk crasha, Silniki). */
     fun deleteBrain(ctx: Context): Boolean {
-        synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
-        // Kasujemy też pamięć o „złym" pliku i znacznik — świeży mózg zacznie z czystym kontem.
-        try { Brain.prefs(ctx).edit().remove("brain_crash_sig").apply() } catch (_: Exception) {}
-        try { watchdogFile(ctx).delete() } catch (_: Exception) {}
-        return try {
-            downloadedFile(ctx).delete()
-            File(downloadedFile(ctx).absolutePath + ".part").delete()
-            true
-        } catch (_: Exception) { false }
+        val k = activeKey(ctx)
+        if (k.isBlank()) {
+            try { legacyFile(ctx).delete() } catch (_: Exception) {}
+            try { Brain.prefs(ctx).edit().remove("brain_crash_sig").apply() } catch (_: Exception) {}
+            try { watchdogFile(ctx).delete() } catch (_: Exception) {}
+            return true
+        }
+        return deleteBrain(ctx, k)
     }
 
     /** 🏷️ Krótka nazwa wgranego mózgu do napisu na kafelku: „Mały" / „Średni" / „brak". */
@@ -245,9 +310,10 @@ object LocalBrain {
             .readTimeout(0, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()
-        val out = downloadedFile(ctx)
-        val tmp = File(out.absolutePath + ".part")
         val url = chosenUrl ?: modelUrl(ctx)
+        val key = slotKeyForUrl(url)          // Mały/Średni/Duży trafia do OSOBNEGO pliku
+        val out = slotFile(ctx, key)
+        val tmp = File(out.absolutePath + ".part")
         // Kawałek z POPRZEDNIEJ próby wznawiamy tylko, gdy to TEN SAM silnik —
         // resztka po innym modelu dałaby posklejany, zepsuty mózg.
         val prevUrl = Brain.prefs(ctx).getString("brain_part_url", "") ?: ""
@@ -301,7 +367,11 @@ object LocalBrain {
             if (finished) {
                 if (tmp.length() < 50L * 1024 * 1024) { tmp.delete(); onDone(false, "Pobrany plik jest niekompletny. Spróbuj jeszcze raz."); return }
                 out.delete(); tmp.renameTo(out)
-                Brain.prefs(ctx).edit().remove("brain_part_url").apply()
+                Brain.prefs(ctx).edit()
+                    .putString("active_brain_key", key)   // świeżo pobrany staje się aktywny
+                    .remove("brain_part_url")
+                    .remove("brain_crash_sig")            // nowy, świeży plik → czyste konto (bez pętli crasha)
+                    .apply()
                 synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
                 onDone(true, "")
                 return

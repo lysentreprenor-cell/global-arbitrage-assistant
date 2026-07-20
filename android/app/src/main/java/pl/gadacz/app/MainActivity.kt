@@ -326,10 +326,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // telefon to udźwignie. Pobieranie jak z mózgiem: dotknij i czekaj na procenty.
     private fun showEngines() {
         val brain = LocalBrain.installedShort(this)
+        val nBrains = LocalBrain.installedList(this).size
         val items = arrayOf(
             if (brain == "brak") "🧠  Mózg lokalny: BRAK — dotknij, by pobrać"
             else "🧠  Mózg lokalny: $brain — dotknij, by zmienić",
             "🎯  Dostrój mózg do mojego telefonu (auto)",
+            if (nBrains >= 2) "🔀  Przełącz mózg (masz $nBrains wgrane)"
+            else "🔀  Przełącz mózg (wgraj drugi, np. Mały, by przełączać)",
             if (VoskEar.available(this)) "👂  Ucho (nasłuch ciągły): WGRANE — dotknij, by pobrać na nowo"
             else "👂  Ucho (nasłuch ciągły): BRAK — dotknij, by pobrać",
             "🗣️  GŁOSY (Gosia · Darkman · MC Speech) — wybierz i pobierz",
@@ -344,13 +347,36 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 when (which) {
                     0 -> confirmLocalBrain()
                     1 -> tuneBrainToDevice()
-                    2 -> confirmEar()
-                    3 -> showVoices()
-                    4 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
-                    5 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
-                    6 -> checkNewestEngines()
-                    7 -> showDeleteEngines()
+                    2 -> switchBrain()
+                    3 -> confirmEar()
+                    4 -> showVoices()
+                    5 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
+                    6 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
+                    7 -> checkNewestEngines()
+                    8 -> showDeleteEngines()
                 }
+            }
+            .setNegativeButton("Zamknij", null).show()
+    }
+
+    // 🔀 PRZEŁĄCZANIE MÓZGU — gdy masz wgrany więcej niż jeden (np. Mały i Średni),
+    // wybierasz, którym Gadacz myśli offline. Przełączenie jest NATYCHMIAST, bez pobierania.
+    private fun switchBrain() {
+        val list = LocalBrain.installedList(this)
+        when {
+            list.isEmpty() -> { speak("Nie masz wgranego żadnego lokalnego mózgu. Pobierz go w Silnikach, Mózg lokalny."); return }
+            list.size == 1 -> {
+                speak("Masz wgrany tylko jeden mózg: ${list[0].second}. Żeby przełączać, pobierz drugi — na przykład Mały — w Silnikach, Mózg lokalny. Wtedy oba zostaną w telefonie i przełączysz je jednym dotknięciem.")
+                return
+            }
+        }
+        val labels = list.map { (_, lbl, active) -> (if (active) "✓ " else "") + lbl + (if (active) " — TYM MYŚLĘ" else "") }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("🔀 Którego mózgu używać offline?")
+            .setItems(labels) { _, i ->
+                val (key, lbl, _) = list[i]
+                LocalBrain.setActive(this, key)
+                speak("Przełączyłem na $lbl. Od teraz offline myślę tym mózgiem.")
             }
             .setNegativeButton("Zamknij", null).show()
     }
@@ -446,9 +472,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // ucho ~50 MB). Kasuje TYLKO pobrany plik silnika; ustawienia i rozmowy zostają.
     private fun showDeleteEngines() {
         val items = ArrayList<Pair<String, () -> Unit>>()
-        if (LocalBrain.available(this)) items.add("🧠 Mózg lokalny (${LocalBrain.installedShort(this)})" to {
-            LocalBrain.deleteBrain(this); speak("Usunąłem lokalny mózg. Zwolniłem miejsce.")
-        })
+        // Każdy wgrany mózg osobno (może być kilka: Mały, Średni…) — kasujesz wybrany.
+        LocalBrain.installedList(this).forEach { (key, label, _) ->
+            items.add("🧠 Mózg: $label" to {
+                LocalBrain.deleteBrain(this, key); speak("Usunąłem mózg. Zwolniłem miejsce.")
+            })
+        }
         if (VoskEar.available(this)) items.add("👂 Ucho (nasłuch ciągły)" to {
             VoskEar.deleteEar(this); speak("Usunąłem ucho.")
         })
