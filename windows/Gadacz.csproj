@@ -6,7 +6,10 @@
        na robocie Windows GitHuba do jednego pliku Gadacz.exe (bez instalatora). -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- Platforma z API Windows 10 (WinRT) — potrzebne do CZYTANIA POWIADOMIEN
+         systemowych (UserNotificationListener). WinForms/WPF dzialaja jak dotad. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <!-- WPF wlaczone dla dostepu do System.Windows.Automation (sterowanie ekranem). -->
     <UseWPF>true</UseWPF>

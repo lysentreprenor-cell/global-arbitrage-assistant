@@ -26,6 +26,8 @@ public class MainForm : Form
     private readonly CheckBox _ollama = new();
     private readonly TextBox _ollamaModel = new();
     private readonly CheckBox _wakeCb = new();
+    private readonly CheckBox _notifCb = new();
+    private Notifications? _notif;
     private SpeechRecognitionEngine? _rec;
     private SpeechRecognitionEngine? _wake;
     private readonly NotifyIcon _tray = new();
@@ -111,6 +113,11 @@ public class MainForm : Form
         _wakeCb.ForeColor = Color.FromArgb(180, 255, 180); _wakeCb.Padding = new Padding(10, 10, 0, 0);
         _wakeCb.CheckedChanged += (_, _) => ToggleWake();
         top2.Controls.Add(_wakeCb);
+        // 🔔 Czytanie powiadomień Windows na głos (SMS, bank, poczta, komunikatory).
+        _notifCb.Text = "🔔 Czytaj powiadomienia"; _notifCb.AutoSize = true;
+        _notifCb.ForeColor = Color.FromArgb(255, 220, 150); _notifCb.Padding = new Padding(10, 10, 0, 0);
+        _notifCb.CheckedChanged += (_, _) => ToggleNotif();
+        top2.Controls.Add(_notifCb);
         Controls.Add(top2);
 
         // Dół: pole do pisania + Wyślij.
@@ -153,6 +160,7 @@ public class MainForm : Form
             try { _tts.Dispose(); } catch { }
             try { _rec?.Dispose(); } catch { }
             try { _wake?.RecognizeAsyncStop(); _wake?.Dispose(); } catch { }
+            try { _notif?.Stop(); } catch { }
         };
         Shown += (_, _) => { _input.Focus(); _ = CheckUpdate(true); };
         Append("Gadacz na Windows. Wpisz u góry adres serwera z Replita i PIN, a potem pisz. Odpowiedzi czytam na głos.\n");
@@ -469,6 +477,26 @@ public class MainForm : Form
             Application.Exit();
         }
         catch (Exception ex) { BeginInvoke(new Action(() => Append("Aktualizacja nie powiodła się: " + ex.Message + "\n"))); }
+    }
+
+    // 🔔 CZYTANIE POWIADOMIEŃ WINDOWS NA GŁOS — włącza/wyłącza nasłuch powiadomień
+    // systemowych. Gdy wyskoczy nowe (SMS, bank, poczta), Gadacz je odczyta.
+    private async void ToggleNotif()
+    {
+        if (_notifCb.Checked)
+        {
+            _notif ??= new Notifications((app, msg) =>
+            {
+                var pre = string.IsNullOrWhiteSpace(app) ? "🔔 Powiadomienie: " : ("🔔 " + app + ": ");
+                Append("\n" + pre + msg + "\n");
+                // Czytaj niezależnie od pola „Czytaj na głos", ale tylko krótko.
+                try { _tts.SpeakAsync((string.IsNullOrWhiteSpace(app) ? "Powiadomienie. " : (app + ". ")) + msg); } catch { }
+            });
+            var err = await _notif.Start();
+            if (err.Length > 0) { _notifCb.Checked = false; Append(err + "\n"); Speak(err); }
+            else Append("🔔 Czytam powiadomienia — nowe wiadomości przeczytam na głos.\n");
+        }
+        else { _notif?.Stop(); Append("🔔 Przestałem czytać powiadomienia.\n"); }
     }
 
     // 👂 NASŁUCH SŁOWA-KLUCZA „Gadacz…" — ciągle słucha; gdy usłyszy „Gadacz" na
