@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -22,7 +23,15 @@ public class MainForm : Form
     private readonly Button _mic = new();
     private readonly CheckBox _speak = new();
     private readonly CheckBox _control = new();
+    private readonly CheckBox _ollama = new();
+    private readonly TextBox _ollamaModel = new();
     private SpeechRecognitionEngine? _rec;
+    private readonly NotifyIcon _tray = new();
+
+    // ⌨️ Globalny skrót: Ctrl+Alt+G — otwiera Gadacza i od razu słucha (z każdego miejsca).
+    [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint mod, uint vk);
+    [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    private const int HotkeyId = 0xB1;
 
     private static readonly System.Text.RegularExpressions.Regex Danger =
         new(@"zap[łl]a|kup teraz|kupuj|przelew|usu[ńn]|wy[śs]lij pieni|potwierd[źz] p[łl]at",
@@ -74,6 +83,19 @@ public class MainForm : Form
         top.Controls.Add(_control);
         Controls.Add(top);
 
+        // 🦉 DUŻY MÓZG OFFLINE NA PC (Ollama) — gdy włączone, rozmowa idzie do lokalnej
+        //    Ollamy (localhost) zamiast do chmury. Za darmo, bez internetu, mądrzej niż telefon.
+        var top2 = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 42, BackColor = Color.FromArgb(10, 10, 10), WrapContents = false };
+        _ollama.Text = "🦉 Mózg offline na PC (Ollama)"; _ollama.AutoSize = true;
+        _ollama.ForeColor = Color.FromArgb(160, 220, 255); _ollama.Padding = new Padding(6, 10, 0, 0);
+        top2.Controls.Add(_ollama);
+        top2.Controls.Add(new Label { Text = "model:", AutoSize = true, ForeColor = Color.FromArgb(160, 220, 255), Padding = new Padding(10, 12, 0, 0) });
+        _ollamaModel.Width = 160; _ollamaModel.Text = "qwen2.5:7b";
+        _ollamaModel.BackColor = Color.FromArgb(20, 20, 20); _ollamaModel.ForeColor = Color.White;
+        _ollamaModel.AccessibleName = "Model Ollama";
+        top2.Controls.Add(_ollamaModel);
+        Controls.Add(top2);
+
         // Dół: pole do pisania + Wyślij.
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 56, BackColor = Color.FromArgb(10, 10, 10) };
         _send.Text = "Wyślij"; _send.Dock = DockStyle.Right; _send.Width = 150;
@@ -94,8 +116,25 @@ public class MainForm : Form
         bottom.Controls.Add(_send);
         Controls.Add(bottom);
 
+        // 🖥️ Ikona w zasobniku (tray): Gadacz chodzi w tle; dwuklik = pokaż.
+        _tray.Text = "Gadacz"; _tray.Icon = System.Drawing.SystemIcons.Application; _tray.Visible = true;
+        _tray.DoubleClick += (_, _) => ShowFromTray();
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Pokaż Gadacza", null, (_, _) => ShowFromTray());
+        menu.Items.Add("🎤 Mów (Ctrl+Alt+G)", null, (_, _) => { ShowFromTray(); StartDictation(); });
+        menu.Items.Add("Zamknij", null, (_, _) => { _tray.Visible = false; Application.Exit(); });
+        _tray.ContextMenuStrip = menu;
+        Resize += (_, _) => { if (WindowState == FormWindowState.Minimized) Hide(); };
+
         LoadConfig();
-        FormClosing += (_, _) => { SaveConfig(); try { _tts.Dispose(); } catch { } try { _rec?.Dispose(); } catch { } };
+        FormClosing += (_, _) =>
+        {
+            SaveConfig();
+            try { UnregisterHotKey(Handle, HotkeyId); } catch { }
+            try { _tray.Visible = false; _tray.Dispose(); } catch { }
+            try { _tts.Dispose(); } catch { }
+            try { _rec?.Dispose(); } catch { }
+        };
         Shown += (_, _) => _input.Focus();
         Append("Gadacz na Windows. Wpisz u góry adres serwera z Replita i PIN, a potem pisz. Odpowiedzi czytam na głos.\n");
     }
@@ -125,6 +164,20 @@ public class MainForm : Form
         {
             try { await ControlLoop(q); }
             catch (Exception ex) { Append("Błąd: " + ex.Message + "\n"); }
+            finally { _send.Enabled = true; _input.Focus(); }
+            return;
+        }
+        // 🦉 Mózg offline na PC (Ollama) — rozmowa lokalnie, bez chmury.
+        if (_ollama.Checked)
+        {
+            try
+            {
+                string oa = await AskOllama(q);
+                Append("Gadacz: " + oa + "\n"); Speak(oa);
+                _history.Add(new { role = "user", content = q });
+                _history.Add(new { role = "assistant", content = oa });
+                if (_history.Count > 24) _history.RemoveRange(0, _history.Count - 24);
+            }
             finally { _send.Enabled = true; _input.Focus(); }
             return;
         }
@@ -170,10 +223,55 @@ public class MainForm : Form
         finally { _send.Enabled = true; _input.Focus(); }
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        // MOD_ALT(1) | MOD_CONTROL(2) = 3 ; VK_G = 0x47
+        try { RegisterHotKey(Handle, HotkeyId, 3, 0x47); } catch { }
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x0312 && (int)m.WParam == HotkeyId) { ShowFromTray(); StartDictation(); }
+        base.WndProc(ref m);
+    }
+
+    private void ShowFromTray()
+    {
+        Show(); WindowState = FormWindowState.Normal; Activate(); BringToFront();
+    }
+
     private void Speak(string t)
     {
         if (!_speak.Checked || string.IsNullOrWhiteSpace(t)) return;
         try { _tts.SpeakAsyncCancelAll(); _tts.SpeakAsync(t); } catch { }
+    }
+
+    // 🦉 Zapytaj lokalną Ollamę (na tym komputerze). Wymaga zainstalowanej Ollamy
+    // i pobranego modelu (np. „ollama pull qwen2.5:7b"). Za darmo, offline.
+    private async Task<string> AskOllama(string q)
+    {
+        try
+        {
+            var msgs = new List<object>
+            {
+                new { role = "system", content = "Jesteś Gadacz — polski asystent głosowy. Odpowiadaj PO POLSKU, jasno i konkretnie." }
+            };
+            foreach (var h in _history) msgs.Add(h);
+            msgs.Add(new { role = "user", content = q });
+            var body = new { model = _ollamaModel.Text.Trim(), messages = msgs, stream = false };
+            using var resp = await _http.PostAsync("http://localhost:11434/api/chat",
+                new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+            var txt = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(txt);
+            if (doc.RootElement.TryGetProperty("message", out var m) && m.TryGetProperty("content", out var c))
+                return (c.GetString() ?? "").Trim();
+            return "(pusta odpowiedź Ollamy)";
+        }
+        catch (Exception ex)
+        {
+            return "Nie mogę połączyć się z Ollamą. Zainstaluj ją z ollama.com, uruchom i pobierz model poleceniem: ollama pull " + _ollamaModel.Text.Trim() + ". (" + ex.Message + ")";
+        }
     }
 
     // 🎤 DYKTOWANIE (mowa → tekst) przez wbudowane rozpoznawanie Windows. Próbuje
@@ -303,6 +401,8 @@ public class MainForm : Form
                 var k = line[..i]; var v = line[(i + 1)..];
                 if (k == "url" && v.Length > 0) _url.Text = v;
                 if (k == "pin" && v.Length > 0) _pin.Text = v;
+                if (k == "ollama") _ollama.Checked = v == "1";
+                if (k == "ollamaModel" && v.Length > 0) _ollamaModel.Text = v;
             }
         }
         catch { }
@@ -313,7 +413,13 @@ public class MainForm : Form
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
-            File.WriteAllLines(ConfigPath, new[] { "url=" + _url.Text.Trim(), "pin=" + _pin.Text.Trim() });
+            File.WriteAllLines(ConfigPath, new[]
+            {
+                "url=" + _url.Text.Trim(),
+                "pin=" + _pin.Text.Trim(),
+                "ollama=" + (_ollama.Checked ? "1" : "0"),
+                "ollamaModel=" + _ollamaModel.Text.Trim(),
+            });
         }
         catch { }
     }
