@@ -152,6 +152,17 @@ async function run(text) {
     return;
   }
 
+  // 📖 WBUDOWANE: przeczytaj stronę na głos (lokalnie, bez serwera).
+  if (/^(przeczytaj( (t[ęe]|cał[ąa]))? stron|czytaj stron|co jest na (tej )?stronie)/i.test(text)) {
+    log("Ty", text); $("in").value = "";
+    const t = await pageText();
+    log("Gadacz", t ? t.slice(0, 500) + (t.length > 500 ? "…" : "") : "(pusta strona)");
+    say(t || "Ta strona jest pusta.");
+    return;
+  }
+  // 🧠 WBUDOWANE: podgląd pamięci.
+  if (/^(pami[eę][ćc]|co o mnie wiesz|co pami[eę]tasz)/i.test(text)) { log("Ty", text); $("in").value = ""; await showMemory(); return; }
+
   log("Ty", text); $("in").value = "";
   if (!cfg.url) { log("Gadacz", "Wpisz najpierw adres serwera z Replita i PIN u góry."); say("Wpisz adres serwera."); return; }
 
@@ -179,6 +190,19 @@ async function run(text) {
     await sleep(750);           // pozwól stronie się przeładować
   }
 }
+
+// 🧠 Podgląd pamięci (wspólnej z telefonem/Windowsem).
+async function showMemory() {
+  if (!cfg.url) { log("Gadacz", "Wpisz adres serwera z Replita i PIN."); say("Wpisz adres serwera."); return; }
+  try {
+    const r = await fetch(cfg.url.replace(/\/$/, "") + "/api/assistant/memory", { headers: { "x-bot-pin": cfg.pin } });
+    const j = await r.json();
+    const arr = (j && j.memory) || [];
+    log("Gadacz", "🧠 Co wiem o Tobie: " + (arr.length ? arr.map((f, i) => (i + 1) + ". " + f).join("   ") : "(jeszcze nic)"));
+    say("Wypisałem, co o Tobie wiem.");
+  } catch (e) { log("Gadacz", "Nie mogę pobrać pamięci (sprawdź serwer)."); }
+}
+$("mem").addEventListener("click", showMemory);
 
 $("send").addEventListener("click", () => run($("in").value));
 $("in").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run($("in").value); } });
