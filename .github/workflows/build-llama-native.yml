@@ -1,4 +1,4 @@
-name: Silnik pisania - krok 1: zbuduj llama.cpp na Androida (arm64)
+name: "Silnik pisania - krok 1: zbuduj llama.cpp na Androida (arm64)"
 
 # 🧱 KROK 1 wymiany silnika mozgu na stabilny (llama.cpp). Najtrudniejsza,
 # najbardziej ryzykowna czesc: skompilowanie natywnej biblioteki llama.cpp pod
