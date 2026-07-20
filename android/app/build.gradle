@@ -11,8 +11,8 @@ android {
         applicationId "pl.gadacz.app"
         minSdk 26
         targetSdk 34
-        versionCode 110
-        versionName "11.0"
+        versionCode 111
+        versionName "11.1"
 
         // 📦 MNIEJSZA APKA: silnik AI (MediaPipe) ma natywne biblioteki na 4 typy
         // procesorów. Nowoczesne telefony używają WYŁĄCZNIE arm64-v8a — budujemy tylko
@@ -21,6 +21,17 @@ android {
         // armeabi-v7a — ale to dziś rzadkość.)
         ndk {
             abiFilters 'arm64-v8a'
+        }
+
+        // ✍️ SILNIK PISANIA (llama.cpp) — budowany ze źródeł przez CMake i pakowany
+        // do apki jako biblioteka natywna. Budujemy TYLKO nasz target 'gadaczllama'
+        // (ciągnie llama + ggml), pomijając problematyczne dodatki llama.cpp.
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
+                targets "gadaczllama"
+            }
         }
     }
 
@@ -42,6 +53,13 @@ android {
         release {
             minifyEnabled false
             signingConfig signingConfigs.gadacz
+        }
+    }
+    // ✍️ Ścieżka do CMake silnika pisania (llama.cpp wpięty do apki).
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
         }
     }
     compileOptions {
