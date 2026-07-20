@@ -21,11 +21,8 @@
     <PackageReference Include="System.Speech" Version="8.0.0" />
   </ItemGroup>
 
-  <!-- 🖥️ STEROWANIE EKRANEM — Windows UI Automation (klikanie/czytanie/wpisywanie
-       w innych programach). Biblioteki z pulpitowego frameworka Windows. -->
-  <ItemGroup>
-    <Reference Include="UIAutomationClient" />
-    <Reference Include="UIAutomationTypes" />
-  </ItemGroup>
+  <!-- 🖥️ STEROWANIE EKRANEM — Windows UI Automation (System.Windows.Automation)
+       jest już dostarczane przez UseWPF, więc nie dodajemy osobnych referencji
+       (unikamy konfliktu podwójnych bibliotek). -->
 
 </Project>
