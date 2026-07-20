@@ -94,6 +94,10 @@ public class MainForm : Form
         _ollamaModel.BackColor = Color.FromArgb(20, 20, 20); _ollamaModel.ForeColor = Color.White;
         _ollamaModel.AccessibleName = "Model Ollama";
         top2.Controls.Add(_ollamaModel);
+        // 🧠 Podgląd pamięci — „co Gadacz o mnie wie".
+        var memBtn = new Button { Text = "🧠 Pamięć", AutoSize = true, FlatStyle = FlatStyle.Flat, ForeColor = Color.White, BackColor = Color.FromArgb(60, 40, 90) };
+        memBtn.Click += (_, _) => ShowMemory();
+        top2.Controls.Add(memBtn);
         Controls.Add(top2);
 
         // Dół: pole do pisania + Wyślij.
@@ -159,6 +163,15 @@ public class MainForm : Form
         _input.Clear();
         Append("\nTy: " + q + "\n");
         _send.Enabled = false;
+        // 🧠 „zapomnij N" — usuń N-ty zapamiętany fakt.
+        var forget = System.Text.RegularExpressions.Regex.Match(q, @"^zapomnij\s+(\d+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (forget.Success)
+        {
+            int idx = int.Parse(forget.Groups[1].Value) - 1;
+            await MemDelete(idx);
+            Append("Gadacz: Zapomniałem punkt " + (idx + 1) + ".\n"); Speak("Zapomniałem.");
+            _send.Enabled = true; _input.Focus(); return;
+        }
         // 🖥️ Tryb sterowania: Gadacz czyta ekran i DZIAŁA w programach (wieloetapowo).
         if (_control.Checked)
         {
@@ -245,6 +258,41 @@ public class MainForm : Form
     {
         if (!_speak.Checked || string.IsNullOrWhiteSpace(t)) return;
         try { _tts.SpeakAsyncCancelAll(); _tts.SpeakAsync(t); } catch { }
+    }
+
+    // 🧠 Pokaż, co Gadacz o Tobie pamięta (wspólna pamięć z telefonem/wtyczką).
+    private async void ShowMemory()
+    {
+        try
+        {
+            var baseUrl = _url.Text.Trim().TrimEnd('/');
+            using var req = new HttpRequestMessage(HttpMethod.Get, baseUrl + "/api/assistant/memory");
+            req.Headers.Add("x-bot-pin", _pin.Text.Trim());
+            using var resp = await _http.SendAsync(req);
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            var sb = new StringBuilder("\n🧠 Co Gadacz o Tobie wie:\n");
+            int i = 1;
+            if (doc.RootElement.TryGetProperty("memory", out var mem) && mem.ValueKind == JsonValueKind.Array)
+                foreach (var f in mem.EnumerateArray()) sb.AppendLine("  " + (i++) + ". " + (f.GetString() ?? ""));
+            if (i == 1) sb.AppendLine("  (jeszcze nic nie zapamiętałem)");
+            sb.AppendLine("Aby usunąć — napisz np. „zapomnij 3". Aby dodać — „zapamiętaj …".");
+            Append(sb.ToString());
+            Speak("Wypisałem, co o Tobie wiem.");
+        }
+        catch (Exception ex) { Append("Nie mogę pobrać pamięci: " + ex.Message + "\n"); }
+    }
+
+    private async Task MemDelete(int index)
+    {
+        try
+        {
+            var baseUrl = _url.Text.Trim().TrimEnd('/');
+            using var req = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/api/assistant/memory/delete");
+            req.Headers.Add("x-bot-pin", _pin.Text.Trim());
+            req.Content = new StringContent(JsonSerializer.Serialize(new { index }), Encoding.UTF8, "application/json");
+            await _http.SendAsync(req);
+        }
+        catch { }
     }
 
     // 🦉 Zapytaj lokalną Ollamę (na tym komputerze). Wymaga zainstalowanej Ollamy
