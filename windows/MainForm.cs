@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Speech.Synthesis;
+using System.Speech.Recognition;
 
 namespace Gadacz;
 
@@ -18,8 +19,10 @@ public class MainForm : Form
     private readonly TextBox _output = new();
     private readonly TextBox _input = new();
     private readonly Button _send = new();
+    private readonly Button _mic = new();
     private readonly CheckBox _speak = new();
     private readonly CheckBox _control = new();
+    private SpeechRecognitionEngine? _rec;
 
     private static readonly System.Text.RegularExpressions.Regex Danger =
         new(@"zap[łl]a|kup teraz|kupuj|przelew|usu[ńn]|wy[śs]lij pieni|potwierd[źz] p[łl]at",
@@ -81,12 +84,18 @@ public class MainForm : Form
         _input.ForeColor = Color.White; _input.Font = new Font("Segoe UI", 13F);
         _input.AccessibleName = "Napisz wiadomość do Gadacza";
         _input.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await Send(); } };
+        // 🎤 Dyktowanie głosem (mowa → tekst) — dla osoby niewidomej mówienie zamiast pisania.
+        _mic.Text = "🎤 Mów"; _mic.Dock = DockStyle.Left; _mic.Width = 120;
+        _mic.BackColor = Color.FromArgb(20, 60, 110); _mic.ForeColor = Color.White; _mic.FlatStyle = FlatStyle.Flat;
+        _mic.AccessibleName = "Dyktuj głosem";
+        _mic.Click += (_, _) => StartDictation();
         bottom.Controls.Add(_input);
+        bottom.Controls.Add(_mic);
         bottom.Controls.Add(_send);
         Controls.Add(bottom);
 
         LoadConfig();
-        FormClosing += (_, _) => { SaveConfig(); try { _tts.Dispose(); } catch { } };
+        FormClosing += (_, _) => { SaveConfig(); try { _tts.Dispose(); } catch { } try { _rec?.Dispose(); } catch { } };
         Shown += (_, _) => _input.Focus();
         Append("Gadacz na Windows. Wpisz u góry adres serwera z Replita i PIN, a potem pisz. Odpowiedzi czytam na głos.\n");
     }
@@ -165,6 +174,38 @@ public class MainForm : Form
     {
         if (!_speak.Checked || string.IsNullOrWhiteSpace(t)) return;
         try { _tts.SpeakAsyncCancelAll(); _tts.SpeakAsync(t); } catch { }
+    }
+
+    // 🎤 DYKTOWANIE (mowa → tekst) przez wbudowane rozpoznawanie Windows. Próbuje
+    // po polsku; gdy brak polskiego pakietu mowy — bierze domyślny zainstalowany.
+    private void StartDictation()
+    {
+        try
+        {
+            if (_rec == null)
+            {
+                SpeechRecognitionEngine eng;
+                try { eng = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("pl-PL")); }
+                catch { eng = new SpeechRecognitionEngine(); }   // domyślny zainstalowany język
+                eng.LoadGrammar(new DictationGrammar());
+                eng.SetInputToDefaultAudioDevice();
+                eng.SpeechRecognized += (_, e) =>
+                {
+                    if (e.Result != null && !string.IsNullOrWhiteSpace(e.Result.Text))
+                        BeginInvoke(new Action(async () => { _input.Text = e.Result.Text; await Send(); }));
+                };
+                eng.RecognizeCompleted += (_, _) => BeginInvoke(new Action(() => _mic.Text = "🎤 Mów"));
+                _rec = eng;
+            }
+            _mic.Text = "🔴 Słucham…";
+            _rec.RecognizeAsync(RecognizeMode.Single);
+        }
+        catch (Exception ex)
+        {
+            _mic.Text = "🎤 Mów";
+            Append("Nie mogę uruchomić dyktowania: " + ex.Message +
+                   " (może brakować polskiego pakietu mowy Windows albo mikrofonu). Możesz pisać ręcznie.\n");
+        }
     }
 
     // 🖥️ FAZA 2 — STEROWANIE PROGRAMAMI. Pętla jak w telefonie/wtyczce: czyta ekran
