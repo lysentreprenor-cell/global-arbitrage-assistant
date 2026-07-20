@@ -1172,6 +1172,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     .setNegativeButton("Zamknij", null).show()
             }
         }
+        // 🪤 Drugi łapacz: NATYWNY upadek w lokalnym mózgu (C++), którego łapacz Javy
+        //   nie widzi — stąd „brak okienka". Czujnik z LocalBrain pozna to po znaczniku.
+        LocalBrain.crashedInBrain(this)?.let { what ->
+            window.decorView.post {
+                AlertDialog.Builder(this)
+                    .setTitle("⚠️ Wywaliło przy lokalnym mózgu (offline)")
+                    .setMessage("Gadacz zamknął się nagle, gdy odpowiadał offline lokalnym mózgiem. To upadek w GŁĘBI silnika AI (kod natywny), którego zwykły łapacz nie widzi — dlatego wcześniej nie było żadnego okienka.\n\nNajczęstsza przyczyna: plik mózgu jest USZKODZONY (pobrał się nie do końca) albo za ciężki na pamięć. Najpewniejsza naprawa: skasuj mózg i pobierz świeży. Do trudnych rzeczy używaj internetu — chmura jest mądrzejsza.\n\n($what)")
+                    .setPositiveButton("Skasuj mózg (pobiorę świeży)") { _, _ ->
+                        Thread { LocalBrain.deleteBrain(this) }.start()
+                        speak("Skasowałem lokalny mózg. Wejdź w Ustawienia, Silniki i pobierz go na nowo — świeży plik powinien już nie wywalać.")
+                    }
+                    .setNegativeButton("Zamknij", null).show()
+            }
+        }
     }
 
     override fun onDestroy() { tts.stop(); tts.shutdown(); super.onDestroy() }

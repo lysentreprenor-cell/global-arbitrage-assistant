@@ -81,6 +81,9 @@ object LocalBrain {
     /** 🗑️ Usuń pobrany lokalny mózg (zwalnia miejsce). Silnik najpierw zamykamy. */
     fun deleteBrain(ctx: Context): Boolean {
         synchronized(this) { llm?.let { try { it.close() } catch (_: Throwable) {} }; llm = null; loadedPath = null }
+        // Kasujemy też pamięć o „złym" pliku i znacznik — świeży mózg zacznie z czystym kontem.
+        try { Brain.prefs(ctx).edit().remove("brain_crash_sig").apply() } catch (_: Exception) {}
+        try { watchdogFile(ctx).delete() } catch (_: Exception) {}
         return try {
             downloadedFile(ctx).delete()
             File(downloadedFile(ctx).absolutePath + ".part").delete()
@@ -175,12 +178,43 @@ object LocalBrain {
         Brain.prefs(ctx).edit().putString("local_hist", JSONArray(cur.takeLast(6)).toString()).apply()
     } catch (_: Exception) {}
 
+    // 🪤 CZUJNIK NATYWNEGO UPADKU: silnik AI to kod C++ (natywny). Gdy on padnie
+    //   (SIGSEGV/OOM), apka znika NATYCHMIAST — łapacz błędów w Javie tego NIE widzi
+    //   (stąd „brak okienka"). Dlatego tuż PRZED wejściem w silnik zakładamy znacznik,
+    //   a PO wyjściu go zdejmujemy. Jeśli apka zniknie w międzyczasie, znacznik zostaje
+    //   i MainActivity pozna przy starcie, że wywaliło WŁAŚNIE tu.
+    private fun watchdogFile(ctx: Context) = File(ctx.filesDir, "brain_running.flag")
+    private fun currentSig(ctx: Context): Long = modelPath(ctx)?.let { File(it).length() } ?: 0L
+
+    /** Czy poprzednie otwarcie padło w natywnym silniku? Zwraca opis albo null.
+     *  Zapamiętuje „podpis" pliku, który wywalił — dopóki jest ten sam plik, NIE wchodzimy
+     *  w niego (koniec pętli wywalań). Woła się RAZ, przy starcie apki. */
+    fun crashedInBrain(ctx: Context): String? {
+        val wd = watchdogFile(ctx)
+        if (!wd.exists()) return null
+        val what = try { wd.readText() } catch (_: Exception) { "" }
+        try { wd.delete() } catch (_: Exception) {}
+        Brain.prefs(ctx).edit().putLong("brain_crash_sig", currentSig(ctx)).apply()
+        return what.ifBlank { "Lokalny mózg (offline)" }
+    }
+
+    /** Czy OBECNY plik mózgu już raz wywalił apkę natywnie? Wtedy go nie ruszamy,
+     *  aż użytkownik pobierze świeży (inny rozmiar pliku = inny podpis = znów wolno). */
+    private fun brainKnownBad(ctx: Context): Boolean {
+        val sig = Brain.prefs(ctx).getLong("brain_crash_sig", -1L)
+        return sig > 0L && sig == currentSig(ctx)
+    }
+
     /** Odpowiedz lokalnie (offline). null = mózg niedostępny albo zawiódł. */
     fun answer(ctx: Context, question: String): String? {
         // 🛡️ Za duży model na tę pamięć → powiedz to wprost (zamiast wywalać apkę).
         tooBigForRam(ctx)?.let { return it }
-        val engine = ensure(ctx) ?: return null
+        // 🛡️ Ten sam plik już raz wywalił apkę natywnie → NIE wchodź w niego znowu.
+        if (brainKnownBad(ctx)) return "Lokalny mózg wcześniej nagle zamknął aplikację, więc dla bezpieczeństwa go teraz nie uruchamiam. Skasuj go i pobierz świeży w Ustawieniach, w Silnikach — albo pisz przez internet, chmura jest mądrzejsza."
+        val wd = watchdogFile(ctx)
+        try { wd.writeText("Lokalny mózg myślał nad: " + question.take(200)) } catch (_: Throwable) {}
         return try {
+            val engine = ensure(ctx) ?: return null
             val facts = memoryFor(ctx, question)
             val hist = history(ctx).joinToString("\n")
             val prompt = "Jesteś Gadacz — polski asystent głosowy. Odpowiadaj PO POLSKU, " +
@@ -192,6 +226,7 @@ object LocalBrain {
             engine.generateResponse(prompt)?.trim()?.take(600)?.ifBlank { null }
                 ?.also { remember(ctx, question, it) }
         } catch (_: Throwable) { null }
+        finally { try { wd.delete() } catch (_: Throwable) {} }
     }
 
     /**
