@@ -347,14 +347,22 @@ public class MainForm : Form
         catch (Exception ex) { Append("Nie udało się przełączyć twarzy: " + ex.Message + "\n"); }
     }
 
-    // 📄 Czytaj plik tekstowy na głos (dokument, notatka).
+    // 📄 Czytaj plik na głos (tekst lub PDF).
     private void ReadFile()
     {
-        using var d = new OpenFileDialog { Filter = "Teksty (*.txt;*.md;*.csv)|*.txt;*.md;*.csv|Wszystkie pliki (*.*)|*.*" };
+        using var d = new OpenFileDialog { Filter = "Dokumenty (*.txt;*.md;*.csv;*.pdf)|*.txt;*.md;*.csv;*.pdf|Wszystkie pliki (*.*)|*.*" };
         if (d.ShowDialog(this) != DialogResult.OK) return;
         try
         {
-            var txt = File.ReadAllText(d.FileName);
+            string txt;
+            if (Path.GetExtension(d.FileName).ToLowerInvariant() == ".pdf")
+            {
+                var sb = new StringBuilder();
+                using var pdf = UglyToad.PdfPig.PdfDocument.Open(d.FileName);
+                foreach (var page in pdf.GetPages()) sb.AppendLine(page.Text);
+                txt = sb.ToString();
+            }
+            else txt = File.ReadAllText(d.FileName);
             Append("\n📄 " + Path.GetFileName(d.FileName) + ":\n" + (txt.Length > 2000 ? txt.Substring(0, 2000) + "…" : txt) + "\n");
             _speak.Checked = true;
             Speak(txt.Length > 4000 ? txt.Substring(0, 4000) : txt);
