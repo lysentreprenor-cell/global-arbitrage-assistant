@@ -18,6 +18,11 @@ public class MainForm : Form
     private readonly TextBox _input = new();
     private readonly Button _send = new();
     private readonly CheckBox _speak = new();
+    private readonly CheckBox _control = new();
+
+    private static readonly System.Text.RegularExpressions.Regex Danger =
+        new(@"zap[łl]a|kup teraz|kupuj|przelew|usu[ńn]|wy[śs]lij pieni|potwierd[źz] p[łl]at",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private readonly SpeechSynthesizer _tts = new();
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(3) };
@@ -58,6 +63,11 @@ public class MainForm : Form
         _speak.Text = "Czytaj na głos"; _speak.Checked = true; _speak.AutoSize = true;
         _speak.ForeColor = Color.FromArgb(120, 255, 120); _speak.Padding = new Padding(10, 8, 0, 0);
         top.Controls.Add(_speak);
+        // 🖥️ Tryb sterowania programami (UI Automation). Domyślnie wyłączony — włączasz,
+        //    gdy chcesz, żeby Gadacz KLIKAŁ w innych programach, nie tylko gadał.
+        _control.Text = "🖥️ Steruj programami"; _control.AutoSize = true;
+        _control.ForeColor = Color.FromArgb(255, 200, 120); _control.Padding = new Padding(10, 8, 0, 0);
+        top.Controls.Add(_control);
         Controls.Add(top);
 
         // Dół: pole do pisania + Wyślij.
@@ -100,6 +110,14 @@ public class MainForm : Form
         _input.Clear();
         Append("\nTy: " + q + "\n");
         _send.Enabled = false;
+        // 🖥️ Tryb sterowania: Gadacz czyta ekran i DZIAŁA w programach (wieloetapowo).
+        if (_control.Checked)
+        {
+            try { await ControlLoop(q); }
+            catch (Exception ex) { Append("Błąd: " + ex.Message + "\n"); }
+            finally { _send.Enabled = true; _input.Focus(); }
+            return;
+        }
         try
         {
             var baseUrl = _url.Text.Trim().TrimEnd('/');
@@ -133,16 +151,102 @@ public class MainForm : Form
             _history.Add(new { role = "assistant", content = say });
             if (_history.Count > 24) _history.RemoveRange(0, _history.Count - 24);
 
-            if (_speak.Checked)
-            {
-                try { _tts.SpeakAsyncCancelAll(); _tts.SpeakAsync(say); } catch { }
-            }
+            Speak(say);
         }
         catch (Exception ex)
         {
             Append("Błąd połączenia: " + ex.Message + " (sprawdź adres serwera i czy serwer jest uruchomiony).\n");
         }
         finally { _send.Enabled = true; _input.Focus(); }
+    }
+
+    private void Speak(string t)
+    {
+        if (!_speak.Checked || string.IsNullOrWhiteSpace(t)) return;
+        try { _tts.SpeakAsyncCancelAll(); _tts.SpeakAsync(t); } catch { }
+    }
+
+    // 🖥️ FAZA 2 — STEROWANIE PROGRAMAMI. Pętla jak w telefonie/wtyczce: czyta ekran
+    // aktywnego programu → pyta mózg (serwer) o krok → wykonuje (klik/wpis/otwórz) →
+    // czyta znowu, aż do celu. Płatności/„usuń" NIE klika sam.
+    private async Task ControlLoop(string goal)
+    {
+        string lastError = "";
+        for (int step = 0; step < 8; step++)
+        {
+            string screen = Desktop.ReadScreen();   // UI Automation działa na wątku UI (STA)
+            var body = new Dictionary<string, object?>
+            {
+                ["question"] = "EKRAN: " + screen + "\n\nPolecenie: " + goal +
+                    (lastError.Length > 0 ? "\n\nUWAGA: poprzedni krok NIE WYSZEDŁ: " + lastError + " Spróbuj inaczej." : ""),
+                ["history"] = _history,
+                ["clientTime"] = DateTime.Now.ToString("dddd, d MMMM yyyy, HH:mm"),
+                ["learn"] = true
+            };
+
+            string say = "", action = "none", text = "", dir = "down";
+            bool next = false;
+            try
+            {
+                var baseUrl = _url.Text.Trim().TrimEnd('/');
+                using var req = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/api/assistant/ask");
+                req.Headers.Add("x-bot-pin", _pin.Text.Trim());
+                req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+                using var resp = await _http.SendAsync(req);
+                var txt = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(txt);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("error", out var er) && (er.GetString() ?? "").Length > 0)
+                { Append("Gadacz: Błąd serwera: " + er.GetString() + "\n"); Speak("Błąd serwera."); return; }
+                say = root.TryGetProperty("say", out var s) ? s.GetString() ?? "" : "";
+                action = root.TryGetProperty("action", out var ac) ? ac.GetString() ?? "none" : "none";
+                next = root.TryGetProperty("next", out var nx) && nx.ValueKind == JsonValueKind.True;
+                if (root.TryGetProperty("args", out var ag) && ag.ValueKind == JsonValueKind.Object)
+                {
+                    if (ag.TryGetProperty("text", out var tt)) text = tt.GetString() ?? "";
+                    else if (ag.TryGetProperty("name", out var nn)) text = nn.GetString() ?? "";
+                    if (ag.TryGetProperty("dir", out var dd)) dir = dd.GetString() ?? "down";
+                }
+            }
+            catch (Exception ex) { Append("Błąd połączenia: " + ex.Message + "\n"); Speak("Nie mogę połączyć się z serwerem."); return; }
+
+            if (say.Length > 0)
+            {
+                Append("Gadacz: " + say + "\n"); Speak(say);
+                _history.Add(new { role = "user", content = goal });
+                _history.Add(new { role = "assistant", content = say });
+                if (_history.Count > 24) _history.RemoveRange(0, _history.Count - 24);
+            }
+
+            var a = action.ToLowerInvariant();
+            if (a != "none")
+            {
+                if ((a == "tap" || a == "click") && Danger.IsMatch(text))
+                {
+                    Append("Gadacz: To ważny przycisk: " + text + ". Ze względów bezpieczeństwa NIE klikam sam — kliknij go proszę ręcznie.\n");
+                    Speak("To ważny przycisk. Kliknij go proszę ręcznie."); return;
+                }
+                bool ok = DoDesktop(a, text, dir);
+                lastError = ok ? "" : ("nie znalazłem: " + (text.Length > 0 ? text : "elementu"));
+            }
+            else lastError = "";
+
+            if (!next) break;
+            await Task.Delay(900);   // pozwól programowi zareagować
+        }
+    }
+
+    private static bool DoDesktop(string a, string text, string dir)
+    {
+        switch (a)
+        {
+            case "tap": case "click": return Desktop.ClickByName(text);
+            case "type": case "write": Desktop.TypeText(text); return true;
+            case "enter": Desktop.PressEnter(); return true;
+            case "scroll": Desktop.Scroll(dir); return true;
+            case "open_app": case "open": case "launch": return Desktop.OpenApp(text);
+            default: return true;
+        }
     }
 
     private void LoadConfig()
