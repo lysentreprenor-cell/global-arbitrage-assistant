@@ -706,6 +706,8 @@ router.get("/brain-url", (_req, res) => res.json({
   url: BRAIN_URL,
   base: BRAIN_REL,
   options: BRAIN_OPTIONS.map(o => ({ ...o, url: `${BRAIN_REL}/${o.file}` })),
+  // ✍️ SILNIK PISANIA: model GGUF do nowego, stabilnego silnika pisania (llama.cpp).
+  writing: `${BRAIN_REL}/gadacz-pisanie.gguf`,
   // 👂 UCHO: polski model rozpoznawania mowy (Vosk) do nasłuchu ciągłego bez przerw.
   ear: `${BRAIN_REL}/gadacz-ucho.zip`,
   // 👄 USTA: piękny polski głos offline (Piper w formacie sherpa-onnx).

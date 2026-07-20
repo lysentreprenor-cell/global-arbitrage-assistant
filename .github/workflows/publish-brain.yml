@@ -94,6 +94,29 @@ jobs:
           files: gadacz-mozg-duzy.task
           make_latest: false
 
+  # ✍️ SILNIK PISANIA: model GGUF do NOWEGO, STABILNEGO silnika pisania offline
+  # (llama.cpp) — zastepuje kapryśny MediaPipe. Qwen 2.5 1.5B, kwantyzacja Q4_K_M
+  # (~1 GB), otwarty (Apache), bez bramki. Telefon pobiera z naszego wydania.
+  pisanie:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pobierz model GGUF do pisania (Qwen 1.5B Q4_K_M)
+        id: gguf
+        continue-on-error: true
+        run: |
+          curl -fL --retry 3 -A "Gadacz-CI" -o gadacz-pisanie.gguf \
+            "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+          SIZE=$(stat -c%s gadacz-pisanie.gguf)
+          echo "Rozmiar: $SIZE"
+          if [ "$SIZE" -lt 524288000 ]; then echo "Za maly - blad"; rm -f gadacz-pisanie.gguf; exit 1; fi
+      - name: Opublikuj silnik pisania
+        if: steps.gguf.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-brain
+          files: gadacz-pisanie.gguf
+          make_latest: false
+
   # 👂 UCHO GADACZA: polski model rozpoznawania mowy Vosk (Apache 2.0) do nasluchu
   # CIAGLEGO bez przerw (slowo-klucz + "stop"). Telefon pobiera z naszego wydania.
   ucho:
