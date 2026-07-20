@@ -9,6 +9,7 @@ let cfg = { url: "", pin: "0905", speak: true };
 const history = [];
 let stopFlag = false;
 let pendingClick = null;   // przycisk do potwierdzenia (płatność itp.)
+let personaList = [];      // ostatnio pobrane twarze (do „twarz N")
 
 chrome.storage.local.get(["url", "pin", "speak"], (r) => {
   cfg.url = r.url || ""; cfg.pin = r.pin || "0905"; cfg.speak = r.speak !== false;
@@ -162,6 +163,15 @@ async function run(text) {
   }
   // 🧠 WBUDOWANE: podgląd pamięci.
   if (/^(pami[eę][ćc]|co o mnie wiesz|co pami[eę]tasz)/i.test(text)) { log("Ty", text); $("in").value = ""; await showMemory(); return; }
+  // 🎭 WBUDOWANE: wybór twarzy „twarz 3".
+  const tw = text.match(/^twarz\s+(\d+)$/i);
+  if (tw) {
+    log("Ty", text); $("in").value = "";
+    const idx = parseInt(tw[1], 10) - 1;
+    if (personaList[idx]) await setPersona(personaList[idx].key, personaList[idx].label);
+    else log("Gadacz", "Nie ma takiej twarzy — najpierw kliknij 🎭 Twarz.");
+    return;
+  }
 
   log("Ty", text); $("in").value = "";
   if (!cfg.url) { log("Gadacz", "Wpisz najpierw adres serwera z Replita i PIN u góry."); say("Wpisz adres serwera."); return; }
@@ -203,6 +213,30 @@ async function showMemory() {
   } catch (e) { log("Gadacz", "Nie mogę pobrać pamięci (sprawdź serwer)."); }
 }
 $("mem").addEventListener("click", showMemory);
+
+// 🎭 Twarze (persony) — wspólne z telefonem/Windowsem.
+async function pickPersona() {
+  if (!cfg.url) { log("Gadacz", "Wpisz adres serwera z Replita i PIN."); say("Wpisz adres serwera."); return; }
+  try {
+    const r = await fetch(cfg.url.replace(/\/$/, "") + "/api/assistant/persona", { headers: { "x-bot-pin": cfg.pin } });
+    const j = await r.json();
+    personaList = (j.list || []).map((x) => ({ key: x.key, label: ((x.icon || "") + " " + (x.name || x.key)).trim() }));
+    const cur = j.persona || "";
+    log("Gadacz", "🎭 Twarze (wpisz „twarz 3”, by wybrać):\n" +
+      personaList.map((p, i) => (i + 1) + ". " + p.label + (p.key === cur ? " ✓" : "")).join("\n"));
+    say("Którą twarz wybierasz?");
+  } catch (e) { log("Gadacz", "Nie mogę pobrać twarzy (sprawdź serwer)."); }
+}
+async function setPersona(key, label) {
+  try {
+    await fetch(cfg.url.replace(/\/$/, "") + "/api/assistant/persona", {
+      method: "POST", headers: { "Content-Type": "application/json", "x-bot-pin": cfg.pin }, body: JSON.stringify({ persona: key }),
+    });
+    log("Gadacz", "Przełączyłem twarz na " + label + ".");
+    say("Przełączyłem twarz na " + label + ".");
+  } catch (e) { log("Gadacz", "Nie udało się przełączyć twarzy."); }
+}
+$("face").addEventListener("click", pickPersona);
 
 $("send").addEventListener("click", () => run($("in").value));
 $("in").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run($("in").value); } });
