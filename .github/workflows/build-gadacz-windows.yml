@@ -1,0 +1,47 @@
+name: "Zbuduj Gadacza na Windows (.exe)"
+
+# 🖥️ GADACZ NA WINDOWS — buduje natywna apke .NET (WinForms) na robocie Windows
+# GitHuba do JEDNEGO pliku Gadacz.exe (bez instalatora, samodzielny) i publikuje
+# go na wydaniu 'gadacz-windows'. Uzytkownik pobiera .exe i uruchamia dwuklikiem.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths:
+      - "windows/**"
+      - ".github/workflows/build-gadacz-windows.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zainstaluj .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Zbuduj Gadacz.exe (samodzielny, jeden plik)
+        run: >
+          dotnet publish windows/Gadacz.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o out
+
+      - name: Pokaz wynik
+        run: dir out
+
+      - name: Opublikuj Gadacz.exe
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-windows
+          name: "Gadacz na Windows"
+          body: "Natywna apka Gadacza na Windows. Pobierz Gadacz.exe i uruchom dwuklikiem. Wpisz adres serwera z Replita i PIN."
+          files: out/Gadacz.exe
+          make_latest: false

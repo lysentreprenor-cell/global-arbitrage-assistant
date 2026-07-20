@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ✍️ GADACZ NA WINDOWS — natywna apka .NET (WinForms). Gada z tym samym
+       mózgiem (serwer + chmura) co telefon. Buduje się w chmurze na robocie
+       Windows GitHuba do jednego pliku Gadacz.exe (bez instalatora). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Gadacz</AssemblyName>
+    <ApplicationDefaultFont>Segoe UI, 12pt</ApplicationDefaultFont>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Czytanie odpowiedzi NA GŁOS (ważne dla osoby niewidomej). -->
+    <PackageReference Include="System.Speech" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>
