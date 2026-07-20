@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<style>
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: #000; color: #7dff7d; font-size: 15px; }
+  .cfg { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #0a0a0a; align-items: center; }
+  .cfg input[type=text], .cfg input[type=password] { background: #141414; color: #fff; border: 1px solid #333; padding: 5px; border-radius: 5px; }
+  #url { flex: 1 1 160px; }
+  #pin { width: 60px; }
+  #out { padding: 10px; height: calc(100vh - 190px); overflow-y: auto; line-height: 1.4; }
+  #out div { margin-bottom: 8px; }
+  #out b { color: #9dffb0; }
+  .bar { display: flex; gap: 6px; padding: 8px; background: #0a0a0a; }
+  #in { flex: 1; background: #141414; color: #fff; border: 1px solid #333; padding: 8px; border-radius: 6px; font-size: 15px; }
+  button { background: #0a8a0a; color: #fff; border: 0; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+  #mic { background: #135; }
+  label { display: inline-flex; align-items: center; gap: 4px; }
+</style>
+</head>
+<body>
+  <div class="cfg">
+    <input id="url" type="text" placeholder="Adres serwera z Replita" aria-label="Adres serwera" />
+    <input id="pin" type="text" placeholder="PIN" value="0905" aria-label="PIN" />
+    <label><input id="speak" type="checkbox" checked /> Czytaj na głos</label>
+  </div>
+  <div id="out" aria-live="polite"></div>
+  <div class="bar">
+    <button id="mic" title="Mów">🎤 Mów</button>
+    <input id="in" type="text" placeholder="Napisz albo dotknij Mów…" aria-label="Polecenie do Gadacza" />
+    <button id="send">Wyślij</button>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>
