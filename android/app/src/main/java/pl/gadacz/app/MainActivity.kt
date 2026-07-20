@@ -337,6 +337,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             else "👂  Ucho (nasłuch ciągły): BRAK — dotknij, by pobrać",
             "🗣️  GŁOSY (Gosia · Darkman · MC Speech) — wybierz i pobierz",
             "👁️  Oczy do tekstu: WBUDOWANE — powiedz „przeczytaj kartkę”",
+            "✍️  Silnik pisania (nowy, stabilny) — w budowie",
             "📏  Sprawdź, jaki mózg udźwignie ten telefon",
             "🔄  Sprawdź najnowsze silniki (największy mózg)",
             "🗑️  Usuń silniki (zwolnij miejsce)",
@@ -351,12 +352,24 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     3 -> confirmEar()
                     4 -> showVoices()
                     5 -> speak("Oczy do tekstu są wbudowane i darmowe. Powiedz: przeczytaj kartkę — zrobię zdjęcie i przeczytam tekst na głos, bez internetu i bez wydawania środków. Działa na kartki, ulotki leków, paragony, pisma i etykiety.")
-                    6 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
-                    7 -> checkNewestEngines()
-                    8 -> showDeleteEngines()
+                    6 -> writingEngineInfo()
+                    7 -> { val r = ramReport(); appendLine("📏 $r"); speak(r) }
+                    8 -> checkNewestEngines()
+                    9 -> showDeleteEngines()
                 }
             }
             .setNegativeButton("Zamknij", null).show()
+    }
+
+    // ✍️ SILNIK PISANIA (llama.cpp) — nowy, STABILNY silnik do pisania offline, „brat"
+    // ucha i ust. Buduję go etapami; gdy będzie gotowy, TU pojawi się pobieranie
+    // małego modelu do pisania. Na razie uczciwie: w budowie.
+    private fun writingEngineInfo() {
+        AlertDialog.Builder(this)
+            .setTitle("✍️ Silnik pisania (w budowie)")
+            .setMessage("To będzie NOWY, stabilny silnik do pisania offline (llama.cpp) — taki „brat” Twojego ucha i ust. Ma zastąpić kapryśny silnik Google, który się wywala.\n\nWłaśnie go buduję krok po kroku. Gdy będzie gotowy, TUTAJ pojawi się przycisk do pobrania małego modelu do pisania — darmowego, bez opłat za użycie.\n\nNa razie do pisania używaj:\n• internetu (chmura) — najmądrzej,\n• albo Małego mózgu offline (Silniki → Przełącz mózg) — prościej, ale bez wywalania.")
+            .setPositiveButton("Rozumiem", null).show()
+        speak("Silnik pisania jest w budowie. Gdy będzie gotowy, tutaj go pobierzesz. Na razie do pisania używaj internetu albo Małego mózgu.")
     }
 
     // 🔀 PRZEŁĄCZANIE MÓZGU — gdy masz wgrany więcej niż jeden (np. Mały i Średni),
