@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GadaczMac.MainWindow"
+        Title="Gadacz na Macu" Width="840" Height="640" Background="#000000">
+  <DockPanel Margin="8">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
+      <TextBlock Text="Serwer:" Foreground="#7dff7d" VerticalAlignment="Center"/>
+      <TextBox x:Name="Url" Width="380" Watermark="Adres serwera z Replita"/>
+      <TextBlock Text="PIN:" Foreground="#7dff7d" VerticalAlignment="Center"/>
+      <TextBox x:Name="Pin" Width="70" Text="0905"/>
+      <CheckBox x:Name="SpeakCb" Content="Czytaj na głos" Foreground="#7dff7d" IsChecked="True"/>
+    </StackPanel>
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+      <TextBox x:Name="Input" Width="700" Watermark="Napisz do Gadacza…"/>
+      <Button x:Name="SendBtn" Content="Wyślij" Background="#0a8a0a" Foreground="White"/>
+    </StackPanel>
+    <TextBox x:Name="Output" AcceptsReturn="True" IsReadOnly="True" TextWrapping="Wrap"
+             Background="#000000" Foreground="#7dff7d" FontFamily="Menlo"/>
+  </DockPanel>
+</Window>
