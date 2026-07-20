@@ -1375,6 +1375,15 @@ object Brain {
         } catch (_: Exception) { false }
     }
 
+    /** 🗺️ Poproś AI TYLKO o plan (numerowane kroki) — bez wykonywania żadnej akcji.
+     *  Czytamy pole "plan", a gdy puste — "say". Cokolwiek innego (action) IGNORUJEMY,
+     *  więc ta rozmowa nigdy nic nie kliknie. Zwraca pusty tekst, gdy się nie uda. */
+    private fun planOnly(ctx: Context, prompt: String, history: List<Pair<String, String>>, screen: String?, shot: String?): String = try {
+        val r = ask(ctx, prompt, history, screen, shot)
+        if (r.optString("error", "").isBlank()) restoreFaceIfNeeded(ctx) {}
+        r.optString("plan", "").ifBlank { r.optString("say", "") }.trim()
+    } catch (_: Exception) { "" }
+
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
     fun ask(ctx: Context, question: String, history: List<Pair<String, String>>, screenDump: String? = null, imageBase64: String? = null): JSONObject {
         val msgs = JSONArray()
@@ -1448,12 +1457,29 @@ object Brain {
         // Udane zadanie → przepis leci na serwer → następnym razem AI dostaje mapę.
         val steps = ArrayList<String>()
         var stuckStreak = 0   // ile razy z rzędu krok nie wyszedł (do wołania o pomoc)
+        var replanned = false // czy STRATEG ułożył już plan OD NOWA po utknięciu (raz)
         // 🎯 MISJA: długie zadania (ogłoszenia, wieloekranowe formularze) dostają więcej
         // kroków — zwykłe zadania kończą się w kilku, ale wystawienie ogłoszenia to 20-40
         // kroków przez wiele ekranów, więc nie poddawaj się za wcześnie.
         val isMission = Regex("ogloszeni|sprzeda|wystaw|olx|allegro|vinted|formularz|zarejestruj|konto|wypelnij")
             .containsMatchIn(normPl(goal))
-        val stepCap = if (isMission) 45 else if (plan.isBlank()) 14 else 20
+        // 🗺️ PLAN Z GÓRY (STRATEG): przy złożonej PRACY W APLIKACJI prosimy najmocniejszy
+        //   silnik o numerowany plan ZANIM zaczniemy klikać — Gadacz trzyma kurs przez wiele
+        //   ekranów i nie gubi się w połowie. Plan tylko CZYTAMY (żadnej akcji). Serwer sam
+        //   kieruje to zapytanie do STRATEGA (Opus), bo w pytaniu nie ma jeszcze planu.
+        //   Nie robimy tego dla pytań/pisania ani gdy sterowanie ekranem jest wyłączone.
+        val complexGoal = isMission ||
+            Regex("\\b(potem|nastepnie|a potem|pozniej|oraz|zaloz|zaloguj|wypelnij|wyslij|dodaj|ustaw)\\b").containsMatchIn(normPl(goal)) ||
+            normPl(goal).split(Regex("\\s+")).size >= 7
+        val svcReady = GadaczAccessibilityService.instance != null
+        val looksQuestion = goal.contains("?") ||
+            Regex("^(jak|co|czy|kto|gdzie|kiedy|dlaczego|czemu|ile|jaki|jaka|jakie|opowie|powiedz|wytlumacz|wyjasnij|policz|przetlumacz|napisz|uloz|stworz|wymysl)\\b").containsMatchIn(normPl(goal))
+        if (complexGoal && svcReady && !looksQuestion) {
+            val scr = GadaczAccessibilityService.instance?.readScreen()
+            val p = planOnly(ctx, "[PLAN] Ułóż krótki numerowany plan (2-6 kroków), jak wykonać to zadanie na telefonie krok po kroku. NIE wykonuj teraz żadnej akcji — podaj sam plan. Zadanie: $goal", history, scr, null)
+            if (p.isNotBlank()) { plan = p; speak("Plan: $plan") }
+        }
+        val stepCap = if (isMission) 45 else if (plan.isBlank()) 14 else 22
         while (step < stepCap) {
             if (cancelRequested) { cancelRequested = false; speak("Dobrze, przerywam zadanie."); return }
             val svcNow = GadaczAccessibilityService.instance
@@ -1521,6 +1547,18 @@ object Brain {
             if (lastError.isNotBlank()) {
                 stuckStreak++
                 if (stuckStreak >= 2) {
+                    // 🔁 ZANIM poprosisz człowieka: STRATEG raz układa plan OD NOWA, patrząc na
+                    //   bieżący ekran — może istnieje inna droga do celu (serwer kieruje to do
+                    //   Opusa, bo w pytaniu jest „NIE WYSZEDŁ"/brak planu).
+                    if (!replanned) {
+                        replanned = true
+                        val np = planOnly(ctx, "[PLAN] Dotychczasowy sposób nie działa na tym ekranie. Patrząc na EKRAN, ułóż INNY plan (2-5 kroków) do celu OD TEGO miejsca. NIE wykonuj akcji — podaj sam plan. Cel: $goal", history, screen, shot)
+                        if (np.isNotBlank()) {
+                            plan = np; speak("Ten sposób nie działa — zmieniam plan. $plan")
+                            lastError = ""; stuckStreak = 0; step++
+                            continue
+                        }
+                    }
                     val szukam = args.optString("text", args.optString("name", "")).ifBlank { "właściwego elementu" }
                     val widac = GadaczAccessibilityService.instance?.visibleButtons() ?: emptyList()
                     val coWidac = if (widac.isEmpty()) "nie widzę żadnych przycisków" else "widzę: " + widac.joinToString(", ")
