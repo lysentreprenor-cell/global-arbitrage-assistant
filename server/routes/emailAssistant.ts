@@ -60,7 +60,7 @@ router.get("/list", async (req, res) => {
   if (!c) return res.status(400).json({ error: NOT_SET, say: NOT_SET });
   try {
     const count = Math.min(15, Math.max(1, Number(req.query.count) || 8));
-    const emails = await imapListRecent(c, count);
+    const emails = (await imapListRecent(c, count)).map(e => ({ ...e, email: bareEmail(e.from) }));
     if (!emails.length) return res.json({ emails: [], say: "Skrzynka jest pusta — nie masz żadnych wiadomości." });
     const say = `Masz ${emails.length} ostatnich wiadomości. ` +
       emails.map((e, i) => `${i + 1}. Od ${shortFrom(e.from)}, temat: ${e.subject}.`).join(" ") +
@@ -81,7 +81,7 @@ router.post("/read", async (req, res) => {
   try {
     const { header, body } = await imapReadOne(c, seq);
     const say = `Wiadomość od ${shortFrom(header.from)}. Temat: ${header.subject}. Treść: ${body || "(pusta treść)"}`;
-    res.json({ header, body, say });
+    res.json({ header: { ...header, email: bareEmail(header.from) }, body, say });
   } catch (e: any) {
     const msg = "Nie mogę przeczytać tej wiadomości: " + (e?.message ?? "błąd");
     res.status(502).json({ error: msg, say: msg });
@@ -122,6 +122,12 @@ function shortFrom(from: string): string {
   const m = from.match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>/);
   if (m) return m[1].trim() || m[2].trim();
   return from.replace(/[<>]/g, "").trim();
+}
+
+// Sam adres e-mail z nagłówka From (do odpowiadania) — „Jan <jan@x.pl>" → „jan@x.pl".
+function bareEmail(from: string): string {
+  const m = from.match(/<([^>]+)>/) || from.match(/([^\s<>]+@[^\s<>]+)/);
+  return m ? m[1].trim() : "";
 }
 
 export default router;

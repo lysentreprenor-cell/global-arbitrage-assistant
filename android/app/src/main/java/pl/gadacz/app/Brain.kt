@@ -844,6 +844,13 @@ object Brain {
 
     // ─── 🛡️ PIĘTRO 5: STRAŻNIK — groźne przyciski wymagają potwierdzenia ────
     @Volatile private var pendingDangerTap: String? = null
+    // 📧 POCZTA — stan między poleceniami głosowymi: numery IMAP z ostatniej listy,
+    //    nadawca/temat ostatnio przeczytanego maila (do odpowiadania) i mail do wysłania
+    //    czekający na „wyślij".
+    @Volatile private var lastEmailSeqs: List<Int> = emptyList()
+    @Volatile private var lastReadFrom: String = ""
+    @Volatile private var lastReadSubject: String = ""
+    @Volatile private var pendingEmail: JSONObject? = null
     private val DANGER = listOf("zaplac", "kup teraz", "zamow", "przelej", "pieniadze",
         "usun", "skasuj", "przelew", "platnosc", "pay", "buy", "delete", "wyslij do wszystkich",
         // Publikacja ogłoszenia = punkt bez odwrotu → tylko po „potwierdzam".
@@ -1045,6 +1052,33 @@ object Brain {
         }
         if (n == "nie potwierdzam" || n == "anuluj" || n == "rezygnuje") {
             if (pendingDangerTap != null) { pendingDangerTap = null; return done("Dobrze, nie klikam.") }
+            if (pendingEmail != null) { pendingEmail = null; return done("Dobrze, nie wysyłam maila.") }
+        }
+
+        // 📧 POCZTA NA GŁOS — czytanie skrzynki i odpowiadanie. Wysyłka ZAWSZE po
+        // potwierdzeniu („wyślij"), jak przy płatnościach — Gadacz nie wysyła sam z siebie.
+        if (Regex("^(przeczytaj|sprawdz|odczytaj|czytaj|zobacz|masz|czy mam)( moja| moje| nowe)? ?(poczte|maile|mail|maila|e-?mail|skrzynke)( .*)?$").matches(n)
+            || n == "poczta" || n == "nowe maile") {
+            Thread { emailList(ctx, speak) }.start(); return true
+        }
+        Regex("^(przeczytaj|odczytaj|otworz|czytaj)( mi)? (pierwsz\\w+|drug\\w+|trzeci\\w+|czwart\\w+|piat\\w+|szost\\w+|siodm\\w+|osm\\w+|ostatni\\w+|\\d+)( (wiadomosc|maila?|e-?mail|list))?$").find(n)?.let { m ->
+            val ord = ordinalPl(m.groupValues[3])
+            if (ord != 0) { Thread { emailReadNth(ctx, ord, speak) }.start(); return true }
+        }
+        // Odpowiedź na OSTATNIO przeczytany mail (do jego nadawcy) — bez dyktowania adresu.
+        // Przejmuje tylko, gdy WŁAŚNIE przeczytano maila; inaczej „odpowiedz…" leci do AI.
+        if (lastReadFrom.isNotBlank() && Regex("^(odpowiedz|odpisz)\\b").containsMatchIn(n)) {
+            // Treść bierzemy z ORYGINAŁU (z polskimi znakami), zdejmując słowo-polecenie.
+            val tresc = raw.trim().replace(Regex("^(odpowiedz|odpisz|odpowiedź)\\w*( mu| jej| na to| na tego maila| na ten mail)?[:, ]*", RegexOption.IGNORE_CASE), "").trim()
+            if (tresc.isBlank()) return done("Powiedz, co mam odpisać. Na przykład: odpowiedz, dziękuję, będę jutro.")
+            val subj = if (lastReadSubject.startsWith("Re:", true)) lastReadSubject else "Re: $lastReadSubject"
+            pendingEmail = JSONObject().put("to", lastReadFrom).put("subject", subj).put("text", tresc)
+            return done("Odpowiedź do $lastReadFrom. Treść: $tresc. Czy wysłać? Powiedz: wyślij — a wyślę. Albo: anuluj.")
+        }
+        // Potwierdzenie wysyłki maila.
+        if (pendingEmail != null && (n == "wyslij" || n == "wyslij maila" || n == "wyslij to" || n == "potwierdzam" || n == "tak wyslij" || n == "wysylaj")) {
+            val em = pendingEmail; pendingEmail = null
+            Thread { emailSend(ctx, em!!, speak) }.start(); return true
         }
 
         // 🔔 Przypomnienia głosem: „przypominaj mi o lekach o 8"
@@ -1385,6 +1419,74 @@ object Brain {
     } catch (_: Exception) { "" }
 
     /** Ask the server. history = list of role→content pairs. Blocking (call off main thread). */
+    // 📧 ── ASYSTENT E-MAIL — rozmawia z /api/assistant/email na serwerze użytkownika.
+    //    Czyta skrzynkę (lista + cała wiadomość) i wysyła odpowiedzi po potwierdzeniu.
+    private fun ordinalPl(w: String): Int {
+        w.toIntOrNull()?.let { return it }
+        val s = w.lowercase()
+        return when {
+            s.startsWith("pierwsz") -> 1
+            s.startsWith("drug") -> 2
+            s.startsWith("trzeci") -> 3
+            s.startsWith("czwart") -> 4
+            s.startsWith("piat") -> 5
+            s.startsWith("szost") -> 6
+            s.startsWith("siodm") -> 7
+            s.startsWith("osm") -> 8
+            s.startsWith("ostatni") -> 1   // „ostatnia" = najnowsza = pierwsza na liście
+            else -> 0
+        }
+    }
+
+    fun emailList(ctx: Context, speak: (String) -> Unit) {
+        try {
+            val req = Request.Builder()
+                .url(serverUrl(ctx).trimEnd('/') + "/api/assistant/email/list")
+                .header("x-bot-pin", pin(ctx)).build()
+            val resp = http.newCall(req).execute().use { JSONObject(it.body?.string() ?: "{}") }
+            val arr = resp.optJSONArray("emails")
+            lastEmailSeqs = if (arr != null) (0 until arr.length()).map { arr.optJSONObject(it)?.optInt("seq") ?: 0 } else emptyList()
+            speak(resp.optString("say", resp.optString("error", "Nie mogę teraz odczytać poczty.")))
+        } catch (e: Exception) {
+            speak("Nie mogę połączyć się ze skrzynką. Sprawdź, czy poczta jest podłączona w ustawieniach serwera.")
+        }
+    }
+
+    fun emailReadNth(ctx: Context, ord: Int, speak: (String) -> Unit) {
+        try {
+            if (lastEmailSeqs.isEmpty()) emailList(ctx) {}   // gdy nie było listy — pobierz cicho
+            val idx = ord - 1
+            if (idx < 0 || idx >= lastEmailSeqs.size) { speak("Nie mam wiadomości o tym numerze. Najpierw powiedz: przeczytaj pocztę."); return }
+            val body = JSONObject().put("seq", lastEmailSeqs[idx])
+            val req = Request.Builder()
+                .url(serverUrl(ctx).trimEnd('/') + "/api/assistant/email/read")
+                .header("x-bot-pin", pin(ctx))
+                .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+            val resp = http.newCall(req).execute().use { JSONObject(it.body?.string() ?: "{}") }
+            val hdr = resp.optJSONObject("header")
+            lastReadFrom = hdr?.optString("email") ?: ""
+            lastReadSubject = hdr?.optString("subject") ?: ""
+            speak(resp.optString("say", resp.optString("error", "Nie mogę przeczytać tej wiadomości.")))
+            if (lastReadFrom.isNotBlank()) speak("Chcesz odpowiedzieć? Powiedz: odpowiedz — i treść.")
+        } catch (e: Exception) {
+            speak("Nie mogę przeczytać wiadomości.")
+        }
+    }
+
+    fun emailSend(ctx: Context, em: JSONObject, speak: (String) -> Unit) {
+        try {
+            em.put("confirm", true)
+            val req = Request.Builder()
+                .url(serverUrl(ctx).trimEnd('/') + "/api/assistant/email/send")
+                .header("x-bot-pin", pin(ctx))
+                .post(em.toString().toRequestBody("application/json".toMediaType())).build()
+            val resp = http.newCall(req).execute().use { JSONObject(it.body?.string() ?: "{}") }
+            speak(resp.optString("say", resp.optString("error", "Nie wiem, czy mail poszedł.")))
+        } catch (e: Exception) {
+            speak("Nie udało się wysłać maila.")
+        }
+    }
+
     fun ask(ctx: Context, question: String, history: List<Pair<String, String>>, screenDump: String? = null, imageBase64: String? = null): JSONObject {
         val msgs = JSONArray()
         history.takeLast(12).forEach { (role, content) ->
