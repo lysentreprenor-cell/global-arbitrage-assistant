@@ -36,6 +36,7 @@ import bybitRouter from "./routes/bybit";
 import krakenRouter from "./routes/kraken";
 import botEngineRouter from "./routes/botEngine";
 import assistantRouter from "./routes/assistant";
+import { startTelegramBot } from "./telegramBot";
 import memesRouter from "./routes/memes";
 import videoRouter from "./routes/video";
 import keysSyncRouter from "./routes/keysSync";
@@ -446,6 +447,9 @@ document.getElementById('f').onsubmit=async e=>{
 
   httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     log(`serving on port ${port}`);
+    // 🤖 Bot Telegram — piszesz do Gadacza z dowolnego telefonu przez czat Telegram.
+    // Startuje TYLKO gdy ustawiony sekret TELEGRAM_BOT_TOKEN; inaczej cicho śpi.
+    try { startTelegramBot(port); } catch (e) { console.error("[telegram] start:", e); }
   });
 
   // ── Serve frontend — prefer pre-built dist, fall back to Vite dev middleware ─
