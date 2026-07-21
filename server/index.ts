@@ -36,6 +36,7 @@ import bybitRouter from "./routes/bybit";
 import krakenRouter from "./routes/kraken";
 import botEngineRouter from "./routes/botEngine";
 import assistantRouter from "./routes/assistant";
+import emailAssistantRouter from "./routes/emailAssistant";
 import { startTelegramBot } from "./telegramBot";
 import memesRouter from "./routes/memes";
 import videoRouter from "./routes/video";
@@ -409,6 +410,7 @@ document.getElementById('f').onsubmit=async e=>{
   app.use("/api/bybit", bybitRouter);
   app.use("/api/kraken", krakenRouter);
   app.use("/api/bot", botEngineRouter);
+  app.use("/api/assistant/email", emailAssistantRouter);
   app.use("/api/assistant", assistantRouter);
   app.use("/api/memes", memesRouter);
   app.use("/api/video", videoRouter);
