@@ -19,6 +19,11 @@ function parseServiceAccount() {
   }
 }
 
+const databaseURL =
+  process.env.FIREBASE_DATABASE_URL ||
+  process.env.VITE_FIREBASE_DATABASE_URL ||
+  undefined;
+
 const existingApps = admin.apps;
 
 if (!existingApps.length) {
@@ -27,9 +32,10 @@ if (!existingApps.length) {
   if (serviceAccount) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+      databaseURL,
     });
   } else {
-    admin.initializeApp();
+    admin.initializeApp({ databaseURL });
   }
 }
 
@@ -41,11 +47,31 @@ console.info("[FIREBASE_ADMIN_READY]", {
   projectId: admin.app().options.projectId || "from-service-account",
   hasAdminAuth: Boolean(adminAuth),
   hasAdminFirestore: Boolean(adminFirestore),
+  hasRealtimeDb: Boolean(databaseURL),
 });
 
+// Realtime Database handle. Every `getAdminDb()` call site uses the RTDB API
+// (`.ref(...)`) and writes to the same paths the web client reads through
+// `firebase/database`, so this must not return Firestore. Returns null when no
+// database URL is configured — all call sites guard on that.
+let _rtdb: admin.database.Database | null | undefined;
 
-export function getAdminDb() {
-  return adminFirestore;
+export function getAdminDb(): admin.database.Database | null {
+  if (_rtdb !== undefined) return _rtdb;
+  if (!databaseURL) {
+    console.warn(
+      "[FIREBASE_ADMIN] FIREBASE_DATABASE_URL not set — Realtime Database features disabled.",
+    );
+    _rtdb = null;
+    return _rtdb;
+  }
+  try {
+    _rtdb = admin.database();
+  } catch (error) {
+    console.error("[FIREBASE_ADMIN_DATABASE_FAILED]", error);
+    _rtdb = null;
+  }
+  return _rtdb;
 }
 
 export function getAdminFirestore() {

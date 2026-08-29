@@ -23,7 +23,9 @@ function getStripeClient(): Stripe {
       `APP_PAYMENT_MODE=${mode} but STRIPE_SECRET_KEY does not start with ${expectedPrefix}`
     );
   }
-  return new Stripe(key, { apiVersion: "2025-03-31.basil" });
+  // No explicit apiVersion: the SDK pins the version its typings were generated
+  // for, so it can never drift out of sync with the installed stripe package.
+  return new Stripe(key);
 }
 
 // ── Firebase: persist payment record ────────────────────────────────────────

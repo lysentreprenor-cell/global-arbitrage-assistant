@@ -96,9 +96,11 @@ export async function registerRoutes(
       }
       const admin = isAdminEmail(user.email);
       const rawRow = await pool.query(
-        `SELECT email_verified FROM app_users WHERE id = $1 LIMIT 1`, [user.id]
+        `SELECT email_verified, avatar_url FROM app_users WHERE id = $1 LIMIT 1`, [user.id]
       );
       const emailVerified = rawRow.rows[0]?.email_verified ?? false;
+      // `users` (drizzle) has no avatar column — the profile picture lives on app_users.avatar_url.
+      const avatar = rawRow.rows[0]?.avatar_url ?? null;
       return res.json({
         loggedIn: true,
         id: user.id,
@@ -106,7 +108,7 @@ export async function registerRoutes(
         email: user.email,
         handle: user.handle ?? null,
         phone: user.phone ?? null,
-        avatar: user.avatar ?? null,
+        avatar,
         balance: user.balance ?? 0,
         pushNotifications: user.pushNotifications ?? true,
         emailDigest: user.emailDigest ?? false,
@@ -1528,7 +1530,13 @@ export async function registerRoutes(
     try {
       const user = await resolveRequestUser(req);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
-      await createNotification(user.id, "system", "Zamówienie karty przyjęte", `Karta fizyczna zostanie wysłana na adres powiązany z kontem ${user.name} w ciągu 3–5 dni roboczych.`, {});
+      await createNotification({
+        userId: user.id,
+        type: "info",
+        category: "system",
+        title: "Zamówienie karty przyjęte",
+        message: `Karta fizyczna zostanie wysłana na adres powiązany z kontem ${user.name} w ciągu 3–5 dni roboczych.`,
+      });
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

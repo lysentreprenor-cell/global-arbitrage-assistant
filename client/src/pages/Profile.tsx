@@ -70,6 +70,23 @@ export default function Profile() {
     };
   }, [user?.id]);
 
+  // KYC status is not part of the `/api/me` user object — it lives in its own record.
+  const [kycStatus, setKycStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) { setKycStatus(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/kyc/me", { credentials: "include" });
+        if (!res.ok) return;
+        const json = await res.json() as { item?: { status?: string } | null };
+        if (!cancelled) setKycStatus(json.item?.status ?? null);
+      } catch { /* badge simply stays hidden */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   const computeLevel = (completedAgreements: number, ratingAverage: number | null): string => {
     if (completedAgreements >= 25 && (ratingAverage ?? 0) >= 4.8) return "super";
     if (completedAgreements >= 10 && (ratingAverage ?? 0) >= 4.7) return "top";
@@ -122,7 +139,11 @@ export default function Profile() {
     { icon: CreditCard,  label: pl ? "Karty płatnicze"         : "Payment Cards",          route: "/cards" },
     { icon: History,     label: pl ? "Historia transakcji"     : "Transaction History",    route: "/history" },
     { icon: BadgeCheck,  label: pl ? "Weryfikacja tożsamości"  : "Identity Verification",  route: "/kyc",
-      badge: user?.kycVerified ? (pl ? "Zweryfikowany ✓" : "Verified ✓") : null },
+      badge: kycStatus === "verified"
+        ? (pl ? "Zweryfikowany ✓" : "Verified ✓")
+        : kycStatus === "pending"
+          ? (pl ? "W trakcie" : "In review")
+          : null },
     { icon: Gift,        label: pl ? "Program poleceń"         : "Referral Program",       route: "/referral" },
     { icon: HelpCircle,  label: pl ? "Pomoc i wsparcie"        : "Help & Support",         route: "/profile/support" },
   ];
