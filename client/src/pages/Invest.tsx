@@ -714,7 +714,7 @@ export default function InvestPage() {
                       </button>
                       <button
                         type="button"
-                        style={{ ...styles.secondaryButton, flex: 1, fontSize: 12, color: "#ff9191", borderColor: "rgba(255,80,80,0.25)" }}
+                        style={{ ...styles.secondaryButton, flex: 1, fontSize: 12, color: "var(--md-negative)", borderColor: "rgba(255,80,80,0.25)" }}
                         onClick={() => { setSellSymbol(item.symbol); setSellQuantity(""); setTab("market"); }}
                         data-testid={`btn-sell-${item.symbol.toLowerCase()}`}
                       >
@@ -858,9 +858,9 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   tabButtonActive: {
-    background: "#d7a71a",
+    background: "var(--md-accent)",
     color: "#111",
-    border: "1px solid #d7a71a",
+    border: "1px solid var(--md-accent)",
   },
   summaryGrid: {
     display: "grid",
@@ -870,7 +870,7 @@ const styles: Record<string, React.CSSProperties> = {
   summaryCard: {
     borderRadius: 18,
     padding: 14,
-    background: "#131926",
+    background: "var(--md-surface-raised)",
     border: "1px solid rgba(255,255,255,0.08)",
     display: "grid",
     gap: 6,
@@ -895,7 +895,7 @@ const styles: Record<string, React.CSSProperties> = {
   card: {
     borderRadius: 18,
     padding: 16,
-    background: "#131926",
+    background: "var(--md-surface-raised)",
     border: "1px solid rgba(255,255,255,0.08)",
     display: "grid",
     gap: 12,
@@ -912,7 +912,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 46,
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0d1118",
+    background: "var(--md-surface)",
     color: "white",
     padding: "0 12px",
     outline: "none",
@@ -921,7 +921,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 40,
     borderRadius: 10,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0d1118",
+    background: "var(--md-surface)",
     color: "white",
     padding: "0 12px",
     outline: "none",
@@ -930,7 +930,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 40,
     borderRadius: 10,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0d1118",
+    background: "var(--md-surface)",
     color: "white",
     padding: "0 12px",
     outline: "none",
@@ -939,7 +939,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 46,
     borderRadius: 12,
     border: "none",
-    background: "#d7a71a",
+    background: "var(--md-accent)",
     color: "#111",
     fontWeight: 800,
     cursor: "pointer",
@@ -963,12 +963,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 12,
     background: "rgba(255,70,70,0.12)",
     border: "1px solid rgba(255,70,70,0.25)",
-    color: "#ff9191",
+    color: "var(--md-negative)",
     display: "grid",
     gap: 6,
   },
   errorText: {
-    color: "#ff9191",
+    color: "var(--md-negative)",
     fontSize: 13,
   },
   successText: {
@@ -982,7 +982,7 @@ const styles: Record<string, React.CSSProperties> = {
   marketItem: {
     borderRadius: 14,
     padding: 12,
-    background: "#0f141d",
+    background: "var(--md-surface)",
     border: "1px solid rgba(255,255,255,0.06)",
     display: "flex",
     justifyContent: "space-between",
@@ -1017,7 +1017,7 @@ const styles: Record<string, React.CSSProperties> = {
   allocationCard: {
     borderRadius: 14,
     padding: 12,
-    background: "#0f141d",
+    background: "var(--md-surface)",
     border: "1px solid rgba(255,255,255,0.06)",
     display: "grid",
     gap: 10,
@@ -1032,7 +1032,7 @@ const styles: Record<string, React.CSSProperties> = {
   barFill: {
     height: "100%",
     borderRadius: 999,
-    background: "linear-gradient(90deg, #d7a71a, #ffd86b)",
+    background: "linear-gradient(90deg, var(--md-accent), #ffd86b)",
   },
   metaGrid: {
     display: "grid",
@@ -1058,7 +1058,7 @@ const styles: Record<string, React.CSSProperties> = {
   txCard: {
     borderRadius: 14,
     padding: 12,
-    background: "#0f141d",
+    background: "var(--md-surface)",
     border: "1px solid rgba(255,255,255,0.06)",
     display: "grid",
     gap: 10,

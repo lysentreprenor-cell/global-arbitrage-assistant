@@ -7,6 +7,7 @@ export type Lang = "en" | "pl" | "no" | "es";
 export const STRINGS = {
   en: {
     privateClient:    "PRIVATE CLIENT",
+    notifications:    "Notifications",
     totalWealth:      "TOTAL WEALTH",
     platinum:         "PLATINUM",
     addFunds:         "+ Add Funds",
@@ -390,6 +391,7 @@ export const STRINGS = {
   },
   pl: {
     privateClient:    "KLIENT PRYWATNY",
+    notifications:    "Powiadomienia",
     totalWealth:      "ŁĄCZNY MAJĄTEK",
     platinum:         "PLATYNA",
     addFunds:         "+ Dodaj Środki",
@@ -773,6 +775,7 @@ export const STRINGS = {
   },
   no: {
     privateClient:    "PRIVAT KLIENT",
+    notifications:    "Varsler",
     totalWealth:      "TOTAL FORMUE",
     platinum:         "PLATINA",
     addFunds:         "+ Legg til midler",
@@ -1156,6 +1159,7 @@ export const STRINGS = {
   },
   es: {
     privateClient:    "CLIENTE PRIVADO",
+    notifications:    "Notificaciones",
     totalWealth:      "PATRIMONIO TOTAL",
     platinum:         "PLATINO",
     addFunds:         "+ Añadir fondos",

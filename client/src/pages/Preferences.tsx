@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, WALLET_FLAGS, CURRENCY_SYMBOLS, CURRENCY_NAMES, CurrencyCode } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
-import { useTheme, ThemeName } from "@/context/ThemeContext";
+import { useTheme, ThemeName, THEME_OPTIONS, PALETTES } from "@/context/ThemeContext";
 import { useLang, Lang } from "@/context/LanguageContext";
 import { useState, useEffect } from "react";
 import { usePWAInstall, PWAInstallGuide } from "@/components/PWAInstallBanner";
@@ -18,246 +18,122 @@ const LANG_OPTIONS: { code: Lang; label: string; flag: string }[] = [
   { code: "es", label: "Español (ES)",  flag: "🇪🇸" },
 ];
 
-/* ── Psychological luxury theme definitions ── */
-const THEMES: {
-  id: ThemeName;
-  name: string;
-  keyword: string;
-  tagline: string;
-  desc: string;
-  /* preview swatches */
-  previewBg: string;
-  previewCard: string;
-  previewAccent1: string;
-  previewAccent2: string;
-  previewAccent3: string;
-  dotBg: string;
-  activeBorder: string;
-  activeGlow: string;
-  labelColor: string;
-  labelBg: string;
-}[] = [
-  {
-    id:             "black-gold",
-    name:           "Black Gold",
-    keyword:        "SOVEREIGN DARK",
-    tagline:        "Power · Prestige · Depth",
-    desc:           "Forged in midnight. Sealed in gold. The palette of authority — timeless like a vault, warm like a flame.",
-    previewBg:      "linear-gradient(135deg, #040e24 0%, #010508 100%)",
-    previewCard:    "linear-gradient(160deg, rgba(24,40,88,0.92) 0%, rgba(8,14,32,0.99) 100%)",
-    previewAccent1: "#f7dc8b",
-    previewAccent2: "#ff5fa0",
-    previewAccent3: "#a0bcff",
-    dotBg:          "linear-gradient(135deg, #1c2e60 0%, #050e1e 100%)",
-    activeBorder:   "rgba(247,210,72,0.72)",
-    activeGlow:     "rgba(247,210,72,0.22)",
-    labelColor:     "#f7dc8b",
-    labelBg:        "rgba(247,210,72,0.10)",
-  },
-  {
-    id:             "ice-silver",
-    name:           "Ice Silver",
-    keyword:        "COLD PRECISION",
-    tagline:        "Clarity · Frost · Elegance",
-    desc:           "The luminance of crystalline wealth. Cold as arctic steel — pure, transparent, and uncompromising in every detail.",
-    previewBg:      "linear-gradient(135deg, #050c18 0%, #010408 100%)",
-    previewCard:    "linear-gradient(160deg, rgba(20,32,64,0.90) 0%, rgba(6,12,30,0.99) 100%)",
-    previewAccent1: "#c4d8f8",
-    previewAccent2: "#88b4e0",
-    previewAccent3: "#5880b8",
-    dotBg:          "linear-gradient(135deg, #1a2848 0%, #070d1e 100%)",
-    activeBorder:   "rgba(180,210,255,0.60)",
-    activeGlow:     "rgba(180,210,255,0.18)",
-    labelColor:     "#c4d8f8",
-    labelBg:        "rgba(180,210,255,0.10)",
-  },
-  {
-    id:             "emerald-gold",
-    name:           "Emerald Gold",
-    keyword:        "FOREST WEALTH",
-    tagline:        "Growth · Mastery · Nature",
-    desc:           "Ancient authority of rare earth. Emerald reserves run deep — where nature and capital converge, wealth compounds.",
-    previewBg:      "linear-gradient(135deg, #020e08 0%, #010602 100%)",
-    previewCard:    "linear-gradient(160deg, rgba(8,32,18,0.92) 0%, rgba(2,12,6,0.99) 100%)",
-    previewAccent1: "#f7dc8b",
-    previewAccent2: "#24c87a",
-    previewAccent3: "#a0e0b8",
-    dotBg:          "linear-gradient(135deg, #082010 0%, #020a04 100%)",
-    activeBorder:   "rgba(36,200,100,0.60)",
-    activeGlow:     "rgba(36,200,100,0.16)",
-    labelColor:     "#24c87a",
-    labelBg:        "rgba(36,200,100,0.10)",
-  },
-  {
-    id:             "royal-violet",
-    name:           "Royal Violet",
-    keyword:        "SOVEREIGN VIOLET",
-    tagline:        "Luxury · Mystery · Vision",
-    desc:           "The deep royal purple of sovereign power. Velvet darkness with violet light — where ambition meets artistry.",
-    previewBg:      "linear-gradient(135deg, #08041a 0%, #020108 100%)",
-    previewCard:    "linear-gradient(160deg, rgba(32,12,80,0.88) 0%, rgba(10,2,28,0.99) 100%)",
-    previewAccent1: "#c07cff",
-    previewAccent2: "#d080ff",
-    previewAccent3: "#9040e0",
-    dotBg:          "linear-gradient(135deg, #1a0840 0%, #06021a 100%)",
-    activeBorder:   "rgba(168,80,255,0.60)",
-    activeGlow:     "rgba(168,80,255,0.18)",
-    labelColor:     "#c07cff",
-    labelBg:        "rgba(168,80,255,0.10)",
-  },
-];
+/* ──────────────────────────────────────────────────────────────────────────
+   Theme catalogue — generated from the Meridian palettes.
 
-/* ── Mini theme preview card ── */
+   The list is NOT hand-written here: it is derived from design/themes.ts, so
+   a new theme appears in Preferences the moment it exists in the system, and
+   a preview can never show colours the app does not actually use.
+   ────────────────────────────────────────────────────────────────────────── */
+const THEMES = THEME_OPTIONS.map(opt => {
+  const p = PALETTES[opt.id];
+  return {
+    id: opt.id,
+    name: p.name,
+    keyword: p.label,
+    tagline: p.label,
+    desc: p.description,
+    canvas: p.canvas,
+    surface: p.surface,
+    surfaceRaised: p.surfaceRaised,
+    line: p.line,
+    accent: p.accent,
+    text: p.textPrimary,
+    textTertiary: p.textTertiary,
+    positive: p.positive,
+    negative: p.negative,
+    /* legacy field names still read further down this screen */
+    dotBg: p.canvas,
+    activeBorder: p.accent,
+    activeGlow: p.accentSubtle,
+    labelColor: p.accent,
+    labelBg: p.accentSubtle,
+  };
+});
+
+/* ── Live theme preview ───────────────────────────────────────────────────
+   A miniature of the real home screen, drawn with the candidate theme's own
+   tokens: canvas, surface, hairline, accent, and the two money semantics.
+   What you see is literally what the app will look like.
+   ───────────────────────────────────────────────────────────────────────── */
 function ThemePreview({ t, active, onClick }: {
   t: typeof THEMES[0]; active: boolean; onClick: () => void;
 }) {
   const { t: lt } = useLang();
   return (
     <motion.div
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ scale: 0.99 }}
       onClick={onClick}
       data-testid={`theme-card-${t.id}`}
+      role="radio"
+      aria-checked={active}
       style={{
-        borderRadius: 24, overflow: "hidden", cursor: "pointer",
-        border: `1.5px solid ${active ? t.activeBorder : "rgba(255,255,255,0.07)"}`,
+        borderRadius: 20,
+        overflow: "hidden",
+        cursor: "pointer",
+        background: t.surface,
+        border: `1px solid ${active ? t.accent : "rgba(255,255,255,0.08)"}`,
         boxShadow: active
-          ? `0 0 0 3px ${t.activeGlow}, 0 16px 48px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.06)`
-          : "0 8px 28px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.04)",
-        transition: "all 0.30s ease",
-        position: "relative",
+          ? "0 2px 6px rgba(0,0,0,0.30), 0 12px 28px -14px rgba(0,0,0,0.55)"
+          : "0 1px 2px rgba(0,0,0,0.28), 0 4px 12px -6px rgba(0,0,0,0.36)",
+        transition: "border-color 180ms linear, box-shadow 180ms linear",
       }}
     >
-      {/* ── Mini screen preview ── */}
-      <div style={{ background: t.previewBg, padding: "16px 14px 14px", position: "relative" }}>
-        {/* fake header row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
-          <div style={{
-            width: 24, height: 24, borderRadius: "50%",
-            background: "radial-gradient(circle at 35% 30%, rgba(140,200,240,0.60) 0%, rgba(20,50,90,1) 60%)",
-            border: "1px solid rgba(247,210,72,0.50)",
-          }} />
+      {/* miniature of the real home screen */}
+      <div style={{ background: t.canvas, padding: 14 }}>
+        {/* header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 999, background: t.surfaceRaised, border: `1px solid ${t.line}` }} />
           <div style={{ flex: 1 }}>
-            <div style={{
-              height: 5, borderRadius: 3, width: "55%", marginBottom: 3,
-              background: "rgba(255,255,255,0.22)",
-            }} />
-            <div style={{
-              height: 4, borderRadius: 3, width: "35%",
-              background: "rgba(255,255,255,0.12)",
-            }} />
+            <div style={{ height: 5, width: "45%", borderRadius: 3, background: t.text, opacity: 0.7 }} />
+            <div style={{ height: 4, width: "28%", borderRadius: 3, marginTop: 4, background: t.textTertiary }} />
           </div>
-          <div style={{ display: "flex", gap: 4 }}>
-            {[t.previewAccent1, t.previewAccent2].map((col, i) => (
-              <div key={i} style={{
-                width: 18, height: 18, borderRadius: "50%",
-                background: "rgba(255,255,255,0.08)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: col }} />
-              </div>
-            ))}
-          </div>
+          <div style={{ width: 18, height: 18, borderRadius: 999, background: t.surfaceRaised, border: `1px solid ${t.line}` }} />
         </div>
 
-        {/* fake balance card */}
+        {/* balance card */}
         <div style={{
-          borderRadius: 14, padding: "10px 12px",
-          background: t.previewCard,
-          border: "1px solid rgba(255,255,255,0.10)",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.40)",
-          marginBottom: 8,
+          borderRadius: 12, padding: 12, marginBottom: 8,
+          background: t.surface, border: `1px solid ${t.line}`,
         }}>
-          <div style={{
-            height: 4, borderRadius: 3, width: "52%",
-            background: `linear-gradient(90deg, ${t.previewAccent1}66, ${t.previewAccent1}22)`,
-            marginBottom: 8,
-          }} />
-          <div style={{
-            height: 14, borderRadius: 4, width: "80%",
-            background: `linear-gradient(90deg, ${t.previewAccent1}, ${t.previewAccent1}88)`,
-            marginBottom: 10,
-          }} />
+          <div style={{ height: 4, width: "34%", borderRadius: 3, background: t.textTertiary, marginBottom: 10 }} />
+          <div style={{ height: 13, width: "62%", borderRadius: 3, background: t.text, marginBottom: 12 }} />
           <div style={{ display: "flex", gap: 6 }}>
-            <div style={{
-              height: 20, flex: 1, borderRadius: 99,
-              background: `linear-gradient(90deg, ${t.previewAccent1}dd, ${t.previewAccent1}99)`,
-            }} />
-            <div style={{
-              height: 20, flex: 1, borderRadius: 99,
-              border: `1px solid ${t.previewAccent1}88`,
-              background: "transparent",
-            }} />
+            <div style={{ height: 18, flex: 1, borderRadius: 6, background: t.accent }} />
+            <div style={{ height: 18, flex: 1, borderRadius: 6, background: t.surfaceRaised, border: `1px solid ${t.line}` }} />
           </div>
         </div>
 
-        {/* fake quick tiles */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
-          {[t.previewAccent1, t.previewAccent2, t.previewAccent3, t.previewAccent2].map((col, i) => (
-            <div key={i} style={{
-              height: 28, borderRadius: 8,
-              background: `${col}22`,
-              border: `1px solid ${col}44`,
-            }} />
+        {/* cash-flow rows: the two semantic colours, in their real roles */}
+        <div style={{ borderRadius: 12, padding: 12, background: t.surface, border: `1px solid ${t.line}`, display: "grid", gap: 8 }}>
+          {[t.positive, t.negative].map((col, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ height: 4, flex: 1, borderRadius: 3, background: col, opacity: i === 0 ? 1 : 0.7 }} />
+              <div style={{ height: 4, width: 22, borderRadius: 3, background: t.textTertiary }} />
+            </div>
           ))}
         </div>
       </div>
 
-      {/* ── Info panel ── */}
-      <div style={{
-        padding: "14px 16px 16px",
-        background: "linear-gradient(180deg, rgba(18,26,52,0.99) 0%, rgba(10,14,30,1) 100%)",
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-      }}>
-        {/* keyword badge */}
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          padding: "4px 10px", borderRadius: 999,
-          background: t.labelBg,
-          border: `1px solid ${t.activeBorder}44`,
-          marginBottom: 8,
-        }}>
-          <div style={{ width: 5, height: 5, borderRadius: "50%", background: t.labelColor }} />
-          <span style={{
-            fontSize: 11, fontWeight: 800, letterSpacing: 1.6,
-            color: t.labelColor,
-          }}>
-            {t.keyword}
-          </span>
-        </div>
-
-        <div style={{
-          fontSize: 15, fontWeight: 700, marginBottom: 2,
-          color: "#ffffff",
-        }}>
-          {t.name}
-        </div>
-        <div style={{
-          fontSize: 12, fontWeight: 700, letterSpacing: 1.0, marginBottom: 8,
-          color: "rgba(255,255,255,0.42)",
-        }}>
-          {t.tagline}
-        </div>
-        <div style={{
-          fontSize: 12, lineHeight: 1.6,
-          color: "rgba(255,255,255,0.52)",
-        }}>
-          {t.desc}
-        </div>
-
-        {/* active indicator */}
-        {active && (
-          <div style={{
-            marginTop: 12, display: "flex", alignItems: "center", gap: 6,
-            padding: "6px 12px", borderRadius: 99,
-            background: t.labelBg, border: `1px solid ${t.activeBorder}66`,
-            width: "fit-content",
-          }}>
-            <Check size={11} style={{ color: t.labelColor }} />
-            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: t.labelColor }}>
+      {/* description */}
+      <div style={{ padding: 14, borderTop: `1px solid ${t.line}`, background: t.surface }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 650, color: t.text }}>{t.name}</div>
+          {active && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "3px 8px", borderRadius: 8,
+              background: t.labelBg, color: t.accent,
+              fontSize: 11, fontWeight: 600, letterSpacing: 0.2,
+            }}>
+              <Check size={11} />
               {lt.active}
             </span>
-          </div>
-        )}
+          )}
+        </div>
+        <div style={{ fontSize: 13, lineHeight: 1.5, color: t.textTertiary, marginTop: 6 }}>
+          {t.desc}
+        </div>
       </div>
     </motion.div>
   );

@@ -139,10 +139,10 @@ Strona A: _______________________     Strona B: _______________________
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const G = {
-  bg:      "#0a0f0c",
+  bg:      "var(--md-surface)",
   card:    "rgba(255,255,255,0.04)",
   border:  "rgba(52,211,153,0.18)",
-  green:   "#34d399",
+  green:   "var(--md-positive)",
   greenDim:"rgba(52,211,153,0.12)",
   glow:    "rgba(52,211,153,0.22)",
   text:    "#e2faf2",
@@ -162,7 +162,7 @@ function StepDot({ active, done, label }: { active: boolean; done: boolean; labe
         boxShadow: active ? `0 0 12px ${G.glow}` : "none",
       }}>
         {done
-          ? <CheckCircle2 size={13} color="#0a0f0c" strokeWidth={2.5} />
+          ? <CheckCircle2 size={13} color="var(--md-surface)" strokeWidth={2.5} />
           : <span style={{ fontSize: 10, fontWeight: 700, color: active ? G.green : G.muted }}>{label}</span>}
       </div>
     </div>
@@ -334,8 +334,8 @@ function StepDescribe({ data, setData, onNext }: { data: FormData; setData: (d: 
         onNext();
       }} disabled={!data.description.trim()} style={{
         height: 54, borderRadius: 999, border: "none", cursor: data.description.trim() ? "pointer" : "not-allowed",
-        fontSize: 15, fontWeight: 800, color: data.description.trim() ? "#0a0f0c" : G.muted,
-        background: data.description.trim() ? "linear-gradient(135deg, #34d399 0%, #10b981 100%)" : "rgba(255,255,255,0.06)",
+        fontSize: 15, fontWeight: 800, color: data.description.trim() ? "var(--md-surface)" : G.muted,
+        background: data.description.trim() ? "linear-gradient(135deg, var(--md-positive) 0%, var(--md-positive) 100%)" : "rgba(255,255,255,0.06)",
         boxShadow: data.description.trim() ? "0 4px 20px rgba(52,211,153,0.35)" : "none",
         transition: "all 0.25s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
       }}>Analizuj opis <Wand2 size={16} /></button>
@@ -466,8 +466,8 @@ function StepDetails({ data, setData, onNext, onBack }: { data: FormData; setDat
         }}>← Wróć</button>
         <button onClick={onNext} style={{
           flex: 1, height: 54, borderRadius: 999, border: "none", cursor: "pointer",
-          fontSize: 15, fontWeight: 800, color: "#0a0f0c",
-          background: "linear-gradient(135deg, #34d399 0%, #10b981 100%)",
+          fontSize: 15, fontWeight: 800, color: "var(--md-surface)",
+          background: "linear-gradient(135deg, var(--md-positive) 0%, var(--md-positive) 100%)",
           boxShadow: "0 4px 20px rgba(52,211,153,0.35)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>Generuj <Wand2 size={18} /></button>
@@ -512,7 +512,7 @@ function StepGenerating({ onDone }: { onDone: () => void }) {
 
       <div style={{ width: "100%", maxWidth: 260 }}>
         <div style={{ height: 4, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-          <div style={{ height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #34d399, #10b981)", width: `${progress}%`, transition: "width 0.1s linear", boxShadow: "0 0 8px rgba(52,211,153,0.5)" }} />
+          <div style={{ height: "100%", borderRadius: 999, background: "linear-gradient(90deg, var(--md-positive), var(--md-positive))", width: `${progress}%`, transition: "width 0.1s linear", boxShadow: "0 0 8px rgba(52,211,153,0.5)" }} />
         </div>
         <div style={{ textAlign: "right", marginTop: 6, fontSize: 11, color: G.muted }}>{Math.round(progress)}%</div>
       </div>
@@ -566,8 +566,8 @@ function StepPreview({ data, contractText, onBack, onSend }: {
       {/* Send to user CTA */}
       <button onClick={onSend} disabled={!done} style={{
         height: 56, borderRadius: 999, border: "none", cursor: done ? "pointer" : "not-allowed",
-        fontSize: 15, fontWeight: 800, color: done ? "#0a0f0c" : G.muted,
-        background: done ? "linear-gradient(135deg, #34d399 0%, #10b981 100%)" : "rgba(255,255,255,0.05)",
+        fontSize: 15, fontWeight: 800, color: done ? "var(--md-surface)" : G.muted,
+        background: done ? "linear-gradient(135deg, var(--md-positive) 0%, var(--md-positive) 100%)" : "rgba(255,255,255,0.05)",
         boxShadow: done ? "0 4px 20px rgba(52,211,153,0.35)" : "none",
         display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         transition: "all 0.3s ease",
@@ -740,9 +740,9 @@ function StepSend({ data, contractText, onBack }: {
                 >
                   <div style={{
                     width: 38, height: 38, borderRadius: "50%",
-                    background: u.avatarUrl ? `url(${u.avatarUrl}) center/cover` : "linear-gradient(135deg, #34d399, #10b981)",
+                    background: u.avatarUrl ? `url(${u.avatarUrl}) center/cover` : "linear-gradient(135deg, var(--md-positive), var(--md-positive))",
                     display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                    fontSize: 16, fontWeight: 700, color: "#0a2016",
+                    fontSize: 16, fontWeight: 700, color: "var(--md-text-on-accent)",
                   }}>
                     {!u.avatarUrl && (u.displayName?.[0]?.toUpperCase() || "?")}
                   </div>
@@ -768,9 +768,9 @@ function StepSend({ data, contractText, onBack }: {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               width: 46, height: 46, borderRadius: "50%", flexShrink: 0,
-              background: selected.avatarUrl ? `url(${selected.avatarUrl}) center/cover` : "linear-gradient(135deg, #34d399, #10b981)",
+              background: selected.avatarUrl ? `url(${selected.avatarUrl}) center/cover` : "linear-gradient(135deg, var(--md-positive), var(--md-positive))",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18, fontWeight: 700, color: "#0a2016",
+              fontSize: 18, fontWeight: 700, color: "var(--md-text-on-accent)",
             }}>
               {!selected.avatarUrl && (selected.displayName?.[0]?.toUpperCase() || "?")}
             </div>
@@ -791,7 +791,7 @@ function StepSend({ data, contractText, onBack }: {
       )}
 
       {error && (
-        <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.25)", fontSize: 13, color: "#f87171" }}>
+        <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.25)", fontSize: 13, color: "var(--md-negative)" }}>
           {error}
         </div>
       )}
@@ -805,8 +805,8 @@ function StepSend({ data, contractText, onBack }: {
           height: 56, borderRadius: 999, border: "none",
           cursor: selected && !sending ? "pointer" : "not-allowed",
           fontSize: 15, fontWeight: 800,
-          color: selected && !sending ? "#0a0f0c" : G.muted,
-          background: selected && !sending ? "linear-gradient(135deg, #34d399 0%, #10b981 100%)" : "rgba(255,255,255,0.05)",
+          color: selected && !sending ? "var(--md-surface)" : G.muted,
+          background: selected && !sending ? "linear-gradient(135deg, var(--md-positive) 0%, var(--md-positive) 100%)" : "rgba(255,255,255,0.05)",
           boxShadow: selected && !sending ? "0 4px 20px rgba(52,211,153,0.35)" : "none",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           transition: "all 0.3s ease",

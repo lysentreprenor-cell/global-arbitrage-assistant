@@ -96,10 +96,10 @@ export default function SavingsGoals() {
   };
 
   const progressColor = (pct: number) => {
-    if (pct >= 100) return "#22c55e";
-    if (pct >= 75) return "#3b82f6";
+    if (pct >= 100) return "var(--md-positive)";
+    if (pct >= 75) return "var(--md-info)";
     if (pct >= 50) return "var(--color-primary)";
-    return "#a855f7";
+    return "var(--md-accent)";
   };
 
   return (

@@ -378,7 +378,7 @@ export default function Transfer() {
               style={{
                 background: isLight ? "rgba(255,255,255,0.85)" : "var(--color-card, rgba(255,255,255,0.04))",
                 border: `1px solid ${isLight ? "rgba(10,30,90,0.12)" : "rgba(255,255,255,0.07)"}`,
-                color: isLight ? "#0a1428" : "rgba(255,255,255,0.90)",
+                color: isLight ? "var(--md-surface)" : "rgba(255,255,255,0.90)",
                 boxShadow: isLight
                   ? "0 2px 8px rgba(80,110,180,0.10), inset 0 1px 0 rgba(255,255,255,0.90)"
                   : "0 4px 12px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
@@ -394,7 +394,7 @@ export default function Transfer() {
             style={{
               background: isLight ? "rgba(255,255,255,0.85)" : "var(--color-card, rgba(255,255,255,0.04))",
               border: `1px solid ${isLight ? "rgba(10,30,90,0.12)" : "rgba(255,255,255,0.07)"}`,
-              color: isLight ? "#0a1428" : "rgba(255,255,255,0.90)",
+              color: isLight ? "var(--md-surface)" : "rgba(255,255,255,0.90)",
               boxShadow: isLight
                 ? "0 2px 8px rgba(80,110,180,0.10), inset 0 1px 0 rgba(255,255,255,0.90)"
                 : "0 4px 12px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",

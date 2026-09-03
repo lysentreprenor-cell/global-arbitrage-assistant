@@ -72,13 +72,13 @@ export function statusLabel(status: AgreementStatus, t: Record<string, string>):
 }
 
 export function statusColor(status: AgreementStatus): string {
-  if (["pending_acceptance"].includes(status)) return "#f59e0b";
-  if (["accepted", "funded", "in_progress"].includes(status)) return "#3b82f6";
-  if (["submitted"].includes(status)) return "#a855f7";
-  if (["completed", "released"].includes(status)) return "#22c55e";
-  if (["disputed"].includes(status)) return "#ef4444";
-  if (["cancelled"].includes(status)) return "#6b7280";
-  return "#6b7280";
+  if (["pending_acceptance"].includes(status)) return "var(--md-warning)";
+  if (["accepted", "funded", "in_progress"].includes(status)) return "var(--md-info)";
+  if (["submitted"].includes(status)) return "var(--md-accent)";
+  if (["completed", "released"].includes(status)) return "var(--md-positive)";
+  if (["disputed"].includes(status)) return "var(--md-danger)";
+  if (["cancelled"].includes(status)) return "var(--md-text-tertiary)";
+  return "var(--md-text-tertiary)";
 }
 
 type Tab = "active" | "confirm" | "done" | "dispute";
@@ -194,7 +194,7 @@ export default function Agreements() {
               data-testid="button-new-agreement"
               onClick={() => setLocation("/agreements/new")}
               className="h-10 px-4 rounded-full text-[13px] font-bold tracking-widest border-none"
-              style={{ background: "linear-gradient(135deg, #7c3aed, #d4a020)", color: "#fff", border: "none", fontWeight: 800 }}
+              style={{ background: "linear-gradient(135deg, var(--md-accent), var(--md-accent))", color: "#fff", border: "none", fontWeight: 800 }}
             >
               <Plus className="w-4 h-4 mr-1" />
               {t.agreeNewContract}
@@ -210,8 +210,8 @@ export default function Agreements() {
               onClick={() => setTab(tb.key)}
               className="flex-1 relative py-2 rounded-xl text-[12px] font-bold tracking-normal transition-all"
               style={{
-                background: tab === tb.key ? "linear-gradient(135deg,rgba(124,58,237,0.22),rgba(212,160,32,0.18))" : "transparent",
-                color: tab === tb.key ? "#d4a020" : "var(--color-muted-foreground)",
+                background: tab === tb.key ? "linear-gradient(135deg,rgba(124,58,237,0.22),color-mix(in srgb, var(--md-accent) 18%, transparent))" : "transparent",
+                color: tab === tb.key ? "var(--md-accent)" : "var(--color-muted-foreground)",
               }}
             >
               {tb.label}
@@ -219,7 +219,7 @@ export default function Agreements() {
                 <span style={{
                   position: "absolute", top: 4, right: 4,
                   minWidth: 14, height: 14, borderRadius: 999,
-                  background: tab === tb.key ? "#d4a020" : "var(--color-muted)",
+                  background: tab === tb.key ? "var(--md-accent)" : "var(--color-muted)",
                   color: tab === tb.key ? "#000" : "var(--color-muted-foreground)",
                   fontSize: 10, fontWeight: 800,
                   display: "flex", alignItems: "center", justifyContent: "center",
@@ -253,7 +253,7 @@ export default function Agreements() {
               <Button
                 onClick={() => setLocation("/agreements/new")}
                 className="mt-6 rounded-xl border-none font-bold"
-                style={{ background: "linear-gradient(135deg, #7c3aed, #d4a020)", color: "#fff", border: "none", fontWeight: 800 }}
+                style={{ background: "linear-gradient(135deg, var(--md-accent), var(--md-accent))", color: "#fff", border: "none", fontWeight: 800 }}
               >
                 {t.agreeNewBtn}
               </Button>
@@ -283,7 +283,7 @@ export default function Agreements() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div style={{
                           width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                          background: `${color}18`, border: `1px solid ${color}30`,
+                          background: `color-mix(in srgb, ${color} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 19%, transparent)`,
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}>
                           {ag.status === "disputed" ? (
@@ -304,7 +304,7 @@ export default function Agreements() {
                         <span style={{
                           fontSize: 11, fontWeight: 800, letterSpacing: "0.06em",
                           textTransform: "uppercase", color,
-                          background: `${color}15`, border: `1px solid ${color}25`,
+                          background: `color-mix(in srgb, ${color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 15%, transparent)`,
                           padding: "2px 7px", borderRadius: 999,
                         }}>
                           {statusLabel(ag.status, t)}
@@ -316,8 +316,8 @@ export default function Agreements() {
                       <div className="flex items-center gap-1.5">
                         {deadline && (
                           <>
-                            <Clock size={11} style={{ color: overdue ? "#ef4444" : "var(--color-muted-foreground)" }} />
-                            <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "var(--color-muted-foreground)", fontWeight: 600 }}>
+                            <Clock size={11} style={{ color: overdue ? "var(--md-danger)" : "var(--color-muted-foreground)" }} />
+                            <span style={{ fontSize: 12, color: overdue ? "var(--md-danger)" : "var(--color-muted-foreground)", fontWeight: 600 }}>
                               {deadline.toLocaleDateString(undefined, { day: "numeric", month: "short" })}
                             </span>
                           </>

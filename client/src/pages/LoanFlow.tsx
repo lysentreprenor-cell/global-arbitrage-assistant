@@ -6,8 +6,8 @@ import { useAppStore, CORE_WALLET_CURRENCIES, WALLET_FLAGS } from "@/lib/store";
 import { useLang } from "@/context/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 
-const ORB_BG = "radial-gradient(circle at 35% 28%, #fff6c0 0%, #f7d84a 28%, #c48a06 65%, #8a5e00 100%)";
-const ORB_SHADOW = "inset 0 2px 4px rgba(255,255,220,0.60), inset 0 -3px 6px rgba(0,0,0,0.28), 0 3px 0 rgba(120,80,0,0.90), 0 10px 28px rgba(200,148,20,0.55), 0 0 0 1px rgba(255,220,80,0.24)";
+const ORB_BG = "radial-gradient(circle at 35% 28%, var(--md-accent-hover) 0%, var(--md-accent) 28%, var(--md-accent-pressed) 65%, var(--md-accent-pressed) 100%)";
+const ORB_SHADOW = "inset 0 2px 4px rgba(255,255,220,0.60), inset 0 -3px 6px rgba(0,0,0,0.28), 0 3px 0 rgba(120,80,0,0.90), 0 10px 28px color-mix(in srgb, var(--md-accent) 55%, transparent), 0 0 0 1px color-mix(in srgb, var(--md-accent) 24%, transparent)";
 
 export default function LoanFlow() {
   const [, setLocation] = useLocation();
@@ -70,7 +70,7 @@ export default function LoanFlow() {
           <ArrowLeft size={18} style={{ color: "rgba(255,255,255,0.7)" }} />
         </button>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--primary,#D4A020)", textTransform: "uppercase", letterSpacing: "0.12em" }}>Finlys</div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--primary,var(--md-accent))", textTransform: "uppercase", letterSpacing: "0.12em" }}>Finlys</div>
           <h1 style={{ fontSize: 22, fontWeight: 900, color: "white", margin: 0 }}>{pl ? "Pożyczka znajomemu" : "P2P Loan"}</h1>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function LoanFlow() {
             animate={{ opacity: 1, scale: 1 }}
             style={{ textAlign: "center", paddingTop: 60 }}
           >
-            <CheckCircle2 size={64} style={{ color: "var(--primary,#D4A020)", marginBottom: 20 }} />
+            <CheckCircle2 size={64} style={{ color: "var(--primary,var(--md-accent))", marginBottom: 20 }} />
             <div style={{ fontSize: 24, fontWeight: 900, color: "white", marginBottom: 8 }}>{pl ? "Umowa wysłana!" : "Loan sent!"}</div>
             <div style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>{recipient}</div>
             <div style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
@@ -93,7 +93,7 @@ export default function LoanFlow() {
             </div>
             <button
               onClick={() => setLocation("/")}
-              style={{ background: "var(--primary,#D4A020)", color: "#000", border: "none", borderRadius: 14, padding: "14px 40px", fontSize: 15, fontWeight: 900, cursor: "pointer" }}
+              style={{ background: "var(--primary,var(--md-accent))", color: "#000", border: "none", borderRadius: 14, padding: "14px 40px", fontSize: 15, fontWeight: 900, cursor: "pointer" }}
             >
               {pl ? "Wróć do głównej" : "Back to home"}
             </button>
@@ -131,7 +131,7 @@ export default function LoanFlow() {
                   onChange={e => setAmount(e.target.value)}
                   style={{ width: "100%", padding: "16px 72px 16px 18px", borderRadius: 16, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "white", fontSize: 24, fontWeight: 800, outline: "none", boxSizing: "border-box" }}
                 />
-                <span style={{ position: "absolute", right: 18, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 800, color: "var(--primary,#D4A020)" }}>{currency}</span>
+                <span style={{ position: "absolute", right: 18, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 800, color: "var(--primary,var(--md-accent))" }}>{currency}</span>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {CORE_WALLET_CURRENCIES.map(cur => (
@@ -140,9 +140,9 @@ export default function LoanFlow() {
                     onClick={() => setCurrency(cur)}
                     style={{
                       padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                      background: currency === cur ? "rgba(212,160,32,0.18)" : "rgba(255,255,255,0.06)",
-                      border: `1px solid ${currency === cur ? "rgba(212,160,32,0.45)" : "rgba(255,255,255,0.09)"}`,
-                      color: currency === cur ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.50)",
+                      background: currency === cur ? "color-mix(in srgb, var(--md-accent) 18%, transparent)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${currency === cur ? "color-mix(in srgb, var(--md-accent) 45%, transparent)" : "rgba(255,255,255,0.09)"}`,
+                      color: currency === cur ? "var(--primary,var(--md-accent))" : "rgba(255,255,255,0.50)",
                     }}
                   >
                     {WALLET_FLAGS[cur as keyof typeof WALLET_FLAGS] || ""} {cur}
@@ -180,11 +180,11 @@ export default function LoanFlow() {
                     onClick={() => setInstallments(opt.key)}
                     style={{
                       borderRadius: 16, padding: "14px 12px", cursor: "pointer", textAlign: "left",
-                      background: installments === opt.key ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.04)",
-                      border: `1.5px solid ${installments === opt.key ? "rgba(212,160,32,0.50)" : "rgba(255,255,255,0.08)"}`,
+                      background: installments === opt.key ? "color-mix(in srgb, var(--md-accent) 12%, transparent)" : "rgba(255,255,255,0.04)",
+                      border: `1.5px solid ${installments === opt.key ? "color-mix(in srgb, var(--md-accent) 50%, transparent)" : "rgba(255,255,255,0.08)"}`,
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 800, color: installments === opt.key ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.75)", marginBottom: 3 }}>{opt.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: installments === opt.key ? "var(--primary,var(--md-accent))" : "rgba(255,255,255,0.75)", marginBottom: 3 }}>{opt.label}</div>
                     <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{opt.sub}</div>
                   </button>
                 ))}
@@ -208,9 +208,9 @@ export default function LoanFlow() {
                           onClick={() => setInstallmentCount(n)}
                           style={{
                             flex: 1, padding: "10px 0", borderRadius: 12, cursor: "pointer",
-                            border: `1.5px solid ${installmentCount === n ? "rgba(212,160,32,0.5)" : "rgba(255,255,255,0.08)"}`,
-                            background: installmentCount === n ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.03)",
-                            color: installmentCount === n ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.50)",
+                            border: `1.5px solid ${installmentCount === n ? "color-mix(in srgb, var(--md-accent) 50%, transparent)" : "rgba(255,255,255,0.08)"}`,
+                            background: installmentCount === n ? "color-mix(in srgb, var(--md-accent) 12%, transparent)" : "rgba(255,255,255,0.03)",
+                            color: installmentCount === n ? "var(--primary,var(--md-accent))" : "rgba(255,255,255,0.50)",
                             fontSize: 14, fontWeight: 800,
                           }}
                         >
@@ -240,7 +240,7 @@ export default function LoanFlow() {
               >
                 {/* połysk */}
                 <div style={{ position: "absolute", top: 0, left: "20%", right: "20%", height: "42%", background: "linear-gradient(180deg, rgba(255,255,255,0.28) 0%, transparent 100%)", borderRadius: "0 0 50% 50%", pointerEvents: "none" }} />
-                <Send size={26} style={{ color: "#1a1400" }} />
+                <Send size={26} style={{ color: "var(--md-text-on-accent)" }} />
               </button>
               <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.50)", letterSpacing: 1, textTransform: "uppercase" }}>
                 {amount ? `${pl ? "Wyślij" : "Send"} ${amount} ${currency}` : pl ? "Wyślij" : "Send"}

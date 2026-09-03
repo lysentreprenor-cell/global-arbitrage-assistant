@@ -90,8 +90,8 @@ export default function Cards() {
             display: "flex", alignItems: "center", gap: 6,
             borderRadius: 999, padding: "8px 14px",
             fontSize: 11, fontWeight: 800, letterSpacing: 1.2,
-            color: isLight ? "#9a7010" : "#e8d080",
-            background: isLight ? "rgba(200,160,30,0.08)" : "rgba(247,220,100,0.06)",
+            color: isLight ? "var(--md-accent-pressed)" : "var(--md-accent)",
+            background: isLight ? "rgba(200,160,30,0.08)" : "color-mix(in srgb, var(--md-accent) 6%, transparent)",
             border: `1px solid ${isLight ? "rgba(180,140,20,0.40)" : "rgba(238,203,100,0.50)"}`,
             cursor: "pointer",
           }}
@@ -117,13 +117,13 @@ export default function Cards() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: th.textPrimary }}>
-                <span style={{ color: "#24d487" }}>{cardStats.active}</span>
+                <span style={{ color: "var(--md-positive)" }}>{cardStats.active}</span>
                 <span style={{ color: th.textMuted }}> / {cardStats.total} {lang === "pl" ? "aktywne" : "active"}</span>
               </div>
               <div style={{
                 padding: "3px 9px", borderRadius: 999,
                 fontSize: 12, fontWeight: 800, letterSpacing: 1,
-                color: cardStats.active > 0 ? "#7df0ba" : th.textMuted,
+                color: cardStats.active > 0 ? "var(--md-positive)" : th.textMuted,
                 background: cardStats.active > 0 ? "rgba(35,183,118,0.16)" : "rgba(255,255,255,0.07)",
                 border: `1px solid ${cardStats.active > 0 ? "rgba(80,225,155,0.24)" : "rgba(255,255,255,0.10)"}`,
               }}>
@@ -142,8 +142,8 @@ export default function Cards() {
             borderRadius: 24, overflow: "hidden",
             aspectRatio: "1.586 / 1",
             background: isFrozen
-              ? "linear-gradient(135deg, #2a2a2a 0%, #111111 100%)"
-              : "linear-gradient(135deg, #2d2a26 0%, #1a1a1a 55%, #0a0a0a 100%)",
+              ? "linear-gradient(135deg, var(--md-surface-raised) 0%, #111111 100%)"
+              : "linear-gradient(135deg, #2d2a26 0%, var(--md-surface-raised) 55%, var(--md-canvas) 100%)",
             border: `1px solid ${isFrozen ? "rgba(255,255,255,0.08)" : "rgba(212,175,55,0.30)"}`,
             boxShadow: "0 24px 80px rgba(0,0,0,0.70), 0 0 0 1px rgba(255,255,255,0.04)",
             padding: "28px 28px",
@@ -156,8 +156,8 @@ export default function Cards() {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Sparkles size={14} color={isFrozen ? "#888" : "#D4AF37"} />
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.8, color: isFrozen ? "#888" : "#D4AF37" }}>
+              <Sparkles size={14} color={isFrozen ? "#888" : "var(--md-accent)"} />
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2.8, color: isFrozen ? "#888" : "var(--md-accent)" }}>
                 {isFrozen ? (lang === "pl" ? "ZABLOKOWANA" : "SECURED") : "WORLD ELITE"}
               </div>
             </div>
@@ -226,10 +226,10 @@ export default function Cards() {
                 width: 52, height: 52, borderRadius: 16,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 background: a.active
-                  ? "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)"
+                  ? "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)"
                   : (isLight ? "rgba(255,255,255,0.80)" : "rgba(255,255,255,0.05)"),
                 border: `1px solid ${a.active ? "rgba(212,175,55,0.60)" : (isLight ? "rgba(10,30,90,0.10)" : "rgba(255,255,255,0.08)")}`,
-                color: a.active ? "#1a1400" : th.textPrimary,
+                color: a.active ? "var(--md-text-on-accent)" : th.textPrimary,
                 boxShadow: a.active
                   ? "0 4px 16px rgba(212,175,55,0.40), inset 0 1px 0 rgba(255,255,255,0.60)"
                   : (isLight ? "0 2px 8px rgba(80,110,180,0.10), inset 0 1px 0 rgba(255,255,255,0.80)" : "0 4px 12px rgba(0,0,0,0.28)"),
@@ -237,7 +237,7 @@ export default function Cards() {
               }}>
                 <a.icon size={18} />
               </div>
-              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.4, color: a.active ? (isLight ? "#7a5200" : "#f7d248") : th.textMuted }}>
+              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.4, color: a.active ? (isLight ? "var(--md-text-on-accent)" : "var(--md-accent)") : th.textMuted }}>
                 {a.label}
               </div>
             </div>
@@ -295,7 +295,7 @@ export default function Cards() {
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
-                          style={{ width: 32, height: 32, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: copied ? "rgba(36,212,135,0.15)" : "rgba(255,255,255,0.07)", border: `1px solid ${copied ? "rgba(36,212,135,0.30)" : "rgba(255,255,255,0.10)"}`, cursor: "pointer", color: copied ? "#24d487" : th.textMuted, transition: "all 0.2s" }}
+                          style={{ width: 32, height: 32, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: copied ? "rgba(36,212,135,0.15)" : "rgba(255,255,255,0.07)", border: `1px solid ${copied ? "rgba(36,212,135,0.30)" : "rgba(255,255,255,0.10)"}`, cursor: "pointer", color: copied ? "var(--md-positive)" : th.textMuted, transition: "all 0.2s" }}
                         >
                           {copied ? <Check size={14} /> : <Copy size={14} />}
                         </button>
@@ -341,11 +341,11 @@ export default function Cards() {
                     display: "inline-flex", alignItems: "center", gap: 5,
                     padding: "4px 10px", borderRadius: 999,
                     fontSize: 11, fontWeight: 800, letterSpacing: 1,
-                    color: isFrozen ? "#aaa" : "#7df0ba",
+                    color: isFrozen ? "#aaa" : "var(--md-positive)",
                     background: isFrozen ? "rgba(255,255,255,0.07)" : "rgba(35,183,118,0.16)",
                     border: `1px solid ${isFrozen ? "rgba(255,255,255,0.12)" : "rgba(80,225,155,0.24)"}`,
                   }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: isFrozen ? "#888" : "#24d487" }} />
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: isFrozen ? "#888" : "var(--md-positive)" }} />
                     {isFrozen ? (lang === "pl" ? "ZABLOKOWANA" : "FROZEN") : (lang === "pl" ? "AKTYWNA" : "ACTIVE")}
                   </div>
                   <div style={{ fontSize: 11, color: th.textMuted }}>

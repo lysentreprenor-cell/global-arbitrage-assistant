@@ -24,7 +24,7 @@ const PRESETS: Record<TopupCurrency, number[]> = {
 };
 
 const goldText: React.CSSProperties = {
-  background: "linear-gradient(135deg, #f7d248 0%, #e8a820 50%, #f7d248 100%)",
+  background: "linear-gradient(135deg, var(--md-accent) 0%, #e8a820 50%, var(--md-accent) 100%)",
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent",
   backgroundClip: "text",
@@ -148,14 +148,14 @@ export default function WalletTopUp() {
     fontSize: 15,
     fontWeight: 800,
     border: active
-      ? "1.5px solid rgba(247,210,72,0.90)"
+      ? "1.5px solid var(--md-accent)"
       : `1px solid ${isLight ? "rgba(0,0,80,0.10)" : "rgba(255,255,255,0.10)"}`,
     background: active
-      ? (isLight ? "rgba(247,210,72,0.18)" : "rgba(247,210,72,0.12)")
+      ? (isLight ? "color-mix(in srgb, var(--md-accent) 18%, transparent)" : "color-mix(in srgb, var(--md-accent) 12%, transparent)")
       : (isLight ? "rgba(0,0,50,0.04)" : "rgba(255,255,255,0.04)"),
     color: active
-      ? (isLight ? "#7a5200" : "#f7d248")
-      : (isLight ? "#0a1428" : "rgba(255,255,255,0.70)"),
+      ? (isLight ? "var(--md-text-on-accent)" : "var(--md-accent)")
+      : (isLight ? "var(--md-surface)" : "rgba(255,255,255,0.70)"),
     transition: "all 0.15s ease",
   });
 
@@ -173,7 +173,7 @@ export default function WalletTopUp() {
     return (
       <div style={{
         minHeight: "100vh",
-        background: isLight ? "#f0f4ff" : "linear-gradient(160deg, #0c1020 0%, #111827 100%)",
+        background: isLight ? "var(--md-text)" : "linear-gradient(160deg, var(--md-surface) 0%, var(--md-surface-raised) 100%)",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "0 24px",
       }}>
@@ -187,15 +187,15 @@ export default function WalletTopUp() {
             <>
               <div style={{
                 width: 80, height: 80, borderRadius: "50%", margin: "0 auto 24px",
-                background: "rgba(247,210,72,0.12)",
+                background: "color-mix(in srgb, var(--md-accent) 12%, transparent)",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
-                <Loader2 size={40} color="#f7d248" style={{ animation: "spin 1s linear infinite" }} />
+                <Loader2 size={40} color="var(--md-accent)" style={{ animation: "spin 1s linear infinite" }} />
               </div>
-              <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10, color: isLight ? "#0a1428" : "#fff" }}>
+              <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10, color: isLight ? "var(--md-surface)" : "#fff" }}>
                 {t.topupVerifying}
               </h2>
-              <p style={{ fontSize: 14, color: isLight ? "#64748b" : "rgba(255,255,255,0.55)", marginBottom: 32, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 14, color: isLight ? "var(--md-text-tertiary)" : "rgba(255,255,255,0.55)", marginBottom: 32, lineHeight: 1.6 }}>
                 {t.topupPleaseWait}
               </p>
             </>
@@ -207,9 +207,9 @@ export default function WalletTopUp() {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 boxShadow: "0 0 40px rgba(36,212,135,0.25)",
               }}>
-                <CheckCircle size={40} color="#24d487" />
+                <CheckCircle size={40} color="var(--md-positive)" />
               </div>
-              <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10, color: isLight ? "#0a1428" : "#fff" }}>
+              <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10, color: isLight ? "var(--md-surface)" : "#fff" }}>
                 {t.topupPaymentConfirmed}
               </h2>
 
@@ -217,17 +217,17 @@ export default function WalletTopUp() {
                 <div style={{ marginBottom: 32 }}>
                   <div style={{
                     fontSize: 36, fontWeight: 900, letterSpacing: -1,
-                    ...(isLight ? { color: "#7a5200" } : goldText),
+                    ...(isLight ? { color: "var(--md-text-on-accent)" } : goldText),
                     marginBottom: 6,
                   }}>
                     +{creditedSym}{creditedAmount.toLocaleString("nb-NO")} {creditedCurrency}
                   </div>
-                  <p style={{ fontSize: 14, color: isLight ? "#64748b" : "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
+                  <p style={{ fontSize: 14, color: isLight ? "var(--md-text-tertiary)" : "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
                     {t.topupAddedToWallet.replace("{cur}", creditedCurrency)}
                   </p>
                 </div>
               ) : (
-                <p style={{ fontSize: 14, color: isLight ? "#64748b" : "rgba(255,255,255,0.55)", marginBottom: 32, lineHeight: 1.6 }}>
+                <p style={{ fontSize: 14, color: isLight ? "var(--md-text-tertiary)" : "rgba(255,255,255,0.55)", marginBottom: 32, lineHeight: 1.6 }}>
                   {t.topupBalancePending}
                 </p>
               )}
@@ -242,8 +242,8 @@ export default function WalletTopUp() {
               width: "100%", height: 52, borderRadius: 999, border: "none",
               cursor: isVerifying ? "not-allowed" : "pointer",
               opacity: isVerifying ? 0.5 : 1,
-              fontSize: 15, fontWeight: 800, color: "#1a1400",
-              background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
+              fontSize: 15, fontWeight: 800, color: "var(--md-text-on-accent)",
+              background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
               boxShadow: isVerifying ? "none" : "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
             }}
           >
@@ -259,7 +259,7 @@ export default function WalletTopUp() {
     return (
       <div style={{
         minHeight: "100vh",
-        background: isLight ? "#f0f4ff" : "linear-gradient(160deg, #0c1020 0%, #111827 100%)",
+        background: isLight ? "var(--md-text)" : "linear-gradient(160deg, var(--md-surface) 0%, var(--md-surface-raised) 100%)",
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         padding: "0 24px",
       }}>
@@ -274,12 +274,12 @@ export default function WalletTopUp() {
             background: "rgba(239,68,68,0.12)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <XCircle size={40} color="#ef4444" />
+            <XCircle size={40} color="var(--md-danger)" />
           </div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10, color: isLight ? "#0a1428" : "#fff" }}>
+          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10, color: isLight ? "var(--md-surface)" : "#fff" }}>
             {t.topupPaymentCanceled}
           </h2>
-          <p style={{ fontSize: 14, color: isLight ? "#64748b" : "rgba(255,255,255,0.55)", marginBottom: 32 }}>
+          <p style={{ fontSize: 14, color: isLight ? "var(--md-text-tertiary)" : "rgba(255,255,255,0.55)", marginBottom: 32 }}>
             {t.topupNothingCharged}
           </p>
           <button
@@ -287,8 +287,8 @@ export default function WalletTopUp() {
             onClick={() => setLocation("/wallet/top-up")}
             style={{
               width: "100%", height: 52, borderRadius: 999, border: "none", cursor: "pointer",
-              fontSize: 15, fontWeight: 800, color: "#1a1400",
-              background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
+              fontSize: 15, fontWeight: 800, color: "var(--md-text-on-accent)",
+              background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
               boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
             }}
           >
@@ -300,7 +300,7 @@ export default function WalletTopUp() {
             style={{
               width: "100%", height: 48, borderRadius: 999, cursor: "pointer", marginTop: 12,
               fontSize: 14, fontWeight: 700, border: "1px solid rgba(238,203,100,0.30)",
-              background: "transparent", color: isLight ? "#9a7010" : "#e8d080",
+              background: "transparent", color: isLight ? "var(--md-accent-pressed)" : "var(--md-accent)",
             }}
           >
             {t.topupBackToHome}
@@ -314,7 +314,7 @@ export default function WalletTopUp() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: isLight ? "#f0f4ff" : "linear-gradient(160deg, #0c1020 0%, #111827 100%)",
+      background: isLight ? "var(--md-text)" : "linear-gradient(160deg, var(--md-surface) 0%, var(--md-surface-raised) 100%)",
       display: "flex", flexDirection: "column",
     }}>
       {/* Header */}
@@ -330,12 +330,12 @@ export default function WalletTopUp() {
             width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
             background: isLight ? "rgba(0,0,50,0.06)" : "rgba(255,255,255,0.08)",
-            color: isLight ? "#0a1428" : "#fff",
+            color: isLight ? "var(--md-surface)" : "#fff",
           }}
         >
           <ArrowLeft size={18} />
         </button>
-        <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: 0.2, color: isLight ? "#0a1428" : "#fff" }}>
+        <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: 0.2, color: isLight ? "var(--md-surface)" : "#fff" }}>
           {t.topupTitle}
         </span>
       </div>
@@ -347,7 +347,7 @@ export default function WalletTopUp() {
         <div>
           <div style={{
             fontSize: 11, fontWeight: 800, letterSpacing: 3,
-            color: isLight ? "#64748b" : "rgba(255,255,255,0.4)", marginBottom: 12,
+            color: isLight ? "var(--md-text-tertiary)" : "rgba(255,255,255,0.4)", marginBottom: 12,
           }}>
             {t.topupSelectCurrency}
           </div>
@@ -363,21 +363,21 @@ export default function WalletTopUp() {
                     height: 52, borderRadius: 14, cursor: "pointer",
                     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
                     border: active
-                      ? "1.5px solid rgba(247,210,72,0.90)"
+                      ? "1.5px solid var(--md-accent)"
                       : `1px solid ${isLight ? "rgba(0,0,80,0.10)" : "rgba(255,255,255,0.10)"}`,
                     background: active
-                      ? (isLight ? "rgba(247,210,72,0.18)" : "rgba(247,210,72,0.12)")
+                      ? (isLight ? "color-mix(in srgb, var(--md-accent) 18%, transparent)" : "color-mix(in srgb, var(--md-accent) 12%, transparent)")
                       : (isLight ? "rgba(0,0,50,0.04)" : "rgba(255,255,255,0.04)"),
                     transition: "all 0.15s ease",
-                    boxShadow: active ? "0 0 0 1px rgba(247,210,72,0.25)" : "none",
+                    boxShadow: active ? "0 0 0 1px color-mix(in srgb, var(--md-accent) 25%, transparent)" : "none",
                   }}
                 >
                   <span style={{ fontSize: 20, lineHeight: 1 }}>{CURRENCY_FLAGS[c]}</span>
                   <span style={{
                     fontSize: 12, fontWeight: 800, letterSpacing: 0.5,
                     color: active
-                      ? (isLight ? "#7a5200" : "#f7d248")
-                      : (isLight ? "#0a1428" : "rgba(255,255,255,0.65)"),
+                      ? (isLight ? "var(--md-text-on-accent)" : "var(--md-accent)")
+                      : (isLight ? "var(--md-surface)" : "rgba(255,255,255,0.65)"),
                   }}>
                     {c}
                   </span>
@@ -391,7 +391,7 @@ export default function WalletTopUp() {
         <div>
           <div style={{
             fontSize: 11, fontWeight: 800, letterSpacing: 3,
-            color: isLight ? "#64748b" : "rgba(255,255,255,0.4)", marginBottom: 12,
+            color: isLight ? "var(--md-text-tertiary)" : "rgba(255,255,255,0.4)", marginBottom: 12,
           }}>
             {t.topupEnterAmountLabel} ({currency})
           </div>
@@ -401,7 +401,7 @@ export default function WalletTopUp() {
             <span style={{
               position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)",
               fontSize: 22, fontWeight: 900,
-              color: isLight ? "#64748b" : "rgba(255,255,255,0.40)",
+              color: isLight ? "var(--md-text-tertiary)" : "rgba(255,255,255,0.40)",
               pointerEvents: "none", userSelect: "none",
             }}>
               {sym}
@@ -421,8 +421,8 @@ export default function WalletTopUp() {
                 paddingRight: 18,
                 fontSize: 28, fontWeight: 900, letterSpacing: -0.5,
                 background: isLight ? "rgba(0,0,50,0.04)" : "rgba(255,255,255,0.05)",
-                border: `2px solid ${isLight ? "rgba(0,0,80,0.15)" : "rgba(247,210,72,0.35)"}`,
-                color: isLight ? "#0a1428" : "#fff",
+                border: `2px solid ${isLight ? "rgba(0,0,80,0.15)" : "color-mix(in srgb, var(--md-accent) 35%, transparent)"}`,
+                color: isLight ? "var(--md-surface)" : "#fff",
                 outline: "none", boxSizing: "border-box",
               }}
             />
@@ -456,19 +456,19 @@ export default function WalletTopUp() {
               exit={{ opacity: 0, y: 8 }}
               style={{
                 borderRadius: 16, padding: "16px 20px",
-                background: isLight ? "rgba(247,210,72,0.08)" : "rgba(247,210,72,0.06)",
-                border: `1px solid ${isLight ? "rgba(247,210,72,0.30)" : "rgba(247,210,72,0.18)"}`,
+                background: isLight ? "color-mix(in srgb, var(--md-accent) 8%, transparent)" : "color-mix(in srgb, var(--md-accent) 6%, transparent)",
+                border: `1px solid ${isLight ? "color-mix(in srgb, var(--md-accent) 30%, transparent)" : "color-mix(in srgb, var(--md-accent) 18%, transparent)"}`,
                 display: "flex", justifyContent: "space-between", alignItems: "center",
               }}
             >
               <div>
                 <div style={{
                   fontSize: 11, fontWeight: 700, letterSpacing: 2,
-                  color: isLight ? "#7a5200" : "rgba(247,210,72,0.60)",
+                  color: isLight ? "var(--md-text-on-accent)" : "color-mix(in srgb, var(--md-accent) 60%, transparent)",
                 }}>
                   {t.topupYoullAdd}
                 </div>
-                <div style={{ fontSize: 26, fontWeight: 900, marginTop: 2, ...(isLight ? { color: "#7a5200" } : goldText) }}>
+                <div style={{ fontSize: 26, fontWeight: 900, marginTop: 2, ...(isLight ? { color: "var(--md-text-on-accent)" } : goldText) }}>
                   {sym}{parsedAmount.toLocaleString("nb-NO")} {currency}
                 </div>
               </div>
@@ -482,7 +482,7 @@ export default function WalletTopUp() {
           <div style={{
             borderRadius: 12, padding: "12px 16px", fontSize: 13, fontWeight: 600,
             background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.25)",
-            color: "#ef4444",
+            color: "var(--md-danger)",
           }}>
             {error}
           </div>
@@ -499,8 +499,8 @@ export default function WalletTopUp() {
               cursor: isLoading || !isValidAmount ? "not-allowed" : "pointer",
               fontSize: 15, fontWeight: 800, letterSpacing: 0.3,
               opacity: isLoading || !isValidAmount ? 0.55 : 1,
-              color: "#1a1400",
-              background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
+              color: "var(--md-text-on-accent)",
+              background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
               boxShadow: isLoading || !isValidAmount
                 ? "none"
                 : "inset 0 1.5px 0 rgba(255,255,240,0.80), 0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",

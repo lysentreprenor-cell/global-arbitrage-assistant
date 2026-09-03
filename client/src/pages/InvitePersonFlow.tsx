@@ -29,13 +29,13 @@ const textareaStyle: React.CSSProperties = {
 };
 
 const errStyle: React.CSSProperties = {
-  fontSize: 11, color: "#f87171", marginTop: 5, display: "flex", alignItems: "center", gap: 5,
+  fontSize: 11, color: "var(--md-negative)", marginTop: 5, display: "flex", alignItems: "center", gap: 5,
 };
 
 const goldBtn: React.CSSProperties = {
   width: "100%", height: 54, borderRadius: 16, border: "none", cursor: "pointer",
-  background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
-  fontSize: 13, fontWeight: 900, color: "#1a1400", letterSpacing: 1.3,
+  background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
+  fontSize: 13, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.3,
   boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
 };
@@ -43,10 +43,10 @@ const goldBtn: React.CSSProperties = {
 type StatusMsg = { text: string; type: "success" | "error" } | null;
 
 const FEATURES: { icon: React.ReactNode; title: string; desc: string }[] = [
-  { icon: <UserCheck size={20} style={{ color: "#d4a020" }} />, title: "Założyć konto", desc: "Rejestracja w kilka sekund" },
-  { icon: <Users size={20} style={{ color: "#a78bfa" }} />, title: "Połączyć się z Tobą", desc: "Znajomi w jednym miejscu" },
-  { icon: <Wallet size={20} style={{ color: "#4ade80" }} />, title: "Otrzymać pieniądze", desc: "Bezpieczne przelewy" },
-  { icon: <FileCheck size={20} style={{ color: "#60a5fa" }} />, title: "Tworzyć umowy", desc: "Akceptuj i rozliczaj" },
+  { icon: <UserCheck size={20} style={{ color: "var(--md-accent)" }} />, title: "Założyć konto", desc: "Rejestracja w kilka sekund" },
+  { icon: <Users size={20} style={{ color: "var(--md-accent)" }} />, title: "Połączyć się z Tobą", desc: "Znajomi w jednym miejscu" },
+  { icon: <Wallet size={20} style={{ color: "var(--md-positive)" }} />, title: "Otrzymać pieniądze", desc: "Bezpieczne przelewy" },
+  { icon: <FileCheck size={20} style={{ color: "var(--md-info)" }} />, title: "Tworzyć umowy", desc: "Akceptuj i rozliczaj" },
 ];
 
 export default function InvitePersonFlow() {
@@ -151,8 +151,8 @@ export default function InvitePersonFlow() {
         </button>
 
         <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(212,160,32,0.12)", border: "1px solid rgba(212,160,32,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-            <UserPlus size={24} style={{ color: "#d4a020" }} />
+          <div style={{ width: 48, height: 48, borderRadius: 16, background: "color-mix(in srgb, var(--md-accent) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--md-accent) 25%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+            <UserPlus size={24} style={{ color: "var(--md-accent)" }} />
           </div>
           <div>
             <h1 style={{ fontSize: 21, fontWeight: 800, color: "white", lineHeight: 1.2 }}>Zaproś osobę do aplikacji</h1>
@@ -179,8 +179,8 @@ export default function InvitePersonFlow() {
               }}
             >
               {status.type === "success"
-                ? <CheckCircle2 size={16} style={{ color: "#4ade80", flexShrink: 0 }} />
-                : <AlertCircle size={16} style={{ color: "#f87171", flexShrink: 0 }} />}
+                ? <CheckCircle2 size={16} style={{ color: "var(--md-positive)", flexShrink: 0 }} />
+                : <AlertCircle size={16} style={{ color: "var(--md-negative)", flexShrink: 0 }} />}
               <span style={{ fontSize: 13, fontWeight: 600, color: status.type === "success" ? "rgba(74,222,128,0.90)" : "rgba(248,113,113,0.90)" }}>
                 {status.text}
               </span>
@@ -239,8 +239,8 @@ export default function InvitePersonFlow() {
         </div>
 
         {/* ── Link preview ── */}
-        <div style={{ marginTop: 20, marginBottom: 24, background: "rgba(212,160,32,0.06)", border: "1px solid rgba(212,160,32,0.20)", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
-          <Link2 size={14} style={{ color: "#d4a020", flexShrink: 0 }} />
+        <div style={{ marginTop: 20, marginBottom: 24, background: "color-mix(in srgb, var(--md-accent) 6%, transparent)", border: "1px solid color-mix(in srgb, var(--md-accent) 20%, transparent)", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
+          <Link2 size={14} style={{ color: "var(--md-accent)", flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
             {inviteLink}
           </span>
@@ -284,7 +284,7 @@ export default function InvitePersonFlow() {
               data-testid="invite-btn-copy"
               onClick={handleCopyLink}
               disabled={copying}
-              style={{ height: 52, borderRadius: 14, border: "1px solid rgba(212,160,32,0.30)", background: "rgba(212,160,32,0.07)", cursor: copying ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13, fontWeight: 700, color: copying ? "rgba(212,160,32,0.45)" : "rgba(212,160,32,0.90)" }}
+              style={{ height: 52, borderRadius: 14, border: "1px solid color-mix(in srgb, var(--md-accent) 30%, transparent)", background: "color-mix(in srgb, var(--md-accent) 7%, transparent)", cursor: copying ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13, fontWeight: 700, color: copying ? "color-mix(in srgb, var(--md-accent) 45%, transparent)" : "var(--md-accent)" }}
             >
               <Copy size={16} />
               {copying ? "Kopiuję…" : "Kopiuj link"}

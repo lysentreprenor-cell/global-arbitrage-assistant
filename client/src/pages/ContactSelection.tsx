@@ -65,8 +65,8 @@ export default function ContactSelection() {
   if (requestSent) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 gap-6 text-center">
-        <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgba(212,160,32,0.12)", border: "1px solid rgba(212,160,32,0.30)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ArrowUpRight size={36} style={{ color: "var(--primary, #D4A020)" }} />
+        <div style={{ width: 80, height: 80, borderRadius: "50%", background: "color-mix(in srgb, var(--md-accent) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--md-accent) 30%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ArrowUpRight size={36} style={{ color: "var(--primary, var(--md-accent))" }} />
         </div>
         <div>
           <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", marginBottom: 8 }}>{pl ? "Prośba wysłana!" : "Request sent!"}</div>
@@ -78,7 +78,7 @@ export default function ContactSelection() {
         </div>
         <button
           onClick={() => setLocation("/")}
-          style={{ marginTop: 8, height: 52, borderRadius: 16, border: "none", cursor: "pointer", background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)", fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2, padding: "0 40px", boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
+          style={{ marginTop: 8, height: 52, borderRadius: 16, border: "none", cursor: "pointer", background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)", fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2, padding: "0 40px", boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
         >
           {pl ? "WRÓĆ DO DOMU" : "BACK HOME"}
         </button>
@@ -175,7 +175,7 @@ export default function ContactSelection() {
                 />
                 <span style={{
                   fontSize: 20, fontWeight: 700, paddingBottom: 6,
-                  color: requestAmount ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.25)",
+                  color: requestAmount ? "var(--primary, var(--md-accent))" : "rgba(255,255,255,0.25)",
                   transition: "color 0.2s",
                 }}>PLN</span>
               </div>
@@ -228,7 +228,7 @@ export default function ContactSelection() {
                   onTouchStart={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.transform = "scale(0.96)"; }}
                   onTouchEnd={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
                 >
-                  <div style={{ color: "var(--primary, #D4A020)", opacity: 0.9 }}>{btn.icon}</div>
+                  <div style={{ color: "var(--primary, var(--md-accent))", opacity: 0.9 }}>{btn.icon}</div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.85)", letterSpacing: 0.2 }}>{btn.label}</div>
                   <div style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.35)", textAlign: "center", lineHeight: 1.3 }}>{btn.sub}</div>
                 </button>
@@ -253,7 +253,7 @@ export default function ContactSelection() {
               onTouchEnd={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.transform = "scale(1)"; }}
             >
               <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <FilePlus style={{ width: 16, height: 16, color: "var(--primary, #D4A020)" }} />
+                <FilePlus style={{ width: 16, height: 16, color: "var(--primary, var(--md-accent))" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>{pl ? "Utwórz umowę" : "Create contract"}</div>
@@ -329,7 +329,7 @@ export default function ContactSelection() {
                       display: "flex", alignItems: "center", gap: 4, paddingBottom: 6,
                       background: "none", border: "none", cursor: "pointer",
                       fontSize: 20, fontWeight: 700,
-                      color: requestAmount ? "var(--primary, #D4A020)" : "rgba(255,255,255,0.25)",
+                      color: requestAmount ? "var(--primary, var(--md-accent))" : "rgba(255,255,255,0.25)",
                       transition: "color 0.2s",
                     }}
                   >
@@ -356,7 +356,7 @@ export default function ContactSelection() {
                               padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700,
                               background: sendCurrency === cur ? "rgba(var(--color-primary-rgb,201,168,76),0.18)" : "rgba(255,255,255,0.06)",
                               border: `1px solid ${sendCurrency === cur ? "rgba(var(--color-primary-rgb,201,168,76),0.35)" : "rgba(255,255,255,0.09)"}`,
-                              color: sendCurrency === cur ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.55)",
+                              color: sendCurrency === cur ? "var(--primary,var(--md-accent))" : "rgba(255,255,255,0.55)",
                               cursor: "pointer",
                             }}
                           >
@@ -379,7 +379,7 @@ export default function ContactSelection() {
                         fontSize: 12, fontWeight: 700,
                         background: requestAmount === amt ? "rgba(var(--color-primary-rgb,201,168,76),0.18)" : "rgba(255,255,255,0.06)",
                         border: `1px solid ${requestAmount === amt ? "rgba(var(--color-primary-rgb,201,168,76),0.35)" : "rgba(255,255,255,0.09)"}`,
-                        color: requestAmount === amt ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.50)",
+                        color: requestAmount === amt ? "var(--primary,var(--md-accent))" : "rgba(255,255,255,0.50)",
                         cursor: "pointer", transition: "all 0.15s ease",
                       }}
                     >
@@ -424,16 +424,16 @@ export default function ContactSelection() {
                     style={{
                       gridColumn: tile.span ? "1 / -1" : undefined,
                       borderRadius: 18, padding: "16px 8px",
-                      background: active ? "rgba(212,160,32,0.10)" : "rgba(255,255,255,0.04)",
-                      border: `1.5px solid ${active ? "rgba(212,160,32,0.45)" : "rgba(255,255,255,0.09)"}`,
+                      background: active ? "color-mix(in srgb, var(--md-accent) 10%, transparent)" : "rgba(255,255,255,0.04)",
+                      border: `1.5px solid ${active ? "color-mix(in srgb, var(--md-accent) 45%, transparent)" : "rgba(255,255,255,0.09)"}`,
                       display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
                       cursor: "pointer", transition: "all 0.18s ease",
                     }}
                     onTouchStart={e => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
-                    onTouchEnd={e => { e.currentTarget.style.background = active ? "rgba(212,160,32,0.10)" : "rgba(255,255,255,0.04)"; }}
+                    onTouchEnd={e => { e.currentTarget.style.background = active ? "color-mix(in srgb, var(--md-accent) 10%, transparent)" : "rgba(255,255,255,0.04)"; }}
                   >
-                    <div style={{ color: active ? "var(--primary,#D4A020)" : "rgba(212,160,32,0.65)" }}>{tile.icon}</div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: active ? "var(--primary,#D4A020)" : "rgba(255,255,255,0.80)", letterSpacing: 0.1 }}>{tile.label}</div>
+                    <div style={{ color: active ? "var(--primary,var(--md-accent))" : "color-mix(in srgb, var(--md-accent) 65%, transparent)" }}>{tile.icon}</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: active ? "var(--primary,var(--md-accent))" : "rgba(255,255,255,0.80)", letterSpacing: 0.1 }}>{tile.label}</div>
                     <div style={{ fontSize: 10, fontWeight: 500, color: "rgba(255,255,255,0.32)", textAlign: "center" }}>{tile.sub}</div>
                   </button>
                 );
@@ -491,8 +491,8 @@ export default function ContactSelection() {
                       }}
                       style={{
                         marginTop: 14, width: "100%", padding: "14px", borderRadius: 14,
-                        background: "linear-gradient(180deg,#fff4b8 0%,#f9d95e 22%,#d4a020 62%,#b8880a 100%)",
-                        color: "#1a1400", border: "none", fontSize: 14, fontWeight: 900,
+                        background: "linear-gradient(180deg,var(--md-accent-hover) 0%,var(--md-accent) 22%,var(--md-accent) 62%,var(--md-accent-pressed) 100%)",
+                        color: "var(--md-text-on-accent)", border: "none", fontSize: 14, fontWeight: 900,
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                         boxShadow: "0 3px 0 rgba(140,90,4,0.80)",
                       }}
@@ -582,7 +582,7 @@ export default function ContactSelection() {
                       padding: "5px 12px", borderRadius: 999,
                       fontSize: 12, fontWeight: 700,
                       background: "rgba(var(--color-primary-rgb, 201,168,76), 0.12)",
-                      color: "var(--primary, #D4A020)",
+                      color: "var(--primary, var(--md-accent))",
                       border: "1px solid rgba(var(--color-primary-rgb, 201,168,76), 0.22)",
                       flexShrink: 0,
                     }}>

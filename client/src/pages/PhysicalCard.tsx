@@ -39,7 +39,7 @@ export default function PhysicalCard() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative w-full aspect-[1.58] rounded-3xl bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] border border-white/10 p-8 flex flex-col justify-between text-white overflow-hidden shadow-2xl mx-auto max-w-sm"
+          className="relative w-full aspect-[1.58] rounded-3xl bg-gradient-to-br from-[var(--md-surface-raised)] to-[var(--md-canvas)] border border-white/10 p-8 flex flex-col justify-between text-white overflow-hidden shadow-2xl mx-auto max-w-sm"
         >
           {/* Metal Texture */}
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20 mix-blend-overlay pointer-events-none"></div>
