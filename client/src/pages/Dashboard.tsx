@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { StorageKeys } from "@/lib/localStore";
 import {
   ArrowLeftRight, Eye, EyeOff, Plus, Clock, Target, BarChart2, ChevronRight,
   Bell, Sparkles,
@@ -95,7 +96,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("finlys_currency_alerts");
+      const stored = localStorage.getItem(StorageKeys.CURRENCY_ALERTS);
       if (!stored || !fxRates) return;
       const alerts: CurrencyAlert[] = JSON.parse(stored);
       alerts.forEach(alert => {
@@ -113,7 +114,7 @@ export default function Dashboard() {
             priority: "high",
           });
           const updated = alerts.map(a => (a.id === alert.id ? { ...a, triggered: true } : a));
-          localStorage.setItem("finlys_currency_alerts", JSON.stringify(updated));
+          localStorage.setItem(StorageKeys.CURRENCY_ALERTS, JSON.stringify(updated));
         }
       });
     } catch {}
@@ -124,7 +125,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("itemprise_contracts");
+      const stored = localStorage.getItem(StorageKeys.CONTRACTS);
       if (!stored) return;
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const in7 = new Date(today); in7.setDate(in7.getDate() + 7);
@@ -245,7 +246,7 @@ export default function Dashboard() {
   const [topGoal, setTopGoal] = useState<{ emoji: string; name: string; target: number; saved: number; currency: string } | null>(null);
   useEffect(() => {
     try {
-      const goals = JSON.parse(localStorage.getItem("finlys_goals") || "[]");
+      const goals = JSON.parse(localStorage.getItem(StorageKeys.GOALS) || "[]");
       const active = goals.filter((g: any) => g.saved < g.target);
       if (active.length > 0) setTopGoal(active.sort((a: any, b: any) => b.saved / b.target - a.saved / a.target)[0]);
     } catch {}
@@ -860,9 +861,9 @@ export default function Dashboard() {
             disabled={!alertThreshold}
             onClick={() => {
               if (!alertThreshold) return;
-              const alerts = JSON.parse(localStorage.getItem("itemprise_fx_alerts") || "[]");
+              const alerts = JSON.parse(localStorage.getItem(StorageKeys.FX_ALERTS) || "[]");
               alerts.push({ from: alertFrom, to: alertTo, threshold: parseFloat(alertThreshold), condition: alertCondition, createdAt: Date.now() });
-              localStorage.setItem("itemprise_fx_alerts", JSON.stringify(alerts));
+              localStorage.setItem(StorageKeys.FX_ALERTS, JSON.stringify(alerts));
               addNotification({
                 type: "info",
                 title: lang === "pl" ? "Alert ustawiony" : "Alert set",

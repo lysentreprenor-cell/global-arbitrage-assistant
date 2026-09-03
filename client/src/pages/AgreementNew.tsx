@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { StorageKeys } from "@/lib/localStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore, type CurrencyCode } from "@/lib/store";
 import { useSearch } from "wouter";
@@ -299,8 +300,8 @@ interface SavedContract {
   paymentConfirmedAt?: string;
 }
 
-const LS_DRAFT_KEY = "itemprise_draft";
-const LS_CONTRACTS_KEY = "itemprise_contracts";
+const LS_DRAFT_KEY = StorageKeys.DRAFT;
+const LS_CONTRACTS_KEY = StorageKeys.CONTRACTS;
 
 function loadDraft(): { data: WizardData; stepIndex: number; contractId: string } | null {
   try {
@@ -621,7 +622,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
       {/* My Templates */}
       {(() => {
         try {
-          const myTemplates = JSON.parse(localStorage.getItem("finlys_my_templates") || "[]");
+          const myTemplates = JSON.parse(localStorage.getItem(StorageKeys.MY_TEMPLATES) || "[]");
           if (!myTemplates.length) return null;
           return (
             <div style={{ marginTop: 20, marginBottom: 20 }}>
@@ -4283,7 +4284,7 @@ function ContractLifecycle({
   });
   const [inlineRating, setInlineRating] = useState(0);
   const [inlineRatingSubmitted, setInlineRatingSubmitted] = useState(() => {
-    try { return !!JSON.parse(localStorage.getItem("finlys_ratings") || "[]").find((r: any) => r.contractId === contractId); }
+    try { return !!JSON.parse(localStorage.getItem(StorageKeys.RATINGS) || "[]").find((r: any) => r.contractId === contractId); }
     catch { return false; }
   });
   const [inlineRatingNote, setInlineRatingNote] = useState("");
@@ -5060,9 +5061,9 @@ function ContractLifecycle({
           <button
             disabled={inlineRating === 0}
             onClick={() => {
-              const ratings = JSON.parse(localStorage.getItem("finlys_ratings") || "[]");
+              const ratings = JSON.parse(localStorage.getItem(StorageKeys.RATINGS) || "[]");
               ratings.push({ contractId, rating: inlineRating, note: inlineRatingNote, ratedUser: otherParty.name || invited, date: new Date().toISOString() });
-              localStorage.setItem("finlys_ratings", JSON.stringify(ratings));
+              localStorage.setItem(StorageKeys.RATINGS, JSON.stringify(ratings));
               setInlineRatingSubmitted(true);
             }}
             style={{
@@ -5130,7 +5131,7 @@ function ContractLifecycle({
           <button
             onClick={() => {
               try {
-                const templates = JSON.parse(localStorage.getItem("finlys_my_templates") || "[]");
+                const templates = JSON.parse(localStorage.getItem(StorageKeys.MY_TEMPLATES) || "[]");
                 const newTemplate = {
                   id: Date.now().toString(),
                   emoji: ({ usluga: "💼", remont: "🔨", sprzedaz: "🛒", wynajem: "🏠", wypozyczenie: "📦", wlasna: "📝" } as Record<string, string>)[data.category] || "📄",
@@ -5147,7 +5148,7 @@ function ContractLifecycle({
                   }
                 };
                 templates.unshift(newTemplate);
-                localStorage.setItem("finlys_my_templates", JSON.stringify(templates.slice(0, 20)));
+                localStorage.setItem(StorageKeys.MY_TEMPLATES, JSON.stringify(templates.slice(0, 20)));
                 addContractEvent(contractId, { type: "note", icon: "💾", label: "Zapisano umowę jako szablon" });
               } catch {}
             }}

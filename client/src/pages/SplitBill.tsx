@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { StorageKeys } from "@/lib/localStore";
 import { useLocation } from "wouter";
 import { ArrowLeft, Users, Copy, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ interface SplitRecord {
   date: string;
 }
 
-const STORAGE_KEY = "finlys_split_bills";
+const STORAGE_KEY = StorageKeys.SPLIT_BILLS;
 
 function loadHistory(): SplitRecord[] {
   try {

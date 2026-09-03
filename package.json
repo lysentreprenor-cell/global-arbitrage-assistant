@@ -1,6 +1,8 @@
 {
-  "name": "rest-express",
+  "name": "finlys",
   "version": "1.0.0",
+  "description": "Finlys — multi-currency banking and contract PWA (Vite + React client, Express server)",
+  "private": true,
   "type": "module",
   "license": "MIT",
   "scripts": {
