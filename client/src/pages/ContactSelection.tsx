@@ -9,12 +9,16 @@ import UserHandleText from "@/components/UserHandleText";
 import { useLang } from "@/context/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 
+type ContactMode = "send" | "request" | "message";
+
 export default function ContactSelection() {
   const [, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
-  const initialMode = searchParams.get("mode") || "send";
+  const rawMode = searchParams.get("mode");
+  const initialMode: ContactMode =
+    rawMode === "request" || rawMode === "message" ? rawMode : "send";
   const { contacts, user, openConversation } = useAppStore();
-  const [activeMode, setActiveMode] = useState(initialMode);
+  const [activeMode, setActiveMode] = useState<ContactMode>(initialMode);
   const [searchTerm, setSearchTerm] = useState("");
   const [requestAmount, setRequestAmount] = useState(searchParams.get("amount") || "");
   const [requestNote, setRequestNote] = useState(searchParams.get("note") || "");
@@ -411,7 +415,9 @@ export default function ContactSelection() {
                 { id: "loan",  label: pl ? "Pożyczka znajomemu" : "P2P Loan",  sub: pl ? "Dla znajomego lub rodziny" : "For friend or family", icon: <Banknote size={20} />, testId: "tile-loan-p2p", span: false },
                 { id: "req",   label: pl ? "Poproś" : "Request",               sub: pl ? "Poproś o przelew" : "Request",      icon: <ArrowUpRight size={20} />, testId: "tile-request-from-send", span: false },
               ] as { id: string; label: string; sub: string; icon: ReactNode; testId: string; span: boolean }[]).map(tile => {
-                const active = selectedMethod === tile.id || (tile.id === "req" && activeMode === "request");
+                // This tile grid only renders in send mode, so the "req" tile is
+                // never highlighted here — it switches the screen to request mode.
+                const active = selectedMethod === tile.id;
                 return (
                   <button
                     key={tile.testId}

@@ -395,7 +395,9 @@ const TEMPLATES: { id: string; icon: string; label: string; desc: string; preset
   },
 ];
 
-const COMMUNITY_TEMPLATES = [
+type CommunityTemplate = { id: string; emoji: string; label: string; desc: string } & Partial<WizardData>;
+
+const COMMUNITY_TEMPLATES: CommunityTemplate[] = [
   { id: "ct1", emoji: "💻", label: "Freelancer IT", desc: "Programowanie, 40h/mc", category: "usluga", subcategory: "Programowanie / IT", pricingMethod: "hourly", basePrice: 120, ipTransfer: true, confidentiality: true },
   { id: "ct2", emoji: "🏠", label: "Wynajem pokoju", desc: "Pokój w mieszkaniu, kaucja 2M", category: "wynajem", subcategory: "Pokój", pricingMethod: "per_month", basePrice: 900, rentalDeposit: 1800, rentalDepositReturnDays: 30 },
   { id: "ct3", emoji: "🚗", label: "Sprzedaż auta", desc: "Umowa kupna-sprzedaży pojazdu", category: "sprzedaz", subcategory: "Auto/pojazd", pricingMethod: "price", basePrice: 0 },
@@ -1112,8 +1114,9 @@ function LiveTicker({ total, label, currency }: { total: number; label: string; 
 }
 
 export default function AgreementNew() {
-  const { user } = useAppStore();
-  const defaultCurrency = (user?.currency as string) || "PLN";
+  const { primaryCurrency } = useAppStore();
+  // `User` carries no currency field — the user's currency preference lives in the store.
+  const defaultCurrency: CurrencyCode = primaryCurrency || "PLN";
   const search = useSearch();
   const forceNew = new URLSearchParams(search).get("new") === "1";
   const [view, setView] = useState<"home" | "wizard">(() => {
