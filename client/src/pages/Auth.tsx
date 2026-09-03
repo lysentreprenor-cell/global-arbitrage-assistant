@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { StorageKeys } from "@/lib/localStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/lib/store";
@@ -31,9 +32,9 @@ export default function Auth() {
   // On mount: if startup flow detected unverified session, go straight to verify step
   useEffect(() => {
     try {
-      const pendingEmail = sessionStorage.getItem("finlys_pending_verify_email");
+      const pendingEmail = sessionStorage.getItem(StorageKeys.PENDING_VERIFY_EMAIL);
       if (pendingEmail) {
-        sessionStorage.removeItem("finlys_pending_verify_email");
+        sessionStorage.removeItem(StorageKeys.PENDING_VERIFY_EMAIL);
         setEmail(pendingEmail);
         setStep("verify");
         // Request a fresh OTP and start the cooldown

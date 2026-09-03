@@ -1,22 +1,78 @@
-# ItemPrise – Contract Wizard
+# Finlys
 
-React Native / Expo app with a 6-step contract creation wizard.
+Wielowalutowa aplikacja bankowa z modułem umów (escrow), działająca jako PWA.
 
-## Quick start
+- **Klient** — React 19 + Vite, wouter, TanStack Query, Tailwind + shadcn/ui
+- **Serwer** — Express 5, PostgreSQL (Drizzle ORM), Firebase Auth + Realtime Database, Stripe
+- **PWA** — manifest, service worker, powiadomienia push, instalacja z przeglądarki
+
+## Uruchomienie lokalne
 
 ```bash
-git clone https://github.com/lysentreprenor-cell/item-prise-2_8_1.git
-cd item-prise-2_8_1
 npm install --legacy-peer-deps
-npx expo start
+npm run dev          # serwer + klient na porcie 5000
 ```
 
-Scan the QR code in **Expo Go** (Android/iOS).
+Sam klient, bez backendu:
 
-## Steps
-1. Podstawy – contract type, category, pricing method, deadline  
-2. Zakres prac – rooms with per-room scope, electrical/plumbing/materials  
-3. Wycena – per-m², lump-sum or hourly; live auto-sum  
-4. Płatność – four payment-split models with live breakdown  
-5. Warunki – proofs, conditions, acceptance protocol, deadlines  
-6. Podsumowanie – full summary, warnings, final amount, edit-any-step links  
+```bash
+npm run dev:client   # Vite na porcie 5000
+```
+
+Wymagane zmienne środowiskowe (klient czyta wyłącznie prefiks `VITE_`):
+
+```
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID
+VITE_FIREBASE_DATABASE_URL
+```
+
+Sekrety serwera (`DATABASE_URL`, `STRIPE_SECRET_KEY`, `FIREBASE_SERVICE_ACCOUNT`, …)
+nigdy nie trafiają do klienta — patrz `server/envValidate.ts`.
+
+## Skrypty
+
+| polecenie | co robi |
+|---|---|
+| `npm run dev` | serwer deweloperski (Express + Vite middleware) |
+| `npm run dev:client` | sam klient |
+| `npm run build` | build produkcyjny → `dist/public` (klient) + `dist/index.cjs` (serwer) |
+| `npm start` | uruchomienie builda produkcyjnego |
+| `npm run check` | TypeScript |
+
+## Struktura
+
+```
+client/          aplikacja webowa (Vite root)
+  src/design/    system projektowy Meridian — czytaj przed zmianami w UI
+  src/pages/     ekrany
+  src/lib/       store, API, localStorage (localStore.ts = wszystkie klucze)
+server/          Express: routing, auth, płatności, powiadomienia
+shared/          schemat bazy współdzielony przez klienta i serwer
+script/build.ts  build produkcyjny
+```
+
+## Interfejs
+
+UI podlega systemowi projektowemu **Meridian** — tokeny, motywy i biblioteka
+komponentów w `client/src/design/`. Przed dodaniem czegokolwiek do UI przeczytaj
+[`client/src/design/README.md`](client/src/design/README.md). Zasada nadrzędna:
+brak nowych kolorów, rozmiarów pisma i odstępów w ekranach — wszystko pochodzi
+z tokenów.
+
+## Wdrożenie
+
+Replit, cel `autoscale`. Build: `npm run build`, start: `node dist/index.cjs`
+(konfiguracja w `.replit`).
+
+## O nazwach
+
+Projekt nosił wcześniej nazwy **ItemPrise** i **rest-express**; ślady zostały
+w kluczach `localStorage` (prefiksy `itemprise_`, `fintech_`, `finlys_`).
+Te klucze **celowo nie zostały ujednolicone** — wskazują na dane, które są już
+w przeglądarkach użytkowników, a zmiana nazwy klucza nie przenosi danych, tylko
+je porzuca. Wszystkie definicje kluczy zebrane są w `client/src/lib/localStore.ts`.

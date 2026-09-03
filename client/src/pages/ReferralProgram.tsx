@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { StorageKeys } from "@/lib/localStore";
 import { useLocation } from "wouter";
 import { ArrowLeft, Copy, Share2, MessageCircle, Users, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ interface ReferralData {
   referrals: { handle: string; status: "active" | "pending"; bonus: number; date: string }[];
 }
 
-const STORAGE_KEY = "finlys_referrals";
+const STORAGE_KEY = StorageKeys.REFERRALS;
 
 const MOCK_REFERRALS = [
   { handle: "@jan_kowalski", status: "active" as const, bonus: 25, date: "2026-04-10" },

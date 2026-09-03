@@ -1,4 +1,6 @@
-const FP_KEY = "finlys_device_fp";
+import { StorageKeys } from "@/lib/localStore";
+
+const FP_KEY = StorageKeys.DEVICE_FP;
 
 export async function getDeviceFingerprint(): Promise<string> {
   try {

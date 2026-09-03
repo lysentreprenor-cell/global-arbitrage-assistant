@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { StorageKeys } from "@/lib/localStore";
 import { useLocation } from "wouter";
 import { Search, Plus, MessageSquare, Loader2, X, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -61,13 +62,13 @@ function formatHandle(h?: string | null): string {
 // ── localStorage helpers ───────────────────────────────────────────────────────
 
 function loadFavorites(): Record<string, boolean> {
-  try { return JSON.parse(localStorage.getItem("finlys_fav_convs") || "{}"); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(StorageKeys.FAV_CONVS) || "{}"); } catch { return {}; }
 }
 function saveFavorites(f: Record<string, boolean>) {
-  try { localStorage.setItem("finlys_fav_convs", JSON.stringify(f)); } catch {}
+  try { localStorage.setItem(StorageKeys.FAV_CONVS, JSON.stringify(f)); } catch {}
 }
 function loadBlockedUsers(): Record<string, boolean> {
-  try { return JSON.parse(localStorage.getItem("finlys_blocked_users") || "{}"); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(StorageKeys.BLOCKED_USERS) || "{}"); } catch { return {}; }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -118,7 +119,7 @@ export default function MessagesPage() {
         (data.blockedUserIds ?? []).forEach(id => { map[id] = true; });
         setBlockedUsers(map);
         // Sync localStorage cache with server truth
-        try { localStorage.setItem("finlys_blocked_users", JSON.stringify(map)); } catch {}
+        try { localStorage.setItem(StorageKeys.BLOCKED_USERS, JSON.stringify(map)); } catch {}
       })
       .catch(() => {/* fallback: keep localStorage-seeded initial state */});
     return () => { alive = false; };

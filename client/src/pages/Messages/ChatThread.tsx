@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { StorageKeys } from "@/lib/localStore";
 import { createPortal } from "react-dom";
 import { useWsContext } from "@/context/WsContext";
 import {get, off, onValue, ref, set} from "firebase/database";
@@ -499,15 +500,15 @@ export default function ChatThread() {
                   setIsBlockedByMe(!!data.blocked);
                   // Sync localStorage cache with server truth
                   try {
-                    const cache = JSON.parse(localStorage.getItem("finlys_blocked_users") || "{}");
+                    const cache = JSON.parse(localStorage.getItem(StorageKeys.BLOCKED_USERS) || "{}");
                     if (data.blocked) cache[found.target_user_id!] = true;
                     else delete cache[found.target_user_id!];
-                    localStorage.setItem("finlys_blocked_users", JSON.stringify(cache));
+                    localStorage.setItem(StorageKeys.BLOCKED_USERS, JSON.stringify(cache));
                   } catch {}
                 } else if (isMounted.current) {
                   // Server unavailable — fall back to localStorage cache
                   try {
-                    const cache = JSON.parse(localStorage.getItem("finlys_blocked_users") || "{}");
+                    const cache = JSON.parse(localStorage.getItem(StorageKeys.BLOCKED_USERS) || "{}");
                     setIsBlockedByMe(!!cache[found.target_user_id!]);
                   } catch {}
                 }
@@ -515,7 +516,7 @@ export default function ChatThread() {
               .catch(() => {
                 // Network error — fall back to localStorage cache
                 try {
-                  const cache = JSON.parse(localStorage.getItem("finlys_blocked_users") || "{}");
+                  const cache = JSON.parse(localStorage.getItem(StorageKeys.BLOCKED_USERS) || "{}");
                   setIsBlockedByMe(!!cache[found.target_user_id!]);
                 } catch {}
               });
@@ -811,10 +812,10 @@ export default function ChatThread() {
       setIsBlockedByMe(newBlocked);
       // Persist to localStorage so Messages list can filter Zablokowane
       try {
-        const cache = JSON.parse(localStorage.getItem("finlys_blocked_users") || "{}");
+        const cache = JSON.parse(localStorage.getItem(StorageKeys.BLOCKED_USERS) || "{}");
         if (newBlocked) cache[meta.targetUserId] = true;
         else delete cache[meta.targetUserId];
-        localStorage.setItem("finlys_blocked_users", JSON.stringify(cache));
+        localStorage.setItem(StorageKeys.BLOCKED_USERS, JSON.stringify(cache));
       } catch {}
       showToast(isBlockedByMe ? "Odblokowano użytkownika." : "Zablokowano użytkownika.", true);
       setMenuOpen(false);

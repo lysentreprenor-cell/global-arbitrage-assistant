@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { StorageKeys } from "@/lib/localStore";
 import { ArrowLeft, Globe, BellRing, Lock, EyeOff, Check, Smartphone, Download, PiggyBank, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -151,23 +152,23 @@ export default function Preferences() {
   const [showAddCurrencyMenu, setShowAddCurrencyMenu] = useState(false);
   const [showThemes, setShowThemes]             = useState(false);
   const [roundupEnabled, setRoundupEnabled]     = useState(() => {
-    try { return localStorage.getItem("finlys_roundup_enabled") === "true"; } catch { return false; }
+    try { return localStorage.getItem(StorageKeys.ROUNDUP) === "true"; } catch { return false; }
   });
   const [offlineMode, setOfflineMode]           = useState(() => {
-    try { return localStorage.getItem("finlys_offline_mode") === "true"; } catch { return false; }
+    try { return localStorage.getItem(StorageKeys.OFFLINE_MODE) === "true"; } catch { return false; }
   });
   const [appLock, setAppLock] = useState(() => {
-    try { return localStorage.getItem("finlys_app_lock") === "true"; } catch { return false; }
+    try { return localStorage.getItem(StorageKeys.APP_LOCK) === "true"; } catch { return false; }
   });
 
   const handleAppLockToggle = (val: boolean) => {
     setAppLock(val);
-    try { localStorage.setItem("finlys_app_lock", String(val)); } catch { /* ignore */ }
+    try { localStorage.setItem(StorageKeys.APP_LOCK, String(val)); } catch { /* ignore */ }
   };
 
   const handleRoundupToggle = (val: boolean) => {
     setRoundupEnabled(val);
-    localStorage.setItem("finlys_roundup_enabled", String(val));
+    localStorage.setItem(StorageKeys.ROUNDUP, String(val));
     toast({
       title: "Preference Updated",
       description: val
@@ -178,7 +179,7 @@ export default function Preferences() {
 
   const handleOfflineModeToggle = (val: boolean) => {
     setOfflineMode(val);
-    localStorage.setItem("finlys_offline_mode", String(val));
+    localStorage.setItem(StorageKeys.OFFLINE_MODE, String(val));
     toast({
       title: "Preference Updated",
       description: val

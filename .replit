@@ -1,5 +1,4 @@
-run = "npm install --legacy-peer-deps && npx expo start --web"
-entrypoint = "App.tsx"
+run = "npm install --legacy-peer-deps && npm run dev"
 modules = ["bun", "nodejs-22"]
 
 [nix]

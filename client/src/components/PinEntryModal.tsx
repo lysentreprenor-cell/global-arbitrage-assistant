@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { StorageKeys } from "@/lib/localStore";
 import { ShieldCheck, X, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -14,8 +15,8 @@ interface PinEntryModalProps {
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 5 * 60 * 1000;
-const LOCKOUT_KEY = "finlys_pin_lockout";
-const ATTEMPTS_KEY = "finlys_pin_attempts";
+const LOCKOUT_KEY = StorageKeys.PIN_LOCKOUT;
+const ATTEMPTS_KEY = StorageKeys.PIN_ATTEMPTS;
 
 function getLockoutRemaining(): number {
   try {

@@ -536,7 +536,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         // If email is not verified, block access — store email so Auth shows verify step
         if (meData.emailVerified === false) {
-          try { sessionStorage.setItem("finlys_pending_verify_email", meData.email || ""); } catch {}
+          try { sessionStorage.setItem(StorageKeys.PENDING_VERIFY_EMAIL, meData.email || ""); } catch {}
           localStorage.removeItem(StorageKeys.CURRENT_USER);
           setUser(null);
           setIsAuthenticated(false);
