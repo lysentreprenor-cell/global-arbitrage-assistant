@@ -36,15 +36,15 @@ function polishTransferError(msg?: string): string {
 function PeerRiskModal({ riskLevel, riskReasons, onConfirm, onCancel }: { riskLevel: string; riskReasons: string[]; onConfirm: () => void; onCancel: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center", background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
-      <div style={{ width: "100%", maxWidth: 440, background: "var(--card)", border: "1px solid rgba(212,160,32,0.3)", borderRadius: "24px 24px 0 0", padding: "24px 24px 32px", boxShadow: "0 -8px 48px rgba(0,0,0,0.5)" }}>
+      <div style={{ width: "100%", maxWidth: 440, background: "var(--card)", border: "1px solid color-mix(in srgb, var(--md-accent) 30%, transparent)", borderRadius: "24px 24px 0 0", padding: "24px 24px 32px", boxShadow: "0 -8px 48px rgba(0,0,0,0.5)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <AlertTriangle size={20} style={{ color: "#d4a020", flexShrink: 0 }} />
+          <AlertTriangle size={20} style={{ color: "var(--md-accent)", flexShrink: 0 }} />
           <p style={{ fontWeight: 700, fontSize: 15, color: "white" }}>Ostrzeżenie bezpieczeństwa</p>
         </div>
         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", marginBottom: 8 }}>
           {riskLevel === "medium"
             ? "To wygląda na nietypową operację. Sprawdź dane przed potwierdzeniem."
-            : <>Poziom ryzyka: <span style={{ fontWeight: 600, color: "#f87171" }}>WYSOKI</span></>
+            : <>Poziom ryzyka: <span style={{ fontWeight: 600, color: "var(--md-negative)" }}>WYSOKI</span></>
           }
         </p>
         {riskReasons.length > 0 && (
@@ -56,7 +56,7 @@ function PeerRiskModal({ riskLevel, riskReasons, onConfirm, onCancel }: { riskLe
           <button onClick={onCancel} style={{ flex: 1, height: 44, borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 14 }}>
             Anuluj
           </button>
-          <button onClick={onConfirm} style={{ flex: 1, height: 44, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#d4a020,#b8880a)", color: "#0d0d0f", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
+          <button onClick={onConfirm} style={{ flex: 1, height: 44, borderRadius: 12, border: "none", background: "linear-gradient(135deg,var(--md-accent),var(--md-accent-pressed))", color: "#0d0d0f", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
             Rozumiem, kontynuuj
           </button>
         </div>
@@ -94,7 +94,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 const errStyle: React.CSSProperties = {
-  fontSize: 11, color: "#f87171", marginTop: 4,
+  fontSize: 11, color: "var(--md-negative)", marginTop: 4,
 };
 
 function FieldErr({ msg }: { msg?: string }) {
@@ -141,7 +141,7 @@ function PinScreen({ onConfirm, onBack }: { onConfirm: () => void; onBack: () =>
       <button data-testid="pin-back" onClick={onBack} style={{ alignSelf: "flex-start", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", marginBottom: 40 }}>
         <ArrowLeft size={20} />
       </button>
-      <ShieldCheck size={48} style={{ color: "#d4a020", marginBottom: 20 }} />
+      <ShieldCheck size={48} style={{ color: "var(--md-accent)", marginBottom: 20 }} />
       <h2 style={{ fontSize: 22, fontWeight: 800, color: "white", marginBottom: 8 }}>Podaj PIN bezpieczeństwa</h2>
       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 40 }}>6-cyfrowy PIN (sandbox — dowolne cyfry)</p>
 
@@ -149,7 +149,7 @@ function PinScreen({ onConfirm, onBack }: { onConfirm: () => void; onBack: () =>
         {[0,1,2,3,4,5].map(i => (
           <div key={i} style={{
             width: 14, height: 14, borderRadius: "50%",
-            background: digits[i] ? "#d4a020" : "rgba(255,255,255,0.15)",
+            background: digits[i] ? "var(--md-accent)" : "rgba(255,255,255,0.15)",
             border: "2px solid rgba(255,255,255,0.20)",
             transition: "background 0.15s",
           }} />
@@ -157,7 +157,7 @@ function PinScreen({ onConfirm, onBack }: { onConfirm: () => void; onBack: () =>
       </div>
 
       {processing ? (
-        <Loader2 size={36} style={{ color: "#d4a020", animation: "spin 0.8s linear infinite" }} />
+        <Loader2 size={36} style={{ color: "var(--md-accent)", animation: "spin 0.8s linear infinite" }} />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 72px)", gap: "12px 20px" }}>
           {numPadKeys.map((k, i) => k === "" ? <div key={i} /> : (
@@ -223,7 +223,7 @@ function ConfirmScreen({
         </div>
 
         <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.20)", borderRadius: 14, padding: "12px 16px", display: "flex", gap: 10, marginBottom: 12 }}>
-          <AlertCircle size={16} style={{ color: "#f87171", flexShrink: 0, marginTop: 1 }} />
+          <AlertCircle size={16} style={{ color: "var(--md-negative)", flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 12, color: "rgba(248,113,113,0.90)", lineHeight: 1.5 }}>
             {warning || "Sprawdź dane odbiorcy przed potwierdzeniem. Przelewu może nie dać się cofnąć."}
           </span>
@@ -243,8 +243,8 @@ function ConfirmScreen({
           style={{
             width: "100%", height: 56, borderRadius: 18, border: "none",
             cursor: isProcessing ? "not-allowed" : "pointer",
-            background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
-            fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2,
+            background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
+            fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2,
             boxShadow: isProcessing ? "none" : "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
             opacity: isProcessing ? 0.6 : 1,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -272,13 +272,13 @@ function SuccessScreen({ reference, onDone }: { reference: string; onDone: () =>
         transition={{ type: "spring", damping: 12, delay: 0.1 }}
         style={{ width: 88, height: 88, borderRadius: "50%", background: "rgba(74,222,128,0.12)", border: "2px solid rgba(74,222,128,0.35)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}
       >
-        <CheckCircle2 size={44} style={{ color: "#4ade80" }} />
+        <CheckCircle2 size={44} style={{ color: "var(--md-positive)" }} />
       </motion.div>
       <h2 style={{ fontSize: 26, fontWeight: 800, color: "white", marginBottom: 8, textAlign: "center" }}>Przelew wysłany</h2>
       <p style={{ fontSize: 14, color: "rgba(255,255,255,0.50)", marginBottom: 32, textAlign: "center" }}>Tryb testowy — transakcja zarejestrowana</p>
       <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "12px 24px", marginBottom: 40 }}>
         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.40)", letterSpacing: 1 }}>NUMER REFERENCYJNY</span>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#d4a020", letterSpacing: 2, marginTop: 4 }}>{reference}</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--md-accent)", letterSpacing: 2, marginTop: 4 }}>{reference}</div>
       </div>
       <SandboxBadge />
       <button
@@ -286,8 +286,8 @@ function SuccessScreen({ reference, onDone }: { reference: string; onDone: () =>
         onClick={onDone}
         style={{
           marginTop: 40, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer",
-          background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
-          fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2,
+          background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
+          fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2,
           boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
         }}
       >
@@ -302,7 +302,7 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "0 28px", background: "var(--background)", overflowX: "hidden" }}>
       <div style={{ width: 88, height: 88, borderRadius: "50%", background: "rgba(248,113,113,0.12)", border: "2px solid rgba(248,113,113,0.30)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
-        <XCircle size={44} style={{ color: "#f87171" }} />
+        <XCircle size={44} style={{ color: "var(--md-negative)" }} />
       </div>
       <h2 style={{ fontSize: 22, fontWeight: 800, color: "white", marginBottom: 8 }}>Błąd przelewu</h2>
       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.50)", marginBottom: 32, textAlign: "center" }}>{message}</p>
@@ -333,8 +333,8 @@ function SandboxPinScreen({ onConfirm, onBack }: { onConfirm: () => void; onBack
   return (
     <div style={{ minHeight: "100vh", background: "var(--background)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", overflowX: "hidden" }}>
       <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div style={{ width: 64, height: 64, borderRadius: 20, background: "rgba(212,160,32,0.12)", border: "1px solid rgba(212,160,32,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-          <ShieldCheck size={28} style={{ color: "#d4a020" }} />
+        <div style={{ width: 64, height: 64, borderRadius: 20, background: "color-mix(in srgb, var(--md-accent) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--md-accent) 25%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <ShieldCheck size={28} style={{ color: "var(--md-accent)" }} />
         </div>
         <SandboxBadge />
         <p style={{ marginTop: 12, fontSize: 13, color: "rgba(255,255,255,0.40)" }}>Sandbox — dowolne cyfry</p>
@@ -343,14 +343,14 @@ function SandboxPinScreen({ onConfirm, onBack }: { onConfirm: () => void; onBack
         {[0,1,2,3,4,5].map(i => (
           <div key={i} style={{
             width: 14, height: 14, borderRadius: 99, transition: "all 0.15s",
-            background: digits[i] !== undefined ? "#d4a020" : "transparent",
-            border: `2px solid ${digits[i] !== undefined ? "#d4a020" : "rgba(255,255,255,0.20)"}`,
+            background: digits[i] !== undefined ? "var(--md-accent)" : "transparent",
+            border: `2px solid ${digits[i] !== undefined ? "var(--md-accent)" : "rgba(255,255,255,0.20)"}`,
           }} />
         ))}
       </div>
       {processing ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 160 }}>
-          <div style={{ width: 32, height: 32, border: "3px solid rgba(255,255,255,0.10)", borderTopColor: "#d4a020", borderRadius: 99, animation: "spin 0.8s linear infinite" }} />
+          <div style={{ width: 32, height: 32, border: "3px solid rgba(255,255,255,0.10)", borderTopColor: "var(--md-accent)", borderRadius: 99, animation: "spin 0.8s linear infinite" }} />
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, width: "100%", maxWidth: 240 }}>
@@ -488,9 +488,9 @@ function BankTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { use
                     onClick={() => setF(p => ({ ...p, country: c, _countryOpen: false } as any))}
                     style={{
                       width: "100%", textAlign: "left", padding: "11px 14px",
-                      background: f.country === c ? "rgba(212,160,32,0.15)" : "transparent",
+                      background: f.country === c ? "color-mix(in srgb, var(--md-accent) 15%, transparent)" : "transparent",
                       border: "none", borderBottom: "1px solid rgba(255,255,255,0.05)",
-                      color: f.country === c ? "#d4a020" : "rgba(255,255,255,0.80)",
+                      color: f.country === c ? "var(--md-accent)" : "rgba(255,255,255,0.80)",
                       fontSize: 14, cursor: "pointer",
                     }}
                   >
@@ -506,7 +506,7 @@ function BankTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { use
             <label style={labelStyle}>Waluta</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {CURRENCY_ORDER.map(cur => (
-                <button key={cur} data-testid={`bank-currency-${cur}`} onClick={() => setCurrency(cur)} style={{ padding: "6px 14px", borderRadius: 10, border: currency === cur ? "1.5px solid rgba(212,160,32,0.85)" : "1px solid rgba(255,255,255,0.10)", background: currency === cur ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.03)", color: currency === cur ? "#d4a020" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                <button key={cur} data-testid={`bank-currency-${cur}`} onClick={() => setCurrency(cur)} style={{ padding: "6px 14px", borderRadius: 10, border: currency === cur ? "1.5px solid var(--md-accent)" : "1px solid rgba(255,255,255,0.10)", background: currency === cur ? "color-mix(in srgb, var(--md-accent) 12%, transparent)" : "rgba(255,255,255,0.03)", color: currency === cur ? "var(--md-accent)" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {WALLET_FLAGS[cur]} {cur}
                 </button>
               ))}
@@ -526,7 +526,7 @@ function BankTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { use
             <label style={labelStyle}>Data wykonania</label>
             <div style={{ display: "flex", gap: 10 }}>
               {(["now","later"] as const).map(v => (
-                <button key={v} data-testid={`bank-date-${v}`} onClick={() => setF(p => ({...p, date: v}))} style={{ flex: 1, height: 44, borderRadius: 12, border: f.date === v ? "1.5px solid rgba(212,160,32,0.85)" : "1px solid rgba(255,255,255,0.10)", background: f.date === v ? "rgba(212,160,32,0.10)" : "rgba(255,255,255,0.03)", color: f.date === v ? "#d4a020" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                <button key={v} data-testid={`bank-date-${v}`} onClick={() => setF(p => ({...p, date: v}))} style={{ flex: 1, height: 44, borderRadius: 12, border: f.date === v ? "1.5px solid var(--md-accent)" : "1px solid rgba(255,255,255,0.10)", background: f.date === v ? "color-mix(in srgb, var(--md-accent) 10%, transparent)" : "rgba(255,255,255,0.03)", color: f.date === v ? "var(--md-accent)" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {v === "now" ? "Teraz" : "Później"}
                 </button>
               ))}
@@ -541,7 +541,7 @@ function BankTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { use
         <button
           data-testid="bank-next"
           onClick={handleSubmit}
-          style={{ marginTop: 32, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer", background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)", fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2, boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
+          style={{ marginTop: 32, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer", background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)", fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2, boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
         >
           DALEJ
         </button>
@@ -651,7 +651,7 @@ function CardPayoutFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { user:
             <label style={labelStyle}>Waluta</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {CURRENCY_ORDER.map(cur => (
-                <button key={cur} data-testid={`card-currency-${cur}`} onClick={() => setCurrency(cur)} style={{ padding: "6px 14px", borderRadius: 10, border: currency === cur ? "1.5px solid rgba(212,160,32,0.85)" : "1px solid rgba(255,255,255,0.10)", background: currency === cur ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.03)", color: currency === cur ? "#d4a020" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                <button key={cur} data-testid={`card-currency-${cur}`} onClick={() => setCurrency(cur)} style={{ padding: "6px 14px", borderRadius: 10, border: currency === cur ? "1.5px solid var(--md-accent)" : "1px solid rgba(255,255,255,0.10)", background: currency === cur ? "color-mix(in srgb, var(--md-accent) 12%, transparent)" : "rgba(255,255,255,0.03)", color: currency === cur ? "var(--md-accent)" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {WALLET_FLAGS[cur]} {cur}
                 </button>
               ))}
@@ -672,7 +672,7 @@ function CardPayoutFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { user:
         <button
           data-testid="card-next"
           onClick={() => { if (validate()) setStep("confirm"); }}
-          style={{ marginTop: 32, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer", background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)", fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2, boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
+          style={{ marginTop: 32, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer", background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)", fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2, boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
         >
           DALEJ
         </button>
@@ -800,7 +800,7 @@ function PhoneTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { us
             <FieldErr msg={errs.phone} />
             {foundUser && (
               <div style={{ marginTop: 10, background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.20)", borderRadius: 12, padding: "10px 14px", display: "flex", gap: 10, alignItems: "center" }}>
-                <CheckCircle2 size={16} style={{ color: "#4ade80" }} />
+                <CheckCircle2 size={16} style={{ color: "var(--md-positive)" }} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{foundUser.name}</div>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.40)" }}>{foundUser.handle}</div>
@@ -818,7 +818,7 @@ function PhoneTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { us
             <label style={labelStyle}>Waluta</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {CURRENCY_ORDER.map(cur => (
-                <button key={cur} data-testid={`phone-currency-${cur}`} onClick={() => setCurrency(cur)} style={{ padding: "6px 14px", borderRadius: 10, border: currency === cur ? "1.5px solid rgba(212,160,32,0.85)" : "1px solid rgba(255,255,255,0.10)", background: currency === cur ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.03)", color: currency === cur ? "#d4a020" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                <button key={cur} data-testid={`phone-currency-${cur}`} onClick={() => setCurrency(cur)} style={{ padding: "6px 14px", borderRadius: 10, border: currency === cur ? "1.5px solid var(--md-accent)" : "1px solid rgba(255,255,255,0.10)", background: currency === cur ? "color-mix(in srgb, var(--md-accent) 12%, transparent)" : "rgba(255,255,255,0.03)", color: currency === cur ? "var(--md-accent)" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   {WALLET_FLAGS[cur]} {cur}
                 </button>
               ))}
@@ -844,7 +844,7 @@ function PhoneTransferFlow({ user, onBack, pinEnabled, pinSettingsLoaded }: { us
         <button
           data-testid="phone-next"
           onClick={() => { if (validate()) setStep("confirm"); }}
-          style={{ marginTop: 32, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer", background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)", fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2, boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
+          style={{ marginTop: 32, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer", background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)", fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2, boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)" }}
         >
           DALEJ
         </button>
@@ -900,7 +900,7 @@ export default function TransferFlow() {
   if (!user || !sessionConfirmed) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--background)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "0 24px", overflowX: "hidden" }}>
-        <ShieldCheck size={40} style={{ color: "rgba(212,160,32,0.6)" }} />
+        <ShieldCheck size={40} style={{ color: "color-mix(in srgb, var(--md-accent) 60%, transparent)" }} />
         <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", textAlign: "center" }} data-testid="transfer-auth-guard">
           Zaloguj się, aby kontynuować
         </p>
@@ -1076,9 +1076,9 @@ export default function TransferFlow() {
                   {CURRENCY_ORDER.map(cur => {
                     const isActive = cur === currency;
                     return (
-                      <button key={cur} data-testid={`currency-selector-${cur}`} onClick={() => { setCurrency(cur); setAmount("0"); }} style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 10px", borderRadius: 12, border: isActive ? "1.5px solid rgba(212,160,32,0.85)" : "1px solid rgba(255,255,255,0.07)", background: isActive ? "rgba(212,160,32,0.10)" : "rgba(255,255,255,0.03)", cursor: "pointer", transition: "all 0.15s", minWidth: 60 }}>
+                      <button key={cur} data-testid={`currency-selector-${cur}`} onClick={() => { setCurrency(cur); setAmount("0"); }} style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 10px", borderRadius: 12, border: isActive ? "1.5px solid var(--md-accent)" : "1px solid rgba(255,255,255,0.07)", background: isActive ? "color-mix(in srgb, var(--md-accent) 10%, transparent)" : "rgba(255,255,255,0.03)", cursor: "pointer", transition: "all 0.15s", minWidth: 60 }}>
                         <span style={{ fontSize: 16, lineHeight: 1 }}>{WALLET_FLAGS[cur]}</span>
-                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.2, color: isActive ? "#f9d95e" : "rgba(255,255,255,0.45)" }}>{cur}</span>
+                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.2, color: isActive ? "var(--md-accent)" : "rgba(255,255,255,0.45)" }}>{cur}</span>
                       </button>
                     );
                   })}
@@ -1139,7 +1139,7 @@ export default function TransferFlow() {
               <div style={{ width: 36, height: 36, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}><Home size={19} style={{ color: th.textMuted }} /></div>
               <span style={{ color: th.textMuted }}>{t.home}</span>
             </button>
-            <button data-testid="transfer-nav-send" onClick={handleNext} disabled={amount === "0" || amount === "0."} style={{ height: 56, borderRadius: 999, border: "none", cursor: "pointer", padding: "0 28px", fontSize: 12, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8, background: (amount === "0" || amount === "0.") ? "rgba(200,158,30,0.30)" : "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)", opacity: (amount === "0" || amount === "0.") ? 0.5 : 1 }}>
+            <button data-testid="transfer-nav-send" onClick={handleNext} disabled={amount === "0" || amount === "0."} style={{ height: 56, borderRadius: 999, border: "none", cursor: "pointer", padding: "0 28px", fontSize: 12, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8, background: (amount === "0" || amount === "0.") ? "rgba(200,158,30,0.30)" : "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)", opacity: (amount === "0" || amount === "0.") ? 0.5 : 1 }}>
               <SendHorizontal size={16} />
               <span>{t.send}</span>
             </button>

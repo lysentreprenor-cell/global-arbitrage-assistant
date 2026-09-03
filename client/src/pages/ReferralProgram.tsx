@@ -242,7 +242,7 @@ export default function ReferralProgram() {
                     className="text-xs font-bold px-2 py-1 rounded-full"
                     style={{
                       background: ref.status === "active" ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.06)",
-                      color: ref.status === "active" ? "#22c55e" : "rgba(255,255,255,0.4)",
+                      color: ref.status === "active" ? "var(--md-positive)" : "rgba(255,255,255,0.4)",
                     }}
                   >
                     {ref.status === "active" ? (pl ? "Aktywny" : "Active") : (pl ? "Oczekuje" : "Pending")}

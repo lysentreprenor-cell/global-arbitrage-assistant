@@ -288,7 +288,7 @@ export default function RecurringPayments() {
                         className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{
                           background: item.active ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.06)",
-                          color: item.active ? "#22c55e" : "rgba(255,255,255,0.4)",
+                          color: item.active ? "var(--md-positive)" : "rgba(255,255,255,0.4)",
                         }}
                       >
                         {item.active ? (pl ? "Aktywne" : "Active") : (pl ? "Wstrzymane" : "Paused")}

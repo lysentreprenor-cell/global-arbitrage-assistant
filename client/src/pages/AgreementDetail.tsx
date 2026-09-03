@@ -488,8 +488,8 @@ export default function AgreementDetail() {
 
   const levelColor = (level: string): string => {
     const map: Record<string, string> = {
-      super: "#f59e0b", top: "#a855f7", trusted: "#3b82f6",
-      verified: "#22c55e", new: "rgba(255,255,255,0.4)",
+      super: "var(--md-warning)", top: "var(--md-accent)", trusted: "var(--md-info)",
+      verified: "var(--md-positive)", new: "rgba(255,255,255,0.4)",
     };
     return map[level] ?? "rgba(255,255,255,0.4)";
   };
@@ -691,8 +691,8 @@ export default function AgreementDetail() {
           <h1 className="text-lg font-heading text-white/90 truncate">{ag.title}</h1>
           <span style={{
             display: "inline-block", fontSize: 11, fontWeight: 800, letterSpacing: "0.06em",
-            textTransform: "uppercase", color, background: `${color}18`,
-            border: `1px solid ${color}28`, borderRadius: 999, padding: "2px 9px", marginTop: 2,
+            textTransform: "uppercase", color, background: `color-mix(in srgb, ${color} 9%, transparent)`,
+            border: `1px solid color-mix(in srgb, ${color} 16%, transparent)`, borderRadius: 999, padding: "2px 9px", marginTop: 2,
           }}>
             {statusLabel(ag.status, t)}
           </span>
@@ -749,12 +749,12 @@ export default function AgreementDetail() {
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     <span data-testid="badge-worker-level" style={{
                       fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-                      color: levelColor(lvl), background: `${levelColor(lvl)}18`,
-                      border: `1px solid ${levelColor(lvl)}35`, borderRadius: 999, padding: "2px 8px",
+                      color: levelColor(lvl), background: `color-mix(in srgb, ${levelColor(lvl)} 9%, transparent)`,
+                      border: `1px solid color-mix(in srgb, ${levelColor(lvl)} 21%, transparent)`, borderRadius: 999, padding: "2px 8px",
                     }}>{levelLabel(lvl)}</span>
                     {workerProfile.ratingAverage !== null && (
-                      <span data-testid="badge-worker-rating" className="flex items-center gap-0.5" style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>
-                        <Star size={10} fill="#f59e0b" />
+                      <span data-testid="badge-worker-rating" className="flex items-center gap-0.5" style={{ fontSize: 12, color: "var(--md-warning)", fontWeight: 700 }}>
+                        <Star size={10} fill="var(--md-warning)" />
                         {workerProfile.ratingAverage.toFixed(1)}
                         <span style={{ color: "rgba(255,255,255,0.35)", fontWeight: 400, fontSize: 11 }}>({workerProfile.ratingCount})</span>
                       </span>
@@ -824,7 +824,7 @@ export default function AgreementDetail() {
                 const isCurrent = idx === currentTimelineStep && ag.status !== "released";
                 const isDisputed = ag.status === "disputed" && idx === 3;
                 const StepIcon  = step.icon;
-                const iconColor = isDisputed ? "#ef4444" : isDone ? "#22c55e" : "rgba(255,255,255,0.2)";
+                const iconColor = isDisputed ? "var(--md-danger)" : isDone ? "var(--md-positive)" : "rgba(255,255,255,0.2)";
                 const labelColor = isDone ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)";
                 const timestampEv = events.find(ev => {
                   const mapping: Record<number, string[]> = {
@@ -843,7 +843,7 @@ export default function AgreementDetail() {
                       style={{
                         background: isDisputed ? "rgba(239,68,68,0.15)" : isDone ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.04)",
                         border: `1.5px solid ${iconColor}`,
-                        boxShadow: isCurrent ? `0 0 12px ${iconColor}40` : "none",
+                        boxShadow: isCurrent ? `0 0 12px color-mix(in srgb, ${iconColor} 25%, transparent)` : "none",
                       }}
                     >
                       <StepIcon size={13} style={{ color: iconColor }} />
@@ -918,7 +918,7 @@ export default function AgreementDetail() {
                   onClick={handleChangeAccept}
                   disabled={actionLoading}
                   className="flex-1 h-11 rounded-xl text-sm"
-                  style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", color: "white" }}
+                  style={{ background: "linear-gradient(135deg,var(--md-accent),var(--md-accent))", color: "white" }}
                 >
                   {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <><Check size={12} className="mr-1" />{t.agreeChangeAccept}</>}
                 </Button>
@@ -1160,7 +1160,7 @@ export default function AgreementDetail() {
             data-testid="button-rate-agreement"
             onClick={() => setShowRatingModal(true)}
             className="w-full rounded-2xl text-sm font-bold tracking-widest"
-            style={{ minHeight: 48, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "white", boxShadow: "0 4px 20px rgba(245,158,11,0.3)" }}
+            style={{ minHeight: 48, background: "linear-gradient(135deg,var(--md-warning),var(--md-warning))", color: "white", boxShadow: "0 4px 20px rgba(245,158,11,0.3)" }}
           >
             <Star className="w-4 h-4 mr-2" fill="white" />
             {t.agreeRateBtn}
@@ -1188,7 +1188,7 @@ export default function AgreementDetail() {
               disabled={actionLoading}
               aria-busy={actionLoading}
               className="w-full rounded-2xl text-sm font-bold tracking-widest"
-              style={{ minHeight: 48, background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", color: "white", boxShadow: "0 4px 20px rgba(139,92,246,0.3)" }}
+              style={{ minHeight: 48, background: "linear-gradient(135deg,var(--md-accent),var(--md-accent))", color: "white", boxShadow: "0 4px 20px rgba(139,92,246,0.3)" }}
             >
               {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.agreeBtnWorkerAccept}
             </Button>
@@ -1229,7 +1229,7 @@ export default function AgreementDetail() {
               onClick={handleConfirm}
               disabled={actionLoading}
               className="w-full rounded-2xl text-sm font-bold tracking-widest"
-              style={{ minHeight: 48, background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "white", boxShadow: "0 4px 20px rgba(34,197,94,0.25)" }}
+              style={{ minHeight: 48, background: "linear-gradient(135deg,var(--md-positive),var(--md-positive))", color: "white", boxShadow: "0 4px 20px rgba(34,197,94,0.25)" }}
             >
               {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `${t.agreeBtnConfirm} → ${formatMoney(ag.amount, ag.currency as CurrencyCode)}`}
             </Button>
@@ -1289,11 +1289,11 @@ export default function AgreementDetail() {
                 >
                   <div className="mt-0.5 shrink-0" style={{
                     width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                    border: submitConfirmed ? "1.5px solid #b48dff" : "1.5px solid rgba(255,255,255,0.2)",
+                    border: submitConfirmed ? "1.5px solid var(--md-accent)" : "1.5px solid rgba(255,255,255,0.2)",
                     background: submitConfirmed ? "rgba(180,141,255,0.25)" : "transparent",
                     display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
                   }}>
-                    {submitConfirmed && <span style={{ color: "#b48dff", fontSize: 13, fontWeight: 900 }}>✓</span>}
+                    {submitConfirmed && <span style={{ color: "var(--md-accent)", fontSize: 13, fontWeight: 900 }}>✓</span>}
                   </div>
                   <p className="text-[13px] leading-relaxed text-white/70">{t.agreeSubmitConfirmCheck}</p>
                 </button>
@@ -1307,7 +1307,7 @@ export default function AgreementDetail() {
                   onClick={handleSubmit}
                   disabled={actionLoading || !submitConfirmed || (ag.proofPhoto && !submitModal.image)}
                   className="flex-1 h-12 rounded-2xl text-sm font-bold"
-                  style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", color: "white" }}
+                  style={{ background: "linear-gradient(135deg,var(--md-accent),var(--md-accent))", color: "white" }}
                 >
                   {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.agreeBtnSubmit}
                 </Button>
@@ -1390,7 +1390,7 @@ export default function AgreementDetail() {
                   onClick={handleSendChange}
                   disabled={actionLoading || (!changeModal.newDeadline.trim() && (!changeModal.newAmount.trim() || fundsHeld) && !changeModal.newTerms.trim())}
                   className="flex-1 h-12 rounded-2xl text-sm font-bold"
-                  style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", color: "white" }}
+                  style={{ background: "linear-gradient(135deg,var(--md-accent),var(--md-accent))", color: "white" }}
                 >
                   {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.agreeChangeSend}
                 </Button>
@@ -1417,7 +1417,7 @@ export default function AgreementDetail() {
               {ratingThanks ? (
                 <div className="flex flex-col items-center justify-center py-14 px-6 gap-4">
                   <div className="w-16 h-16 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                    <Star className="w-8 h-8 text-amber-400" fill="#f59e0b" />
+                    <Star className="w-8 h-8 text-amber-400" fill="var(--md-warning)" />
                   </div>
                   <p data-testid="text-rating-thanks" className="text-lg font-heading text-white/90 text-center">{t.ratingModalThanks}</p>
                 </div>
@@ -1438,8 +1438,8 @@ export default function AgreementDetail() {
                         >
                           <Star
                             size={32}
-                            fill={ratingStars >= n ? "#f59e0b" : "transparent"}
-                            stroke={ratingStars >= n ? "#f59e0b" : "rgba(255,255,255,0.25)"}
+                            fill={ratingStars >= n ? "var(--md-warning)" : "transparent"}
+                            stroke={ratingStars >= n ? "var(--md-warning)" : "rgba(255,255,255,0.25)"}
                           />
                         </button>
                       ))}
@@ -1474,9 +1474,9 @@ export default function AgreementDetail() {
                           onClick={() => setRatingOnTime(prev => prev === val ? null : val)}
                           style={{
                             fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "5px 14px",
-                            border: ratingOnTime === val ? `1.5px solid ${val ? "#22c55e" : "#ef4444"}` : "1.5px solid rgba(255,255,255,0.12)",
+                            border: ratingOnTime === val ? `1.5px solid ${val ? "var(--md-positive)" : "var(--md-danger)"}` : "1.5px solid rgba(255,255,255,0.12)",
                             background: ratingOnTime === val ? (val ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)") : "transparent",
-                            color: ratingOnTime === val ? (val ? "#22c55e" : "#ef4444") : "rgba(255,255,255,0.45)",
+                            color: ratingOnTime === val ? (val ? "var(--md-positive)" : "var(--md-danger)") : "rgba(255,255,255,0.45)",
                             cursor: "pointer", transition: "all 0.15s",
                           }}
                         >
@@ -1497,9 +1497,9 @@ export default function AgreementDetail() {
                           onClick={() => setRatingRecommend(prev => prev === val ? null : val)}
                           style={{
                             fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "5px 14px",
-                            border: ratingRecommend === val ? `1.5px solid ${val ? "#22c55e" : "#ef4444"}` : "1.5px solid rgba(255,255,255,0.12)",
+                            border: ratingRecommend === val ? `1.5px solid ${val ? "var(--md-positive)" : "var(--md-danger)"}` : "1.5px solid rgba(255,255,255,0.12)",
                             background: ratingRecommend === val ? (val ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)") : "transparent",
-                            color: ratingRecommend === val ? (val ? "#22c55e" : "#ef4444") : "rgba(255,255,255,0.45)",
+                            color: ratingRecommend === val ? (val ? "var(--md-positive)" : "var(--md-danger)") : "rgba(255,255,255,0.45)",
                             cursor: "pointer", transition: "all 0.15s",
                           }}
                         >
@@ -1524,7 +1524,7 @@ export default function AgreementDetail() {
                       disabled={ratingSubmitting || ratingStars === 0}
                       onClick={handleRateSubmit}
                       className="flex-1 h-12 rounded-2xl text-sm font-bold"
-                      style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "white" }}
+                      style={{ background: "linear-gradient(135deg,var(--md-warning),var(--md-warning))", color: "white" }}
                     >
                       {ratingSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t.ratingModalSubmit}
                     </Button>

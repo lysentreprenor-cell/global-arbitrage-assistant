@@ -411,11 +411,11 @@ const PHASE_LABELS: Record<string, string> = {
   completed: "Zakończona",
 };
 const PHASE_COLORS: Record<string, string> = {
-  awaiting_counterparty: "#f59e0b",
-  awaiting_deposit: "#f59e0b",
+  awaiting_counterparty: "var(--md-warning)",
+  awaiting_deposit: "var(--md-warning)",
   in_progress: "var(--color-primary)",
-  awaiting_release: "#16a34a",
-  completed: "#6b7280",
+  awaiting_release: "var(--md-positive)",
+  completed: "var(--md-text-tertiary)",
 };
 const CAT_LABELS: Record<string, string> = {
   usluga: "Usługa", remont: "Remont", sprzedaz: "Sprzedaż",
@@ -529,12 +529,12 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
         >
           <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
           <div style={{ flex: 1 }}>
-            <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 800 }}>
+            <div style={{ color: "var(--md-danger)", fontSize: 13, fontWeight: 800 }}>
               {overdueContracts.length === 1 ? "1 umowa po terminie" : `${overdueContracts.length} umowy po terminie`}
             </div>
-            <div style={{ color: "#dc2626", fontSize: 11, opacity: 0.8 }}>Dotknij, aby zobaczyć → posortuj po terminie</div>
+            <div style={{ color: "var(--md-danger)", fontSize: 11, opacity: 0.8 }}>Dotknij, aby zobaczyć → posortuj po terminie</div>
           </div>
-          <span style={{ color: "#dc2626", fontSize: 18 }}>→</span>
+          <span style={{ color: "var(--md-danger)", fontSize: 18 }}>→</span>
         </div>
       )}
 
@@ -550,12 +550,12 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
             <div style={{ color: "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600 }}>W realizacji</div>
           </div>
           <div style={{ flex: 1, textAlign: "center", paddingLeft: 8, borderRight: needAction > 0 ? "1px solid var(--color-border)" : undefined, paddingRight: needAction > 0 ? 8 : undefined }}>
-            <div style={{ color: "#22c55e", fontSize: 18, fontWeight: 900 }}>{completed.length}</div>
+            <div style={{ color: "var(--md-positive)", fontSize: 18, fontWeight: 900 }}>{completed.length}</div>
             <div style={{ color: "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600 }}>{completedValue > 0 ? `${completedValue.toLocaleString("pl-PL")} ${currency}` : "Zakończone"}</div>
           </div>
           {needAction > 0 && (
             <div style={{ flex: 1, textAlign: "center", paddingLeft: 8 }}>
-              <div style={{ color: "#dc2626", fontSize: 18, fontWeight: 900 }}>{needAction}</div>
+              <div style={{ color: "var(--md-danger)", fontSize: 18, fontWeight: 900 }}>{needAction}</div>
               <div style={{ color: "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600 }}>Do zrobienia</div>
             </div>
           )}
@@ -635,7 +635,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
                     onClick={() => {
                       onTemplate(t.preset || {});
                     }}
-                    style={{ flexShrink: 0, width: 130, borderRadius: 14, padding: "14px 12px", background: "rgba(255,255,255,0.04)", border: "1.5px solid rgba(212,160,32,0.20)", cursor: "pointer" }}
+                    style={{ flexShrink: 0, width: 130, borderRadius: 14, padding: "14px 12px", background: "rgba(255,255,255,0.04)", border: "1.5px solid color-mix(in srgb, var(--md-accent) 20%, transparent)", cursor: "pointer" }}
                   >
                     <div style={{ fontSize: 24, marginBottom: 6 }}>{t.emoji}</div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-foreground)", marginBottom: 3 }}>{t.label}</div>
@@ -747,7 +747,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
               ? (c.data.contractor.name || c.data.inviteContact || "")
               : (c.data.client.name || c.data.inviteContact || "");
             return (
-              <div key={c.id} onClick={() => onOpenContract(c)} style={{ background: "var(--color-card)", border: `1.5px solid ${badge === "overdue" ? "#dc2626" : badge === "soon" ? "#f59e0b" : "var(--color-border)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10, cursor: "pointer" }}>
+              <div key={c.id} onClick={() => onOpenContract(c)} style={{ background: "var(--color-card)", border: `1.5px solid ${badge === "overdue" ? "var(--md-danger)" : badge === "soon" ? "var(--md-warning)" : "var(--color-border)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10, cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div style={{ flex: 1, minWidth: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1, marginTop: 1 }}>{CATEGORY_ICONS[c.data.category] || "📄"}</span>
@@ -767,7 +767,7 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
                       <div style={{ color: "var(--color-primary)", fontSize: 15, fontWeight: 800 }}>{c.totalPrice.toLocaleString("pl-PL")} {c.data.currency}</div>
                     )}
                     {c.rating && (
-                      <div style={{ color: "#f59e0b", fontSize: 12, fontWeight: 700 }}>{"★".repeat(c.rating)}{"☆".repeat(5 - c.rating)}</div>
+                      <div style={{ color: "var(--md-warning)", fontSize: 12, fontWeight: 700 }}>{"★".repeat(c.rating)}{"☆".repeat(5 - c.rating)}</div>
                     )}
                   </div>
                 </div>
@@ -780,25 +780,25 @@ function HomeScreen({ onNew, onResume, onTemplate, draft, contracts, onOpenContr
                   )}
                   <span style={{ color: "var(--color-muted-foreground)", fontSize: 11 }}>#{c.contractId} · {new Date(c.createdAt).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</span>
                   {badge === "overdue" && (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 20, background: "color-mix(in srgb, #dc2626 12%, transparent)", border: "1px solid color-mix(in srgb, #dc2626 30%, transparent)" }}>
-                      <span style={{ color: "#dc2626", fontSize: 11, fontWeight: 700 }}>⚠ Termin minął</span>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 20, background: "color-mix(in srgb, var(--md-danger) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--md-danger) 30%, transparent)" }}>
+                      <span style={{ color: "var(--md-danger)", fontSize: 11, fontWeight: 700 }}>⚠ Termin minął</span>
                     </div>
                   )}
                   {badge === "soon" && (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 20, background: "color-mix(in srgb, #f59e0b 12%, transparent)", border: "1px solid color-mix(in srgb, #f59e0b 30%, transparent)" }}>
-                      <span style={{ color: "#f59e0b", fontSize: 11, fontWeight: 700 }}>⏰ Termin wkrótce</span>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 20, background: "color-mix(in srgb, var(--md-warning) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--md-warning) 30%, transparent)" }}>
+                      <span style={{ color: "var(--md-warning)", fontSize: 11, fontWeight: 700 }}>⏰ Termin wkrótce</span>
                     </div>
                   )}
                   {c.phase === "awaiting_release" && (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 20, background: "color-mix(in srgb, #16a34a 12%, transparent)", border: "1px solid color-mix(in srgb, #16a34a 35%, transparent)" }}>
-                      <span style={{ color: "#16a34a", fontSize: 11, fontWeight: 800 }}>✓ Zatwierdź odbiór →</span>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 20, background: "color-mix(in srgb, var(--md-positive) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--md-positive) 35%, transparent)" }}>
+                      <span style={{ color: "var(--md-positive)", fontSize: 11, fontWeight: 800 }}>✓ Zatwierdź odbiór →</span>
                     </div>
                   )}
                   {badge === "overdue" && otherName && (
                     <a
                       href={otherName.includes("@") ? `mailto:${otherName}` : `tel:${otherName}`}
                       onClick={e => e.stopPropagation()}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, color: "#dc2626", fontSize: 11, fontWeight: 700, textDecoration: "none" }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, color: "var(--md-danger)", fontSize: 11, fontWeight: 700, textDecoration: "none" }}
                     >
                       📞 Skontaktuj się z {otherRole.toLowerCase()}
                     </a>
@@ -1000,11 +1000,11 @@ const STEP_HINTS: Record<string, { icon: string; text: string }> = {
 const IT_CREATIVE_SUBS = ["Programowanie / IT", "Grafika / Design", "Marketing / SEO", "Fotografia", "Copywriting", "Tłumaczenie"];
 
 function getContextualNudge(data: WizardData): { icon: string; text: string; color: string } | null {
-  if (data.category === "remont" && !data.paymentMethod) return { icon: "🛡️", text: "Przy remontach 9 na 10 sporów dotyczy wypłaty — depozyt eliminuje ten problem.", color: "#7c3aed" };
+  if (data.category === "remont" && !data.paymentMethod) return { icon: "🛡️", text: "Przy remontach 9 na 10 sporów dotyczy wypłaty — depozyt eliminuje ten problem.", color: "var(--md-accent)" };
   if (data.category === "sprzedaz" && data.subcategory === "Elektronika") return { icon: "📱", text: "IMEI i numer seryjny to jedyny dowód tożsamości urządzenia. Bez nich nie masz ochrony.", color: "#0369a1" };
   if (data.category === "wynajem" && !data.rentalDeposit) return { icon: "⚠️", text: "Brak kaucji = brak ochrony przy zniszczeniu. Nawet symboliczna kwota ma znaczenie prawne.", color: "#b45309" };
   if (data.category === "usluga" && IT_CREATIVE_SUBS.some(s => data.subcategory?.startsWith(s.split(" ")[0]))) return { icon: "⚖️", text: "Pamiętaj o klauzuli praw autorskich i NDA — to standard w usługach IT i kreatywnych.", color: "#0369a1" };
-  if (data.basePrice > 5000 && data.paymentMethod !== "deposit") return { icon: "💡", text: `Umowa na ${data.basePrice.toLocaleString("pl-PL")} ${data.currency} — rozważ depozyt. Przy tej kwocie to kluczowe zabezpieczenie.`, color: "#7c3aed" };
+  if (data.basePrice > 5000 && data.paymentMethod !== "deposit") return { icon: "💡", text: `Umowa na ${data.basePrice.toLocaleString("pl-PL")} ${data.currency} — rozważ depozyt. Przy tej kwocie to kluczowe zabezpieczenie.`, color: "var(--md-accent)" };
   return null;
 }
 
@@ -1465,9 +1465,9 @@ export default function AgreementNew() {
               ) : null;
             })()}
             {currentStep === "platnosc" && (
-              <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", borderRadius: 8, background: "color-mix(in srgb, #16a34a 8%, transparent)", border: "1px solid color-mix(in srgb, #16a34a 25%, transparent)", marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", borderRadius: 8, background: "color-mix(in srgb, var(--md-positive) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--md-positive) 25%, transparent)", marginBottom: 14 }}>
                 <span style={{ fontSize: 14 }}>👥</span>
-                <span style={{ color: "#16a34a", fontSize: 11, fontWeight: 600 }}>93% użytkowników wybiera depozyt przy umowach powyżej 1000 zł</span>
+                <span style={{ color: "var(--md-positive)", fontSize: 11, fontWeight: 600 }}>93% użytkowników wybiera depozyt przy umowach powyżej 1000 zł</span>
               </div>
             )}
             {renderStep()}
@@ -1479,7 +1479,7 @@ export default function AgreementNew() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: "min(560px, 100vw)", background: "var(--color-background)", borderTop: "1px solid var(--color-border)", padding: "8px 16px 16px", boxSizing: "border-box", boxShadow: "0 -2px 12px rgba(0,0,0,0.07)" }}>
         <LiveTicker total={totalPrice} label={calcTickerLabel(data)} currency={data.currency} />
         {(() => { const reason = getNextBlockReason(); return reason && currentStep !== "podpis" ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 8, background: "color-mix(in srgb, #f59e0b 10%, transparent)", borderLeft: "3px solid #f59e0b", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 8, background: "color-mix(in srgb, var(--md-warning) 10%, transparent)", borderLeft: "3px solid var(--md-warning)", marginBottom: 8 }}>
             <span style={{ fontSize: 14 }}>⚠</span>
             <span style={{ color: "#92400e", fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>{reason}</span>
           </div>
@@ -1823,7 +1823,7 @@ function StepSzczegolyRezerwacja({ data, update }: { data: WizardData; update: (
           <button onClick={() => setShowTooltip(v => !v)} style={{ border: "none", background: "transparent", color: "var(--color-primary)", fontSize: 16, cursor: "pointer", padding: 0, lineHeight: 1 }}>ℹ️</button>
         </div>
         {showTooltip && (
-          <div style={{ padding: "10px 12px", borderRadius: 10, background: "color-mix(in srgb, #f59e0b 10%, transparent)", border: "1px solid color-mix(in srgb, #f59e0b 40%, transparent)", marginBottom: 12, fontSize: 13, color: "var(--color-foreground)", lineHeight: 1.6 }}>
+          <div style={{ padding: "10px 12px", borderRadius: 10, background: "color-mix(in srgb, var(--md-warning) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--md-warning) 40%, transparent)", marginBottom: 12, fontSize: 13, color: "var(--color-foreground)", lineHeight: 1.6 }}>
             <b>Zadatek (Art. 394 KC)</b> — jeśli kupujący rezygnuje, traci zadatek. Jeśli sprzedający rezygnuje, zwraca go w PODWÓJNEJ kwocie.<br /><br />
             <b>Zaliczka</b> — zawsze zwracana w całości w razie odstąpienia od umowy.
           </div>
@@ -2041,8 +2041,8 @@ function StepStrony({ data, update }: { data: WizardData; update: (p: Partial<Wi
         })()}
       </div>
 
-      <div style={{ padding: "12px 14px", borderRadius: 10, background: "color-mix(in srgb, #16a34a 7%, transparent)", border: "1px solid color-mix(in srgb, #16a34a 25%, transparent)", marginTop: 4 }}>
-        <span style={{ color: "#16a34a", fontSize: 13, fontWeight: 600 }}>🔒 Dane obu stron pobierane są z ich kont przy akceptacji umowy.</span>
+      <div style={{ padding: "12px 14px", borderRadius: 10, background: "color-mix(in srgb, var(--md-positive) 7%, transparent)", border: "1px solid color-mix(in srgb, var(--md-positive) 25%, transparent)", marginTop: 4 }}>
+        <span style={{ color: "var(--md-positive)", fontSize: 13, fontWeight: 600 }}>🔒 Dane obu stron pobierane są z ich kont przy akceptacji umowy.</span>
       </div>
     </div>
   );
@@ -2546,8 +2546,8 @@ function StepTermin({ data, update }: { data: WizardData; update: (p: Partial<Wi
         </div>
       )}
       {data.deadlineType === "tbd" && (
-        <div style={{ ...sectionCard, background: "rgba(245,158,11,0.08)", border: "1px solid #f59e0b" }}>
-          <div style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>Termin zostanie ustalony odrębnie przez strony.</div>
+        <div style={{ ...sectionCard, background: "rgba(245,158,11,0.08)", border: "1px solid var(--md-warning)" }}>
+          <div style={{ color: "var(--md-warning)", fontSize: 13, fontWeight: 600 }}>Termin zostanie ustalony odrębnie przez strony.</div>
         </div>
       )}
     </div>
@@ -2887,7 +2887,7 @@ function StepSzczegolySprzedaz({ data, update }: { data: WizardData; update: (p:
         <Toggle on={v.hasOC ?? false} onChange={val => updateV({ hasOC: val })} label="OC ważne przy sprzedaży" />
       </div>
 
-      <div style={{ ...sectionCard, background: "color-mix(in srgb, #16a34a 6%, transparent)", border: "1px solid color-mix(in srgb, #16a34a 30%, transparent)" }}>
+      <div style={{ ...sectionCard, background: "color-mix(in srgb, var(--md-positive) 6%, transparent)", border: "1px solid color-mix(in srgb, var(--md-positive) 30%, transparent)" }}>
         <SectionLabel>Oświadczenia sprzedającego</SectionLabel>
         <Toggle on={v.noPledge ?? false} onChange={val => updateV({ noPledge: val })} label="Pojazd wolny od zastawów i obciążeń" />
         <Toggle on={v.noAccidents ?? false} onChange={val => updateV({ noAccidents: val })} label="Nie uczestniczył w wypadkach" />
@@ -3541,7 +3541,7 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
           data.client.nip || data.contractor.nip,
           data.client.address || data.contractor.address,
         ].filter(Boolean).length;
-        const [label, color] = score >= 5 ? ["Kompletna ✓", "#16a34a"] : score >= 3 ? ["Dobra", "var(--color-primary)"] : ["Podstawowa", "var(--color-muted-foreground)"];
+        const [label, color] = score >= 5 ? ["Kompletna ✓", "var(--md-positive)"] : score >= 3 ? ["Dobra", "var(--color-primary)"] : ["Podstawowa", "var(--color-muted-foreground)"];
         return (
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: `color-mix(in srgb, ${color} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`, marginBottom: 16 }}>
             <span style={{ color, fontSize: 12, fontWeight: 700 }}>Jakość umowy: {label}</span>
@@ -3550,9 +3550,9 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
       })()}
 
       {warnings.length > 0 && (
-        <div style={{ background: "rgba(245,158,11,0.1)", borderRadius: 10, border: "1px solid #f59e0b", padding: 12, marginBottom: 14 }}>
-          <div style={{ color: "#f59e0b", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>⚠️ Uwagi ({warnings.length})</div>
-          {warnings.map(w => <div key={w} style={{ color: "#f59e0b", fontSize: 12, lineHeight: 1.8 }}>• {w}</div>)}
+        <div style={{ background: "rgba(245,158,11,0.1)", borderRadius: 10, border: "1px solid var(--md-warning)", padding: 12, marginBottom: 14 }}>
+          <div style={{ color: "var(--md-warning)", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>⚠️ Uwagi ({warnings.length})</div>
+          {warnings.map(w => <div key={w} style={{ color: "var(--md-warning)", fontSize: 12, lineHeight: 1.8 }}>• {w}</div>)}
         </div>
       )}
 
@@ -3668,12 +3668,12 @@ function StepPrzeglad({ data, steps, goToStep, warnings, totalPrice }: { data: W
         if (data.category === "wypozyczenie" && !data.loanItemName) missing.push("Nazwa przedmiotu");
         return missing.length > 0 ? (
           <div style={{ background: "rgba(220,38,38,0.07)", borderRadius: 10, border: "1px solid rgba(220,38,38,0.3)", padding: 12, marginBottom: 12 }}>
-            <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>❗ Uzupełnij przed podpisaniem:</div>
-            {missing.map(m => <div key={m} style={{ color: "#dc2626", fontSize: 12, lineHeight: 1.8 }}>• {m}</div>)}
+            <div style={{ color: "var(--md-danger)", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>❗ Uzupełnij przed podpisaniem:</div>
+            {missing.map(m => <div key={m} style={{ color: "var(--md-danger)", fontSize: 12, lineHeight: 1.8 }}>• {m}</div>)}
           </div>
         ) : (
           <div style={{ background: "rgba(22,163,74,0.07)", borderRadius: 10, border: "1px solid rgba(22,163,74,0.3)", padding: "10px 14px", marginBottom: 12 }}>
-            <span style={{ color: "#16a34a", fontSize: 13, fontWeight: 700 }}>✓ Umowa kompletna — gotowa do podpisania</span>
+            <span style={{ color: "var(--md-positive)", fontSize: 13, fontWeight: 700 }}>✓ Umowa kompletna — gotowa do podpisania</span>
           </div>
         );
       })()}
@@ -3769,14 +3769,14 @@ function StepPodpis({ data, update, onSign }: { data: WizardData; update: (p: Pa
             setDraftSaved(true);
             setTimeout(() => setDraftSaved(false), 2500);
           }}
-          style={{ ...btnSecondary, width: "100%", padding: "14px 0", fontSize: 14, color: draftSaved ? "#16a34a" : undefined, borderColor: draftSaved ? "#16a34a" : undefined }}
+          style={{ ...btnSecondary, width: "100%", padding: "14px 0", fontSize: 14, color: draftSaved ? "var(--md-positive)" : undefined, borderColor: draftSaved ? "var(--md-positive)" : undefined }}
         >
           {draftSaved ? "✓ Zapisano szkic!" : "💾 Zapisz jako szkic"}
         </button>
       </div>
 
       <div style={{ marginTop: 20, padding: 14, borderRadius: 12, background: "rgba(124,58,237,0.06)", border: "1px solid rgba(124,58,237,0.25)" }}>
-        <div style={{ color: "#7c3aed", fontSize: 11, fontWeight: 700, marginBottom: 6 }}>Po podpisaniu:</div>
+        <div style={{ color: "var(--md-accent)", fontSize: 11, fontWeight: 700, marginBottom: 6 }}>Po podpisaniu:</div>
         <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, lineHeight: 1.8 }}>
           🔒 Umowa zostaje zablokowana do edycji<br />
           📤 Druga strona otrzymuje link do przeglądu i akceptacji<br />
@@ -3867,7 +3867,7 @@ function InvitationScreen({ data, contractId, totalPrice, onContinue }: {
           href={`https://wa.me/?text=${encodeURIComponent(`Zaproszenie do umowy #${contractId}\n📋 ${data.category ? (CAT_LABELS[data.category] ?? "") : ""}${data.subcategory ? ` › ${data.subcategory}` : ""}\n\nKliknij, żeby przejrzeć i podpisać:\n${url}`)}`}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", borderRadius: 12, border: "1.5px solid #25d366", background: "rgba(37,211,102,0.08)", color: "#16a34a", fontSize: 15, fontWeight: 700, textDecoration: "none", boxSizing: "border-box", width: "100%", marginBottom: 8 }}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", borderRadius: 12, border: "1.5px solid #25d366", background: "rgba(37,211,102,0.08)", color: "var(--md-positive)", fontSize: 15, fontWeight: 700, textDecoration: "none", boxSizing: "border-box", width: "100%", marginBottom: 8 }}
         >
           💬 Wyślij przez WhatsApp
         </a>
@@ -4093,7 +4093,7 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
             href={`https://wa.me/?text=${encodeURIComponent(`Umowa #${contractId} — przejrzyj i podpisz:\n${window.location.origin}/kontrakt/${contractId}`)}`}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #25d366", background: "rgba(37,211,102,0.08)", color: "#16a34a", fontSize: 14, fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxSizing: "border-box" }}
+            style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #25d366", background: "rgba(37,211,102,0.08)", color: "var(--md-positive)", fontSize: 14, fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxSizing: "border-box" }}
           >
             💬 WhatsApp
           </a>
@@ -4155,7 +4155,7 @@ function ContractDocument({ data, contractId, onClose }: { data: WizardData; con
               setCopiedDoc(true);
               setTimeout(() => setCopiedDoc(false), 2000);
             }}
-            style={{ ...btnSecondary, flex: 1, padding: "11px", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: copiedDoc ? "color-mix(in srgb, #16a34a 10%, transparent)" : undefined, borderColor: copiedDoc ? "#16a34a" : undefined, color: copiedDoc ? "#16a34a" : undefined }}
+            style={{ ...btnSecondary, flex: 1, padding: "11px", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: copiedDoc ? "color-mix(in srgb, var(--md-positive) 10%, transparent)" : undefined, borderColor: copiedDoc ? "var(--md-positive)" : undefined, color: copiedDoc ? "var(--md-positive)" : undefined }}
           >
             {copiedDoc ? "✓ Skopiowano!" : "📋 Kopiuj tekst"}
           </button>
@@ -4214,13 +4214,13 @@ function RatingScreen({ contractId, data, onDone }: { contractId: string; data: 
                 onMouseEnter={() => setHover(n)}
                 onMouseLeave={() => setHover(0)}
                 onClick={() => setStars(n)}
-                style={{ fontSize: 40, cursor: "pointer", color: n <= (hover || stars) ? "#f59e0b" : "var(--color-border)", transition: "color 0.1s" }}
+                style={{ fontSize: 40, cursor: "pointer", color: n <= (hover || stars) ? "var(--md-warning)" : "var(--color-border)", transition: "color 0.1s" }}
               >
                 ★
               </span>
             ))}
           </div>
-          <div style={{ textAlign: "center", marginBottom: 20, minHeight: 22, color: "#f59e0b", fontSize: 14, fontWeight: 700 }}>
+          <div style={{ textAlign: "center", marginBottom: 20, minHeight: 22, color: "var(--md-warning)", fontSize: 14, fontWeight: 700 }}>
             {(["", "Słabo", "Przeciętnie", "Dobrze", "Bardzo dobrze", "Świetnie!"])[hover || stars] || ""}
           </div>
           {stars > 0 && (
@@ -4468,7 +4468,7 @@ function ContractLifecycle({
         : data.category === "wypozyczenie"
         ? "✅ Potwierdzam wpłatę kaucji → wydaj przedmiot"
         : "✅ Potwierdzam odbiór przelewu → start realizacji";
-      return { label: confirmLabel, action: confirmPaymentReceived, color: "#16a34a" };
+      return { label: confirmLabel, action: confirmPaymentReceived, color: "var(--md-positive)" };
     }
     // Wypożyczenie: borrower (client) submits return, owner (contractor) checks
     if (phase === "in_progress" && isClient && data.category === "wypozyczenie") {
@@ -4476,7 +4476,7 @@ function ContractLifecycle({
     }
     if (phase === "awaiting_release" && !isClient && data.category === "wypozyczenie") {
       const releaseLabel = "🔑 Sprawdź stan i rozlicz kaucję";
-      return { label: showProtocol ? "↑ Zwiń protokół" : releaseLabel, action: () => setShowProtocol(v => !v), color: showProtocol ? undefined : "#16a34a" };
+      return { label: showProtocol ? "↑ Zwiń protokół" : releaseLabel, action: () => setShowProtocol(v => !v), color: showProtocol ? undefined : "var(--md-positive)" };
     }
     if (phase === "in_progress" && !isClient && data.category !== "wypozyczenie") {
       const submitLabel = data.category === "wynajem"
@@ -4492,7 +4492,7 @@ function ContractLifecycle({
         : data.category === "sprzedaz"
         ? "🔓 Potwierdź odbiór przedmiotu"
         : "🔓 Potwierdź odbiór i odblokuj środki";
-      return { label: showProtocol ? "↑ Zwiń protokół" : releaseLabel, action: () => setShowProtocol(v => !v), color: showProtocol ? undefined : "#16a34a" };
+      return { label: showProtocol ? "↑ Zwiń protokół" : releaseLabel, action: () => setShowProtocol(v => !v), color: showProtocol ? undefined : "var(--md-positive)" };
     }
     return null;
   };
@@ -4561,7 +4561,7 @@ function ContractLifecycle({
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ color: "var(--color-muted-foreground)", fontSize: 12, marginBottom: 2 }}>Escrow</div>
-            <div style={{ color: phase === "in_progress" || phase === "awaiting_release" ? "#f59e0b" : phase === "completed" ? "#16a34a" : "var(--color-muted-foreground)", fontSize: 14, fontWeight: 700 }}>
+            <div style={{ color: phase === "in_progress" || phase === "awaiting_release" ? "var(--md-warning)" : phase === "completed" ? "var(--md-positive)" : "var(--color-muted-foreground)", fontSize: 14, fontWeight: 700 }}>
               {phase === "awaiting_counterparty" || phase === "awaiting_deposit" ? "Oczekuje na wpłatę"
                 : phase === "in_progress" || phase === "awaiting_release" ? "🔒 Zablokowane"
                 : "✅ Wypłacone"}
@@ -4584,19 +4584,19 @@ function ContractLifecycle({
                   width: 36, height: 36, borderRadius: 18, flexShrink: 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 16,
-                  background: done ? "#16a34a" : active ? "var(--color-primary)" : "var(--color-card)",
-                  border: done ? "2px solid #16a34a" : active ? "2px solid var(--color-primary)" : "2px solid var(--color-border)",
+                  background: done ? "var(--md-positive)" : active ? "var(--color-primary)" : "var(--color-card)",
+                  border: done ? "2px solid var(--md-positive)" : active ? "2px solid var(--color-primary)" : "2px solid var(--color-border)",
                 }}>
                   {done ? <span style={{ color: "#fff", fontSize: 14, fontWeight: 800 }}>✓</span> : <span style={{ filter: pending ? "grayscale(1) opacity(0.4)" : "none" }}>{p.icon}</span>}
                 </div>
                 {i < PHASES.length - 1 && (
-                  <div style={{ width: 2, flex: 1, minHeight: 20, background: done ? "#16a34a" : "var(--color-border)", margin: "3px 0" }} />
+                  <div style={{ width: 2, flex: 1, minHeight: 20, background: done ? "var(--md-positive)" : "var(--color-border)", margin: "3px 0" }} />
                 )}
               </div>
               {/* Content */}
               <div style={{ paddingBottom: 18, flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                  <span style={{ color: done ? "#16a34a" : active ? "var(--color-foreground)" : "var(--color-muted-foreground)", fontSize: 15, fontWeight: active || done ? 700 : 500 }}>
+                  <span style={{ color: done ? "var(--md-positive)" : active ? "var(--color-foreground)" : "var(--color-muted-foreground)", fontSize: 15, fontWeight: active || done ? 700 : 500 }}>
                     {p.label}
                   </span>
                   {active && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 15%, transparent)", borderRadius: 20, padding: "2px 8px" }}>TERAZ</span>}
@@ -4692,7 +4692,7 @@ function ContractLifecycle({
               <div style={{ color: "var(--color-foreground)", fontSize: 14, fontWeight: 700 }}>💳 Dane do przelewu</div>
               <button
                 onClick={copyAll}
-                style={{ background: copied ? "color-mix(in srgb, #16a34a 12%, transparent)" : "color-mix(in srgb, var(--color-primary) 10%, transparent)", border: `1px solid ${copied ? "#16a34a" : "color-mix(in srgb, var(--color-primary) 30%, transparent)"}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: copied ? "#16a34a" : "var(--color-primary)" }}
+                style={{ background: copied ? "color-mix(in srgb, var(--md-positive) 12%, transparent)" : "color-mix(in srgb, var(--color-primary) 10%, transparent)", border: `1px solid ${copied ? "var(--md-positive)" : "color-mix(in srgb, var(--color-primary) 30%, transparent)"}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: copied ? "var(--md-positive)" : "var(--color-primary)" }}
               >
                 {copied ? "✓ Skopiowano!" : "📋 Kopiuj"}
               </button>
@@ -4721,7 +4721,7 @@ function ContractLifecycle({
 
       {/* Payment sent status badge */}
       {phase === "awaiting_deposit" && paymentSentAt && (
-        <div style={{ ...sectionCard, marginBottom: 16, border: `1.5px solid ${isClient ? "#16a34a" : "var(--color-primary)"}` }}>
+        <div style={{ ...sectionCard, marginBottom: 16, border: `1.5px solid ${isClient ? "var(--md-positive)" : "var(--color-primary)"}` }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <span style={{ fontSize: 24, flexShrink: 0 }}>💸</span>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -4731,7 +4731,7 @@ function ContractLifecycle({
                   ? "Czekasz na potwierdzenie odbioru przez wykonawcę"
                   : `${otherParty.name || invited} potwierdził/a wysłanie — sprawdź swoje konto`}
               </div>
-              <div style={{ color: "#16a34a", fontSize: 11, marginTop: 3 }}>
+              <div style={{ color: "var(--md-positive)", fontSize: 11, marginTop: 3 }}>
                 {new Date(paymentSentAt).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })} {new Date(paymentSentAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
               </div>
             </div>
@@ -4803,17 +4803,17 @@ function ContractLifecycle({
               const isCurrent = !paid && paidStages.length === i;
               return (
                 <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: i < data.paymentStages.length - 1 ? "1px solid var(--color-border)" : "none" }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: paid ? "color-mix(in srgb, #16a34a 12%, transparent)" : isCurrent ? "color-mix(in srgb, var(--color-primary) 12%, transparent)" : "var(--color-card)", border: `1.5px solid ${paid ? "#16a34a" : isCurrent ? "var(--color-primary)" : "var(--color-border)"}` }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: paid ? "color-mix(in srgb, var(--md-positive) 12%, transparent)" : isCurrent ? "color-mix(in srgb, var(--color-primary) 12%, transparent)" : "var(--color-card)", border: `1.5px solid ${paid ? "var(--md-positive)" : isCurrent ? "var(--color-primary)" : "var(--color-border)"}` }}>
                     <span style={{ fontSize: 12 }}>{paid ? "✓" : isCurrent ? "⏳" : "🔒"}</span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: paid ? "#16a34a" : isCurrent ? "var(--color-foreground)" : "var(--color-muted-foreground)", fontSize: 13, fontWeight: paid || isCurrent ? 700 : 400 }}>{s.name || `Etap ${i + 1}`}</div>
+                    <div style={{ color: paid ? "var(--md-positive)" : isCurrent ? "var(--color-foreground)" : "var(--color-muted-foreground)", fontSize: 13, fontWeight: paid || isCurrent ? 700 : 400 }}>{s.name || `Etap ${i + 1}`}</div>
                     <div style={{ color: "var(--color-muted-foreground)", fontSize: 12 }}>{s.amount.toLocaleString("pl-PL")} {data.currency}</div>
                   </div>
                   {isClient && (isCurrent || paid) && (
                     <button
                       onClick={() => markPaid(s.id)}
-                      style={{ padding: "4px 10px", borderRadius: 8, border: `1px solid ${paid ? "#16a34a" : "var(--color-border)"}`, background: paid ? "color-mix(in srgb, #16a34a 10%, transparent)" : "var(--color-card)", color: paid ? "#16a34a" : "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+                      style={{ padding: "4px 10px", borderRadius: 8, border: `1px solid ${paid ? "var(--md-positive)" : "var(--color-border)"}`, background: paid ? "color-mix(in srgb, var(--md-positive) 10%, transparent)" : "var(--color-card)", color: paid ? "var(--md-positive)" : "var(--color-muted-foreground)", fontSize: 11, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
                     >
                       {paid ? "✓ Zapłacone" : "Oznacz"}
                     </button>
@@ -4850,24 +4850,24 @@ function ContractLifecycle({
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
             {(data.category === "wynajem" ? [
-              { v: "accepted" as const, l: "Lokal oddany bez zastrzeżeń", c: "#22c55e" },
-              { v: "with_notes" as const, l: "Drobne uwagi — do uzgodnienia", c: "#f59e0b" },
-              { v: "needs_fixes" as const, l: "Usterki do rozliczenia", c: "#ef4444" },
-              { v: "rejected" as const, l: "Poważne zastrzeżenia — spór", c: "#6b7280" },
+              { v: "accepted" as const, l: "Lokal oddany bez zastrzeżeń", c: "var(--md-positive)" },
+              { v: "with_notes" as const, l: "Drobne uwagi — do uzgodnienia", c: "var(--md-warning)" },
+              { v: "needs_fixes" as const, l: "Usterki do rozliczenia", c: "var(--md-danger)" },
+              { v: "rejected" as const, l: "Poważne zastrzeżenia — spór", c: "var(--md-text-tertiary)" },
             ] : data.category === "wypozyczenie" ? [
-              { v: "accepted" as const, l: "Zwrócono w stanie bez zarzutu — kaucja zwrotna", c: "#22c55e" },
-              { v: "with_notes" as const, l: "Drobne uwagi — kaucja częściowo zatrzymana", c: "#f59e0b" },
-              { v: "needs_fixes" as const, l: "Uszkodzenia — kaucja zatrzymana na naprawę", c: "#ef4444" },
-              { v: "rejected" as const, l: "Poważne szkody — sprawa sporna", c: "#6b7280" },
+              { v: "accepted" as const, l: "Zwrócono w stanie bez zarzutu — kaucja zwrotna", c: "var(--md-positive)" },
+              { v: "with_notes" as const, l: "Drobne uwagi — kaucja częściowo zatrzymana", c: "var(--md-warning)" },
+              { v: "needs_fixes" as const, l: "Uszkodzenia — kaucja zatrzymana na naprawę", c: "var(--md-danger)" },
+              { v: "rejected" as const, l: "Poważne szkody — sprawa sporna", c: "var(--md-text-tertiary)" },
             ] : data.category === "sprzedaz" ? [
-              { v: "accepted" as const, l: "Odebrano bez zastrzeżeń", c: "#22c55e" },
-              { v: "with_notes" as const, l: "Odebrano z uwagami", c: "#f59e0b" },
-              { v: "rejected" as const, l: "Odmowa przyjęcia — spór", c: "#6b7280" },
+              { v: "accepted" as const, l: "Odebrano bez zastrzeżeń", c: "var(--md-positive)" },
+              { v: "with_notes" as const, l: "Odebrano z uwagami", c: "var(--md-warning)" },
+              { v: "rejected" as const, l: "Odmowa przyjęcia — spór", c: "var(--md-text-tertiary)" },
             ] : [
-              { v: "accepted" as const, l: "Odebrane bez uwag", c: "#22c55e" },
-              { v: "with_notes" as const, l: "Odebrane z uwagami", c: "#f59e0b" },
-              { v: "needs_fixes" as const, l: "Wymaga poprawek", c: "#ef4444" },
-              { v: "rejected" as const, l: "Odrzucone", c: "#6b7280" },
+              { v: "accepted" as const, l: "Odebrane bez uwag", c: "var(--md-positive)" },
+              { v: "with_notes" as const, l: "Odebrane z uwagami", c: "var(--md-warning)" },
+              { v: "needs_fixes" as const, l: "Wymaga poprawek", c: "var(--md-danger)" },
+              { v: "rejected" as const, l: "Odrzucone", c: "var(--md-text-tertiary)" },
             ]).map(opt => {
               const active = protocolStatus === opt.v;
               return (
@@ -4937,7 +4937,7 @@ function ContractLifecycle({
                 setPhase("completed");
               }
             }}
-            style={{ ...btnPrimary, width: "100%", padding: "13px", fontSize: 15, background: !protocolStatus ? "var(--color-border)" : protocolStatus === "accepted" ? "#16a34a" : "var(--color-primary)", cursor: protocolStatus ? "pointer" : "not-allowed" }}
+            style={{ ...btnPrimary, width: "100%", padding: "13px", fontSize: 15, background: !protocolStatus ? "var(--color-border)" : protocolStatus === "accepted" ? "var(--md-positive)" : "var(--color-primary)", cursor: protocolStatus ? "pointer" : "not-allowed" }}
           >
             {!protocolStatus ? "Wybierz status odbioru" : protocolStatus === "accepted" || protocolStatus === "with_notes" ? "✓ Zatwierdź i zakończ umowę" : "Zgłoś problem i otwórz spór"}
           </button>
@@ -4956,7 +4956,7 @@ function ContractLifecycle({
       )}
       {/* Waiting for client to confirm sending */}
       {phase === "awaiting_deposit" && isClient && paymentSentAt && !cta && (
-        <div style={{ padding: 16, borderRadius: 12, border: "1px solid #16a34a", background: "color-mix(in srgb, #16a34a 6%, transparent)", marginBottom: 12, textAlign: "center" }}>
+        <div style={{ padding: 16, borderRadius: 12, border: "1px solid var(--md-positive)", background: "color-mix(in srgb, var(--md-positive) 6%, transparent)", marginBottom: 12, textAlign: "center" }}>
           <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
           <div style={{ color: "var(--color-muted-foreground)", fontSize: 14, lineHeight: 1.6 }}>
             Przelew potwierdzony z Twojej strony.<br />
@@ -4979,7 +4979,7 @@ function ContractLifecycle({
       {isClient && (phase === "in_progress" || phase === "awaiting_release") && (
         <button
           onClick={() => setDisputeOpen(true)}
-          style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1.5px solid #f59e0b", background: "color-mix(in srgb, #f59e0b 8%, transparent)", color: "#d97706", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+          style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1.5px solid var(--md-warning)", background: "color-mix(in srgb, var(--md-warning) 8%, transparent)", color: "var(--md-warning)", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
         >
           ⚠ Zgłoś problem
         </button>
@@ -5032,7 +5032,7 @@ function ContractLifecycle({
 
       {/* Feature 4 — Contractor rating */}
       {isFinished && !inlineRatingSubmitted && (
-        <div style={{ background: "rgba(212,160,32,0.06)", border: "1.5px solid rgba(212,160,32,0.25)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+        <div style={{ background: "color-mix(in srgb, var(--md-accent) 6%, transparent)", border: "1.5px solid color-mix(in srgb, var(--md-accent) 25%, transparent)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-foreground)", marginBottom: 4 }}>
             ⭐ Oceń współpracę
           </div>
@@ -5256,7 +5256,7 @@ function ContractLifecycle({
                   placeholder="Opcjonalny opis..."
                   style={{ width: "100%", padding: "12px", borderRadius: 10, border: "1px solid var(--color-border)", background: "var(--color-card)", color: "var(--color-foreground)", fontSize: 14, resize: "none", minHeight: 80, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 }}
                 />
-                <button onClick={() => handleDispute(disputeConfirm)} style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: disputeConfirm === "cancel" ? "#dc2626" : "var(--color-primary)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+                <button onClick={() => handleDispute(disputeConfirm)} style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: disputeConfirm === "cancel" ? "var(--md-danger)" : "var(--color-primary)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
                   {disputeConfirm === "fixes" ? "Wyślij prośbę o poprawki" : disputeConfirm === "mediation" ? "Zgłoś do mediacji" : "Potwierdź anulowanie"}
                 </button>
                 <button onClick={() => setDisputeConfirm(null)} style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-muted-foreground)", fontSize: 14, cursor: "pointer" }}>Wstecz</button>

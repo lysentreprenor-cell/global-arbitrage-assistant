@@ -319,7 +319,7 @@ export default function BudgetForecast() {
           </ResponsiveContainer>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>{pl ? "Teraz" : "Now"}: <b style={{ color: "var(--color-primary)" }}>{currentBalance.toFixed(0)} {primaryCurrency}</b></div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>+30d: <b style={{ color: forecastData[forecastData.length - 1]?.balance >= currentBalance ? "#4ade80" : "#f87171" }}>{forecastData[forecastData.length - 1]?.balance ?? 0} {primaryCurrency}</b></div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>+30d: <b style={{ color: forecastData[forecastData.length - 1]?.balance >= currentBalance ? "var(--md-positive)" : "var(--md-negative)" }}>{forecastData[forecastData.length - 1]?.balance ?? 0} {primaryCurrency}</b></div>
           </div>
         </div>
       </main>

@@ -64,7 +64,7 @@ export function AnalyticsChart() {
             </defs>
             <Tooltip 
               contentStyle={{ 
-                backgroundColor: '#1A1A1A', 
+                backgroundColor: 'var(--md-surface-raised)', 
                 border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '12px',
                 color: '#fff',

@@ -34,7 +34,7 @@ const lbl: React.CSSProperties = {
   marginBottom: 6, display: "block",
 };
 
-const errStyle: React.CSSProperties = { fontSize: 11, color: "#f87171", marginTop: 4 };
+const errStyle: React.CSSProperties = { fontSize: 11, color: "var(--md-negative)", marginTop: 4 };
 
 function FieldErr({ msg }: { msg?: string }) {
   if (!msg) return null;
@@ -95,7 +95,7 @@ function ConfirmScreen({
         </div>
 
         <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.20)", borderRadius: 14, padding: "12px 16px", display: "flex", gap: 10, marginBottom: 12 }}>
-          <AlertCircle size={16} style={{ color: "#f87171", flexShrink: 0, marginTop: 1 }} />
+          <AlertCircle size={16} style={{ color: "var(--md-negative)", flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 12, color: "rgba(248,113,113,0.90)", lineHeight: 1.5 }}>
             Sprawdź dane zaproszenia przed potwierdzeniem. Zaproszenie zostanie wysłane do odbiorcy.
           </span>
@@ -115,8 +115,8 @@ function ConfirmScreen({
           style={{
             width: "100%", height: 56, borderRadius: 18, border: "none",
             cursor: isProcessing ? "not-allowed" : "pointer",
-            background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
-            fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2,
+            background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
+            fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2,
             boxShadow: isProcessing ? "none" : "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
             opacity: isProcessing ? 0.6 : 1,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -144,14 +144,14 @@ function SuccessScreen({ recipient, onDone }: { recipient: string; onDone: () =>
         transition={{ type: "spring", damping: 12, delay: 0.1 }}
         style={{ width: 88, height: 88, borderRadius: "50%", background: "rgba(74,222,128,0.12)", border: "2px solid rgba(74,222,128,0.35)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}
       >
-        <CheckCircle2 size={44} style={{ color: "#4ade80" }} />
+        <CheckCircle2 size={44} style={{ color: "var(--md-positive)" }} />
       </motion.div>
       <h2 style={{ fontSize: 26, fontWeight: 800, color: "white", marginBottom: 8, textAlign: "center" }}>Zaproszenie wysłane</h2>
       <p style={{ fontSize: 14, color: "rgba(255,255,255,0.50)", marginBottom: 12, textAlign: "center" }}>
         Wysłano zaproszenie do umowy do:
       </p>
       <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "12px 24px", marginBottom: 40 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#d4a020" }}>{recipient}</span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--md-accent)" }}>{recipient}</span>
       </div>
       <SandboxBadge />
       <button
@@ -159,8 +159,8 @@ function SuccessScreen({ recipient, onDone }: { recipient: string; onDone: () =>
         onClick={onDone}
         style={{
           marginTop: 40, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer",
-          background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
-          fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2,
+          background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
+          fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2,
           boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
         }}
       >
@@ -175,7 +175,7 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "0 28px", background: "var(--background)" }}>
       <div style={{ width: 88, height: 88, borderRadius: "50%", background: "rgba(248,113,113,0.12)", border: "2px solid rgba(248,113,113,0.30)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
-        <XCircle size={44} style={{ color: "#f87171" }} />
+        <XCircle size={44} style={{ color: "var(--md-negative)" }} />
       </div>
       <h2 style={{ fontSize: 22, fontWeight: 800, color: "white", marginBottom: 8 }}>Błąd zaproszenia</h2>
       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.50)", marginBottom: 32, textAlign: "center" }}>{message}</p>
@@ -290,10 +290,10 @@ export default function ContractInviteFlow() {
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
           <div style={{
             width: 52, height: 52, borderRadius: 16,
-            background: "rgba(212,160,32,0.12)", border: "1px solid rgba(212,160,32,0.28)",
+            background: "color-mix(in srgb, var(--md-accent) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--md-accent) 28%, transparent)",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
-            <FileText size={24} style={{ color: "#d4a020" }} />
+            <FileText size={24} style={{ color: "var(--md-accent)" }} />
           </div>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: "white", margin: 0 }}>Zaproś do umowy</h1>
@@ -343,9 +343,9 @@ export default function ContractInviteFlow() {
                   onClick={() => setContractType(ct.value)}
                   style={{
                     padding: "7px 14px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                    border: contractType === ct.value ? "1.5px solid rgba(212,160,32,0.85)" : "1px solid rgba(255,255,255,0.10)",
-                    background: contractType === ct.value ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.03)",
-                    color: contractType === ct.value ? "#d4a020" : "rgba(255,255,255,0.55)",
+                    border: contractType === ct.value ? "1.5px solid var(--md-accent)" : "1px solid rgba(255,255,255,0.10)",
+                    background: contractType === ct.value ? "color-mix(in srgb, var(--md-accent) 12%, transparent)" : "rgba(255,255,255,0.03)",
+                    color: contractType === ct.value ? "var(--md-accent)" : "rgba(255,255,255,0.55)",
                   }}
                 >
                   {ct.label}
@@ -365,9 +365,9 @@ export default function ContractInviteFlow() {
                   onClick={() => setCurrency(cur)}
                   style={{
                     padding: "6px 14px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                    border: currency === cur ? "1.5px solid rgba(212,160,32,0.85)" : "1px solid rgba(255,255,255,0.10)",
-                    background: currency === cur ? "rgba(212,160,32,0.12)" : "rgba(255,255,255,0.03)",
-                    color: currency === cur ? "#d4a020" : "rgba(255,255,255,0.55)",
+                    border: currency === cur ? "1.5px solid var(--md-accent)" : "1px solid rgba(255,255,255,0.10)",
+                    background: currency === cur ? "color-mix(in srgb, var(--md-accent) 12%, transparent)" : "rgba(255,255,255,0.03)",
+                    color: currency === cur ? "var(--md-accent)" : "rgba(255,255,255,0.55)",
                   }}
                 >
                   {WALLET_FLAGS[cur]} {cur}
@@ -428,9 +428,9 @@ export default function ContractInviteFlow() {
         </div>
 
         {/* Info note */}
-        <div style={{ background: "rgba(212,160,32,0.07)", border: "1px solid rgba(212,160,32,0.18)", borderRadius: 14, padding: "12px 16px", display: "flex", gap: 10, marginTop: 24 }}>
-          <Info size={16} style={{ color: "rgba(212,160,32,0.80)", flexShrink: 0, marginTop: 1 }} />
-          <span style={{ fontSize: 12, color: "rgba(212,160,32,0.80)", lineHeight: 1.5 }}>
+        <div style={{ background: "color-mix(in srgb, var(--md-accent) 7%, transparent)", border: "1px solid color-mix(in srgb, var(--md-accent) 18%, transparent)", borderRadius: 14, padding: "12px 16px", display: "flex", gap: 10, marginTop: 24 }}>
+          <Info size={16} style={{ color: "var(--md-accent)", flexShrink: 0, marginTop: 1 }} />
+          <span style={{ fontSize: 12, color: "var(--md-accent)", lineHeight: 1.5 }}>
             Odbiorca otrzyma zaproszenie do umowy. Po jej zaakceptowaniu środki zostaną zabezpieczone na koncie Finlys.
           </span>
         </div>
@@ -441,8 +441,8 @@ export default function ContractInviteFlow() {
           onClick={() => { if (validate()) setStep("confirm"); }}
           style={{
             marginTop: 28, width: "100%", height: 56, borderRadius: 18, border: "none", cursor: "pointer",
-            background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
-            fontSize: 14, fontWeight: 900, color: "#1a1400", letterSpacing: 1.2,
+            background: "linear-gradient(180deg, var(--md-accent-hover) 0%, var(--md-accent) 22%, var(--md-accent) 62%, var(--md-accent-pressed) 100%)",
+            fontSize: 14, fontWeight: 900, color: "var(--md-text-on-accent)", letterSpacing: 1.2,
             boxShadow: "0 3px 0 rgba(140,90,4,0.90), 0 8px 20px rgba(210,158,20,0.45)",
           }}
         >

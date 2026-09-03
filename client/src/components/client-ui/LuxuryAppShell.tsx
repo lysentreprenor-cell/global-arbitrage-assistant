@@ -492,7 +492,7 @@ export default function LuxuryAppShell({
                   borderRadius: 999,
                   fontSize: 12,
                   fontWeight: 700,
-                  color: "#7df0ba",
+                  color: "var(--md-positive)",
                   background: "rgba(35,183,118,0.14)",
                   border: "1px solid rgba(80,225,155,0.18)",
                 }}

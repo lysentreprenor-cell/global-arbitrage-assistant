@@ -68,24 +68,24 @@ function AuthSplash() {
       transition={{ duration: 0.22, ease: "easeOut" }}
       style={{
         position: "fixed", inset: 0, zIndex: 9999,
-        background: "var(--background, #0d0d0f)",
+        background: "var(--md-canvas)",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: 24,
       }}
     >
+      {/* Loading is a moment of doubt in a money app: show the brand mark
+          calmly, on the same canvas the app opens onto, so nothing flashes. */}
       <div style={{
-        width: 64, height: 64, borderRadius: 20,
-        background: "linear-gradient(180deg, #fff4b8 0%, #f9d95e 22%, #d4a020 62%, #b8880a 100%)",
+        width: 56, height: 56, borderRadius: 18,
+        background: "var(--md-accent)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 4px 24px rgba(212,160,32,0.40)",
       }}>
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <circle cx="16" cy="16" r="10" stroke="#1a1400" strokeWidth="3" strokeLinecap="round"
+        <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="16" r="10" stroke="var(--md-text-on-accent)" strokeWidth="3" strokeLinecap="round"
             strokeDasharray="44" strokeDashoffset="11"
-            style={{ transformOrigin: "center", animation: "spin 1s linear infinite" }} />
+            style={{ transformOrigin: "center", animation: "md-spin 0.9s linear infinite" }} />
         </svg>
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </motion.div>
   );
 }

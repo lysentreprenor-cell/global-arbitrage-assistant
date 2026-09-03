@@ -29,7 +29,9 @@ export default function History() {
     if (!w) return;
     const locale = lang === "pl" ? "pl-PL" : "en-GB";
     const rows = filteredTransactions.map(tx =>
-      `<tr><td>${new Date(tx.date).toLocaleDateString(locale)}</td><td>${tx.title}</td><td style="text-align:right;color:${tx.amount > 0 ? "#16a34a" : "#dc2626"}">${tx.amount > 0 ? "+" : ""}${tx.amount.toFixed(2)} ${(tx as any).currency || "PLN"}</td></tr>`
+      // Standalone print document: literal colours, since the app's theme
+      // variables do not exist in the exported window. Print-safe on white.
+      `<tr><td>${new Date(tx.date).toLocaleDateString(locale)}</td><td>${tx.title}</td><td style="text-align:right;color:${tx.amount > 0 ? "#0F7B4F" : "#A3342B"}">${tx.amount > 0 ? "+" : ""}${tx.amount.toFixed(2)} ${(tx as any).currency || "PLN"}</td></tr>`
     ).join("");
     const title = pl ? "Historia transakcji" : "Transaction History";
     const generated = pl ? "Wygenerowano" : "Generated";
@@ -255,8 +257,8 @@ export default function History() {
             </div>
             {[
               { label: pl ? "Wpłynęło" : "Received", value: `+${monthlyStats.received.toFixed(0)} PLN`, color: "var(--color-primary)" },
-              { label: pl ? "Wysłano" : "Sent", value: `-${monthlyStats.sent.toFixed(0)} PLN`, color: "#f87171" },
-              { label: pl ? "Saldo netto" : "Net balance", value: `${monthlyStats.net >= 0 ? "+" : ""}${monthlyStats.net.toFixed(0)} PLN`, color: monthlyStats.net >= 0 ? "#4ade80" : "#f87171" },
+              { label: pl ? "Wysłano" : "Sent", value: `-${monthlyStats.sent.toFixed(0)} PLN`, color: "var(--md-negative)" },
+              { label: pl ? "Saldo netto" : "Net balance", value: `${monthlyStats.net >= 0 ? "+" : ""}${monthlyStats.net.toFixed(0)} PLN`, color: monthlyStats.net >= 0 ? "var(--md-positive)" : "var(--md-negative)" },
               { label: pl ? "Liczba transakcji" : "Transactions", value: String(monthlyStats.count), color: "rgba(255,255,255,0.70)" },
             ].map(row => (
               <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>

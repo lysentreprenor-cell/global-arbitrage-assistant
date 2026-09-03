@@ -88,8 +88,8 @@ export default function Profile() {
 
   const levelColor = (level: string): string => {
     const map: Record<string, string> = {
-      super: "#f59e0b", top: "#a855f7", trusted: "#3b82f6",
-      verified: "#22c55e", new: "rgba(255,255,255,0.4)",
+      super: "var(--md-warning)", top: "var(--md-accent)", trusted: "var(--md-info)",
+      verified: "var(--md-positive)", new: "rgba(255,255,255,0.4)",
     };
     return map[level] ?? "rgba(255,255,255,0.4)";
   };
@@ -147,7 +147,7 @@ export default function Profile() {
         </div>
 
         <div className="relative mb-5 mt-4">
-          <div className="w-28 h-28 bg-gradient-to-br from-[#2A2A2A] to-[#0A0A0A] text-white text-4xl font-bold rounded-[2rem] flex items-center justify-center uppercase shadow-premium font-heading border border-white/10 relative overflow-hidden">
+          <div className="w-28 h-28 bg-gradient-to-br from-[var(--md-surface-raised)] to-[var(--md-canvas)] text-white text-4xl font-bold rounded-[2rem] flex items-center justify-center uppercase shadow-premium font-heading border border-white/10 relative overflow-hidden">
             {user?.avatar ? (
               <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
             ) : (
@@ -171,7 +171,7 @@ export default function Profile() {
         </div>
 
         {/* Poziom reputacji pod avatarem */}
-        <div className="mt-3" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 999, background: `${lColor}14`, border: `1px solid ${lColor}30` }}>
+        <div className="mt-3" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 999, background: `color-mix(in srgb, ${lColor} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${lColor} 19%, transparent)` }}>
           <Star size={11} fill={lColor} stroke={lColor} />
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", color: lColor }}>{levelLabel(level)}</span>
         </div>
@@ -184,13 +184,13 @@ export default function Profile() {
           data-testid="card-reputation" className="bg-card border border-white/5 rounded-3xl p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground">{t.reputationSection}</p>
-            <span data-testid="badge-my-level" style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: lColor, background: `${lColor}18`, border: `1px solid ${lColor}35`, borderRadius: 999, padding: "3px 10px" }}>
+            <span data-testid="badge-my-level" style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: lColor, background: `color-mix(in srgb, ${lColor} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${lColor} 21%, transparent)`, borderRadius: 999, padding: "3px 10px" }}>
               {levelLabel(level)}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { value: myProfile?.ratingAverage != null ? myProfile.ratingAverage.toFixed(1) : "—", label: t.ratingAvg, icon: <Star size={11} fill="#f59e0b" stroke="#f59e0b" /> },
+              { value: myProfile?.ratingAverage != null ? myProfile.ratingAverage.toFixed(1) : "—", label: t.ratingAvg, icon: <Star size={11} fill="var(--md-warning)" stroke="var(--md-warning)" /> },
               { value: myProfile?.ratingCount ?? 0, label: t.ratingCount },
               { value: myProfile?.recommendedPercent != null ? `${myProfile.recommendedPercent}%` : "—", label: t.ratingRecommended },
               { value: myProfile?.completedAgreements ?? 0, label: t.ratingCompletedAgreements },

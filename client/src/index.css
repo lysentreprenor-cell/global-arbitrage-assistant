@@ -3,12 +3,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ══════════════════════════════════════════════════════════════════════════
+   MERIDIAN DESIGN SYSTEM — CSS layer
+   Finlys · v1.0
+
+   The values below are FALLBACKS for the first paint only. At runtime the
+   ThemeProvider writes the active palette onto :root, so this file and
+   design/themes.ts can never disagree for longer than one frame.
+
+   Layer order:
+     1. @theme inline   — expose tokens to Tailwind utilities
+     2. :root           — the token values themselves
+     3. @layer base     — element defaults
+     4. utilities       — the handful of classes screens are allowed to use
+   ══════════════════════════════════════════════════════════════════════════ */
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  
+
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -29,7 +44,7 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
 
-  /* Semantic functional colors — fixed across all themes */
+  /* Semantic functional colours — meaning is fixed across all themes */
   --color-online:    hsl(var(--online));
   --color-success:   hsl(var(--success));
   --color-warning:   hsl(var(--warning));
@@ -38,162 +53,101 @@
   --color-favorite:  hsl(var(--favorite));
   --color-overlay:   hsl(var(--overlay));
 
-  --font-sans: 'Outfit', sans-serif;
-  --font-heading: 'Playfair Display', serif;
-  
-  --shadow-premium: 0 20px 40px -15px rgba(0, 0, 0, 0.4);
-  --shadow-floating: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
-  --shadow-inner-glow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Sora', 'Outfit', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --shadow-low:    0 1px 2px rgba(0,0,0,0.28), 0 4px 12px -6px rgba(0,0,0,0.36);
+  --shadow-medium: 0 2px 6px rgba(0,0,0,0.30), 0 12px 28px -14px rgba(0,0,0,0.55);
+  --shadow-high:   0 4px 10px rgba(0,0,0,0.32), 0 20px 44px -20px rgba(0,0,0,0.62);
 }
 
 :root {
-  /* Bottom navigation clearance — used globally across all screens */
-  --bottom-nav-height: 92px;
-  --bottom-safe-space: calc(var(--bottom-nav-height) + 24px + env(safe-area-inset-bottom));
+  /* ── Shell geometry ─────────────────────────────────────────────────── */
+  --app-max-width: 448px;
+  --gutter: 20px;
+  --bottom-nav-height: 88px;
+  --bottom-safe-space: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom));
+  --header-height: 60px;
+  --header-safe-space: calc(var(--header-height) + env(safe-area-inset-top));
 
-  /* Black Gold (Default Premium Dark) */
-  --background: 220 10% 4%; /* Very deep almost black */
-  --foreground: 40 20% 97%; /* Off white */
-  
-  --card: 220 10% 8%;
-  --card-foreground: 40 20% 97%;
-  
-  --popover: 220 10% 8%;
-  --popover-foreground: 40 20% 97%;
-  
-  /* Luxurious Metallic Gold Accent */
-  --primary: 43 74% 49%;
-  --primary-foreground: 220 10% 4%;
-  
-  /* Refined dark secondary surfaces */
-  --secondary: 220 10% 12%;
-  --secondary-foreground: 40 20% 97%;
-  
-  --muted: 220 10% 15%;
-  --muted-foreground: 220 10% 60%;
-  
-  --accent: 43 74% 49%;
-  --accent-foreground: 220 10% 4%;
-  
-  --destructive: 0 70% 50%;
-  --destructive-foreground: 40 20% 97%;
-  
-  /* Subtle metallic borders */
-  --border: 220 10% 15%;
-  --input: 220 10% 15%;
-  --ring: 43 74% 49%;
+  /* ── Meridian palette · fallback = "Meridian Ink" ───────────────────── */
+  --md-canvas:              #0A0D13;
+  --md-canvas-top:          #0D1119;
+  --md-surface:             #12171F;
+  --md-surface-raised:      #171D27;
+  --md-surface-sunken:      #0C1017;
+  --md-overlay:             #141922;
+  --md-scrim:               rgba(5,7,11,0.72);
+  --md-line:                rgba(233,240,250,0.08);
+  --md-line-strong:         rgba(233,240,250,0.15);
+  --md-line-accent:         rgba(201,162,75,0.32);
+  --md-text:                #EEF2F8;
+  --md-text-secondary:      rgba(232,239,248,0.68);
+  --md-text-tertiary:       rgba(232,239,248,0.46);
+  --md-text-disabled:       rgba(232,239,248,0.28);
+  --md-text-on-accent:      #17130A;
+  --md-accent:              #C9A24B;
+  --md-accent-hover:        #DAB463;
+  --md-accent-pressed:      #AE8A38;
+  --md-accent-subtle:       rgba(201,162,75,0.10);
+  --md-accent-subtle-strong:rgba(201,162,75,0.18);
+  --md-positive:            #3DBE86;
+  --md-negative:            #D98A72;
+  --md-warning:             #E2A93F;
+  --md-info:                #6BA5DE;
+  --md-danger:              #E05B54;
+  --md-tint:                rgba(201,162,75,0.05);
 
-  /* Semantic functional colors — consistent across themes */
-  --online:    142 71% 45%;  /* green — online presence */
-  --success:   142 71% 45%;  /* green — success / money sent */
-  --warning:   38 92% 50%;   /* amber — pending / in-progress */
-  --highlight: 262 52% 65%;  /* violet — agreements / features */
-  --alert:     22 82% 55%;   /* orange — reports / alerts */
-  --favorite:  43 74% 55%;   /* gold — favorites / stars */
-  --overlay:   0 0% 0%;      /* pure black — modal backdrop (all themes) */
+  /* ── shadcn/Tailwind bridge (H S% L% triplets) ──────────────────────── */
+  --background:            218 24% 6%;
+  --foreground:            213 30% 95%;
+  --card:                  215 25% 10%;
+  --card-foreground:       213 30% 95%;
+  --popover:               216 24% 11%;
+  --popover-foreground:    213 30% 95%;
+  --primary:               43 53% 54%;
+  --primary-foreground:    45 40% 7%;
+  --secondary:             216 25% 12%;
+  --secondary-foreground:  213 30% 95%;
+  --muted:                 216 25% 12%;
+  --muted-foreground:      213 14% 52%;
+  --accent:                216 25% 12%;
+  --accent-foreground:     213 30% 95%;
+  --destructive:           3 71% 60%;
+  --destructive-foreground:213 30% 95%;
+  --border:                214 18% 18%;
+  --input:                 214 18% 18%;
+  --ring:                  43 53% 54%;
+
+  --online:    154 51% 49%;
+  --success:   154 51% 49%;
+  --warning:   40 75% 56%;
+  --highlight: 248 66% 73%;
+  --alert:     14 57% 65%;
+  --favorite:  43 53% 54%;
+  --overlay:   0 0% 0%;
 
   --radius: 1.25rem;
+
+  /* ── Motion ─────────────────────────────────────────────────────────── */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 180ms;
+  --duration-normal: 260ms;
+
+  color-scheme: dark;
 }
 
-.theme-ice-silver {
-  /* Ice Silver — Cold Midnight Dark */
-  --background: 220 15% 4%;
-  --foreground: 210 40% 96%;
-
-  --card: 220 12% 8%;
-  --card-foreground: 210 40% 96%;
-
-  --popover: 220 12% 8%;
-  --popover-foreground: 210 40% 96%;
-
-  --primary: 210 60% 80%; /* Silver-blue */
-  --primary-foreground: 220 15% 4%;
-
-  --secondary: 220 12% 12%;
-  --secondary-foreground: 210 40% 96%;
-
-  --muted: 220 12% 15%;
-  --muted-foreground: 210 20% 62%;
-
-  --accent: 210 60% 80%;
-  --accent-foreground: 220 15% 4%;
-
-  --destructive: 0 70% 50%;
-  --destructive-foreground: 210 40% 96%;
-
-  --border: 220 12% 16%;
-  --input: 220 12% 16%;
-  --ring: 210 60% 80%;
-}
-
-.theme-emerald-gold {
-  /* Emerald Gold — Dark Forest Luxury */
-  --background: 150 15% 3%;
-  --foreground: 150 20% 96%;
-
-  --card: 150 12% 7%;
-  --card-foreground: 150 20% 96%;
-
-  --popover: 150 12% 7%;
-  --popover-foreground: 150 20% 96%;
-
-  --primary: 43 74% 49%; /* Gold */
-  --primary-foreground: 150 15% 3%;
-
-  --secondary: 150 10% 11%;
-  --secondary-foreground: 150 20% 96%;
-
-  --muted: 150 10% 14%;
-  --muted-foreground: 150 10% 60%;
-
-  --accent: 150 55% 42%; /* Emerald */
-  --accent-foreground: 150 15% 3%;
-
-  --destructive: 0 70% 50%;
-  --destructive-foreground: 150 20% 96%;
-
-  --border: 150 10% 15%;
-  --input: 150 10% 15%;
-  --ring: 43 74% 49%;
-}
-
-.theme-royal-violet {
-  /* Royal Violet — Deep Purple Dark */
-  --background: 270 20% 4%;
-  --foreground: 280 30% 96%;
-
-  --card: 270 18% 8%;
-  --card-foreground: 280 30% 96%;
-
-  --popover: 270 18% 8%;
-  --popover-foreground: 280 30% 96%;
-
-  --primary: 280 70% 72%; /* Violet */
-  --primary-foreground: 270 20% 4%;
-
-  --secondary: 270 16% 12%;
-  --secondary-foreground: 280 30% 96%;
-
-  --muted: 270 16% 15%;
-  --muted-foreground: 270 12% 62%;
-
-  --accent: 280 70% 72%;
-  --accent-foreground: 270 20% 4%;
-
-  --destructive: 0 70% 50%;
-  --destructive-foreground: 280 30% 96%;
-
-  --border: 270 16% 16%;
-  --input: 270 16% 16%;
-  --ring: 280 70% 72%;
-}
+/* ══════════════════════════════════════════════════════════════════════════
+   BASE
+   ══════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   * {
     @apply border-border;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* PWA full-screen support */
   html, body, #root {
     height: 100%;
     min-height: 100%;
@@ -203,10 +157,15 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground transition-colors duration-500;
-    /* Rich dark noise texture */
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
-    /* Safe areas for notch / navigation bar */
+    @apply font-sans antialiased;
+    background: var(--md-canvas);
+    color: var(--md-text);
+    /* Type is set once, here. Screens change size and weight, never family. */
+    font-size: 15px;
+    line-height: 1.5;
+    font-weight: 450;
+    letter-spacing: 0;
+    transition: background-color var(--duration-normal) linear;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
@@ -214,141 +173,206 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading tracking-tight;
+    font-family: var(--font-heading);
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
   }
 
-  /* Remove iOS tap highlight */
-  * {
-    -webkit-tap-highlight-color: transparent;
+  /* Money must never jitter as it updates, and columns of amounts must
+     align. Tabular figures everywhere a number can appear. */
+  [data-numeric], .numeric, input[type="number"], td, th {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
   }
+
+  /* A visible, consistent focus ring is a trust feature, not an a11y tax. */
+  :focus-visible {
+    outline: 2px solid var(--md-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  :focus:not(:focus-visible) { outline: none; }
+
+  ::selection {
+    background: var(--md-accent-subtle-strong);
+    color: var(--md-text);
+  }
+
+  ::placeholder { color: var(--md-text-disabled); }
+
+  /* Native controls inherit the palette instead of flashing system chrome. */
+  select, input, textarea, button { font-family: inherit; }
+  select option { background: var(--md-overlay); color: var(--md-text); }
 }
 
-/*
- * Global bottom-nav clearance — OUTSIDE @layer so it wins over Tailwind utilities
- * (pb-28, pb-32, etc.) but is still overridden by inline styles.
- * All scrollable <main> elements will automatically clear the fixed bottom nav.
- */
-main {
-  padding-bottom: var(--bottom-safe-space);
-}
+/* ══════════════════════════════════════════════════════════════════════════
+   SCROLL ROOT PROTECTION
+   [data-scroll-root] is the single vertical-scroll container for the whole
+   app (see App.tsx). This rule guarantees it scrolls even if an
+   overflow-hidden utility is merged onto it by accident.
 
-/*
- * ─── SCROLL ROOT PROTECTION ─────────────────────────────────────────────────
- * [data-scroll-root] is the single vertical-scroll container for the whole app
- * (see App.tsx). This rule ensures it always scrolls — even if Tailwind's
- * overflow-hidden is accidentally applied via a class merge.
- *
- * DO NOT remove or weaken this rule. Doing so will break page scroll on every
- * page in the application. Chat pages (Messages, ChatThread) are exempt because
- * they use their own internal overflow-y-auto on the message list, not the root.
- */
+   DO NOT remove or weaken. Chat screens are exempt: they scroll their own
+   message list, not the root.
+   ══════════════════════════════════════════════════════════════════════════ */
 [data-scroll-root] {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+[data-scroll-root]::-webkit-scrollbar { display: none; }
+
+/* Every scrollable <main> clears the floating bottom nav automatically. */
+main {
+  padding-bottom: var(--bottom-safe-space);
 }
 
-/* ═══════════════════════════════════════════════════
-   FINLYS GLOBAL TYPOGRAPHY SYSTEM
-   Mobile-first, Messenger/Revolut-grade readability
-   ═══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY UTILITIES
+   Legacy class names, re-pointed at the Meridian ramp so older screens land
+   on the system without edits. New screens use <Text> from design/primitives.
+   ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Scale ── */
-  --typo-screen-title: 30px;
-  --typo-card-title:   20px;
-  --typo-section:      15px;
-  --typo-body:         16px;
-  --typo-secondary:    15px;
+  --typo-screen-title: 22px;
+  --typo-card-title:   17px;
+  --typo-section:      11px;
+  --typo-body:         15px;
+  --typo-secondary:    14px;
   --typo-helper:       14px;
   --typo-caption:      13px;
   --typo-timestamp:    12px;
-  --typo-badge:        11px;
-  --typo-nav-label:    13px;
+  --typo-badge:        12px;
+  --typo-nav-label:    11px;
 
-  /* ── Aliases (spec-compatible names) ── */
   --typo-base: var(--typo-body);
   --typo-sm:   var(--typo-secondary);
 
-  /* ── Font size scale ── */
-  --font-xs:    14px;
-  --font-sm:    15px;
-  --font-base:  16px;
+  --font-xs:    13px;
+  --font-sm:    14px;
+  --font-base:  15px;
   --font-md:    17px;
   --font-lg:    20px;
-  --font-xl:    24px;
-  --font-title: 32px;
+  --font-xl:    22px;
+  --font-title: 28px;
 
-  /* ── Interactive heights ── */
-  --input-height:  56px;
-  --btn-height-lg: 52px;
+  --input-height:  52px;
+  --btn-height-lg: 54px;
   --btn-height-sm: 40px;
 }
 
-/* ── Named utility classes ── */
 .typo-screen-title {
+  font-family: var(--font-heading);
   font-size: var(--typo-screen-title);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
 }
 .typo-card-title {
   font-size: var(--typo-card-title);
-  font-weight: 700;
-  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
 }
 .typo-section,
 .typo-section-label {
   font-size: var(--typo-section);
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-weight: 700;
+  letter-spacing: 1.1px;
   text-transform: uppercase;
+  color: var(--md-text-tertiary);
 }
-.typo-body {
-  font-size: var(--typo-body);
-  line-height: 1.55;
-}
-.typo-secondary {
-  font-size: var(--typo-secondary);
-  line-height: 1.45;
-}
-.typo-helper {
-  font-size: var(--typo-helper);
-  line-height: 1.4;
-}
-.typo-caption {
-  font-size: var(--typo-caption);
-  line-height: 1.35;
-}
-.typo-timestamp {
-  font-size: var(--typo-timestamp);
-  line-height: 1.2;
-}
+.typo-body      { font-size: var(--typo-body); line-height: 1.5; }
+.typo-secondary { font-size: var(--typo-secondary); line-height: 1.45; }
+.typo-helper    { font-size: var(--typo-helper); line-height: 1.4; }
+.typo-caption   { font-size: var(--typo-caption); line-height: 1.4; }
+.typo-timestamp { font-size: var(--typo-timestamp); line-height: 1.3; }
 
-/* ── Minimum readable sizes: override dangerously small Tailwind utilities ── */
-/* Replace text-[10px] / text-[11px] on important UI with at least 12px via global cascade */
-/* Components themselves are edited to use correct sizes; this is a safety net */
-
+/* Money display — pair with <Amount> or use directly on legacy screens. */
+.money {
+  font-family: var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.3px;
+  font-weight: 600;
+}
 
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+/* Surface helpers for screens still written in plain CSS/Tailwind. */
+.md-card {
+  background: var(--md-surface);
+  border: 1px solid var(--md-line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-low);
+}
+.md-card-raised {
+  background: var(--md-surface-raised);
+  border: 1px solid var(--md-line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-medium);
 }
 
-/* ── Print styles for ContractDocument overlay ── */
+/* ══════════════════════════════════════════════════════════════════════════
+   MOTION
+   Three keyframes, shared by every component. Anything longer than 400ms in
+   a finance app reads as lag.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes md-spin { to { transform: rotate(360deg); } }
+/* Alias: several screens animate with `spin` inline. Defined globally so a
+   spinner never silently stands still. */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes md-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+@keyframes md-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes md-sheet-in {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes md-rise {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+/* Content entering the viewport settles rather than flies. */
+.md-enter {
+  animation: md-rise var(--duration-normal) var(--ease-standard) both;
+}
+
+/* Respect the OS setting. Non-negotiable. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PRINT — contract documents must print as documents, not as UI
+   ══════════════════════════════════════════════════════════════════════════ */
 @media print {
-  /* Hide all UI chrome */
   body > *:not(#root) { display: none !important; }
   header, nav, footer, .no-print { display: none !important; }
 
-  /* Force white background on the whole page */
   html, body { background: #fff !important; color: #000 !important; margin: 0 !important; padding: 0 !important; }
 
-  /* The fixed overlay becomes a normal block */
   .print-overlay {
     position: static !important;
     background: transparent !important;
@@ -356,7 +380,6 @@ main {
     overflow: visible !important;
   }
 
-  /* The document card becomes full-width */
   .print-document {
     position: static !important;
     max-width: 100% !important;
@@ -368,14 +391,12 @@ main {
     border: none !important;
   }
 
-  /* Document content: ensure readable black-on-white */
   .print-document * {
     color: #000 !important;
     background: transparent !important;
     border-color: #ccc !important;
   }
 
-  /* Hide action buttons */
   .print-document button,
   .print-document a[href] { display: none !important; }
 }
