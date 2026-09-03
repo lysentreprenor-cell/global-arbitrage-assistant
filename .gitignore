@@ -14,3 +14,10 @@ yarn-error.*
 .env
 .env.local
 .claude/
+
+# Zrzuty bazy tworzone w czasie działania aplikacji (server/scripts/backupUsers.ts).
+# NIE wolno ich wersjonować z dwóch powodów:
+#  1. zawierają dane użytkowników — e-mail, telefon, hash hasła
+#  2. powstają przy każdym uruchomieniu, więc brudzą drzewo robocze
+#     i blokują `git pull` w Replit ("you have uncommitted changes")
+backups/

@@ -11,7 +11,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "messages:firestore-scan": "grep -RInE \"from .firebase/database|getDatabase\\(|realtimeDb|onValue\\(|push\\(ref\\(\" src --exclude-dir=node_modules || true"
+    "messages:firestore-scan": "grep -RInE \"from .firebase/database|getDatabase\\(|realtimeDb|onValue\\(|push\\(ref\\(\" client/src server --exclude-dir=node_modules || true"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -43,7 +43,6 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@react-native-async-storage/async-storage": "^3.0.2",
     "@stripe/stripe-js": "^9.3.1",
     "@tanstack/react-query": "^5.60.5",
     "@types/jsonwebtoken": "^9.0.10",
@@ -76,7 +75,6 @@
     "react-day-picker": "^9.11.1",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.66.0",
-    "react-native-web": "^0.21.2",
     "react-resizable-panels": "^2.1.9",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
