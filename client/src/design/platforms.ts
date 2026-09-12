@@ -65,6 +65,19 @@ export const marketplaceAccent: Record<string, string> = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
+   USŁUGI ZEWNĘTRZNE — Settings
+
+   Nie marketplace'y, ale ta sama zasada: cudza barwa firmowa, nie nasza rola.
+   Kraken ma fiolet, Bybit pomarańcz, Google swój błękit — nie mamy tu nic do
+   decydowania, tylko do odwzorowania.
+   ───────────────────────────────────────────────────────────────────────── */
+export const serviceBrand: Record<string, string> = {
+  google: "#4285f4",
+  bybit: "#f7931a",
+  kraken: "#5741d9",
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
    PRESET KALKULATORA — ProfitPage
 
    Trzeci zestaw barw marek. Pokrywa się z `marketplaceAccent` we wszystkim

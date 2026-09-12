@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Truck, Plus, Trash2, Edit3, ExternalLink, Star, X, Search } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import * as palette from "@/design/palette";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -90,8 +91,8 @@ const QUICK_PRESETS: Array<{ name: string; url: string; country: string }> = [
 // ── Shared input style ────────────────────────────────────────────────────────
 
 const inp: React.CSSProperties = {
-  width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 13,
+  width: "100%", background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+  borderRadius: 8, padding: "9px 12px", color: palette.ink.white, fontSize: 13,
   fontFamily: "inherit", outline: "none", boxSizing: "border-box",
 };
 
@@ -109,7 +110,7 @@ const blankForm = (): FormState => ({
 });
 
 function SupplierForm({
-  initial, onSave, onCancel, borderColor = "rgba(245,158,11,0.35)",
+  initial, onSave, onCancel, borderColor = palette.alpha(palette.brand.amber, 0.35),
 }: {
   initial: FormState;
   onSave: (f: FormState) => void;
@@ -130,13 +131,13 @@ function SupplierForm({
 
   return (
     <div style={{
-      background: "rgba(245,158,11,0.05)", border: `1px solid ${borderColor}`,
+      background: palette.alpha(palette.brand.amber, 0.05), border: `1px solid ${borderColor}`,
       borderRadius: 14, padding: 18,
     }}>
       {/* Row 1: name + url */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NAZWA *</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NAZWA *</div>
           <input
             style={inp} value={f.name}
             onChange={e => setF(p => ({ ...p, name: e.target.value }))}
@@ -144,7 +145,7 @@ function SupplierForm({
           />
         </div>
         <div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>URL</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>URL</div>
           <input
             style={inp} value={f.url}
             onChange={e => setF(p => ({ ...p, url: e.target.value }))}
@@ -156,7 +157,7 @@ function SupplierForm({
       {/* Row 2: country + avgPrice + leadTime + moq */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>KRAJ</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>KRAJ</div>
           <select
             value={f.country}
             onChange={e => setF(p => ({ ...p, country: e.target.value }))}
@@ -168,7 +169,7 @@ function SupplierForm({
           </select>
         </div>
         <div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>CENA ŚR.</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>CENA ŚR.</div>
           <input
             style={inp} value={f.avgPrice}
             onChange={e => setF(p => ({ ...p, avgPrice: e.target.value }))}
@@ -176,7 +177,7 @@ function SupplierForm({
           />
         </div>
         <div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>CZAS DOSTAWY</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>CZAS DOSTAWY</div>
           <input
             style={inp} value={f.leadTime}
             onChange={e => setF(p => ({ ...p, leadTime: e.target.value }))}
@@ -184,7 +185,7 @@ function SupplierForm({
           />
         </div>
         <div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>MOQ</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>MOQ</div>
           <input
             style={inp} value={f.moq}
             onChange={e => setF(p => ({ ...p, moq: e.target.value }))}
@@ -195,13 +196,13 @@ function SupplierForm({
 
       {/* Rating */}
       <div style={{ marginBottom: 10 }}>
-        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 6 }}>OCENA</div>
+        <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 6 }}>OCENA</div>
         <div style={{ display: "flex", gap: 4 }}>
           {[1, 2, 3, 4, 5].map(star => (
             <button
               key={star}
               onClick={() => setF(p => ({ ...p, rating: p.rating === star ? 0 : star }))}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 2, fontSize: 22, color: star <= f.rating ? "#f59e0b" : "rgba(255,255,255,0.15)", lineHeight: 1 }}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 2, fontSize: 22, color: star <= f.rating ? palette.brand.amber : palette.alpha(palette.ink.white, 0.15), lineHeight: 1 }}
             >
               ★
             </button>
@@ -211,7 +212,7 @@ function SupplierForm({
 
       {/* Categories */}
       <div style={{ marginBottom: 10 }}>
-        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 6 }}>KATEGORIE</div>
+        <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 6 }}>KATEGORIE</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {ALL_CATEGORIES.map(cat => {
             const active = f.categories.includes(cat);
@@ -222,8 +223,8 @@ function SupplierForm({
                 style={{
                   padding: "4px 10px", borderRadius: 99, border: "none", cursor: "pointer",
                   fontSize: 11, fontWeight: 600,
-                  background: active ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.06)",
-                  color: active ? "#4ade80" : "rgba(255,255,255,0.4)",
+                  background: active ? palette.alpha(palette.profit.strong, 0.2) : palette.alpha(palette.ink.white, 0.06),
+                  color: active ? palette.profit.base : palette.alpha(palette.ink.white, 0.4),
                 }}
               >
                 {cat}
@@ -235,7 +236,7 @@ function SupplierForm({
 
       {/* Notes */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NOTATKI</div>
+        <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NOTATKI</div>
         <textarea
           style={{ ...inp, height: 60, resize: "vertical" }}
           value={f.notes}
@@ -251,8 +252,8 @@ function SupplierForm({
           disabled={!canSave}
           style={{
             padding: "9px 20px", borderRadius: 9, border: "none",
-            background: canSave ? "linear-gradient(135deg,#22c55e,#16a34a)" : "rgba(255,255,255,0.08)",
-            color: canSave ? "#fff" : "rgba(255,255,255,0.3)", fontWeight: 700, fontSize: 13,
+            background: canSave ? `linear-gradient(135deg,${palette.profit.strong},${palette.profit.deep})` : palette.alpha(palette.ink.white, 0.08),
+            color: canSave ? palette.ink.white : palette.alpha(palette.ink.white, 0.3), fontWeight: 700, fontSize: 13,
             cursor: canSave ? "pointer" : "not-allowed",
           }}
         >
@@ -260,7 +261,7 @@ function SupplierForm({
         </button>
         <button
           onClick={onCancel}
-          style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: 12, cursor: "pointer" }}
+          style={{ padding: "9px 14px", borderRadius: 9, border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, cursor: "pointer" }}
         >
           Anuluj
         </button>
@@ -275,7 +276,7 @@ function StarDisplay({ rating }: { rating: number }) {
   return (
     <span>
       {[1, 2, 3, 4, 5].map(s => (
-        <span key={s} style={{ color: s <= rating ? "#f59e0b" : "rgba(255,255,255,0.12)", fontSize: 13 }}>★</span>
+        <span key={s} style={{ color: s <= rating ? palette.brand.amber : palette.alpha(palette.ink.white, 0.12), fontSize: 13 }}>★</span>
       ))}
     </span>
   );
@@ -338,14 +339,14 @@ export default function SuppliersPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               width: 40, height: 40, borderRadius: 12,
-              background: "linear-gradient(135deg,#06b6d4,#0891b2)",
+              background: `linear-gradient(135deg,${palette.sectionAccent.cyan.base},${palette.sectionAccent.cyan.deep})`,
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <Truck size={20} color="#fff" />
+              <Truck size={20} color={palette.ink.white} />
             </div>
             <div>
-              <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>Baza Dostawców</h1>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 }}>
+              <h1 style={{ color: palette.ink.white, fontSize: 22, fontWeight: 900, margin: 0 }}>Baza Dostawców</h1>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 12, marginTop: 2 }}>
                 Zarządzaj zaufanymi dostawcami i hurtowniami
               </div>
             </div>
@@ -355,8 +356,8 @@ export default function SuppliersPage() {
             style={{
               display: "flex", alignItems: "center", gap: 7, padding: "9px 16px",
               borderRadius: 10, border: "none", cursor: "pointer",
-              background: "linear-gradient(135deg,#22c55e,#16a34a)",
-              color: "#fff", fontWeight: 700, fontSize: 13,
+              background: `linear-gradient(135deg,${palette.profit.strong},${palette.profit.deep})`,
+              color: palette.ink.white, fontWeight: 700, fontSize: 13,
             }}
           >
             <Plus size={15} /> Dodaj dostawcę
@@ -380,7 +381,7 @@ export default function SuppliersPage() {
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {/* Search input */}
               <div style={{ position: "relative", flex: "1 1 200px", minWidth: 160 }}>
-                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.25)" }} />
+                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.25) }} />
                 <input
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
@@ -395,8 +396,8 @@ export default function SuppliersPage() {
                   onClick={() => setFilterCat(null)}
                   style={{
                     padding: "5px 11px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                    background: !filterCat ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.06)",
-                    color: !filterCat ? "#4ade80" : "rgba(255,255,255,0.4)",
+                    background: !filterCat ? palette.alpha(palette.profit.strong, 0.2) : palette.alpha(palette.ink.white, 0.06),
+                    color: !filterCat ? palette.profit.base : palette.alpha(palette.ink.white, 0.4),
                   }}
                 >
                   Wszystkie
@@ -407,8 +408,8 @@ export default function SuppliersPage() {
                     onClick={() => setFilterCat(filterCat === cat ? null : cat)}
                     style={{
                       padding: "5px 11px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                      background: filterCat === cat ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.06)",
-                      color: filterCat === cat ? "#4ade80" : "rgba(255,255,255,0.4)",
+                      background: filterCat === cat ? palette.alpha(palette.profit.strong, 0.2) : palette.alpha(palette.ink.white, 0.06),
+                      color: filterCat === cat ? palette.profit.base : palette.alpha(palette.ink.white, 0.4),
                     }}
                   >
                     {cat}
@@ -422,16 +423,16 @@ export default function SuppliersPage() {
         {/* ── Empty state ─────────────────────────────────────────────────── */}
         {suppliers.length === 0 && !showForm && (
           <div style={{ textAlign: "center", padding: "60px 0 32px" }}>
-            <Truck size={48} style={{ margin: "0 auto 16px", display: "block", opacity: 0.12, color: "#fff" }} />
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+            <Truck size={48} style={{ margin: "0 auto 16px", display: "block", opacity: 0.12, color: palette.ink.white }} />
+            <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
               Brak dostawców
             </div>
-            <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 13, marginBottom: 28, maxWidth: 380, margin: "0 auto 28px" }}>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 13, marginBottom: 28, maxWidth: 380, margin: "0 auto 28px" }}>
               Dodaj pierwszego dostawcę żeby śledzić źródła zakupów.
             </div>
 
             {/* Quick-add presets */}
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, fontWeight: 700, letterSpacing: 0.7, marginBottom: 12 }}>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11, fontWeight: 700, letterSpacing: 0.7, marginBottom: 12 }}>
               SZYBKI DODAJ
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
@@ -440,8 +441,8 @@ export default function SuppliersPage() {
                   key={p.name}
                   onClick={() => handlePreset(p)}
                   style={{
-                    padding: "8px 16px", borderRadius: 99, border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.65)",
+                    padding: "8px 16px", borderRadius: 99, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+                    background: palette.alpha(palette.ink.white, 0.04), color: palette.alpha(palette.ink.white, 0.65),
                     fontSize: 13, fontWeight: 600, cursor: "pointer",
                   }}
                 >
@@ -454,7 +455,7 @@ export default function SuppliersPage() {
 
         {/* ── No results from filter ───────────────────────────────────────── */}
         {suppliers.length > 0 && filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "48px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
+          <div style={{ textAlign: "center", padding: "48px 0", color: palette.alpha(palette.ink.white, 0.25), fontSize: 14 }}>
             Brak wyników dla podanych filtrów
           </div>
         )}
@@ -472,7 +473,7 @@ export default function SuppliersPage() {
                 <div
                   key={s.id}
                   style={{
-                    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                    background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
                     borderRadius: 16, padding: isEditing ? 16 : "16px 16px 14px", overflow: "hidden",
                   }}
                 >
@@ -485,7 +486,7 @@ export default function SuppliersPage() {
                       }}
                       onSave={f => handleUpdate(s.id, f)}
                       onCancel={() => setEditingId(null)}
-                      borderColor="rgba(34,197,94,0.25)"
+                      borderColor={palette.alpha(palette.profit.strong, 0.25)}
                     />
                   ) : (
                     <>
@@ -498,12 +499,12 @@ export default function SuppliersPage() {
                               <a
                                 href={s.url.startsWith("http") ? s.url : `https://${s.url}`}
                                 target="_blank" rel="noopener noreferrer"
-                                style={{ color: "#fff", fontWeight: 800, fontSize: 15, textDecoration: "none" }}
+                                style={{ color: palette.ink.white, fontWeight: 800, fontSize: 15, textDecoration: "none" }}
                               >
                                 {s.name}
                               </a>
                             ) : (
-                              <span style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>{s.name}</span>
+                              <span style={{ color: palette.ink.white, fontWeight: 800, fontSize: 15 }}>{s.name}</span>
                             )}
                           </div>
                           <div style={{ marginTop: 4 }}>
@@ -520,8 +521,8 @@ export default function SuppliersPage() {
                               key={cat}
                               style={{
                                 padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700,
-                                background: "rgba(34,197,94,0.15)", color: "#4ade80",
-                                border: "1px solid rgba(34,197,94,0.2)",
+                                background: palette.alpha(palette.profit.strong, 0.15), color: palette.profit.base,
+                                border: `1px solid ${palette.alpha(palette.profit.strong, 0.2)}`,
                               }}
                             >
                               {cat}
@@ -543,12 +544,12 @@ export default function SuppliersPage() {
                           <div
                             key={m.label}
                             style={{
-                              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+                              background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`,
                               borderRadius: 8, padding: "6px 8px",
                             }}
                           >
-                            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: 0.5 }}>{m.label}</div>
-                            <div style={{ color: "#fff", fontSize: 12, fontWeight: 700, marginTop: 1 }}>{m.val}</div>
+                            <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 8, fontWeight: 700, letterSpacing: 0.5 }}>{m.label}</div>
+                            <div style={{ color: palette.ink.white, fontSize: 12, fontWeight: 700, marginTop: 1 }}>{m.val}</div>
                           </div>
                         ))}
                       </div>
@@ -556,7 +557,7 @@ export default function SuppliersPage() {
                       {/* Notes */}
                       {s.notes && (
                         <div style={{
-                          color: "rgba(255,255,255,0.4)", fontSize: 12, lineHeight: 1.5,
+                          color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, lineHeight: 1.5,
                           marginBottom: 12,
                           display: "-webkit-box", WebkitLineClamp: 2,
                           WebkitBoxOrient: "vertical", overflow: "hidden",
@@ -574,8 +575,8 @@ export default function SuppliersPage() {
                             style={{
                               display: "flex", alignItems: "center", gap: 5,
                               padding: "6px 12px", borderRadius: 8, textDecoration: "none",
-                              background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)",
-                              color: "#4ade80", fontSize: 11, fontWeight: 700,
+                              background: palette.alpha(palette.profit.strong, 0.1), border: `1px solid ${palette.alpha(palette.profit.strong, 0.2)}`,
+                              color: palette.profit.base, fontSize: 11, fontWeight: 700,
                             }}
                           >
                             <ExternalLink size={11} /> Otwórz
@@ -586,8 +587,8 @@ export default function SuppliersPage() {
                           style={{
                             display: "flex", alignItems: "center", gap: 5,
                             padding: "6px 11px", borderRadius: 8,
-                            border: "1px solid rgba(255,255,255,0.1)", background: "transparent",
-                            color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                            border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`, background: "transparent",
+                            color: palette.alpha(palette.ink.white, 0.45), fontSize: 11, fontWeight: 600, cursor: "pointer",
                           }}
                         >
                           <Edit3 size={11} /> Edytuj
@@ -596,7 +597,7 @@ export default function SuppliersPage() {
                           onClick={() => handleRemove(s.id)}
                           style={{
                             marginLeft: "auto", background: "none", border: "none",
-                            cursor: "pointer", color: "rgba(248,113,113,0.4)", padding: 4,
+                            cursor: "pointer", color: palette.alpha(palette.loss.base, 0.4), padding: 4,
                           }}
                           title="Usuń"
                         >

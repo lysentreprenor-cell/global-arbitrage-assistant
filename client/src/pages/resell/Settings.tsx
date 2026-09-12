@@ -4,6 +4,7 @@ import { loadEbayToken, saveEbayToken, clearEbayToken, isEbayConnected } from "@
 import { saveEtsyToken, clearEtsyToken, isEtsyConnected } from "@/lib/etsyAuth";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { installPinFetch } from "@/lib/botPin";
+import { serviceBrand } from "@/design/platforms";
 
 installPinFetch(); // /api/bot/keys wymaga PIN-u aplikacji, gdy jest ustawiony
 
@@ -31,7 +32,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "gemini",
     name: "Google Gemini AI",
     logo: "✨",
-    color: "#4285f4",
+    color: serviceBrand.google,
     description: "Opcjonalne — generowanie filmików reklamowych (Veo 3) i grafik (Imagen 3). Darmowy tier na start. Klucz w Google AI Studio: aistudio.google.com",
     docsUrl: "https://aistudio.google.com/app/apikey",
     keyLabel: "API Key",
@@ -115,7 +116,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "bybit",
     name: "Bybit Trading",
     logo: "🟡",
-    color: "#f7931a",
+    color: serviceBrand.bybit,
     description: "Klucze do prawdziwego tradingu na Bybit. Global (bybit.com): USDT Perpetual Futures. EU (bybit.eu): spot margin do 10x — dla kont europejskich. Utwórz klucze API → Profil → API. Wymagane uprawnienia: trading (odczyt + zapis). NIGDY nie włączaj uprawnień do wypłat!",
     docsUrl: "https://www.bybit.com/app/user/api-management",
     keyLabel: "API Key",
@@ -130,7 +131,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "kraken",
     name: "Kraken Trading",
     logo: "🐙",
-    color: "#5741d9",
+    color: serviceBrand.kraken,
     description: "Klucze do prawdziwego tradingu na Kraken (spot lub margin/shorty). Brak ograniczeń IP — działa z każdego serwera. Utwórz klucze API → Security → API. Wymagane uprawnienia: Query Funds + Create & Modify Orders + Query Open Orders & Trades + Query Closed Orders & Trades + Query Open Positions (dla shortów). NIGDY nie włączaj uprawnień do wypłat!",
     docsUrl: "https://www.kraken.com/u/security/api",
     keyLabel: "API Key",

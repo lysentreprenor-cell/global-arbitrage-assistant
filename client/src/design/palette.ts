@@ -17,10 +17,9 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: 22 z 36 plików — cały `components/resell/` oraz czternaście
- *  ekranów: Search, PhotoListingPage, PlatformCompare, AutopilotPage, Products,
- *  AddProduct, OfferPage, MarketScan, QuickListPage, PLDashboard,
- *  CompliancePage, DropshipManager, ProfitPage, ProductDetail.
+ *  Zmigrowane: 27 z 36 plików — cały `components/resell/` i dziewiętnaście
+ *  ekranów. Zostało dziewięć: Settings, AgentPage, UpdatePage, Dashboard,
+ *  VideoPage, AdsPage, TradingBot, AssistantPage, MarketingPage.
  *
  *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
  *
@@ -103,6 +102,8 @@ export const brand = {
   /** Złoto przechodzące w bursztyn — gradienty przycisków */
   amber: "#f59e0b",
   amberDeep: "#d97706",
+  /** Ciemny tekst na bursztynowym tle (powiadomienie) */
+  amberInk: "#1a0a00",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -147,6 +148,35 @@ export const info = {
   soft: "#93c5fd",
   indigo: "#818cf8",
   indigoSoft: "#c7d2fe",
+} as const;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   AKCENTY SEKCJI
+
+   Odcienie, które istnieją wyłącznie po to, żeby dało się odróżnić jedną
+   sekcję aplikacji od drugiej: kafelek ikony w nagłówku, obwódka kart,
+   podświetlenie stanu aktywnego. Nie kodują żadnego stanu — cyjan w Dostawcach
+   nie znaczy „lepiej" ani „gorzej" niż malina w Rywalach.
+
+   Te są nazwane barwą, a nie rolą, i to celowo. Ich jedyną rolą jest bycie
+   różnymi od siebie, a każda obsługuje po dwie sekcje, więc nazwa wzięta od
+   jednej z nich (`suppliers`) kłamałaby w drugiej (Alerty). Grupa niesie rolę,
+   człon ją tylko rozróżnia.
+
+   ⚠ `orange.base` ma tę samą wartość co barwa Etsy w `platforms.ts`. To zbieg
+   okoliczności, nie powielenie — Etsy może zmienić logo, akcent Trendów nie.
+   Nie scalać.
+   ───────────────────────────────────────────────────────────────────────── */
+export const sectionAccent = {
+  /** Dostawcy, Alerty */
+  cyan: { base: "#06b6d4", deep: "#0891b2", soft: "#67e8f9" },
+  /** Rywale */
+  rose: { base: "#f43f5e", deep: "#e11d48", soft: "#fda4af" },
+  /** Trendy, Pipeline */
+  orange: {
+    base: "#f97316", light: "#fb923c", soft: "#fed7aa",
+    deep: "#ea580c", deeper: "#c2410c", deepest: "#b45309",
+  },
 } as const;
 
 /** Ekran PIN-u — jedyne miejsce w stali zamiast zieleni. */
