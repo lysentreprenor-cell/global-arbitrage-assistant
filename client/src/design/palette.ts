@@ -17,8 +17,21 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane na paletę: TopNav, AppSidebar, ResellLayout (powłoka aplikacji).
- *  Reszta ekranów nadal ma kolory wpisane na sztywno.
+ *  Zmigrowane: cały `components/resell/` — powłoka aplikacji i modale.
+ *  Ekrany w `pages/resell/` nadal mają kolory wpisane na sztywno i mogą być
+ *  przenoszone pojedynczo, bez zmian w tym pliku.
+ *
+ *  UŻYCIE — zawsze przez przestrzeń nazw:
+ *
+ *      import * as palette from "@/design/palette";
+ *      color: palette.profit.base
+ *      border: `1px solid ${palette.alpha(palette.ai.strong, 0.28)}`
+ *
+ *  Nie importuj tych grup po nazwie. `profit`, `loss`, `info` i `brand` to
+ *  w aplikacji o odsprzedaży podstawowe pojęcia biznesowe — importowane wprost
+ *  przesłaniają lokalne zmienne o tych nazwach. Tak właśnie wyszło w
+ *  QuickCreateOfferModal, gdzie `const profit = calcProfit(...)` zderzył się
+ *  z grupą kolorów. Przestrzeń nazw wyklucza tę kolizję raz na zawsze.
  */
 
 /* ─────────────────────────────────────────────────────────────────────────

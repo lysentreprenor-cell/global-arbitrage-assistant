@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Bell, BellRing, X, CheckCheck, Package, Zap, ShoppingCart, Info, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { FulfillmentModal } from "@/components/resell/FulfillmentModal";
+import * as palette from "@/design/palette";
 
 interface AppNotification {
   id: string;
@@ -111,24 +112,24 @@ export function NotificationBell() {
   };
 
   const typeIcon = (type: AppNotification["type"]) => {
-    if (type === "order") return <ShoppingCart size={13} color="#4ade80" />;
-    if (type === "fulfillment") return <Package size={13} color="#f5c842" />;
-    if (type === "autopilot") return <Zap size={13} color="#a78bfa" />;
-    return <Info size={13} color="#60a5fa" />;
+    if (type === "order") return <ShoppingCart size={13} color={palette.profit.base} />;
+    if (type === "fulfillment") return <Package size={13} color={palette.brand.gold} />;
+    if (type === "autopilot") return <Zap size={13} color={palette.ai.base} />;
+    return <Info size={13} color={palette.info.base} />;
   };
 
   const typeColor = (type: AppNotification["type"]) => {
-    if (type === "order") return "rgba(74,222,128,0.15)";
-    if (type === "fulfillment") return "rgba(245,200,66,0.1)";
-    if (type === "autopilot") return "rgba(139,92,246,0.12)";
-    return "rgba(96,165,250,0.08)";
+    if (type === "order") return palette.alpha(palette.profit.base, 0.15);
+    if (type === "fulfillment") return palette.alpha(palette.brand.gold, 0.1);
+    if (type === "autopilot") return palette.alpha(palette.ai.strong, 0.12);
+    return palette.alpha(palette.info.base, 0.08);
   };
 
   const typeBorder = (type: AppNotification["type"]) => {
-    if (type === "order") return "rgba(74,222,128,0.25)";
-    if (type === "fulfillment") return "rgba(245,200,66,0.2)";
-    if (type === "autopilot") return "rgba(139,92,246,0.2)";
-    return "rgba(96,165,250,0.15)";
+    if (type === "order") return palette.alpha(palette.profit.base, 0.25);
+    if (type === "fulfillment") return palette.alpha(palette.brand.gold, 0.2);
+    if (type === "autopilot") return palette.alpha(palette.ai.strong, 0.2);
+    return palette.alpha(palette.info.base, 0.15);
   };
 
   const publishListing = async (e: React.MouseEvent, listingId: number) => {
@@ -162,7 +163,7 @@ export function NotificationBell() {
         onClick={() => { setOpen(o => !o); }}
         style={{
           position: "relative", background: "none", border: "none",
-          cursor: "pointer", color: unread > 0 ? "#f5c842" : "rgba(255,255,255,0.35)",
+          cursor: "pointer", color: unread > 0 ? palette.brand.gold : palette.alpha(palette.ink.white, 0.35),
           padding: "6px", borderRadius: 8, display: "flex", alignItems: "center",
           animation: shake ? "bellShake 0.5s ease" : "none",
           transition: "color 0.2s",
@@ -174,9 +175,9 @@ export function NotificationBell() {
           <span style={{
             position: "absolute", top: 2, right: 2,
             width: 16, height: 16, borderRadius: "50%",
-            background: "#f87171", color: "#fff", fontSize: 9, fontWeight: 900,
+            background: palette.loss.base, color: palette.ink.white, fontSize: 9, fontWeight: 900,
             display: "flex", alignItems: "center", justifyContent: "center",
-            border: "1.5px solid rgba(10,0,20,0.97)",
+            border: `1.5px solid ${palette.alpha(palette.violetInk.deepest, 0.97)}`,
           }}>
             {unread > 99 ? "99+" : unread}
           </span>
@@ -187,32 +188,32 @@ export function NotificationBell() {
         <div style={{
           position: "absolute", bottom: "calc(100% + 8px)", right: 0, zIndex: 9999,
           width: 340, maxHeight: 480,
-          background: "#130d22", border: "1px solid rgba(139,92,246,0.25)",
+          background: palette.violetInk.deep, border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`,
           borderRadius: 14, overflow: "hidden",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.7)",
+          boxShadow: `0 8px 40px ${palette.alpha(palette.ink.black, 0.7)}`,
           display: "flex", flexDirection: "column",
         }}>
           {/* Header */}
-          <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <Bell size={14} color="#a78bfa" />
-              <span style={{ color: "#fff", fontWeight: 800, fontSize: 13 }}>Notifications</span>
+              <Bell size={14} color={palette.ai.base} />
+              <span style={{ color: palette.ink.white, fontWeight: 800, fontSize: 13 }}>Notifications</span>
               {unread > 0 && (
-                <span style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 99, padding: "1px 7px", color: "#f87171", fontSize: 10, fontWeight: 700 }}>{unread} new</span>
+                <span style={{ background: palette.alpha(palette.loss.base, 0.15), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 99, padding: "1px 7px", color: palette.loss.base, fontSize: 10, fontWeight: 700 }}>{unread} new</span>
               )}
             </div>
             <div style={{ display: "flex", gap: 4 }}>
               {notifications.length > 0 && (
-                <button onClick={markAllRead} title="Mark all read" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 4, borderRadius: 6 }}>
+                <button onClick={markAllRead} title="Mark all read" style={{ background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.3), padding: 4, borderRadius: 6 }}>
                   <CheckCheck size={13} />
                 </button>
               )}
               {notifications.length > 0 && (
-                <button onClick={clearAll} title="Clear all" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 4, borderRadius: 6 }}>
+                <button onClick={clearAll} title="Clear all" style={{ background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.3), padding: 4, borderRadius: 6 }}>
                   <Trash2 size={13} />
                 </button>
               )}
-              <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 4, borderRadius: 6 }}>
+              <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.3), padding: 4, borderRadius: 6 }}>
                 <X size={13} />
               </button>
             </div>
@@ -221,7 +222,7 @@ export function NotificationBell() {
           {/* List */}
           <div style={{ overflowY: "auto", flex: 1 }}>
             {notifications.length === 0 ? (
-              <div style={{ padding: "32px 16px", textAlign: "center", color: "rgba(255,255,255,0.2)", fontSize: 12 }}>
+              <div style={{ padding: "32px 16px", textAlign: "center", color: palette.alpha(palette.ink.white, 0.2), fontSize: 12 }}>
                 <Bell size={28} style={{ opacity: 0.15, marginBottom: 8, display: "block", margin: "0 auto 8px" }} />
                 No notifications yet
               </div>
@@ -229,7 +230,7 @@ export function NotificationBell() {
               <div key={n.id} style={{
                 padding: "10px 14px",
                 background: n.read ? "transparent" : typeColor(n.type),
-                borderBottom: "1px solid rgba(255,255,255,0.04)",
+                borderBottom: `1px solid ${palette.alpha(palette.ink.white, 0.04)}`,
                 borderLeft: n.read ? "none" : `3px solid ${typeBorder(n.type)}`,
                 cursor: n.type === "fulfillment" || n.type === "order" || n.type === "autopilot" ? "pointer" : "default",
               }}
@@ -249,10 +250,10 @@ export function NotificationBell() {
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                   <div style={{ marginTop: 1, flexShrink: 0 }}>{typeIcon(n.type)}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: n.read ? "rgba(255,255,255,0.6)" : "#fff", fontWeight: n.read ? 500 : 700, fontSize: 12, marginBottom: 3, lineHeight: 1.3 }}>{n.title}</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, lineHeight: 1.4, whiteSpace: "pre-line" }}>{n.body}</div>
+                    <div style={{ color: n.read ? palette.alpha(palette.ink.white, 0.6) : palette.ink.white, fontWeight: n.read ? 500 : 700, fontSize: 12, marginBottom: 3, lineHeight: 1.3 }}>{n.title}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, lineHeight: 1.4, whiteSpace: "pre-line" }}>{n.body}</div>
                     {n.profit != null && n.profit > 0 && (
-                      <div style={{ color: "#4ade80", fontWeight: 800, fontSize: 11, marginTop: 3 }}>+${n.profit} profit</div>
+                      <div style={{ color: palette.profit.base, fontWeight: 800, fontSize: 11, marginTop: 3 }}>+${n.profit} profit</div>
                     )}
 
                     {/* One-click publish for autopilot draft listings */}
@@ -260,7 +261,7 @@ export function NotificationBell() {
                       const pubState = publishedIds[n.listingId];
                       if (pubState === "done") {
                         return (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 7, background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.25)", color: "#4ade80", fontSize: 10, fontWeight: 700 }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 7, background: palette.alpha(palette.profit.base, 0.12), border: `1px solid ${palette.alpha(palette.profit.base, 0.25)}`, color: palette.profit.base, fontSize: 10, fontWeight: 700 }}>
                             ✓ Published & Live
                           </div>
                         );
@@ -272,8 +273,8 @@ export function NotificationBell() {
                           style={{
                             display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
                             padding: "5px 12px", borderRadius: 7, border: "none", cursor: pubState === "loading" ? "default" : "pointer",
-                            background: pubState === "loading" ? "rgba(139,92,246,0.1)" : "linear-gradient(135deg, #8b5cf6, #7c3aed)",
-                            color: "#fff", fontSize: 11, fontWeight: 800,
+                            background: pubState === "loading" ? palette.alpha(palette.ai.strong, 0.1) : `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`,
+                            color: palette.ink.white, fontSize: 11, fontWeight: 800,
                           }}>
                           {pubState === "loading" ? "Publishing…" : "⚡ Publish Listing"}
                         </button>
@@ -284,12 +285,12 @@ export function NotificationBell() {
                     {n.sourceUrl && n.type === "fulfillment" && (
                       <a href={n.sourceUrl} target="_blank" rel="noopener noreferrer"
                         onClick={e => e.stopPropagation()}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 7, background: "rgba(245,200,66,0.15)", border: "1px solid rgba(245,200,66,0.3)", color: "#f5c842", fontSize: 10, fontWeight: 700, textDecoration: "none" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 7, background: palette.alpha(palette.brand.gold, 0.15), border: `1px solid ${palette.alpha(palette.brand.gold, 0.3)}`, color: palette.brand.gold, fontSize: 10, fontWeight: 700, textDecoration: "none" }}>
                         🛒 Buy Now
                       </a>
                     )}
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, flexShrink: 0, marginTop: 2 }}>{timeAgo(n.createdAt)}</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 9, flexShrink: 0, marginTop: 2 }}>{timeAgo(n.createdAt)}</div>
                 </div>
               </div>
             ))}
@@ -297,9 +298,9 @@ export function NotificationBell() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div style={{ padding: "8px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", textAlign: "center", flexShrink: 0 }}>
+            <div style={{ padding: "8px 14px", borderTop: `1px solid ${palette.alpha(palette.ink.white, 0.06)}`, textAlign: "center", flexShrink: 0 }}>
               <button onClick={() => { setOpen(false); setLocation("/resell/autopilot"); }}
-                style={{ background: "none", border: "none", color: "rgba(139,92,246,0.7)", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
+                style={{ background: "none", border: "none", color: palette.alpha(palette.ai.strong, 0.7), fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
                 View Autopilot →
               </button>
             </div>

@@ -6,7 +6,7 @@ import {
   Truck, Crosshair, Megaphone, Bot, Activity, Mic, Image as ImageIcon, Clapperboard, RefreshCw,
 } from "lucide-react";
 import { triggeredAlertsCount } from "@/lib/priceAlerts";
-import { surface, brand, profit, ink, alpha } from "@/design/palette";
+import * as palette from "@/design/palette";
 
 const NAV_ITEMS = [
   { href: "/resell",              label: "Dashboard",   icon: LayoutDashboard },
@@ -49,8 +49,8 @@ export function TopNav() {
 
   return (
     <header style={{
-      background: surface.canvas,
-      borderBottom: `1px solid ${alpha(profit.strong, 0.2)}`,
+      background: palette.surface.canvas,
+      borderBottom: `1px solid ${palette.alpha(palette.profit.strong, 0.2)}`,
       padding: "0 16px",
       position: "sticky", top: 0, zIndex: 100,
     }}>
@@ -58,19 +58,19 @@ export function TopNav() {
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         padding: "14px 0 10px",
-        borderBottom: `1px solid ${alpha(ink.white, 0.05)}`,
+        borderBottom: `1px solid ${palette.alpha(palette.ink.white, 0.05)}`,
       }}>
         <div style={{
           width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-          background: `linear-gradient(135deg, ${profit.deep}, ${profit.deeper}, ${profit.base})`,
+          background: `linear-gradient(135deg, ${palette.profit.deep}, ${palette.profit.deeper}, ${palette.profit.base})`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: `0 4px 14px ${alpha(profit.base, 0.3)}`,
+          boxShadow: `0 4px 14px ${palette.alpha(palette.profit.base, 0.3)}`,
         }}>
-          <TrendingUp size={16} color={ink.white} />
+          <TrendingUp size={16} color={palette.ink.white} />
         </div>
         <div>
-          <div style={{ color: brand.gold, fontWeight: 900, fontSize: 13, letterSpacing: 1 }}>RESELLASSIST</div>
-          <div style={{ color: alpha(ink.white, 0.3), fontSize: 9, letterSpacing: 1.4 }}>GLOBAL INTELLIGENCE</div>
+          <div style={{ color: palette.brand.gold, fontWeight: 900, fontSize: 13, letterSpacing: 1 }}>RESELLASSIST</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, letterSpacing: 1.4 }}>GLOBAL INTELLIGENCE</div>
         </div>
       </div>
 
@@ -89,11 +89,11 @@ export function TopNav() {
               <a style={{
                 display: "flex", alignItems: "center", gap: 6, position: "relative",
                 padding: "7px 14px", borderRadius: 8, whiteSpace: "nowrap",
-                background: active ? alpha(profit.strong, 0.18) : "transparent",
-                color: active ? profit.soft : alpha(ink.white, 0.5),
+                background: active ? palette.alpha(palette.profit.strong, 0.18) : "transparent",
+                color: active ? palette.profit.soft : palette.alpha(palette.ink.white, 0.5),
                 fontWeight: active ? 700 : 500, fontSize: 13,
                 textDecoration: "none", transition: "all 0.15s",
-                border: active ? `1px solid ${alpha(profit.strong, 0.3)}` : "1px solid transparent",
+                border: active ? `1px solid ${palette.alpha(palette.profit.strong, 0.3)}` : "1px solid transparent",
                 flexShrink: 0,
               }}>
                 <Icon size={14} />
@@ -101,8 +101,8 @@ export function TopNav() {
                 {badgeCount > 0 && (
                   <span style={{
                     position: "absolute", top: 2, right: 2,
-                    minWidth: 14, height: 14, borderRadius: 7, background: brand.amber,
-                    color: ink.black, fontSize: 9, fontWeight: 900,
+                    minWidth: 14, height: 14, borderRadius: 7, background: palette.brand.amber,
+                    color: palette.ink.black, fontSize: 9, fontWeight: 900,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     padding: "0 3px",
                   }}>{badgeCount}</span>
