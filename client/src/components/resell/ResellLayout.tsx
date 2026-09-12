@@ -1,11 +1,12 @@
 import React from "react";
 import { TopNav } from "./TopNav";
+import { surface } from "@/design/palette";
 
 export function ResellLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", minHeight: "100dvh",
-      background: "linear-gradient(160deg, #001a0a 0%, #002210 40%, #001508 100%)",
+      background: `linear-gradient(160deg, ${surface.canvas} 0%, ${surface.canvasMid} 40%, ${surface.canvasDeep} 100%)`,
       fontFamily: "'Outfit', 'Inter', sans-serif",
     }}>
       <TopNav />
