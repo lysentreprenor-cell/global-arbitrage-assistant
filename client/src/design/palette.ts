@@ -17,9 +17,20 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: cały `components/resell/` — powłoka aplikacji i modale.
- *  Ekrany w `pages/resell/` nadal mają kolory wpisane na sztywno i mogą być
- *  przenoszone pojedynczo, bez zmian w tym pliku.
+ *  Zmigrowane: cały `components/resell/` (powłoka aplikacji i modale) oraz te
+ *  ekrany z `pages/resell/`, które domyka obecna paleta — Search,
+ *  PhotoListingPage, PlatformCompare, AutopilotPage, Products, AddProduct.
+ *
+ *  Pozostałe 22 ekrany czekają na rozszerzenie palety. Używają sześciu rodzin
+ *  barw, których tu nie ma i którym trzeba najpierw przypisać znaczenie:
+ *  pomarańcz (#f97316), purpura (#a855f7), róż (#ec4899), indygo (#6366f1),
+ *  cyjan (#06b6d4) i malina (#f43f5e). Dopisanie ich bez decyzji, co mają
+ *  znaczyć, zamieniłoby paletę w katalog odcieni — a to jest dokładnie ten
+ *  stan, z którego wychodzimy.
+ *
+ *  Wstawki CSS w `<style>` i klasy Tailwind z kolorem w nawiasach
+ *  (np. `bg-[#0a1a0f]`) zostają poza paletą: pierwsze to tekst, nie wyrażenia,
+ *  drugie nie przyjmują wartości z JS.
  *
  *  UŻYCIE — zawsze przez przestrzeń nazw:
  *

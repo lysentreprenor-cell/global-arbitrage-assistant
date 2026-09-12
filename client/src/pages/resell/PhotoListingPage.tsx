@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Camera, Upload, Zap, ChevronRight, CheckCircle, AlertCircle, Loader2, ShoppingBag, ExternalLink, Clock } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+import * as palette from "@/design/palette";
 
 const PLATFORM_FLAGS: Record<string, string> = {
   "Allegro PL": "🇵🇱", "OLX PL": "🇵🇱", "Vinted PL": "🇵🇱",
@@ -33,7 +34,7 @@ const PLATFORM_LINKS: Record<string, string> = {
   "Depop": "https://www.depop.com/",
   "Vinted EU": "https://www.vinted.com/",
 };
-const CONFIDENCE_COLORS: Record<string, string> = { high: "#4ade80", medium: "#f5c842", low: "#f87171" };
+const CONFIDENCE_COLORS: Record<string, string> = { high: palette.profit.base, medium: palette.brand.gold, low: palette.loss.base };
 const CONFIDENCE_LABELS: Record<string, string> = { high: "Wysoka", medium: "Średnia", low: "Niska" };
 const CONFIDENCE_BARS: Record<string, number> = { high: 100, medium: 60, low: 30 };
 
@@ -149,8 +150,8 @@ export default function PhotoListingPage() {
   };
 
   const inp: React.CSSProperties = {
-    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 9, color: "#fff", fontSize: 13, padding: "8px 12px",
+    background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+    borderRadius: 9, color: palette.ink.white, fontSize: 13, padding: "8px 12px",
   };
 
   return (
@@ -159,17 +160,17 @@ export default function PhotoListingPage() {
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Camera size={20} color="#fff" />
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Camera size={20} color={palette.ink.white} />
           </div>
           <div>
-            <h1 style={{ color: "#fff", fontWeight: 900, fontSize: 20, margin: 0 }}>Zdjęcie → Ogłoszenia</h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: 0 }}>Wgraj zdjęcie produktu — AI rozpoznaje, wycenia i tworzy gotowe ogłoszenia na każdą platformę</p>
+            <h1 style={{ color: palette.ink.white, fontWeight: 900, fontSize: 20, margin: 0 }}>Zdjęcie → Ogłoszenia</h1>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, margin: 0 }}>Wgraj zdjęcie produktu — AI rozpoznaje, wycenia i tworzy gotowe ogłoszenia na każdą platformę</p>
           </div>
         </div>
 
         {error && (
-          <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10, color: "#f87171", fontSize: 13 }}>
+          <div style={{ background: palette.alpha(palette.loss.base, 0.1), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10, color: palette.loss.base, fontSize: 13 }}>
             <AlertCircle size={16} /> {error}
           </div>
         )}
@@ -182,21 +183,21 @@ export default function PhotoListingPage() {
             onDragLeave={() => setDragOver(false)}
             onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
             style={{
-              border: `2px dashed ${dragOver ? "#a78bfa" : "rgba(139,92,246,0.35)"}`,
+              border: `2px dashed ${dragOver ? palette.ai.base : palette.alpha(palette.ai.strong, 0.35)}`,
               borderRadius: 20, padding: "60px 24px", textAlign: "center", cursor: "pointer",
-              background: dragOver ? "rgba(139,92,246,0.08)" : "rgba(139,92,246,0.03)",
+              background: dragOver ? palette.alpha(palette.ai.strong, 0.08) : palette.alpha(palette.ai.strong, 0.03),
               transition: "all 0.2s",
             }}
           >
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
-            <div style={{ width: 72, height: 72, borderRadius: 18, background: "rgba(139,92,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-              <Upload size={30} color="#a78bfa" />
+            <div style={{ width: 72, height: 72, borderRadius: 18, background: palette.alpha(palette.ai.strong, 0.15), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+              <Upload size={30} color={palette.ai.base} />
             </div>
-            <div style={{ color: "#a78bfa", fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Przeciągnij zdjęcie produktu</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginBottom: 20 }}>lub kliknij żeby wybrać plik · JPG, PNG, WEBP</div>
+            <div style={{ color: palette.ai.base, fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Przeciągnij zdjęcie produktu</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 13, marginBottom: 20 }}>lub kliknij żeby wybrać plik · JPG, PNG, WEBP</div>
             <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
               {["📱 Elektronika", "👗 Odzież", "💎 Biżuteria", "📷 Aparaty", "🎮 Gry", "🏺 Antyki"].map(t => (
-                <span key={t} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 99, padding: "4px 12px", color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{t}</span>
+                <span key={t} style={{ background: palette.alpha(palette.ink.white, 0.05), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`, borderRadius: 99, padding: "4px 12px", color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>{t}</span>
               ))}
             </div>
           </div>
@@ -206,19 +207,19 @@ export default function PhotoListingPage() {
         {phase === "analyzing" && (
           <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
             {imagePreview && (
-              <div style={{ flexShrink: 0, width: 200, height: 200, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(139,92,246,0.3)" }}>
+              <div style={{ flexShrink: 0, width: 200, height: 200, borderRadius: 16, overflow: "hidden", border: `1px solid ${palette.alpha(palette.ai.strong, 0.3)}` }}>
                 <img src={imagePreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="product" />
               </div>
             )}
             <div style={{ flex: 1, minWidth: 240 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-                <Loader2 size={22} color="#a78bfa" style={{ animation: "spin 1s linear infinite" }} />
-                <span style={{ color: "#a78bfa", fontWeight: 700, fontSize: 16 }}>AI analizuje produkt…</span>
+                <Loader2 size={22} color={palette.ai.base} style={{ animation: "spin 1s linear infinite" }} />
+                <span style={{ color: palette.ai.base, fontWeight: 700, fontSize: 16 }}>AI analizuje produkt…</span>
               </div>
               {["🔍 Rozpoznawanie produktu", "💰 Wycena na 8 platformach", "📝 Generowanie treści ogłoszeń", "📊 Kalkulacja zysku"].map((step, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(139,92,246,0.4)", animation: `pulse 1.5s ease ${i * 0.3}s infinite` }} />
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>{step}</span>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: palette.alpha(palette.ai.strong, 0.4), animation: `pulse 1.5s ease ${i * 0.3}s infinite` }} />
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13 }}>{step}</span>
                 </div>
               ))}
             </div>
@@ -231,38 +232,38 @@ export default function PhotoListingPage() {
             {/* Product + image row */}
             <div style={{ display: "flex", gap: 20, marginBottom: 28, flexWrap: "wrap" }}>
               {imagePreview && (
-                <div style={{ flexShrink: 0, width: 160, height: 160, borderRadius: 14, overflow: "hidden", border: "1px solid rgba(139,92,246,0.3)" }}>
+                <div style={{ flexShrink: 0, width: 160, height: 160, borderRadius: 14, overflow: "hidden", border: `1px solid ${palette.alpha(palette.ai.strong, 0.3)}` }}>
                   <img src={imagePreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="product" />
                 </div>
               )}
               <div style={{ flex: 1, minWidth: 220 }}>
-                <div style={{ color: "#a78bfa", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>ZIDENTYFIKOWANY PRODUKT</div>
-                <div style={{ color: "#fff", fontWeight: 800, fontSize: 17, marginBottom: 8, lineHeight: 1.3 }}>{result.product.name}</div>
+                <div style={{ color: palette.ai.base, fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>ZIDENTYFIKOWANY PRODUKT</div>
+                <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 17, marginBottom: 8, lineHeight: 1.3 }}>{result.product.name}</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                   {result.product.specs.map(s => (
-                    <span key={s} style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 99, padding: "3px 10px", color: "#c4b5fd", fontSize: 11 }}>{s}</span>
+                    <span key={s} style={{ background: palette.alpha(palette.ai.strong, 0.12), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 99, padding: "3px 10px", color: palette.ai.soft, fontSize: 11 }}>{s}</span>
                   ))}
                 </div>
-                <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, marginBottom: 4 }}>SZACOWANA CENA ZAKUPU (hurtowo/AliExpress)</div>
-                  <div style={{ color: "#60a5fa", fontWeight: 800, fontSize: 16 }}>${result.product.sourcePriceMin}–${result.product.sourcePriceMax}</div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 }}>{result.product.sourcePriceNote}</div>
+                <div style={{ background: palette.alpha(palette.info.base, 0.08), border: `1px solid ${palette.alpha(palette.info.base, 0.2)}`, borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, marginBottom: 4 }}>SZACOWANA CENA ZAKUPU (hurtowo/AliExpress)</div>
+                  <div style={{ color: palette.info.base, fontWeight: 800, fontSize: 16 }}>${result.product.sourcePriceMin}–${result.product.sourcePriceMax}</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11, marginTop: 2 }}>{result.product.sourcePriceNote}</div>
                 </div>
                 {result.sellingTip && (
-                  <div style={{ marginTop: 10, color: "rgba(255,255,255,0.4)", fontSize: 12, lineHeight: 1.5, fontStyle: "italic" }}>💡 {result.sellingTip}</div>
+                  <div style={{ marginTop: 10, color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, lineHeight: 1.5, fontStyle: "italic" }}>💡 {result.sellingTip}</div>
                 )}
               </div>
             </div>
 
             {/* Success banner if created */}
             {createdCount > 0 && (
-              <div style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ background: palette.alpha(palette.profit.base, 0.1), border: `1px solid ${palette.alpha(palette.profit.base, 0.25)}`, borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <CheckCircle size={18} color="#4ade80" />
-                  <span style={{ color: "#4ade80", fontWeight: 700, fontSize: 14 }}>Utworzono {createdCount} ogłoszeń jako draft!</span>
+                  <CheckCircle size={18} color={palette.profit.base} />
+                  <span style={{ color: palette.profit.base, fontWeight: 700, fontSize: 14 }}>Utworzono {createdCount} ogłoszeń jako draft!</span>
                 </div>
                 <button onClick={() => setLocation("/resell/dropship")}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: "none", background: "linear-gradient(135deg, #4ade80, #22c55e)", color: "#000", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, border: "none", background: `linear-gradient(135deg, ${palette.profit.base}, ${palette.profit.strong})`, color: palette.ink.black, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
                   <ShoppingBag size={14} /> Przejdź do Dropship <ChevronRight size={13} />
                 </button>
               </div>
@@ -273,37 +274,37 @@ export default function PhotoListingPage() {
               <div style={{ marginBottom: 24 }}>
                 {/* Top pick */}
                 <div style={{
-                  background: "linear-gradient(135deg, rgba(245,200,66,0.12), rgba(139,92,246,0.10))",
-                  border: "1px solid rgba(245,200,66,0.35)",
+                  background: `linear-gradient(135deg, ${palette.alpha(palette.brand.gold, 0.12)}, ${palette.alpha(palette.ai.strong, 0.10)})`,
+                  border: `1px solid ${palette.alpha(palette.brand.gold, 0.35)}`,
                   borderRadius: 16, padding: "18px 20px", marginBottom: 10,
                 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
                     <div style={{ fontSize: 32, lineHeight: 1 }}>🏆</div>
                     <div style={{ flex: 1, minWidth: 220 }}>
-                      <div style={{ color: "rgba(245,200,66,0.7)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>REKOMENDACJA AI</div>
+                      <div style={{ color: palette.alpha(palette.brand.gold, 0.7), fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>REKOMENDACJA AI</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
-                        <span style={{ color: "#f5c842", fontSize: 20, fontWeight: 900 }}>
+                        <span style={{ color: palette.brand.gold, fontSize: 20, fontWeight: 900 }}>
                           {PLATFORM_FLAGS[result.recommendation.topPlatform] ?? "🌐"} {result.recommendation.topPlatform}
                         </span>
                         {result.recommendation.expectedSaleTime && (
-                          <span style={{ background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 8, padding: "3px 10px", color: "#4ade80", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ background: palette.alpha(palette.profit.base, 0.12), border: `1px solid ${palette.alpha(palette.profit.base, 0.25)}`, borderRadius: 8, padding: "3px 10px", color: palette.profit.base, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
                             <Clock size={10} /> {result.recommendation.expectedSaleTime}
                           </span>
                         )}
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.7), fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>
                         {result.recommendation.reason}
                       </div>
                       {/* Top 3 ranking */}
                       {result.recommendation.rankingTop3?.length > 0 && (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700 }}>TOP 3:</span>
+                          <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700 }}>TOP 3:</span>
                           {result.recommendation.rankingTop3.map((p, i) => (
                             <span key={p} style={{
-                              background: i === 0 ? "rgba(245,200,66,0.15)" : "rgba(255,255,255,0.06)",
-                              border: `1px solid ${i === 0 ? "rgba(245,200,66,0.3)" : "rgba(255,255,255,0.1)"}`,
+                              background: i === 0 ? palette.alpha(palette.brand.gold, 0.15) : palette.alpha(palette.ink.white, 0.06),
+                              border: `1px solid ${i === 0 ? palette.alpha(palette.brand.gold, 0.3) : palette.alpha(palette.ink.white, 0.1)}`,
                               borderRadius: 7, padding: "3px 10px",
-                              color: i === 0 ? "#f5c842" : "rgba(255,255,255,0.5)",
+                              color: i === 0 ? palette.brand.gold : palette.alpha(palette.ink.white, 0.5),
                               fontSize: 11, fontWeight: 700,
                             }}>
                               {i + 1}. {PLATFORM_FLAGS[p] ?? "🌐"} {p}
@@ -320,9 +321,9 @@ export default function PhotoListingPage() {
                         rel="noopener noreferrer"
                         style={{
                           display: "inline-flex", alignItems: "center", gap: 7,
-                          background: "linear-gradient(135deg,#f5c842,#f59e0b)",
+                          background: `linear-gradient(135deg,${palette.brand.gold},${palette.brand.amber})`,
                           borderRadius: 10, padding: "10px 18px",
-                          color: "#000", fontWeight: 800, fontSize: 13,
+                          color: palette.ink.black, fontWeight: 800, fontSize: 13,
                           textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0,
                         }}
                       >
@@ -335,14 +336,14 @@ export default function PhotoListingPage() {
                 {/* Avoid warning */}
                 {result.recommendation.avoidPlatforms?.length && result.recommendation.avoidReason && (
                   <div style={{
-                    background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.2)",
+                    background: palette.alpha(palette.loss.base, 0.07), border: `1px solid ${palette.alpha(palette.loss.base, 0.2)}`,
                     borderRadius: 10, padding: "10px 14px",
                     display: "flex", alignItems: "flex-start", gap: 8,
                   }}>
-                    <AlertCircle size={14} color="#f87171" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <AlertCircle size={14} color={palette.loss.base} style={{ flexShrink: 0, marginTop: 1 }} />
                     <div>
-                      <span style={{ color: "#f87171", fontSize: 11, fontWeight: 700 }}>Unikaj: </span>
-                      <span style={{ color: "rgba(248,113,113,0.8)", fontSize: 11 }}>
+                      <span style={{ color: palette.loss.base, fontSize: 11, fontWeight: 700 }}>Unikaj: </span>
+                      <span style={{ color: palette.alpha(palette.loss.base, 0.8), fontSize: 11 }}>
                         {result.recommendation.avoidPlatforms.join(", ")} — {result.recommendation.avoidReason}
                       </span>
                     </div>
@@ -353,7 +354,7 @@ export default function PhotoListingPage() {
 
             {/* Markets table */}
             <div style={{ marginBottom: 24 }}>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>MOŻLIWOŚCI SPRZEDAŻY — {result.markets.length} PLATFORM</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 11, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>MOŻLIWOŚCI SPRZEDAŻY — {result.markets.length} PLATFORM</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {result.markets.map(m => {
                   const isSel = selected.has(m.platform);
@@ -366,35 +367,35 @@ export default function PhotoListingPage() {
                       onClick={() => setSelected(prev => { const n = new Set(prev); isSel ? n.delete(m.platform) : n.add(m.platform); return n; })}
                       style={{
                         display: "flex", alignItems: "center", gap: 12,
-                        background: isTop ? "rgba(245,200,66,0.07)" : isSel ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.03)",
-                        border: `1px solid ${isTop ? "rgba(245,200,66,0.3)" : isSel ? "rgba(139,92,246,0.35)" : "rgba(255,255,255,0.07)"}`,
+                        background: isTop ? palette.alpha(palette.brand.gold, 0.07) : isSel ? palette.alpha(palette.ai.strong, 0.12) : palette.alpha(palette.ink.white, 0.03),
+                        border: `1px solid ${isTop ? palette.alpha(palette.brand.gold, 0.3) : isSel ? palette.alpha(palette.ai.strong, 0.35) : palette.alpha(palette.ink.white, 0.07)}`,
                         borderRadius: 12, padding: "12px 16px", cursor: "pointer",
                         transition: "all 0.15s", flexWrap: "wrap",
                         position: "relative",
                       }}>
                       {/* Checkbox */}
-                      <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${isSel ? "#8b5cf6" : "rgba(255,255,255,0.2)"}`, background: isSel ? "#8b5cf6" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {isSel && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
+                      <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${isSel ? palette.ai.strong : palette.alpha(palette.ink.white, 0.2)}`, background: isSel ? palette.ai.strong : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {isSel && <span style={{ color: palette.ink.white, fontSize: 10, fontWeight: 900 }}>✓</span>}
                       </div>
                       {/* Flag + platform */}
                       <div style={{ minWidth: 130 }}>
-                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{PLATFORM_FLAGS[m.platform] ?? "🌐"} {m.platform}</div>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>{fee}% prowizja</div>
+                        <div style={{ color: palette.ink.white, fontWeight: 700, fontSize: 13 }}>{PLATFORM_FLAGS[m.platform] ?? "🌐"} {m.platform}</div>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10 }}>{fee}% prowizja</div>
                       </div>
                       {/* Price */}
                       <div style={{ minWidth: 70 }}>
-                        <div style={{ color: "#a78bfa", fontWeight: 800, fontSize: 15 }}>
+                        <div style={{ color: palette.ai.base, fontWeight: 800, fontSize: 15 }}>
                           {PLATFORM_CURRENCY_SYMBOL[m.platform] ?? (m.currency === "USD" ? "$" : m.currency === "GBP" ? "£" : m.currency === "EUR" ? "€" : "")}{m.recommendedPrice}
                         </div>
-                        <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>cena sprzedaży</div>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10 }}>cena sprzedaży</div>
                       </div>
                       {/* Profit */}
                       <div style={{ minWidth: 70 }}>
-                        <div style={{ color: m.estimatedProfit > 0 ? "#4ade80" : "#f87171", fontWeight: 800, fontSize: 15 }}>+${m.estimatedProfit}</div>
-                        <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>zysk (~{m.margin}%)</div>
+                        <div style={{ color: m.estimatedProfit > 0 ? palette.profit.base : palette.loss.base, fontWeight: 800, fontSize: 15 }}>+${m.estimatedProfit}</div>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10 }}>zysk (~{m.margin}%)</div>
                       </div>
                       {/* Breakdown */}
-                      <div style={{ display: "flex", gap: 8, color: "rgba(255,255,255,0.2)", fontSize: 10, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 8, color: palette.alpha(palette.ink.white, 0.2), fontSize: 10, flexWrap: "wrap" }}>
                         <span>zakup ~${m.sourcePriceUSD}</span>
                         <span>·</span>
                         <span>fee ${feeAmt}</span>
@@ -402,12 +403,12 @@ export default function PhotoListingPage() {
                       {/* Confidence + top badge + list link */}
                       <div style={{ marginLeft: "auto", textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: 90 }}>
                         {isTop && (
-                          <span style={{ background: "rgba(245,200,66,0.2)", border: "1px solid rgba(245,200,66,0.4)", borderRadius: 6, padding: "2px 8px", color: "#f5c842", fontSize: 9, fontWeight: 800 }}>
+                          <span style={{ background: palette.alpha(palette.brand.gold, 0.2), border: `1px solid ${palette.alpha(palette.brand.gold, 0.4)}`, borderRadius: 6, padding: "2px 8px", color: palette.brand.gold, fontSize: 9, fontWeight: 800 }}>
                             🏆 TOP
                           </span>
                         )}
                         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                          <div style={{ width: 48, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                          <div style={{ width: 48, height: 4, borderRadius: 2, background: palette.alpha(palette.ink.white, 0.08), overflow: "hidden" }}>
                             <div style={{ width: `${CONFIDENCE_BARS[m.confidence]}%`, height: "100%", background: CONFIDENCE_COLORS[m.confidence], borderRadius: 2 }} />
                           </div>
                           <span style={{ color: CONFIDENCE_COLORS[m.confidence], fontSize: 10, fontWeight: 700 }}>{CONFIDENCE_LABELS[m.confidence]}</span>
@@ -418,7 +419,7 @@ export default function PhotoListingPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={e => e.stopPropagation()}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, padding: "3px 8px", color: "rgba(255,255,255,0.5)", fontSize: 10, textDecoration: "none", fontWeight: 600 }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, background: palette.alpha(palette.ink.white, 0.07), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, borderRadius: 6, padding: "3px 8px", color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, textDecoration: "none", fontWeight: 600 }}
                           >
                             <ExternalLink size={9} /> Wystaw
                           </a>
@@ -433,18 +434,18 @@ export default function PhotoListingPage() {
             {/* Listing previews (collapsed, show for selected) */}
             {selected.size > 0 && (
               <div style={{ marginBottom: 24 }}>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>PODGLĄD TREŚCI OGŁOSZEŃ</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 11, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>PODGLĄD TREŚCI OGŁOSZEŃ</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {Array.from(selected).map(platform => {
                     const lc = result.listings[platform];
                     if (!lc) return null;
                     return (
-                      <div key={platform} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px" }}>
-                        <div style={{ color: "#a78bfa", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{PLATFORM_FLAGS[platform] ?? "🌐"} {platform}</div>
-                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{lc.title}</div>
-                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, lineHeight: 1.55, marginBottom: 8 }}>{lc.description}</div>
+                      <div key={platform} style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`, borderRadius: 12, padding: "14px 16px" }}>
+                        <div style={{ color: palette.ai.base, fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{PLATFORM_FLAGS[platform] ?? "🌐"} {platform}</div>
+                        <div style={{ color: palette.ink.white, fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{lc.title}</div>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, lineHeight: 1.55, marginBottom: 8 }}>{lc.description}</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                          {lc.tags.map(t => <span key={t} style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 99, padding: "2px 8px", color: "#c4b5fd", fontSize: 10 }}>#{t}</span>)}
+                          {lc.tags.map(t => <span key={t} style={{ background: palette.alpha(palette.ai.strong, 0.1), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 99, padding: "2px 8px", color: palette.ai.soft, fontSize: 10 }}>#{t}</span>)}
                         </div>
                       </div>
                     );
@@ -458,11 +459,11 @@ export default function PhotoListingPage() {
               <button
                 onClick={createListings}
                 disabled={creating || selected.size === 0}
-                style={{ flex: 1, minWidth: 200, padding: "14px 20px", borderRadius: 12, border: "none", cursor: creating || selected.size === 0 ? "not-allowed" : "pointer", background: selected.size === 0 ? "rgba(139,92,246,0.2)" : "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 800, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: selected.size === 0 ? 0.5 : 1 }}>
+                style={{ flex: 1, minWidth: 200, padding: "14px 20px", borderRadius: 12, border: "none", cursor: creating || selected.size === 0 ? "not-allowed" : "pointer", background: selected.size === 0 ? palette.alpha(palette.ai.strong, 0.2) : `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`, color: palette.ink.white, fontWeight: 800, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: selected.size === 0 ? 0.5 : 1 }}>
                 {creating ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Tworzę…</> : <><Zap size={16} /> Utwórz {selected.size} ogłoszeń ({selected.size === 0 ? "zaznacz platformy" : Array.from(selected).map(p => PLATFORM_FLAGS[p] ?? "🌐").join("")})</>}
               </button>
               <button onClick={() => { setPhase("upload"); setResult(null); setImagePreview(""); setCreatedCount(0); }}
-                style={{ padding: "14px 20px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.5)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                style={{ padding: "14px 20px", borderRadius: 12, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.5), fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 🔄 Nowe zdjęcie
               </button>
             </div>

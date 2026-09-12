@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Package } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import * as palette from "@/design/palette";
 
 const COUNTRIES = ["Poland", "USA", "Germany", "UK", "France", "Japan", "China", "Netherlands"];
 const CATEGORIES = ["Electronics", "Clothing", "Jewelry", "Collectibles", "Sports", "Home & Garden", "Books", "Other"];
@@ -15,14 +16,14 @@ export default function AddProduct() {
   });
 
   const inputStyle: React.CSSProperties = {
-    width: "100%", background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10,
-    padding: "11px 14px", color: "#fff", fontSize: 14,
+    width: "100%", background: palette.alpha(palette.ink.white, 0.05),
+    border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, borderRadius: 10,
+    padding: "11px 14px", color: palette.ink.white, fontSize: 14,
     outline: "none", boxSizing: "border-box", fontFamily: "inherit",
   };
 
   const labelStyle: React.CSSProperties = {
-    color: "rgba(255,255,255,0.45)", fontSize: 11,
+    color: palette.alpha(palette.ink.white, 0.45), fontSize: 11,
     fontWeight: 700, letterSpacing: 0.5, marginBottom: 6, display: "block",
   };
 
@@ -31,7 +32,7 @@ export default function AddProduct() {
       <div style={{ padding: "36px 32px", maxWidth: 680 }}>
         <button
           onClick={() => setLocation("/resell")}
-          style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.45)", background: "none", border: "none", cursor: "pointer", fontSize: 13, marginBottom: 28 }}
+          style={{ display: "flex", alignItems: "center", gap: 6, color: palette.alpha(palette.ink.white, 0.45), background: "none", border: "none", cursor: "pointer", fontSize: 13, marginBottom: 28 }}
         >
           <ArrowLeft size={15} /> Back to Dashboard
         </button>
@@ -39,19 +40,19 @@ export default function AddProduct() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
           <div style={{
             width: 44, height: 44, borderRadius: 12,
-            background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+            background: `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <Package size={20} color="#fff" />
+            <Package size={20} color={palette.ink.white} />
           </div>
           <div>
-            <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>Add Product</h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>Analyze cross-border arbitrage potential</p>
+            <h1 style={{ color: palette.ink.white, fontSize: 22, fontWeight: 900, margin: 0 }}>Add Product</h1>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, margin: 0 }}>Analyze cross-border arbitrage potential</p>
           </div>
         </div>
 
         <div style={{
-          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+          background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
           borderRadius: 18, padding: 28, display: "flex", flexDirection: "column", gap: 20,
         }}>
           <div>
@@ -109,7 +110,7 @@ export default function AddProduct() {
           <div>
             <label style={labelStyle}>LISTING URL (optional — price analysis only)</label>
             <input style={inputStyle} placeholder="https://allegro.pl/... or olx.pl/..." value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} />
-            <div style={{ color: "rgba(139,92,246,0.6)", fontSize: 10, marginTop: 4 }}>
+            <div style={{ color: palette.alpha(palette.ai.strong, 0.6), fontSize: 10, marginTop: 4 }}>
               ⚠ We only analyze price — no images or descriptions are copied
             </div>
           </div>
@@ -119,10 +120,10 @@ export default function AddProduct() {
             disabled={!form.name}
             style={{
               padding: "13px 0", borderRadius: 12, border: "none", cursor: form.name ? "pointer" : "not-allowed",
-              background: form.name ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "rgba(255,255,255,0.08)",
-              color: form.name ? "#fff" : "rgba(255,255,255,0.3)",
+              background: form.name ? `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})` : palette.alpha(palette.ink.white, 0.08),
+              color: form.name ? palette.ink.white : palette.alpha(palette.ink.white, 0.3),
               fontWeight: 800, fontSize: 15, width: "100%",
-              boxShadow: form.name ? "0 6px 20px rgba(139,92,246,0.35)" : "none",
+              boxShadow: form.name ? `0 6px 20px ${palette.alpha(palette.ai.strong, 0.35)}` : "none",
               transition: "all 0.2s",
             }}
           >
