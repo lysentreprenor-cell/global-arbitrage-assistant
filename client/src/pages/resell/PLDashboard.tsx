@@ -3,6 +3,7 @@ import { LineChart, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { loadPipeline, type PipelineItem } from "@/lib/pipeline";
+import * as palette from "@/design/palette";
 
 // ── Period options ────────────────────────────────────────────────────────────
 type Period = "7" | "30" | "90" | "all";
@@ -41,23 +42,23 @@ function SummaryCard({
 }) {
   return (
     <div style={{
-      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+      background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
       borderRadius: 14, padding: "16px 18px", flex: "1 1 0", minWidth: 0,
     }}>
       <div style={{
-        color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700,
+        color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700,
         letterSpacing: 0.8, marginBottom: 8, textTransform: "uppercase",
       }}>
         {label}
       </div>
       <div style={{
-        color: dimmed ? "rgba(255,255,255,0.55)" : color,
+        color: dimmed ? palette.alpha(palette.ink.white, 0.55) : color,
         fontSize: 24, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1,
       }}>
         {value}
       </div>
       {sub && (
-        <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginTop: 5 }}>
+        <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10, marginTop: 5 }}>
           {sub}
         </div>
       )}
@@ -80,25 +81,25 @@ function ProgressRow({
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>{label}</span>
+          <span style={{ color: palette.ink.white, fontSize: 13, fontWeight: 700 }}>{label}</span>
           <span style={{
             fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 5,
-            background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)",
+            background: palette.alpha(palette.ink.white, 0.06), color: palette.alpha(palette.ink.white, 0.4),
           }}>
             {count} szt.
           </span>
         </div>
         <div style={{ textAlign: "right" }}>
-          <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 800, marginRight: 8 }}>
+          <span style={{ color: palette.profit.strong, fontSize: 12, fontWeight: 800, marginRight: 8 }}>
             +${profit.toFixed(0)}
           </span>
-          <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>
+          <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11 }}>
             ${revenue.toFixed(0)}
           </span>
         </div>
       </div>
       <div style={{
-        height: 5, background: "rgba(255,255,255,0.07)", borderRadius: 99, overflow: "hidden",
+        height: 5, background: palette.alpha(palette.ink.white, 0.07), borderRadius: 99, overflow: "hidden",
       }}>
         <div style={{
           height: "100%", width: `${Math.min(100, pct)}%`,
@@ -106,7 +107,7 @@ function ProgressRow({
           transition: "width 0.4s ease",
         }} />
       </div>
-      <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, marginTop: 3 }}>
+      <div style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 10, marginTop: 3 }}>
         {pct.toFixed(1)}% przychodu
       </div>
     </div>
@@ -223,7 +224,7 @@ export default function PLDashboard() {
       .slice(0, 5);
   }, [soldItems]);
 
-  const profitCardColor = netProfit >= 0 ? "#22c55e" : "#f87171";
+  const profitCardColor = netProfit >= 0 ? palette.profit.strong : palette.loss.base;
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
@@ -234,17 +235,17 @@ export default function PLDashboard() {
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
           <div style={{
             width: 48, height: 48, borderRadius: 14, flexShrink: 0,
-            background: "linear-gradient(135deg, #22c55e, #16a34a)",
+            background: `linear-gradient(135deg, ${palette.profit.strong}, ${palette.profit.deep})`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 16px rgba(34,197,94,0.3)",
+            boxShadow: `0 4px 16px ${palette.alpha(palette.profit.strong, 0.3)}`,
           }}>
-            <LineChart size={22} color="#fff" />
+            <LineChart size={22} color={palette.ink.white} />
           </div>
           <div>
-            <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
+            <h1 style={{ color: palette.ink.white, fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
               Dashboard P&amp;L
             </h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0, marginTop: 2 }}>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, margin: 0, marginTop: 2 }}>
               Analiza zysków z pipeline'u
             </p>
           </div>
@@ -260,10 +261,10 @@ export default function PLDashboard() {
                 padding: "7px 16px", borderRadius: 99, border: "none", cursor: "pointer",
                 fontSize: 12, fontWeight: 700,
                 background: period === opt.value
-                  ? "linear-gradient(135deg, rgba(34,197,94,0.3), rgba(22,163,74,0.2))"
-                  : "rgba(255,255,255,0.05)",
-                color: period === opt.value ? "#22c55e" : "rgba(255,255,255,0.4)",
-                outline: period === opt.value ? "1px solid rgba(34,197,94,0.4)" : "none",
+                  ? `linear-gradient(135deg, ${palette.alpha(palette.profit.strong, 0.3)}, ${palette.alpha(palette.profit.deep, 0.2)})`
+                  : palette.alpha(palette.ink.white, 0.05),
+                color: period === opt.value ? palette.profit.strong : palette.alpha(palette.ink.white, 0.4),
+                outline: period === opt.value ? `1px solid ${palette.alpha(palette.profit.strong, 0.4)}` : "none",
                 transition: "all 0.15s",
               }}
             >
@@ -279,45 +280,45 @@ export default function PLDashboard() {
           const hasAnySold = allItems.some(i => i.status === "sold");
           return (
             <div style={{
-              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+              background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
               borderRadius: 16, padding: "48px 24px", textAlign: "center",
             }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
               {!hasPipeline ? (
                 <>
-                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
                     Pipeline jest pusty
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1.6, maxWidth: 380, margin: "0 auto 20px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 12, lineHeight: 1.6, maxWidth: 380, margin: "0 auto 20px" }}>
                     Dodaj produkty z Dashboardu do pipeline, a gdy je sprzedasz — statystyki P&L pojawią się tutaj automatycznie.
                   </div>
                   <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                    <button onClick={() => setLocation("/resell")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    <button onClick={() => setLocation("/resell")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${palette.profit.strong},${palette.profit.deep})`, color: palette.ink.white, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                       🔍 Skanuj okazje <ArrowRight size={13} />
                     </button>
-                    <button onClick={() => setLocation("/resell/pipeline")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "1px solid rgba(139,92,246,0.35)", background: "transparent", color: "#a78bfa", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    <button onClick={() => setLocation("/resell/pipeline")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: `1px solid ${palette.alpha(palette.ai.strong, 0.35)}`, background: "transparent", color: palette.ai.base, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                       📋 Mój Pipeline
                     </button>
                   </div>
                 </>
               ) : !hasAnySold ? (
                 <>
-                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
                     Brak sprzedanych produktów
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1.6, maxWidth: 380, margin: "0 auto 20px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 12, lineHeight: 1.6, maxWidth: 380, margin: "0 auto 20px" }}>
                     Masz {allItems.length} pozycj{allItems.length === 1 ? "ę" : allItems.length < 5 ? "e" : "i"} w pipeline. Gdy zmienisz status na Sprzedane — zyski pojawią się tutaj.
                   </div>
-                  <button onClick={() => setLocation("/resell/pipeline")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                  <button onClick={() => setLocation("/resell/pipeline")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${palette.ai.strong},${palette.ai.deep})`, color: palette.ink.white, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                     📋 Zarządzaj pipeline'm <ArrowRight size={13} />
                   </button>
                 </>
               ) : (
                 <>
-                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
                     Brak sprzedanych w wybranym okresie
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 12 }}>
                     Zmień zakres czasu powyżej lub sprawdź pipeline.
                   </div>
                 </>
@@ -334,13 +335,13 @@ export default function PLDashboard() {
                 label="Przychód"
                 value={`$${revenue.toFixed(0)}`}
                 sub={`${soldItems.length} sprzedanych`}
-                color="#60a5fa"
+                color={palette.info.base}
               />
               <SummaryCard
                 label="Koszt"
                 value={`$${cost.toFixed(0)}`}
                 sub="zakup + szac. koszty"
-                color="#f87171"
+                color={palette.loss.base}
               />
               <SummaryCard
                 label="Zysk netto"
@@ -352,16 +353,16 @@ export default function PLDashboard() {
                 label="Marża"
                 value={`${margin.toFixed(1)}%`}
                 sub="zysk / przychód"
-                color={margin >= 20 ? "#22c55e" : margin >= 10 ? "#f5c842" : "#f87171"}
+                color={margin >= 20 ? palette.profit.strong : margin >= 10 ? palette.brand.gold : palette.loss.base}
               />
             </div>
 
             {/* ── Weekly profit chart ── */}
             <div style={{
-              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+              background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
               borderRadius: 16, padding: 22, marginBottom: 24,
             }}>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 20 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 20 }}>
                 ZYSK TYGODNIOWY (ostatnie 8 tygodni)
               </div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 120 }}>
@@ -381,7 +382,7 @@ export default function PLDashboard() {
                       {/* Value label above bar */}
                       {week.profit !== 0 && (
                         <div style={{
-                          color: isPositive ? "#22c55e" : "#f87171",
+                          color: isPositive ? palette.profit.strong : palette.loss.base,
                           fontSize: 9, fontWeight: 700, marginBottom: 3,
                           whiteSpace: "nowrap",
                         }}>
@@ -394,17 +395,17 @@ export default function PLDashboard() {
                         style={{
                           width: "100%", height: barH,
                           background: week.profit === 0
-                            ? "rgba(255,255,255,0.1)"
+                            ? palette.alpha(palette.ink.white, 0.1)
                             : isPositive
-                              ? "linear-gradient(180deg, #22c55e, #16a34a)"
-                              : "linear-gradient(180deg, #f87171, #dc2626)",
+                              ? `linear-gradient(180deg, ${palette.profit.strong}, ${palette.profit.deep})`
+                              : `linear-gradient(180deg, ${palette.loss.base}, ${palette.loss.deep})`,
                           borderRadius: "4px 4px 2px 2px",
                           transition: "height 0.3s ease",
                           minHeight: 2,
                         }}
                       />
                       {/* Week label */}
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 5, fontWeight: 600 }}>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, marginTop: 5, fontWeight: 600 }}>
                         {week.label}
                       </div>
                     </div>
@@ -417,14 +418,14 @@ export default function PLDashboard() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
               {/* Platform breakdown */}
               <div style={{
-                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
                 borderRadius: 16, padding: 20,
               }}>
-                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 18 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 18 }}>
                   PLATFORMY SPRZEDAŻY
                 </div>
                 {platformData.length === 0 && (
-                  <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 12 }}>Brak danych</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 12 }}>Brak danych</div>
                 )}
                 {platformData.map(row => (
                   <ProgressRow
@@ -434,21 +435,21 @@ export default function PLDashboard() {
                     revenue={row.revenue}
                     profit={row.profit}
                     pct={revenue > 0 ? (row.revenue / revenue) * 100 : 0}
-                    accentColor="#22c55e"
+                    accentColor={palette.profit.strong}
                   />
                 ))}
               </div>
 
               {/* Category breakdown */}
               <div style={{
-                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
                 borderRadius: 16, padding: 20,
               }}>
-                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 18 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 18 }}>
                   KATEGORIE
                 </div>
                 {categoryData.length === 0 && (
-                  <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 12 }}>Brak danych</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 12 }}>Brak danych</div>
                 )}
                 {categoryData.map(row => (
                   <ProgressRow
@@ -458,7 +459,7 @@ export default function PLDashboard() {
                     revenue={row.revenue}
                     profit={row.profit}
                     pct={revenue > 0 ? (row.revenue / revenue) * 100 : 0}
-                    accentColor="#22c55e"
+                    accentColor={palette.profit.strong}
                   />
                 ))}
               </div>
@@ -467,10 +468,10 @@ export default function PLDashboard() {
             {/* ── Top 5 products ── */}
             {top5.length > 0 && (
               <div style={{
-                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
                 borderRadius: 16, padding: 20,
               }}>
-                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 18 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 18 }}>
                   TOP 5 PRODUKTÓW (po zysku)
                 </div>
 
@@ -479,11 +480,11 @@ export default function PLDashboard() {
                   display: "grid",
                   gridTemplateColumns: "1fr 90px 90px 90px 70px",
                   gap: 8, paddingBottom: 8,
-                  borderBottom: "1px solid rgba(255,255,255,0.07)",
+                  borderBottom: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`,
                   marginBottom: 6,
                 }}>
                   {["Produkt", "Zakup", "Sprzedaż", "Zysk", "Marża"].map(h => (
-                    <div key={h} style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700, letterSpacing: 0.6 }}>
+                    <div key={h} style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 9, fontWeight: 700, letterSpacing: 0.6 }}>
                       {h.toUpperCase()}
                     </div>
                   ))}
@@ -497,31 +498,31 @@ export default function PLDashboard() {
                       display: "grid",
                       gridTemplateColumns: "1fr 90px 90px 90px 70px",
                       gap: 8, padding: "9px 0",
-                      borderBottom: idx < top5.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+                      borderBottom: idx < top5.length - 1 ? `1px solid ${palette.alpha(palette.ink.white, 0.05)}` : "none",
                       alignItems: "center",
                     }}
                   >
                     <div style={{
-                      color: "#fff", fontSize: 12, fontWeight: 600,
+                      color: palette.ink.white, fontSize: 12, fontWeight: 600,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}>
                       {idx === 0 && <span style={{ marginRight: 4 }}>🏆</span>}
                       {item.name}
                     </div>
-                    <div style={{ color: "#f87171", fontSize: 12, fontWeight: 700 }}>
+                    <div style={{ color: palette.loss.base, fontSize: 12, fontWeight: 700 }}>
                       ${item.calcBuy.toFixed(0)}
                     </div>
-                    <div style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700 }}>
+                    <div style={{ color: palette.info.base, fontSize: 12, fontWeight: 700 }}>
                       ${item.calcSell.toFixed(0)}
                     </div>
                     <div style={{
-                      color: item.calcProfit >= 0 ? "#22c55e" : "#f87171",
+                      color: item.calcProfit >= 0 ? palette.profit.strong : palette.loss.base,
                       fontSize: 13, fontWeight: 900,
                     }}>
                       {item.calcProfit >= 0 ? "+" : ""}${item.calcProfit.toFixed(0)}
                     </div>
                     <div style={{
-                      color: item.calcMargin >= 20 ? "#22c55e" : item.calcMargin >= 10 ? "#f5c842" : "#f87171",
+                      color: item.calcMargin >= 20 ? palette.profit.strong : item.calcMargin >= 10 ? palette.brand.gold : palette.loss.base,
                       fontSize: 11, fontWeight: 700,
                     }}>
                       {item.calcMargin.toFixed(1)}%

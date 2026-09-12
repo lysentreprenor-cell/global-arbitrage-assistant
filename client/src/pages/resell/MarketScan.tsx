@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Globe, Package, Scale, RefreshCw, ChevronDown, ExternalLink, AlertTriangle, CheckCircle, Truck, ShieldCheck, Zap } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+import * as palette from "@/design/palette";
 
 const COUNTRIES = [
   "Poland", "USA", "UK", "Germany", "France", "Canada", "Australia",
@@ -48,7 +49,7 @@ type MarketResult = {
 
 function Section({ icon, title, color, children }: { icon: React.ReactNode; title: string; color: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}25`, borderRadius: 16, padding: 20, marginBottom: 16 }}>
+    <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${color}25`, borderRadius: 16, padding: 20, marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         {icon}
         <span style={{ color, fontSize: 12, fontWeight: 800, letterSpacing: 0.8 }}>{title}</span>
@@ -116,88 +117,88 @@ export default function MarketScan() {
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #60a5fa, #3b82f6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Globe size={18} color="#fff" />
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${palette.info.base}, ${palette.info.strong})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Globe size={18} color={palette.ink.white} />
             </div>
-            <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
+            <h1 style={{ color: palette.ink.white, fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
               Market Scanner
             </h1>
           </div>
-          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, margin: 0 }}>
+          <p style={{ color: palette.alpha(palette.ink.white, 0.45), fontSize: 13, margin: 0 }}>
             Choose buy/sell countries and category — AI checks marketplaces, shipping, customs law, and returns policy.
           </p>
         </div>
 
         {/* Filters */}
-        <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 20, marginBottom: 24 }}>
+        <div style={{ background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`, borderRadius: 16, padding: 20, marginBottom: 24 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 120px", gap: 12, marginBottom: 16 }}>
             {/* From */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>BUY FROM</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>BUY FROM</div>
               <div style={{ position: "relative" }}>
                 <select
                   value={fromCountry}
                   onChange={e => setFromCountry(e.target.value)}
                   style={{
-                    width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 8, padding: "9px 32px 9px 12px", color: "#fff", fontSize: 13,
+                    width: "100%", background: palette.alpha(palette.ink.black, 0.3), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+                    borderRadius: 8, padding: "9px 32px 9px 12px", color: palette.ink.white, fontSize: 13,
                     appearance: "none", cursor: "pointer", fontFamily: "inherit",
                   }}
                 >
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+                <ChevronDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.3), pointerEvents: "none" }} />
               </div>
             </div>
 
             {/* To */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>SELL TO</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>SELL TO</div>
               <div style={{ position: "relative" }}>
                 <select
                   value={toCountry}
                   onChange={e => setToCountry(e.target.value)}
                   style={{
-                    width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 8, padding: "9px 32px 9px 12px", color: "#fff", fontSize: 13,
+                    width: "100%", background: palette.alpha(palette.ink.black, 0.3), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+                    borderRadius: 8, padding: "9px 32px 9px 12px", color: palette.ink.white, fontSize: 13,
                     appearance: "none", cursor: "pointer", fontFamily: "inherit",
                   }}
                 >
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+                <ChevronDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.3), pointerEvents: "none" }} />
               </div>
             </div>
 
             {/* Category */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>CATEGORY</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>CATEGORY</div>
               <div style={{ position: "relative" }}>
                 <select
                   value={category}
                   onChange={e => setCategory(e.target.value)}
                   style={{
-                    width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 8, padding: "9px 32px 9px 12px", color: "#fff", fontSize: 13,
+                    width: "100%", background: palette.alpha(palette.ink.black, 0.3), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+                    borderRadius: 8, padding: "9px 32px 9px 12px", color: palette.ink.white, fontSize: 13,
                     appearance: "none", cursor: "pointer", fontFamily: "inherit",
                   }}
                 >
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+                <ChevronDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.3), pointerEvents: "none" }} />
               </div>
             </div>
 
             {/* Budget */}
             <div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>BUDGET ($)</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>BUDGET ($)</div>
               <input
                 type="number"
                 value={budget}
                 onChange={e => setBudget(e.target.value)}
                 style={{
-                  width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 13,
+                  width: "100%", background: palette.alpha(palette.ink.black, 0.3), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+                  borderRadius: 8, padding: "9px 12px", color: palette.ink.white, fontSize: 13,
                   fontFamily: "inherit", boxSizing: "border-box",
                 }}
               />
@@ -206,10 +207,10 @@ export default function MarketScan() {
 
           {/* Route preview */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-            <div style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 8, padding: "6px 14px", color: "#a78bfa", fontSize: 13, fontWeight: 700 }}>{fromCountry}</div>
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 18 }}>→</div>
-            <div style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 8, padding: "6px 14px", color: "#4ade80", fontSize: 13, fontWeight: 700 }}>{toCountry}</div>
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>· {category} · budget ${budget}</div>
+            <div style={{ background: palette.alpha(palette.ai.strong, 0.15), border: `1px solid ${palette.alpha(palette.ai.strong, 0.3)}`, borderRadius: 8, padding: "6px 14px", color: palette.ai.base, fontSize: 13, fontWeight: 700 }}>{fromCountry}</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 18 }}>→</div>
+            <div style={{ background: palette.alpha(palette.profit.base, 0.15), border: `1px solid ${palette.alpha(palette.profit.base, 0.3)}`, borderRadius: 8, padding: "6px 14px", color: palette.profit.base, fontSize: 13, fontWeight: 700 }}>{toCountry}</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 12 }}>· {category} · budget ${budget}</div>
           </div>
 
           <button
@@ -218,9 +219,9 @@ export default function MarketScan() {
             style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "11px 24px", borderRadius: 10, border: "none", cursor: scanning ? "not-allowed" : "pointer",
-              background: scanning ? "rgba(245,200,66,0.15)" : "linear-gradient(135deg, #8b5cf6, #7c3aed)",
-              color: scanning ? "#fde68a" : "#fff", fontWeight: 800, fontSize: 14,
-              boxShadow: scanning ? "none" : "0 4px 18px rgba(139,92,246,0.35)",
+              background: scanning ? palette.alpha(palette.brand.gold, 0.15) : `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`,
+              color: scanning ? palette.brand.goldSoft : palette.ink.white, fontWeight: 800, fontSize: 14,
+              boxShadow: scanning ? "none" : `0 4px 18px ${palette.alpha(palette.ai.strong, 0.35)}`,
             }}
           >
             <RefreshCw size={15} style={{ animation: scanning ? "spin 1s linear infinite" : "none" }} />
@@ -231,10 +232,10 @@ export default function MarketScan() {
         {/* Loading */}
         {scanning && (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
-            <div style={{ color: "#f5c842", fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{scanStep}</div>
+            <div style={{ color: palette.brand.gold, fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{scanStep}</div>
             <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
               {[0, 1, 2, 3, 4].map(i => (
-                <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#8b5cf6", animation: `bounce 1s ${i * 0.15}s infinite` }} />
+                <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: palette.ai.strong, animation: `bounce 1s ${i * 0.15}s infinite` }} />
               ))}
             </div>
           </div>
@@ -242,9 +243,9 @@ export default function MarketScan() {
 
         {/* Error */}
         {error && !scanning && (
-          <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
-            <AlertTriangle size={15} color="#f87171" style={{ flexShrink: 0, marginTop: 1 }} />
-            <div style={{ color: "#fca5a5", fontSize: 13 }}>{error}</div>
+          <div style={{ background: palette.alpha(palette.loss.base, 0.08), border: `1px solid ${palette.alpha(palette.loss.base, 0.25)}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
+            <AlertTriangle size={15} color={palette.loss.base} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div style={{ color: palette.loss.soft, fontSize: 13 }}>{error}</div>
           </div>
         )}
 
@@ -252,41 +253,41 @@ export default function MarketScan() {
         {result && !scanning && (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <CheckCircle size={16} color="#4ade80" />
-              <span style={{ color: "#4ade80", fontWeight: 700, fontSize: 14 }}>
+              <CheckCircle size={16} color={palette.profit.base} />
+              <span style={{ color: palette.profit.base, fontWeight: 700, fontSize: 14 }}>
                 Results for {result.fromCountry} → {result.toCountry} · {result.category}
               </span>
-              {result.source === "ai" && <span style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.4)", borderRadius: 99, padding: "2px 10px", color: "#a78bfa", fontSize: 11, fontWeight: 700 }}>AI</span>}
+              {result.source === "ai" && <span style={{ background: palette.alpha(palette.ai.strong, 0.2), border: `1px solid ${palette.alpha(palette.ai.strong, 0.4)}`, borderRadius: 99, padding: "2px 10px", color: palette.ai.base, fontSize: 11, fontWeight: 700 }}>AI</span>}
             </div>
 
             {/* TL;DR summary strip */}
-            <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 14, padding: "14px 18px", marginBottom: 20 }}>
+            <div style={{ background: palette.alpha(palette.profit.base, 0.07), border: `1px solid ${palette.alpha(palette.profit.base, 0.2)}`, borderRadius: 14, padding: "14px 18px", marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
-                <Zap size={13} color="#4ade80" />
-                <span style={{ color: "#86efac", fontSize: 11, fontWeight: 800, letterSpacing: 0.7 }}>QUICK SUMMARY</span>
+                <Zap size={13} color={palette.profit.base} />
+                <span style={{ color: palette.profit.soft, fontSize: 11, fontWeight: 800, letterSpacing: 0.7 }}>QUICK SUMMARY</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>BEST PLATFORM</div>
-                  <div style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>{result.marketplaces[0]?.name ?? "—"}</div>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Fee: {result.marketplaces[0]?.fee ?? "—"}</div>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, marginBottom: 3 }}>BEST PLATFORM</div>
+                  <div style={{ color: palette.brand.goldSoft, fontWeight: 700, fontSize: 13 }}>{result.marketplaces[0]?.name ?? "—"}</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>Fee: {result.marketplaces[0]?.fee ?? "—"}</div>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>FASTEST SHIPPING</div>
-                  <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 13 }}>{result.shipping.services[0]?.name ?? "—"}</div>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{result.shipping.services[0]?.time ?? "—"} · {result.shipping.services[0]?.cost ?? "—"}</div>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, marginBottom: 3 }}>FASTEST SHIPPING</div>
+                  <div style={{ color: palette.info.soft, fontWeight: 700, fontSize: 13 }}>{result.shipping.services[0]?.name ?? "—"}</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>{result.shipping.services[0]?.time ?? "—"} · {result.shipping.services[0]?.cost ?? "—"}</div>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>IMPORT DUTY</div>
-                  <div style={{ color: "#fca5a5", fontWeight: 700, fontSize: 13 }}>{result.legal.importDuty}</div>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{result.legal.vatNote}</div>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, marginBottom: 3 }}>IMPORT DUTY</div>
+                  <div style={{ color: palette.loss.soft, fontWeight: 700, fontSize: 13 }}>{result.legal.importDuty}</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>{result.legal.vatNote}</div>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginBottom: 3 }}>SHIPPING OK?</div>
-                  <div style={{ color: result.shipping.feasible ? "#4ade80" : "#f87171", fontWeight: 700, fontSize: 13 }}>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, marginBottom: 3 }}>SHIPPING OK?</div>
+                  <div style={{ color: result.shipping.feasible ? palette.profit.base : palette.loss.base, fontWeight: 700, fontSize: 13 }}>
                     {result.shipping.feasible ? "✓ Feasible" : "✗ Restricted"}
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>
                     {result.shipping.restrictions.length > 0 ? `${result.shipping.restrictions.length} restriction(s)` : "No restrictions"}
                   </div>
                 </div>
@@ -294,55 +295,55 @@ export default function MarketScan() {
             </div>
 
             {/* Marketplaces */}
-            <Section icon={<Globe size={15} color="#f5c842" />} title="MARKETPLACES &amp; SELLING PLATFORMS" color="#f5c842">
+            <Section icon={<Globe size={15} color={palette.brand.gold} />} title="MARKETPLACES &amp; SELLING PLATFORMS" color={palette.brand.gold}>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {result.marketplaces.map((m, i) => (
-                  <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", textDecoration: "none" }}>
+                  <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "12px 14px", textDecoration: "none" }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 14 }}>{m.name}</span>
-                        <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 99, padding: "1px 8px", color: "#86efac", fontSize: 10, fontWeight: 700 }}>Fee: {m.fee}</span>
-                        <span style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.25)", borderRadius: 99, padding: "1px 8px", color: "#93c5fd", fontSize: 10 }}>Traffic: {m.traffic}</span>
+                        <span style={{ color: palette.brand.goldSoft, fontWeight: 700, fontSize: 14 }}>{m.name}</span>
+                        <span style={{ background: palette.alpha(palette.profit.base, 0.15), border: `1px solid ${palette.alpha(palette.profit.base, 0.25)}`, borderRadius: 99, padding: "1px 8px", color: palette.profit.soft, fontSize: 10, fontWeight: 700 }}>Fee: {m.fee}</span>
+                        <span style={{ background: palette.alpha(palette.info.base, 0.15), border: `1px solid ${palette.alpha(palette.info.base, 0.25)}`, borderRadius: 99, padding: "1px 8px", color: palette.info.soft, fontSize: 10 }}>Traffic: {m.traffic}</span>
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 4 }}>{m.note}</div>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 12, marginTop: 4 }}>{m.note}</div>
                     </div>
-                    <ExternalLink size={13} color="rgba(255,255,255,0.3)" style={{ flexShrink: 0, marginLeft: 10 }} />
+                    <ExternalLink size={13} color={palette.alpha(palette.ink.white, 0.3)} style={{ flexShrink: 0, marginLeft: 10 }} />
                   </a>
                 ))}
               </div>
             </Section>
 
             {/* Shipping */}
-            <Section icon={<Truck size={15} color="#60a5fa" />} title="SHIPPING &amp; POSTAL SERVICES" color="#60a5fa">
+            <Section icon={<Truck size={15} color={palette.info.base} />} title="SHIPPING &amp; POSTAL SERVICES" color={palette.info.base}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div style={{
                   padding: "4px 12px", borderRadius: 99,
-                  background: result.shipping.feasible ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)",
-                  border: `1px solid ${result.shipping.feasible ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}`,
-                  color: result.shipping.feasible ? "#4ade80" : "#f87171", fontWeight: 700, fontSize: 12,
+                  background: result.shipping.feasible ? palette.alpha(palette.profit.base, 0.15) : palette.alpha(palette.loss.base, 0.15),
+                  border: `1px solid ${result.shipping.feasible ? palette.alpha(palette.profit.base, 0.3) : palette.alpha(palette.loss.base, 0.3)}`,
+                  color: result.shipping.feasible ? palette.profit.base : palette.loss.base, fontWeight: 700, fontSize: 12,
                 }}>
                   {result.shipping.feasible ? "✓ Shipping feasible" : "✗ Shipping impossible or heavily restricted"}
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
                 {result.shipping.services.map((s, i) => (
-                  <div key={i} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div key={i} style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <span style={{ color: "#93c5fd", fontWeight: 700, fontSize: 13 }}>{s.name}</span>
-                      <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginLeft: 10 }}>{s.note}</span>
+                      <span style={{ color: palette.info.soft, fontWeight: 700, fontSize: 13 }}>{s.name}</span>
+                      <span style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 12, marginLeft: 10 }}>{s.note}</span>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
-                      <div style={{ color: "#4ade80", fontWeight: 700, fontSize: 13 }}>{s.cost}</div>
-                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{s.time}</div>
+                      <div style={{ color: palette.profit.base, fontWeight: 700, fontSize: 13 }}>{s.cost}</div>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11 }}>{s.time}</div>
                     </div>
                   </div>
                 ))}
               </div>
               {result.shipping.restrictions.length > 0 && (
                 <div>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>SHIPPING RESTRICTIONS</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>SHIPPING RESTRICTIONS</div>
                   {result.shipping.restrictions.map((r, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "#fcd34d", fontSize: 12, marginBottom: 5 }}>
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, color: palette.brand.goldLight, fontSize: 12, marginBottom: 5 }}>
                       <AlertTriangle size={12} style={{ flexShrink: 0, marginTop: 2 }} /> {r}
                     </div>
                   ))}
@@ -351,53 +352,53 @@ export default function MarketScan() {
             </Section>
 
             {/* Legal */}
-            <Section icon={<Scale size={15} color="#f87171" />} title="CUSTOMS &amp; LEGAL" color="#f87171">
+            <Section icon={<Scale size={15} color={palette.loss.base} />} title="CUSTOMS &amp; LEGAL" color={palette.loss.base}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>IMPORT DUTY</div>
-                  <div style={{ color: "#fca5a5", fontWeight: 700, fontSize: 14 }}>{result.legal.importDuty}</div>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, marginBottom: 4 }}>IMPORT DUTY</div>
+                  <div style={{ color: palette.loss.soft, fontWeight: 700, fontSize: 14 }}>{result.legal.importDuty}</div>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>VAT / TAXES</div>
-                  <div style={{ color: "#fca5a5", fontWeight: 700, fontSize: 13 }}>{result.legal.vatNote}</div>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, marginBottom: 4 }}>VAT / TAXES</div>
+                  <div style={{ color: palette.loss.soft, fontWeight: 700, fontSize: 13 }}>{result.legal.vatNote}</div>
                 </div>
               </div>
-              <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 6 }}>REQUIRED DOCUMENTS</div>
+              <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, marginBottom: 6 }}>REQUIRED DOCUMENTS</div>
                 <div style={{ display: "flex", flexWrap: "wrap" }}>
-                  {result.legal.documentation.map((d, i) => <Pill key={i} text={d} color="#f87171" />)}
+                  {result.legal.documentation.map((d, i) => <Pill key={i} text={d} color={palette.loss.base} />)}
                 </div>
               </div>
-              <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 6 }}>BANNED / RESTRICTED ITEMS</div>
+              <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, marginBottom: 6 }}>BANNED / RESTRICTED ITEMS</div>
                 <div style={{ display: "flex", flexWrap: "wrap" }}>
-                  {result.legal.banned.map((b, i) => <Pill key={i} text={b} color="#f59e0b" />)}
+                  {result.legal.banned.map((b, i) => <Pill key={i} text={b} color={palette.brand.amber} />)}
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "rgba(255,255,255,0.7)", fontSize: 12, background: "rgba(248,113,113,0.08)", borderRadius: 10, padding: "10px 14px" }}>
-                <AlertTriangle size={13} color="#f87171" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, color: palette.alpha(palette.ink.white, 0.7), fontSize: 12, background: palette.alpha(palette.loss.base, 0.08), borderRadius: 10, padding: "10px 14px" }}>
+                <AlertTriangle size={13} color={palette.loss.base} style={{ flexShrink: 0, marginTop: 1 }} />
                 {result.legal.customs}
               </div>
             </Section>
 
             {/* Returns */}
-            <Section icon={<ShieldCheck size={15} color="#34d399" />} title="RETURNS &amp; BUYER PROTECTION" color="#34d399">
+            <Section icon={<ShieldCheck size={15} color={palette.profit.mint} />} title="RETURNS &amp; BUYER PROTECTION" color={palette.profit.mint}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
                 {[
                   { label: "Seller obligation", val: result.returns.sellerObligation },
                   { label: "Buyer protection", val: result.returns.buyerProtection },
                   { label: "Warranty",          val: result.returns.warranty },
                 ].map(x => (
-                  <div key={x.label} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 4 }}>{x.label.toUpperCase()}</div>
-                    <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{x.val}</div>
+                  <div key={x.label} style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px" }}>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, marginBottom: 4 }}>{x.label.toUpperCase()}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.85), fontSize: 13 }}>{x.val}</div>
                   </div>
                 ))}
               </div>
               <div>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>PRACTICAL TIPS</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>PRACTICAL TIPS</div>
                 {result.returns.tips.map((t, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "#6ee7b7", fontSize: 12, marginBottom: 6 }}>
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, color: palette.profit.mintSoft, fontSize: 12, marginBottom: 6 }}>
                     <CheckCircle size={12} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
                   </div>
                 ))}
@@ -407,7 +408,7 @@ export default function MarketScan() {
         )}
 
         {!result && !scanning && !error && (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
+          <div style={{ textAlign: "center", padding: "60px 0", color: palette.alpha(palette.ink.white, 0.25), fontSize: 14 }}>
             Select countries and click "Scan Markets" to analyse the route
           </div>
         )}

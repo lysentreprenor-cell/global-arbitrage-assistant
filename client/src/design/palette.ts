@@ -17,16 +17,25 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: cały `components/resell/` (powłoka aplikacji i modale) oraz te
- *  ekrany z `pages/resell/`, które domyka obecna paleta — Search,
- *  PhotoListingPage, PlatformCompare, AutopilotPage, Products, AddProduct.
+ *  Zmigrowane: 19 z 36 plików — cały `components/resell/` oraz jedenaście
+ *  ekranów: Search, PhotoListingPage, PlatformCompare, AutopilotPage, Products,
+ *  AddProduct, OfferPage, MarketScan, QuickListPage, PLDashboard,
+ *  CompliancePage.
  *
- *  Pozostałe 22 ekrany czekają na rozszerzenie palety. Używają sześciu rodzin
- *  barw, których tu nie ma i którym trzeba najpierw przypisać znaczenie:
- *  pomarańcz (#f97316), purpura (#a855f7), róż (#ec4899), indygo (#6366f1),
- *  cyjan (#06b6d4) i malina (#f43f5e). Dopisanie ich bez decyzji, co mają
- *  znaczyć, zamieniłoby paletę w katalog odcieni — a to jest dokładnie ten
- *  stan, z którego wychodzimy.
+ *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
+ *
+ *  Kolejny stopień rodziny, która już ma znaczenie — wchodzi. `#dc2626` to
+ *  ciemniejsza czerwień straty, `#059669` ciemniejsza zieleń zysku; domykają
+ *  istniejące skale i nie wnoszą nowego sensu do nauczenia.
+ *
+ *  Nowa rodzina barw — nie wchodzi bez decyzji, co ma znaczyć. Pozostałe
+ *  ekrany czekają na sześć takich: pomarańcz (#f97316), purpura (#a855f7),
+ *  róż (#ec4899), indygo (#6366f1), cyjan (#06b6d4) i malina (#f43f5e).
+ *  Dopisanie ich „bo są w kodzie" zamieniłoby paletę w katalog odcieni, czyli
+ *  w dokładnie ten stan, z którego wychodzimy.
+ *
+ *  Barwy firmowe platform (eBay, TikTok…) nie należą tu wcale — mieszkają
+ *  w `platforms.ts`, bo nie są rolą w naszym systemie, tylko cudzą własnością.
  *
  *  Wstawki CSS w `<style>` i klasy Tailwind z kolorem w nawiasach
  *  (np. `bg-[#0a1a0f]`) zostają poza paletą: pierwsze to tekst, nie wyrażenia,
@@ -74,6 +83,8 @@ export const violetInk = {
   deep: "#130d22",
   mid: "#1a1030",
   high: "#1e1b4b",
+  /** Przygaszenie tła pod modalem */
+  overlay: "#1e0a3c",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -83,8 +94,11 @@ export const brand = {
   gold: "#f5c842",
   goldSoft: "#fde68a",
   goldStrong: "#fbbf24",
+  goldLight: "#fcd34d",
+  yellow: "#eab308",
   /** Złoto przechodzące w bursztyn — gradienty przycisków */
   amber: "#f59e0b",
+  amberDeep: "#d97706",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -99,6 +113,9 @@ export const profit = {
   deeper: "#15803d",
   soft: "#86efac",
   mint: "#34d399",
+  mintSoft: "#6ee7b7",
+  mintDeep: "#059669",
+  wash: "#d1fae5",
 } as const;
 
 /** Strata, błąd, akcja niszcząca. */
@@ -106,6 +123,7 @@ export const loss = {
   base: "#f87171",
   soft: "#fca5a5",
   strong: "#ef4444",
+  deep: "#dc2626",
 } as const;
 
 /** AI i skanowanie rynku. */
@@ -121,6 +139,7 @@ export const ai = {
 export const info = {
   base: "#60a5fa",
   strong: "#3b82f6",
+  deep: "#2563eb",
   soft: "#93c5fd",
   indigo: "#818cf8",
   indigoSoft: "#c7d2fe",

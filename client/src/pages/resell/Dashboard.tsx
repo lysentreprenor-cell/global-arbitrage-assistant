@@ -11,6 +11,7 @@ import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
 import { LocationPicker } from "@/components/resell/LocationPicker";
+import { marketplaceBadge } from "@/design/platforms";
 
 type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
@@ -71,19 +72,10 @@ const CAT_EMOJI: Record<string, string> = {
 };
 
 // ── Platform color map ────────────────────────────────────────────────────────
-const PLATFORM_COLOR: Record<string, { bg: string; border: string; text: string }> = {
-  "eBay":    { bg: "rgba(245,200,66,0.13)",  border: "rgba(245,200,66,0.3)",  text: "#f5c842" },
-  "Etsy":    { bg: "rgba(248,113,113,0.13)", border: "rgba(248,113,113,0.3)", text: "#f87171" },
-  "Amazon":  { bg: "rgba(96,165,250,0.13)",  border: "rgba(96,165,250,0.3)",  text: "#60a5fa" },
-  "StockX":  { bg: "rgba(74,222,128,0.13)",  border: "rgba(74,222,128,0.3)",  text: "#4ade80" },
-  "Vinted":  { bg: "rgba(52,211,153,0.13)",  border: "rgba(52,211,153,0.3)",  text: "#34d399" },
-  "Depop":   { bg: "rgba(244,114,182,0.13)", border: "rgba(244,114,182,0.3)", text: "#f472b6" },
-  "default": { bg: "rgba(139,92,246,0.13)",  border: "rgba(139,92,246,0.3)",  text: "#a78bfa" },
-};
-
+// Barwy marek mieszkaja w design/platforms.ts — patrz naglowek tamtego pliku.
 function platformStyle(name: string) {
-  const key = Object.keys(PLATFORM_COLOR).find(k => name.includes(k)) ?? "default";
-  return PLATFORM_COLOR[key];
+  const key = Object.keys(marketplaceBadge).find(k => name.includes(k)) ?? "default";
+  return marketplaceBadge[key];
 }
 
 const QUICK_MARKETS = [

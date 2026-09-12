@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey, getYouTubeKey, getGeminiKey } from "@/lib/apiKeys";
 import { recordTokenUsage } from "@/lib/tokenUsage";
+import { socialAccent, socialBg } from "@/design/platforms";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const COUNTRIES = [
@@ -2099,14 +2100,8 @@ export default function MarketingPage() {
                           <div style={{ color: "#c4b5fd", fontWeight: 700, fontSize: 12, letterSpacing: 1, marginBottom: 10, paddingLeft: 4 }}>TYDZIEŃ {week + 1}</div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {weekDays.map((day: any) => {
-                              const platformColors: Record<string, string> = {
-                                TikTok: "rgba(236,72,153,0.8)", Instagram: "rgba(168,85,247,0.8)",
-                                Facebook: "rgba(59,130,246,0.8)", YouTube: "rgba(239,68,68,0.8)",
-                              };
-                              const platformBg: Record<string, string> = {
-                                TikTok: "rgba(236,72,153,0.15)", Instagram: "rgba(168,85,247,0.15)",
-                                Facebook: "rgba(59,130,246,0.15)", YouTube: "rgba(239,68,68,0.15)",
-                              };
+                              const platformColors = socialAccent;
+                              const platformBg = socialBg;
                               const color = platformColors[day.platform] ?? "rgba(255,255,255,0.6)";
                               const bg = platformBg[day.platform] ?? "rgba(255,255,255,0.06)";
                               return (
@@ -2148,8 +2143,8 @@ export default function MarketingPage() {
                         <div style={{ color: "#c4b5fd", fontWeight: 700, fontSize: 12, letterSpacing: 1, marginBottom: 10, paddingLeft: 4 }}>OSTATNIE DNI</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           {calendar.slice(28).map((day: any) => {
-                            const platformColors: Record<string, string> = { TikTok: "rgba(236,72,153,0.8)", Instagram: "rgba(168,85,247,0.8)", Facebook: "rgba(59,130,246,0.8)", YouTube: "rgba(239,68,68,0.8)" };
-                            const platformBg: Record<string, string> = { TikTok: "rgba(236,72,153,0.15)", Instagram: "rgba(168,85,247,0.15)", Facebook: "rgba(59,130,246,0.15)", YouTube: "rgba(239,68,68,0.15)" };
+                            const platformColors = socialAccent;
+                            const platformBg = socialBg;
                             const color = platformColors[day.platform] ?? "rgba(255,255,255,0.6)";
                             const bg = platformBg[day.platform] ?? "rgba(255,255,255,0.06)";
                             return (

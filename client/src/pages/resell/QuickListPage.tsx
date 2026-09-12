@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Upload, Copy, ExternalLink, Rocket, CheckCircle, AlertCircle, Loader2, Check, RefreshCw, Languages } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
+import * as palette from "@/design/palette";
 
 const PLATFORM_LANG: Record<string, string> = {
   "Allegro PL": "pl", "OLX PL": "pl", "Vinted PL": "pl",
@@ -69,7 +70,7 @@ interface CopyResult {
   platforms: PlatformResult[];
 }
 
-const CONF_COLOR: Record<string, string> = { high: "#4ade80", medium: "#f5c842", low: "#f87171" };
+const CONF_COLOR: Record<string, string> = { high: palette.profit.base, medium: palette.brand.gold, low: palette.loss.base };
 
 export default function QuickListPage() {
   const [phase, setPhase] = useState<"upload" | "analyzing" | "result">("upload");
@@ -188,19 +189,19 @@ export default function QuickListPage() {
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, #f59e0b, #d97706)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Copy size={20} color="#fff" />
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${palette.brand.amber}, ${palette.brand.amberDeep})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Copy size={20} color={palette.ink.white} />
           </div>
           <div>
-            <h1 style={{ color: "#fff", fontWeight: 900, fontSize: 20, margin: 0 }}>Kopiuj Ogłoszenie</h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: 0 }}>
+            <h1 style={{ color: palette.ink.white, fontWeight: 900, fontSize: 20, margin: 0 }}>Kopiuj Ogłoszenie</h1>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, margin: 0 }}>
               Wgraj screenshot istniejącego ogłoszenia → AI wyciąga dane i generuje gotowe treści na każdą platformę jednym kliknięciem
             </p>
           </div>
         </div>
 
         {error && (
-          <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10, color: "#f87171", fontSize: 13 }}>
+          <div style={{ background: palette.alpha(palette.loss.base, 0.1), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10, color: palette.loss.base, fontSize: 13 }}>
             <AlertCircle size={16} /> {error}
           </div>
         )}
@@ -213,25 +214,25 @@ export default function QuickListPage() {
             onDragLeave={() => setDragOver(false)}
             onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
             style={{
-              border: `2px dashed ${dragOver ? "#f59e0b" : "rgba(245,158,11,0.35)"}`,
+              border: `2px dashed ${dragOver ? palette.brand.amber : palette.alpha(palette.brand.amber, 0.35)}`,
               borderRadius: 20, padding: "60px 24px", textAlign: "center", cursor: "pointer",
-              background: dragOver ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.03)",
+              background: dragOver ? palette.alpha(palette.brand.amber, 0.08) : palette.alpha(palette.brand.amber, 0.03),
               transition: "all 0.2s",
             }}
           >
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
-            <div style={{ width: 72, height: 72, borderRadius: 18, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-              <Upload size={30} color="#f59e0b" />
+            <div style={{ width: 72, height: 72, borderRadius: 18, background: palette.alpha(palette.brand.amber, 0.15), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+              <Upload size={30} color={palette.brand.amber} />
             </div>
-            <div style={{ color: "#f59e0b", fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Przeciągnij screenshot ogłoszenia</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginBottom: 6 }}>lub kliknij żeby wybrać plik · JPG, PNG, WEBP</div>
-            <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginBottom: 20 }}>
+            <div style={{ color: palette.brand.amber, fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Przeciągnij screenshot ogłoszenia</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 13, marginBottom: 6 }}>lub kliknij żeby wybrać plik · JPG, PNG, WEBP</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.22), fontSize: 12, marginBottom: 20 }}>
               Zrób screenshot z Allegro, OLX, eBay, Vinted, Kleinanzeigen i innych platform
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
               {["🛒 Allegro", "🏷 OLX", "👗 Vinted", "🇩🇪 Kleinanzeigen", "🇺🇸 eBay USA", "🛍 Jiji"].map(t => (
-                <span key={t} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 99, padding: "4px 12px", color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{t}</span>
+                <span key={t} style={{ background: palette.alpha(palette.ink.white, 0.05), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`, borderRadius: 99, padding: "4px 12px", color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>{t}</span>
               ))}
             </div>
           </div>
@@ -241,19 +242,19 @@ export default function QuickListPage() {
         {phase === "analyzing" && (
           <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
             {imagePreview && (
-              <div style={{ flexShrink: 0, width: 200, height: 200, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(245,158,11,0.3)" }}>
+              <div style={{ flexShrink: 0, width: 200, height: 200, borderRadius: 16, overflow: "hidden", border: `1px solid ${palette.alpha(palette.brand.amber, 0.3)}` }}>
                 <img src={imagePreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="listing" />
               </div>
             )}
             <div style={{ flex: 1, minWidth: 240 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-                <Loader2 size={22} color="#f59e0b" style={{ animation: "spin 1s linear infinite" }} />
-                <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: 16 }}>AI analizuje ogłoszenie…</span>
+                <Loader2 size={22} color={palette.brand.amber} style={{ animation: "spin 1s linear infinite" }} />
+                <span style={{ color: palette.brand.amber, fontWeight: 700, fontSize: 16 }}>AI analizuje ogłoszenie…</span>
               </div>
               {["🔍 Rozpoznawanie produktu i ceny zakupu", "💰 Kalkulacja marży na każdej platformie", "✍️ Generowanie tytułów i opisów", "🚀 Przygotowanie do jednokliku"].map((step, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(245,158,11,0.5)", animation: `pulse 1.5s ease ${i * 0.3}s infinite` }} />
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>{step}</span>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: palette.alpha(palette.brand.amber, 0.5), animation: `pulse 1.5s ease ${i * 0.3}s infinite` }} />
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13 }}>{step}</span>
                 </div>
               ))}
             </div>
@@ -267,50 +268,50 @@ export default function QuickListPage() {
             {/* Source product info */}
             <div style={{ display: "flex", gap: 18, marginBottom: 22, flexWrap: "wrap", alignItems: "flex-start" }}>
               {imagePreview && (
-                <div style={{ flexShrink: 0, width: 120, height: 120, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(245,158,11,0.3)" }}>
+                <div style={{ flexShrink: 0, width: 120, height: 120, borderRadius: 12, overflow: "hidden", border: `1px solid ${palette.alpha(palette.brand.amber, 0.3)}` }}>
                   <img src={imagePreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="source listing" />
                 </div>
               )}
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
+                <div style={{ color: palette.brand.amber, fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
                   ŹRÓDŁO · {result.product.sourcePlatform}
                 </div>
-                <div style={{ color: "#fff", fontWeight: 800, fontSize: 16, marginBottom: 8, lineHeight: 1.3 }}>
+                <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 16, marginBottom: 8, lineHeight: 1.3 }}>
                   {result.product.name}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                  <span style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, padding: "3px 10px", color: "#f59e0b", fontSize: 12, fontWeight: 700 }}>
+                  <span style={{ background: palette.alpha(palette.brand.amber, 0.12), border: `1px solid ${palette.alpha(palette.brand.amber, 0.3)}`, borderRadius: 8, padding: "3px 10px", color: palette.brand.amber, fontSize: 12, fontWeight: 700 }}>
                     {result.product.sourcePrice} {result.product.sourceCurrency} ≈ ${result.product.sourcePriceUSD.toFixed(0)}
                   </span>
-                  <span style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "3px 10px", color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
+                  <span style={{ background: palette.alpha(palette.ink.white, 0.06), borderRadius: 8, padding: "3px 10px", color: palette.alpha(palette.ink.white, 0.45), fontSize: 12 }}>
                     {result.product.condition} · {result.product.category}
                   </span>
                 </div>
                 {result.product.arbitrageNote && (
-                  <div style={{ color: "#4ade80", fontSize: 12, fontStyle: "italic" }}>💡 {result.product.arbitrageNote}</div>
+                  <div style={{ color: palette.profit.base, fontSize: 12, fontStyle: "italic" }}>💡 {result.product.arbitrageNote}</div>
                 )}
               </div>
             </div>
 
             {/* Launch all bar */}
             <div style={{
-              background: "linear-gradient(135deg, rgba(245,158,11,0.12), rgba(234,179,8,0.06))",
-              border: "1px solid rgba(245,158,11,0.35)",
+              background: `linear-gradient(135deg, ${palette.alpha(palette.brand.amber, 0.12)}, ${palette.alpha(palette.brand.yellow, 0.06)})`,
+              border: `1px solid ${palette.alpha(palette.brand.amber, 0.35)}`,
               borderRadius: 14, padding: "14px 18px", marginBottom: 20,
               display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
             }}>
               <div>
-                <div style={{ color: "#f5c842", fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                <div style={{ color: palette.brand.gold, fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
                   {selected.size} {selected.size === 1 ? "platforma wybrana" : "platformy wybrane"}
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 12 }}>
                   Zaznacz karty poniżej, a potem kliknij przycisk — każda platforma otworzy się z treścią w schowku
                 </div>
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button
                   onClick={() => setSelected(new Set(result.platforms.map(p => p.platform)))}
-                  style={{ padding: "8px 14px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.15)", background: "transparent", color: "rgba(255,255,255,0.45)", fontSize: 12, cursor: "pointer" }}
+                  style={{ padding: "8px 14px", borderRadius: 9, border: `1px solid ${palette.alpha(palette.ink.white, 0.15)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.45), fontSize: 12, cursor: "pointer" }}
                 >
                   Zaznacz wszystkie
                 </button>
@@ -320,8 +321,8 @@ export default function QuickListPage() {
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "10px 20px", borderRadius: 10, border: "none",
-                    background: selected.size > 0 ? "linear-gradient(135deg, #f59e0b, #d97706)" : "rgba(255,255,255,0.08)",
-                    color: selected.size > 0 ? "#000" : "rgba(255,255,255,0.25)",
+                    background: selected.size > 0 ? `linear-gradient(135deg, ${palette.brand.amber}, ${palette.brand.amberDeep})` : palette.alpha(palette.ink.white, 0.08),
+                    color: selected.size > 0 ? palette.ink.black : palette.alpha(palette.ink.white, 0.25),
                     fontWeight: 800, fontSize: 14, cursor: selected.size > 0 ? "pointer" : "not-allowed",
                     transition: "all 0.15s",
                   }}
@@ -333,7 +334,7 @@ export default function QuickListPage() {
             </div>
 
             {launchDone && (
-              <div style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, color: "#4ade80", fontSize: 13 }}>
+              <div style={{ background: palette.alpha(palette.profit.base, 0.1), border: `1px solid ${palette.alpha(palette.profit.base, 0.25)}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, color: palette.profit.base, fontSize: 13 }}>
                 <CheckCircle size={16} />
                 Otwarto {selected.size} platform! Każda treść ogłoszenia była skopiowana do schowka tuż przed otwarciem.
               </div>
@@ -347,15 +348,15 @@ export default function QuickListPage() {
                 const isSelected = selected.has(p.platform);
                 const isCopied = copied[p.platform];
                 const isExpanded = expandedDesc[p.platform];
-                const profitColor = p.estimatedProfitUSD >= 10 ? "#4ade80" : p.estimatedProfitUSD >= 0 ? "#f5c842" : "#f87171";
+                const profitColor = p.estimatedProfitUSD >= 10 ? palette.profit.base : p.estimatedProfitUSD >= 0 ? palette.brand.gold : palette.loss.base;
 
                 return (
                   <div
                     key={p.platform}
                     onClick={() => toggleSelect(p.platform)}
                     style={{
-                      background: isSelected ? "rgba(245,158,11,0.07)" : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${isSelected ? "rgba(245,158,11,0.45)" : "rgba(255,255,255,0.08)"}`,
+                      background: isSelected ? palette.alpha(palette.brand.amber, 0.07) : palette.alpha(palette.ink.white, 0.03),
+                      border: `1px solid ${isSelected ? palette.alpha(palette.brand.amber, 0.45) : palette.alpha(palette.ink.white, 0.08)}`,
                       borderRadius: 14, padding: "16px",
                       cursor: "pointer", transition: "all 0.15s",
                     }}
@@ -365,8 +366,8 @@ export default function QuickListPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 20 }}>{flag}</span>
                         <div>
-                          <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{p.platform}</div>
-                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{ color: palette.ink.white, fontWeight: 700, fontSize: 13 }}>{p.platform}</div>
+                          <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>
                             <div style={{ width: 7, height: 7, borderRadius: "50%", background: CONF_COLOR[p.confidence] }} />
                             {p.confidence === "high" ? "Wysoka pewność" : p.confidence === "medium" ? "Średnia" : "Niska"}
                           </div>
@@ -374,23 +375,23 @@ export default function QuickListPage() {
                       </div>
                       <div style={{
                         width: 22, height: 22, borderRadius: 6,
-                        border: `2px solid ${isSelected ? "#f59e0b" : "rgba(255,255,255,0.18)"}`,
-                        background: isSelected ? "#f59e0b" : "transparent",
+                        border: `2px solid ${isSelected ? palette.brand.amber : palette.alpha(palette.ink.white, 0.18)}`,
+                        background: isSelected ? palette.brand.amber : "transparent",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         flexShrink: 0,
                       }}>
-                        {isSelected && <Check size={12} color="#000" strokeWidth={3} />}
+                        {isSelected && <Check size={12} color={palette.ink.black} strokeWidth={3} />}
                       </div>
                     </div>
 
                     {/* Price + profit */}
                     <div style={{ display: "flex", gap: 8, marginBottom: 11 }}>
-                      <div style={{ flex: 1, background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: "8px 10px" }}>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>SPRZEDAJ ZA</div>
-                        <div style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>{currSym}{p.recommendedPrice}</div>
+                      <div style={{ flex: 1, background: palette.alpha(palette.ink.white, 0.05), borderRadius: 8, padding: "8px 10px" }}>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>SPRZEDAJ ZA</div>
+                        <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 16 }}>{currSym}{p.recommendedPrice}</div>
                       </div>
-                      <div style={{ flex: 1, background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: "8px 10px" }}>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>ZYSK EST.</div>
+                      <div style={{ flex: 1, background: palette.alpha(palette.ink.white, 0.05), borderRadius: 8, padding: "8px 10px" }}>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>ZYSK EST.</div>
                         <div style={{ color: profitColor, fontWeight: 800, fontSize: 16 }}>
                           {p.estimatedProfitUSD >= 0 ? "+" : ""}${p.estimatedProfitUSD.toFixed(0)}
                         </div>
@@ -400,31 +401,31 @@ export default function QuickListPage() {
                     {/* Title */}
                     <div style={{ marginBottom: 9 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>TYTUŁ{overrides[p.platform] ? " (przetłumaczono)" : ""}</div>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>TYTUŁ{overrides[p.platform] ? " (przetłumaczono)" : ""}</div>
                         {getAnthropicKey() && (
                           <button
                             onClick={e => { e.stopPropagation(); translateListing(p); }}
                             disabled={translating[p.platform]}
-                            style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 5, color: "#a78bfa", fontSize: 9, padding: "2px 6px", cursor: translating[p.platform] ? "not-allowed" : "pointer", opacity: translating[p.platform] ? 0.6 : 1 }}
+                            style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: `1px solid ${palette.alpha(palette.ai.strong, 0.3)}`, borderRadius: 5, color: palette.ai.base, fontSize: 9, padding: "2px 6px", cursor: translating[p.platform] ? "not-allowed" : "pointer", opacity: translating[p.platform] ? 0.6 : 1 }}
                           >
                             {translating[p.platform] ? <Loader2 size={8} style={{ animation: "spin 1s linear infinite" }} /> : <Languages size={8} />}
                             {translating[p.platform] ? "…" : `→ ${PLATFORM_LANG[p.platform] === "pl" ? "PL" : PLATFORM_LANG[p.platform] === "de" ? "DE" : "EN"}`}
                           </button>
                         )}
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, lineHeight: 1.4, fontWeight: 500 }}>{getListing(p).title}</div>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.8), fontSize: 12, lineHeight: 1.4, fontWeight: 500 }}>{getListing(p).title}</div>
                     </div>
 
                     {/* Description (collapsible) */}
                     <div style={{ marginBottom: 10 }}>
                       <button
                         onClick={e => { e.stopPropagation(); setExpandedDesc(prev => ({ ...prev, [p.platform]: !prev[p.platform] })); }}
-                        style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 10, cursor: "pointer", padding: 0, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}
+                        style={{ background: "none", border: "none", color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, cursor: "pointer", padding: 0, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}
                       >
                         {isExpanded ? "▲" : "▼"} {isExpanded ? "Zwiń opis" : "Pokaż opis"}
                       </button>
                       {isExpanded && (
-                        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, lineHeight: 1.5, background: "rgba(0,0,0,0.2)", borderRadius: 6, padding: "8px 10px" }}>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 11, lineHeight: 1.5, background: palette.alpha(palette.ink.black, 0.2), borderRadius: 6, padding: "8px 10px" }}>
                           {getListing(p).description}
                         </div>
                       )}
@@ -433,7 +434,7 @@ export default function QuickListPage() {
                     {/* Tags */}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
                       {getListing(p).tags.slice(0, 5).map(tag => (
-                        <span key={tag} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 99, padding: "2px 8px", color: "rgba(255,255,255,0.35)", fontSize: 10 }}>{tag}</span>
+                        <span key={tag} style={{ background: palette.alpha(palette.ink.white, 0.06), borderRadius: 99, padding: "2px 8px", color: palette.alpha(palette.ink.white, 0.35), fontSize: 10 }}>{tag}</span>
                       ))}
                     </div>
 
@@ -442,8 +443,8 @@ export default function QuickListPage() {
                       onClick={e => { e.stopPropagation(); copyAndOpen(p); }}
                       style={{
                         width: "100%", padding: "9px 12px", borderRadius: 9, border: "none",
-                        background: isCopied ? "rgba(74,222,128,0.18)" : "rgba(245,158,11,0.18)",
-                        color: isCopied ? "#4ade80" : "#f59e0b",
+                        background: isCopied ? palette.alpha(palette.profit.base, 0.18) : palette.alpha(palette.brand.amber, 0.18),
+                        color: isCopied ? palette.profit.base : palette.brand.amber,
                         fontWeight: 700, fontSize: 12, cursor: "pointer",
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                         transition: "all 0.2s",
@@ -463,7 +464,7 @@ export default function QuickListPage() {
             <div style={{ textAlign: "center", marginTop: 36 }}>
               <button
                 onClick={() => { setPhase("upload"); setResult(null); setImagePreview(""); setSelected(new Set()); setLaunchDone(false); setExpandedDesc({}); setOverrides({}); }}
-                style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 auto", padding: "10px 22px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: 13, cursor: "pointer" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 auto", padding: "10px 22px", borderRadius: 10, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, cursor: "pointer" }}
               >
                 <RefreshCw size={14} /> Nowe ogłoszenie
               </button>
