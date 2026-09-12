@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { installPinFetch } from "@/lib/botPin";
+import * as palette from "@/design/palette";
 
 installPinFetch(); // biblioteka memów za PIN-em aplikacji — dokładamy go do każdego strzału
 
@@ -28,8 +29,8 @@ function drawMemeText(ctx: CanvasRenderingContext2D, W: number, H: number, top: 
     const fontPx = Math.max(22, Math.round(W / 11));
     ctx.font = `900 ${fontPx}px Impact, "Arial Black", sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillStyle = "#fff";
-    ctx.strokeStyle = "#000";
+    ctx.fillStyle = palette.ink.white;
+    ctx.strokeStyle = palette.ink.black;
     ctx.lineWidth = Math.max(3, Math.round(fontPx / 9));
     ctx.lineJoin = "round";
     // łamanie na linie, żeby mieściło się w 92% szerokości
@@ -179,43 +180,43 @@ export default function AdsPage() {
 
   const copy = (t: string) => { navigator.clipboard?.writeText(t).catch(() => {}); };
 
-  const box: React.CSSProperties = { border: "3px solid #ea580c", borderRadius: 16, background: "#2a1205", padding: 14 };
-  const h: React.CSSProperties = { color: "#fdba74", fontSize: 18, fontWeight: 900, marginBottom: 8 };
-  const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, border: "2px solid #7c2d12", background: "#3b1a08", color: "#ffedd5", fontSize: 16 };
-  const btn = (bg: string): React.CSSProperties => ({ minHeight: 52, borderRadius: 12, border: "none", background: bg, color: "#fff", fontSize: 16, fontWeight: 800, padding: "0 16px" });
+  const box: React.CSSProperties = { border: `3px solid ${palette.sectionAccent.orange.deep}`, borderRadius: 16, background: palette.sectionAccent.orange.inkDeeper, padding: 14 };
+  const h: React.CSSProperties = { color: palette.sectionAccent.orange.tan, fontSize: 18, fontWeight: 900, marginBottom: 8 };
+  const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, border: `2px solid ${palette.sectionAccent.orange.ink}`, background: palette.sectionAccent.orange.inkDeep, color: palette.sectionAccent.orange.wash, fontSize: 16 };
+  const btn = (bg: string): React.CSSProperties => ({ minHeight: 52, borderRadius: 12, border: "none", background: bg, color: palette.ink.white, fontSize: 16, fontWeight: 800, padding: "0 16px" });
 
   return (
     <ResellLayout>
-      <div style={{ background: "#000", minHeight: "calc(100vh - 60px)", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ background: palette.ink.black, minHeight: "calc(100vh - 60px)", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
 
-        <div style={{ color: "#fdba74", fontSize: 14, lineHeight: 1.5, background: "#2a1205", border: "2px solid #7c2d12", borderRadius: 12, padding: "10px 14px" }}>
+        <div style={{ color: palette.sectionAccent.orange.tan, fontSize: 14, lineHeight: 1.5, background: palette.sectionAccent.orange.inkDeeper, border: `2px solid ${palette.sectionAccent.orange.ink}`, borderRadius: 12, padding: "10px 14px" }}>
           <b>📢 Reklama i memy.</b> Wgraj mema → AI wymyśli nowe teksty (mem z mema) → zapisz albo pobierz.
           W aplikacji Gadacz na telefonie powiedz <b>„zapisz tego mema"</b> (zrzut ekranu trafia tutaj)
           albo <b>„przerób tego mema"</b> — Gadacz sam go przerobi i odłoży do biblioteki.
         </div>
 
-        {busy && <div style={{ background: "#1e3a5f", border: "2px solid #38bdf8", color: "#e0f2fe", borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⏳ {busy}</div>}
-        {error && <div role="alert" style={{ background: "#450a0a", border: "2px solid #f87171", color: "#fecaca", borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⚠️ {error}</div>}
+        {busy && <div style={{ background: palette.sectionAccent.blue.panel, border: `2px solid ${palette.sectionAccent.blue.bright}`, color: palette.sectionAccent.cyan.wash, borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⏳ {busy}</div>}
+        {error && <div role="alert" style={{ background: palette.loss.ink, border: `2px solid ${palette.loss.base}`, color: palette.loss.wash, borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⚠️ {error}</div>}
 
         {/* ── EDYTOR MEMA ── */}
         <div style={box}>
           <div style={h}>🖼️ PRZERÓB MEMA</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <button onClick={() => fileRef.current?.click()} style={{ ...btn("#ea580c"), flex: 1 }}>📤 WGRAJ / ZRÓB ZDJĘCIE</button>
-            <button onClick={() => remix()} style={{ ...btn("#7c3aed"), flex: 1 }} disabled={!imgEl}>🧠 WYMYŚL TEKSTY (AI)</button>
+            <button onClick={() => fileRef.current?.click()} style={{ ...btn(palette.sectionAccent.orange.deep), flex: 1 }}>📤 WGRAJ / ZRÓB ZDJĘCIE</button>
+            <button onClick={() => remix()} style={{ ...btn(palette.ai.deep), flex: 1 }} disabled={!imgEl}>🧠 WYMYŚL TEKSTY (AI)</button>
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
             onChange={e => { loadFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
 
           {imgEl ? (
             <>
-              <canvas ref={canvasRef} style={{ width: "100%", borderRadius: 12, border: "2px solid #7c2d12" }} />
-              {opis && <div style={{ color: "#fed7aa", fontSize: 13, margin: "8px 0" }}>🧠 AI widzi: {opis}</div>}
+              <canvas ref={canvasRef} style={{ width: "100%", borderRadius: 12, border: `2px solid ${palette.sectionAccent.orange.ink}` }} />
+              {opis && <div style={{ color: palette.sectionAccent.orange.soft, fontSize: 13, margin: "8px 0" }}>🧠 AI widzi: {opis}</div>}
               {propozycje.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0" }}>
                   {propozycje.map((p, i) => (
                     <button key={i} onClick={() => { setTopText(p.gora); setBottomText(p.dol); }}
-                      style={{ textAlign: "left", borderRadius: 10, border: "2px solid #7c3aed", background: "#2e1065", color: "#ede9fe", fontSize: 15, fontWeight: 700, padding: "10px 12px" }}>
+                      style={{ textAlign: "left", borderRadius: 10, border: `2px solid ${palette.ai.deep}`, background: palette.violetInk.panel, color: palette.ai.wash, fontSize: 15, fontWeight: 700, padding: "10px 12px" }}>
                       💬 {p.gora}{p.dol ? ` … ${p.dol}` : ""}
                     </button>
                   ))}
@@ -224,12 +225,12 @@ export default function AdsPage() {
               <input value={topText} onChange={e => setTopText(e.target.value)} placeholder="Tekst na górze" style={{ ...input, margin: "8px 0" }} />
               <input value={bottomText} onChange={e => setBottomText(e.target.value)} placeholder="Tekst na dole" style={{ ...input, marginBottom: 10 }} />
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => saveToLibrary(topText || "mem")} style={{ ...btn("#16a34a"), flex: 1 }}>💾 ZAPISZ DO BIBLIOTEKI</button>
-                <button onClick={() => canvasRef.current && download(canvasRef.current.toDataURL("image/jpeg", 0.9), topText || "mem")} style={{ ...btn("#0891b2"), flex: 1 }}>⬇️ POBIERZ</button>
+                <button onClick={() => saveToLibrary(topText || "mem")} style={{ ...btn(palette.profit.deep), flex: 1 }}>💾 ZAPISZ DO BIBLIOTEKI</button>
+                <button onClick={() => canvasRef.current && download(canvasRef.current.toDataURL("image/jpeg", 0.9), topText || "mem")} style={{ ...btn(palette.sectionAccent.cyan.deep), flex: 1 }}>⬇️ POBIERZ</button>
               </div>
             </>
           ) : (
-            <div style={{ color: "#9a6b4f", fontSize: 15, padding: "18px 6px", textAlign: "center" }}>
+            <div style={{ color: palette.sectionAccent.orange.mute, fontSize: 15, padding: "18px 6px", textAlign: "center" }}>
               Wgraj obrazek mema (albo dowolne zdjęcie) — dodasz teksty i zrobisz z niego mema.
             </div>
           )}
@@ -243,34 +244,34 @@ export default function AdsPage() {
             {["zabawny", "poważny", "promocyjny"].map(t => (
               <button key={t} onClick={() => setAdTon(t)}
                 style={{ flex: 1, minHeight: 46, borderRadius: 10, fontSize: 15, fontWeight: 800,
-                  border: `2px solid ${adTon === t ? "#ea580c" : "#7c2d12"}`,
-                  background: adTon === t ? "#7c2d12" : "#3b1a08", color: adTon === t ? "#ffedd5" : "#c2833f" }}>
+                  border: `2px solid ${adTon === t ? palette.sectionAccent.orange.deep : palette.sectionAccent.orange.ink}`,
+                  background: adTon === t ? palette.sectionAccent.orange.ink : palette.sectionAccent.orange.inkDeep, color: adTon === t ? palette.sectionAccent.orange.wash : palette.sectionAccent.orange.muteGold }}>
                 {t}
               </button>
             ))}
           </div>
-          <button onClick={makeAd} style={{ ...btn("#ea580c"), width: "100%" }}>📣 NAPISZ REKLAMĘ (AI)</button>
+          <button onClick={makeAd} style={{ ...btn(palette.sectionAccent.orange.deep), width: "100%" }}>📣 NAPISZ REKLAMĘ (AI)</button>
           {ad && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
               {ad.slogany.map((s, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", background: "#3b1a08", border: "2px solid #7c2d12", borderRadius: 10, padding: "10px 12px" }}>
-                  <span style={{ color: "#ffedd5", fontSize: 16, fontWeight: 800, flex: 1 }}>🔸 {s}</span>
-                  <button onClick={() => copy(s)} style={{ ...btn("#57534e"), minHeight: 40, fontSize: 13 }}>📋</button>
-                  {imgEl && <button onClick={() => { setTopText(s); setBottomText(""); window.scrollTo({ top: 0, behavior: "smooth" }); }} style={{ ...btn("#7c3aed"), minHeight: 40, fontSize: 13 }}>na mema</button>}
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", background: palette.sectionAccent.orange.inkDeep, border: `2px solid ${palette.sectionAccent.orange.ink}`, borderRadius: 10, padding: "10px 12px" }}>
+                  <span style={{ color: palette.sectionAccent.orange.wash, fontSize: 16, fontWeight: 800, flex: 1 }}>🔸 {s}</span>
+                  <button onClick={() => copy(s)} style={{ ...btn(palette.steel.stone), minHeight: 40, fontSize: 13 }}>📋</button>
+                  {imgEl && <button onClick={() => { setTopText(s); setBottomText(""); window.scrollTo({ top: 0, behavior: "smooth" }); }} style={{ ...btn(palette.ai.deep), minHeight: 40, fontSize: 13 }}>na mema</button>}
                 </div>
               ))}
               {[["Post na Facebooka/Instagram", ad.post], ["Ogłoszenie sprzedażowe", ad.ogloszenie]].map(([tit, txt]) => txt && (
-                <div key={tit} style={{ background: "#3b1a08", border: "2px solid #7c2d12", borderRadius: 10, padding: "10px 12px" }}>
+                <div key={tit} style={{ background: palette.sectionAccent.orange.inkDeep, border: `2px solid ${palette.sectionAccent.orange.ink}`, borderRadius: 10, padding: "10px 12px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ color: "#fdba74", fontSize: 14, fontWeight: 900 }}>{tit}</span>
-                    <button onClick={() => copy(txt)} style={{ ...btn("#57534e"), minHeight: 36, fontSize: 13 }}>📋 kopiuj</button>
+                    <span style={{ color: palette.sectionAccent.orange.tan, fontSize: 14, fontWeight: 900 }}>{tit}</span>
+                    <button onClick={() => copy(txt)} style={{ ...btn(palette.steel.stone), minHeight: 36, fontSize: 13 }}>📋 kopiuj</button>
                   </div>
-                  <div style={{ color: "#ffedd5", fontSize: 15, whiteSpace: "pre-wrap" }}>{txt}</div>
+                  <div style={{ color: palette.sectionAccent.orange.wash, fontSize: 15, whiteSpace: "pre-wrap" }}>{txt}</div>
                 </div>
               ))}
               {imgEl && (ad.mem.gora || ad.mem.dol) && (
                 <button onClick={() => { setTopText(ad.mem.gora); setBottomText(ad.mem.dol); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  style={{ ...btn("#7c3aed"), width: "100%" }}>🖼️ ZRÓB Z TEGO MEMA REKLAMOWEGO</button>
+                  style={{ ...btn(palette.ai.deep), width: "100%" }}>🖼️ ZRÓB Z TEGO MEMA REKLAMOWEGO</button>
               )}
             </div>
           )}
@@ -280,22 +281,22 @@ export default function AdsPage() {
         <div style={box}>
           <div style={h}>🗂️ BIBLIOTEKA MEMÓW ({memes.length})</div>
           {memes.length === 0 && (
-            <div style={{ color: "#9a6b4f", fontSize: 15 }}>
+            <div style={{ color: palette.sectionAccent.orange.mute, fontSize: 15 }}>
               Pusto. Zapisz coś z edytora powyżej albo powiedz na telefonie „zapisz tego mema".
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
             {memes.slice().reverse().map(m => (
-              <div key={m.id} style={{ border: "2px solid #7c2d12", borderRadius: 12, background: "#3b1a08", overflow: "hidden" }}>
+              <div key={m.id} style={{ border: `2px solid ${palette.sectionAccent.orange.ink}`, borderRadius: 12, background: palette.sectionAccent.orange.inkDeep, overflow: "hidden" }}>
                 <img src={`data:${m.mediaType};base64,${m.img}`} alt={m.name} style={{ width: "100%", display: "block" }} />
                 <div style={{ padding: "6px 8px" }}>
-                  <div style={{ color: "#ffedd5", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
-                  <div style={{ color: "#c2833f", fontSize: 11 }}>{m.source === "telefon" ? "📱 z telefonu" : "🌐 ze strony"} · {new Date(m.t).toLocaleDateString("pl-PL")}</div>
+                  <div style={{ color: palette.sectionAccent.orange.wash, fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
+                  <div style={{ color: palette.sectionAccent.orange.muteGold, fontSize: 11 }}>{m.source === "telefon" ? "📱 z telefonu" : "🌐 ze strony"} · {new Date(m.t).toLocaleDateString("pl-PL")}</div>
                   <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-                    <button onClick={() => loadFromLibrary(m)} title="Przerób" style={{ ...btn("#7c3aed"), flex: 1, minHeight: 36, fontSize: 13, padding: 0 }}>♻️</button>
-                    <button onClick={() => download(`data:${m.mediaType};base64,${m.img}`, m.name)} title="Pobierz" style={{ ...btn("#0891b2"), flex: 1, minHeight: 36, fontSize: 13, padding: 0 }}>⬇️</button>
+                    <button onClick={() => loadFromLibrary(m)} title="Przerób" style={{ ...btn(palette.ai.deep), flex: 1, minHeight: 36, fontSize: 13, padding: 0 }}>♻️</button>
+                    <button onClick={() => download(`data:${m.mediaType};base64,${m.img}`, m.name)} title="Pobierz" style={{ ...btn(palette.sectionAccent.cyan.deep), flex: 1, minHeight: 36, fontSize: 13, padding: 0 }}>⬇️</button>
                     <button onClick={() => { if (confirm("Usunąć tego mema?")) fetch("/api/memes/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: m.id }) }).then(() => refresh()); }}
-                      title="Usuń" style={{ ...btn("#7f1d1d"), flex: 1, minHeight: 36, fontSize: 13, padding: 0 }}>🗑️</button>
+                      title="Usuń" style={{ ...btn(palette.loss.deepest), flex: 1, minHeight: 36, fontSize: 13, padding: 0 }}>🗑️</button>
                   </div>
                 </div>
               </div>

@@ -16,6 +16,7 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { installPinFetch } from "@/lib/botPin";
 import { PinUnlock } from "@/components/resell/PinUnlock";
+import * as palette from "@/design/palette";
 
 installPinFetch();
 
@@ -111,8 +112,8 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, font: string, max
 // Jedna klatka sceny: t = postęp 0..1. Czysta funkcja rysująca — serce filmiku.
 function drawScene(ctx: CanvasRenderingContext2D, sc: Scena, t: number) {
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, sc.tlo?.[0] ?? "#1e293b");
-  g.addColorStop(1, sc.tlo?.[1] ?? "#0f172a");
+  g.addColorStop(0, sc.tlo?.[0] ?? palette.steel.panel);
+  g.addColorStop(1, sc.tlo?.[1] ?? palette.steel.ink);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
@@ -137,8 +138,8 @@ function drawScene(ctx: CanvasRenderingContext2D, sc: Scena, t: number) {
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
   ctx.font = "900 68px system-ui, sans-serif";
-  ctx.fillStyle = "#fff";
-  ctx.shadowColor = "rgba(0,0,0,0.65)";
+  ctx.fillStyle = palette.ink.white;
+  ctx.shadowColor = palette.alpha(palette.ink.black, 0.65);
   ctx.shadowBlur = 14;
   ctx.fillText(sc.naglowek ?? "", W / 2, -80 + 200 * slideIn);
   ctx.shadowBlur = 0;
@@ -147,9 +148,9 @@ function drawScene(ctx: CanvasRenderingContext2D, sc: Scena, t: number) {
   const lines = wrapText(ctx, sc.tekst ?? "", "600 42px system-ui, sans-serif", W * 0.9);
   if (lines.length) {
     const barH = lines.length * 56 + 34;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillStyle = palette.alpha(palette.ink.black, 0.55);
     ctx.fillRect(0, H - barH, W, barH);
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = palette.ink.white;
     ctx.font = "600 42px system-ui, sans-serif";
     lines.forEach((l, i) => ctx.fillText(l, W / 2, H - barH + 60 + i * 56));
   }
@@ -377,21 +378,21 @@ export default function VideoPage() {
     navigator.clipboard?.writeText(txt).catch(() => {});
   };
 
-  const box: React.CSSProperties = { border: "3px solid #7c3aed", borderRadius: 16, background: "#1c1233", padding: 14 };
-  const btn = (bg: string): React.CSSProperties => ({ minHeight: 54, borderRadius: 12, border: "none", background: bg, color: "#fff", fontSize: 16, fontWeight: 800, padding: "0 16px" });
+  const box: React.CSSProperties = { border: `3px solid ${palette.ai.deep}`, borderRadius: 16, background: palette.violetInk.panelInk, padding: 14 };
+  const btn = (bg: string): React.CSSProperties => ({ minHeight: 54, borderRadius: 12, border: "none", background: bg, color: palette.ink.white, fontSize: 16, fontWeight: 800, padding: "0 16px" });
 
   return (
     <ResellLayout>
-      <div style={{ background: "#000", minHeight: "calc(100vh - 60px)", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ background: palette.ink.black, minHeight: "calc(100vh - 60px)", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
 
-        <div style={{ color: "#c4b5fd", fontSize: 14, lineHeight: 1.5, background: "#1c1233", border: "2px solid #4c1d95", borderRadius: 12, padding: "10px 14px" }}>
+        <div style={{ color: palette.ai.soft, fontSize: 14, lineHeight: 1.5, background: palette.violetInk.panelInk, border: `2px solid ${palette.violetInk.panelHigh}`, borderRadius: 12, padding: "10px 14px" }}>
           <b>🎬 Tworzenie filmików.</b> Napisz, co ma powstać — AI ułoży scenariusz, a ta strona
           go <b>zanimuje</b> (tła, bohater, napisy), <b>przeczyta lektorem</b> i <b>nagra do pliku wideo</b> do pobrania.
           Plik ma wypalone napisy (bez dźwięku — głos słychać w podglądzie tutaj).
         </div>
 
-        {busy && <div style={{ background: "#1e3a5f", border: "2px solid #38bdf8", color: "#e0f2fe", borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⏳ {busy}</div>}
-        {error && <div role="alert" style={{ background: "#450a0a", border: "2px solid #f87171", color: "#fecaca", borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⚠️ {error}</div>}
+        {busy && <div style={{ background: palette.sectionAccent.blue.panel, border: `2px solid ${palette.sectionAccent.blue.bright}`, color: palette.sectionAccent.cyan.wash, borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⏳ {busy}</div>}
+        {error && <div role="alert" style={{ background: palette.loss.ink, border: `2px solid ${palette.loss.base}`, color: palette.loss.wash, borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 700 }}>⚠️ {error}</div>}
         {pinNeeded && <PinUnlock onUnlocked={() => { setPinNeeded(false); setError(null); makeScript(); }} />}
 
         {/* pomysł + gotowe szablony */}
@@ -399,16 +400,16 @@ export default function VideoPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
             {PRESETS.map(p => (
               <button key={p.name} onClick={() => setPomysl(p.prompt)}
-                style={{ minHeight: 58, borderRadius: 12, border: "2px solid #6d28d9", background: "#2e1065",
-                  color: "#ede9fe", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", textAlign: "left" }}>
+                style={{ minHeight: 58, borderRadius: 12, border: `2px solid ${palette.ai.deeper}`, background: palette.violetInk.panel,
+                  color: palette.ai.wash, fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", textAlign: "left" }}>
                 <span style={{ fontSize: 22 }}>{p.icon}</span>{p.name}
               </button>
             ))}
           </div>
           <textarea value={pomysl} onChange={e => setPomysl(e.target.value)} rows={3}
             placeholder="Co ma być w filmiku? Np. „Bajka ucząca dzieci angielskich nazw zwierząt: kot, pies, krowa” albo „Animacja o kotku, który bał się ciemności”"
-            style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #4c1d95", background: "#241245", color: "#ede9fe", fontSize: 16 }} />
-          <button onClick={makeScript} disabled={!!busy} style={{ ...btn("#7c3aed"), width: "100%" }}>
+            style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: `2px solid ${palette.violetInk.panelHigh}`, background: palette.violetInk.panelDeep, color: palette.ai.wash, fontSize: 16 }} />
+          <button onClick={makeScript} disabled={!!busy} style={{ ...btn(palette.ai.deep), width: "100%" }}>
             🎬 NAPISZ SCENARIUSZ (AI)
           </button>
         </div>
@@ -416,70 +417,70 @@ export default function VideoPage() {
         {/* odtwarzacz / nagrywarka */}
         {script && (
           <div style={box}>
-            <div style={{ color: "#ede9fe", fontSize: 18, fontWeight: 900, marginBottom: 8 }}>
+            <div style={{ color: palette.ai.wash, fontSize: 18, fontWeight: 900, marginBottom: 8 }}>
               „{script.tytul}" — {script.sceny.length} scen
-              {playing && <span style={{ color: "#a78bfa", fontWeight: 700 }}> · scena {sceneIdx + 1}/{script.sceny.length}{recording ? " · ⏺️ NAGRYWAM" : ""}</span>}
+              {playing && <span style={{ color: palette.ai.base, fontWeight: 700 }}> · scena {sceneIdx + 1}/{script.sceny.length}{recording ? " · ⏺️ NAGRYWAM" : ""}</span>}
             </div>
             <canvas ref={canvasRef} width={W} height={H}
-              style={{ width: "100%", borderRadius: 12, border: "2px solid #4c1d95", background: "#0f172a" }} />
+              style={{ width: "100%", borderRadius: 12, border: `2px solid ${palette.violetInk.panelHigh}`, background: palette.steel.ink }} />
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-              <button onClick={() => playAll(false)} disabled={playing} style={{ ...btn("#16a34a"), flex: 1 }}>▶️ ODTWÓRZ Z LEKTOREM</button>
-              <button onClick={() => playAll(true)} disabled={playing} style={{ ...btn("#dc2626"), flex: 1 }}>⏺️ NAGRAJ PLIK WIDEO</button>
-              {playing && <button onClick={stopAll} style={{ ...btn("#57534e"), flex: 1 }}>⏹ STOP</button>}
+              <button onClick={() => playAll(false)} disabled={playing} style={{ ...btn(palette.profit.deep), flex: 1 }}>▶️ ODTWÓRZ Z LEKTOREM</button>
+              <button onClick={() => playAll(true)} disabled={playing} style={{ ...btn(palette.loss.deep), flex: 1 }}>⏺️ NAGRAJ PLIK WIDEO</button>
+              {playing && <button onClick={stopAll} style={{ ...btn(palette.steel.stone), flex: 1 }}>⏹ STOP</button>}
             </div>
             {videoUrl && (
-              <button onClick={downloadVideo} style={{ ...btn("#0891b2"), width: "100%", marginTop: 8 }}>
+              <button onClick={downloadVideo} style={{ ...btn(palette.sectionAccent.cyan.deep), width: "100%", marginTop: 8 }}>
                 ⬇️ POBIERZ FILM (.webm)
               </button>
             )}
-            <button onClick={copyScript} style={{ ...btn("#4c1d95"), width: "100%", marginTop: 8 }}>
+            <button onClick={copyScript} style={{ ...btn(palette.violetInk.panelHigh), width: "100%", marginTop: 8 }}>
               📋 KOPIUJ SCENARIUSZ (np. do nagrania własnego lektora)
             </button>
             {/* lista scen — podgląd treści */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
               {script.sceny.map((s, i) => (
-                <div key={i} style={{ background: "#241245", border: `2px solid ${playing && i === sceneIdx ? "#a78bfa" : "#4c1d95"}`, borderRadius: 10, padding: "8px 12px" }}>
-                  <span style={{ color: "#ede9fe", fontSize: 14, fontWeight: 800 }}>{i + 1}. {s.emoji} {s.naglowek}</span>
-                  <div style={{ color: "#c4b5fd", fontSize: 13, marginTop: 2 }}>{s.narracja}</div>
+                <div key={i} style={{ background: palette.violetInk.panelDeep, border: `2px solid ${playing && i === sceneIdx ? palette.ai.base : palette.violetInk.panelHigh}`, borderRadius: 10, padding: "8px 12px" }}>
+                  <span style={{ color: palette.ai.wash, fontSize: 14, fontWeight: 800 }}>{i + 1}. {s.emoji} {s.naglowek}</span>
+                  <div style={{ color: palette.ai.soft, fontSize: 13, marginTop: 2 }}>{s.narracja}</div>
                 </div>
               ))}
             </div>
           </div>
         )}
         {/* 🎥 KAMERA → ANIMACJA: żywy obraz z aparatu przerabiany na rysunek i nagrywany */}
-        <div style={{ border: "3px solid #059669", borderRadius: 16, background: "#052e22", padding: 14 }}>
-          <div style={{ color: "#a7f3d0", fontSize: 18, fontWeight: 900, marginBottom: 6 }}>🎥 KAMERA → ANIMACJA (na żywo)</div>
-          <div style={{ color: "#6ee7b7", fontSize: 13, marginBottom: 10 }}>
+        <div style={{ border: `3px solid ${palette.profit.mintDeep}`, borderRadius: 16, background: palette.profit.inkDeep, padding: 14 }}>
+          <div style={{ color: palette.profit.washMint, fontSize: 18, fontWeight: 900, marginBottom: 6 }}>🎥 KAMERA → ANIMACJA (na żywo)</div>
+          <div style={{ color: palette.profit.mintSoft, fontSize: 13, marginBottom: 10 }}>
             Nagrywasz aparatem, a obraz na żywo zamienia się w animację: kreskówkę, szkic ołówkiem, neon albo piksele.
             Nagranie ma <b>dźwięk z mikrofonu</b> — możesz opowiadać podczas filmowania. Plik .webm do pobrania.
           </div>
           {!camOn ? (
-            <button onClick={() => startCam(facing)} style={{ ...btn("#059669"), width: "100%" }}>🎥 WŁĄCZ KAMERĘ</button>
+            <button onClick={() => startCam(facing)} style={{ ...btn(palette.profit.mintDeep), width: "100%" }}>🎥 WŁĄCZ KAMERĘ</button>
           ) : (
             <>
               <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
                 {CAM_FILTERS.map(f => (
                   <button key={f.key} onClick={() => setCamFilter(f.key)}
                     style={{ flex: 1, minHeight: 46, borderRadius: 10, fontSize: 14, fontWeight: 800,
-                      border: `2px solid ${camFilter === f.key ? "#34d399" : "#065f46"}`,
-                      background: camFilter === f.key ? "#065f46" : "#04291e", color: "#d1fae5" }}>
+                      border: `2px solid ${camFilter === f.key ? palette.profit.mint : palette.profit.edgeDeep}`,
+                      background: camFilter === f.key ? palette.profit.edgeDeep : palette.profit.inkDeeper, color: palette.profit.wash }}>
                     {f.icon} {f.name}
                   </button>
                 ))}
               </div>
               <canvas ref={camCanvasRef}
-                style={{ width: "100%", borderRadius: 12, border: `3px solid ${camRecording ? "#ef4444" : "#065f46"}`, background: "#000" }} />
+                style={{ width: "100%", borderRadius: 12, border: `3px solid ${camRecording ? palette.loss.strong : palette.profit.edgeDeep}`, background: palette.ink.black }} />
               <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                 {!camRecording
-                  ? <button onClick={startCamRec} style={{ ...btn("#dc2626"), flex: 1 }}>⏺️ NAGRYWAJ</button>
-                  : <button onClick={stopCamRec} style={{ ...btn("#7f1d1d"), flex: 1 }}>⏹ ZAKOŃCZ NAGRANIE</button>}
-                <button onClick={() => startCam(facing === "environment" ? "user" : "environment")} style={{ ...btn("#0891b2"), flex: 1 }}>🔄 PRZEDNIA/TYLNA</button>
-                <button onClick={stopCam} style={{ ...btn("#57534e"), flex: 1 }}>❌ WYŁĄCZ</button>
+                  ? <button onClick={startCamRec} style={{ ...btn(palette.loss.deep), flex: 1 }}>⏺️ NAGRYWAJ</button>
+                  : <button onClick={stopCamRec} style={{ ...btn(palette.loss.deepest), flex: 1 }}>⏹ ZAKOŃCZ NAGRANIE</button>}
+                <button onClick={() => startCam(facing === "environment" ? "user" : "environment")} style={{ ...btn(palette.sectionAccent.cyan.deep), flex: 1 }}>🔄 PRZEDNIA/TYLNA</button>
+                <button onClick={stopCam} style={{ ...btn(palette.steel.stone), flex: 1 }}>❌ WYŁĄCZ</button>
               </div>
             </>
           )}
           {camUrl && (
-            <button onClick={downloadCam} style={{ ...btn("#0891b2"), width: "100%", marginTop: 8 }}>
+            <button onClick={downloadCam} style={{ ...btn(palette.sectionAccent.cyan.deep), width: "100%", marginTop: 8 }}>
               ⬇️ POBIERZ ANIMACJĘ (.webm, z dźwiękiem)
             </button>
           )}

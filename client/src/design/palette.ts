@@ -17,11 +17,11 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: 32 z 36 plików — cały `components/resell/` i dwadzieścia cztery
- *  ekrany. Zostały cztery: VideoPage, TradingBot, AdsPage, AssistantPage.
- *  Każdy ma własny świat barw — AdsPage brązy i pomarańcze, VideoPage fiolety,
- *  TradingBot dziewięć niemal identycznych ciemnych zieleni — więc nie
- *  odblokuje ich dopisanie kilku wpisów, tylko decyzja per ekran.
+ *  Zmigrowane: 34 z 36 plików — cały `components/resell/` i dwadzieścia sześć
+ *  ekranów. Zostały dwa, oba z powodów, których nie rozwiąże dopisanie wpisów:
+ *  TradingBot trzyma 112 ze 135 kolorów w klasach Tailwinda (patrz ostrzeżenie
+ *  niżej), a AssistantPage ma 42 własne odcienie na jednym ekranie, nigdzie
+ *  indziej nieużywane — to osobny świat barw, nie brakujące stopnie skal.
  *
  *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
  *
@@ -38,9 +38,19 @@
  *  Barwy firmowe platform (eBay, TikTok…) nie należą tu wcale — mieszkają
  *  w `platforms.ts`, bo nie są rolą w naszym systemie, tylko cudzą własnością.
  *
- *  Wstawki CSS w `<style>` i klasy Tailwind z kolorem w nawiasach
- *  (np. `bg-[#0a1a0f]`) zostają poza paletą: pierwsze to tekst, nie wyrażenia,
- *  drugie nie przyjmują wartości z JS.
+ *  ⚠ CZEGO NIE WOLNO TU WCIĄGAĆ
+ *
+ *  Wstawki CSS w `<style>` to tekst, nie wyrażenia — wartość z JS nic tam nie
+ *  zrobi.
+ *
+ *  Klasy Tailwinda z kolorem w nawiasach (`bg-[#0a1a0f]`) są gorszym
+ *  przypadkiem, bo psują się cicho. Tailwind generuje taką klasę skanując
+ *  źródło, więc po zamianie na `bg-[${palette.x}]` klasa nie powstaje wcale
+ *  i kolor znika bez żadnego błędu — ani tsc, ani build tego nie zgłosi.
+ *  Wszystkie 112 takich wystąpień siedzi w TradingBot.tsx i dlatego ten ekran
+ *  nie jest migrowany. Właściwe rozwiązanie dla niego to nie paleta, a kolory
+ *  motywu w `@theme` w index.css (projekt używa Tailwinda 4) — osobna zmiana,
+ *  bo dotyka 112 ciągów klas.
  *
  *  UŻYCIE — zawsze przez przestrzeń nazw:
  *
@@ -99,6 +109,11 @@ export const violetInk = {
   cardAlt: "#0d0d1f",
   /** Tło dymka nad treścią (dropdown, podpowiedź) */
   popover: "#1a1a2e",
+  /* Panele ekranu Filmiki, od najciemniejszego */
+  panelInk: "#1c1233",
+  panelDeep: "#241245",
+  panel: "#2e1065",
+  panelHigh: "#4c1d95",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -149,6 +164,10 @@ export const profit = {
    * znika razem z dwoma użyciami w MarketingPage.
    */
   deepAlt: "#10a34a",
+  /** Obwódka wyboru nieaktywnego (filtry kamery) */
+  edgeDeep: "#065f46",
+  inkDeep: "#052e22",
+  inkDeeper: "#04291e",
 } as const;
 
 /** Strata, błąd, akcja niszcząca. */
@@ -157,6 +176,11 @@ export const loss = {
   soft: "#fca5a5",
   strong: "#ef4444",
   deep: "#dc2626",
+  deepest: "#7f1d1d",
+  /** Tło panelu błędu */
+  ink: "#450a0a",
+  /** Tekst na panelu błędu */
+  wash: "#fecaca",
 } as const;
 
 /** AI i skanowanie rynku. */
@@ -166,6 +190,8 @@ export const ai = {
   deep: "#7c3aed",
   deeper: "#6d28d9",
   soft: "#c4b5fd",
+  /** Tekst na fioletowym panelu */
+  wash: "#ede9fe",
 } as const;
 
 /** Informacja, stan neutralny. */
@@ -210,8 +236,12 @@ export const sectionAccent = {
   rose: { base: "#f43f5e", deep: "#e11d48", soft: "#fda4af" },
   /** Trendy, Pipeline */
   orange: {
-    base: "#f97316", light: "#fb923c", soft: "#fed7aa",
+    base: "#f97316", light: "#fb923c", tan: "#fdba74", soft: "#fed7aa",
+    wash: "#ffedd5",
     deep: "#ea580c", deeper: "#c2410c", deepest: "#b45309",
+    /* Brązy ekranu Reklama — tła i tekst stanu nieaktywnego */
+    ink: "#7c2d12", inkDeep: "#3b1a08", inkDeeper: "#2a1205",
+    mute: "#9a6b4f", muteGold: "#c2833f",
   },
   /** Marketing — karta na Dashboardzie i ekran Marketingu */
   pink: { base: "#ec4899", light: "#f472b6", soft: "#f9a8d4" },
@@ -223,6 +253,8 @@ export const sectionAccent = {
   blue: {
     base: "#1d4ed8", deep: "#1e40af", soft: "#bfdbfe", wash: "#dbeafe",
     ink: "#0b1e3f", inkDeep: "#0a1a33",
+    /** Banner „trwa praca" na ekranach Filmiki i Reklama */
+    panel: "#1e3a5f", bright: "#38bdf8",
   },
 } as const;
 
@@ -242,6 +274,10 @@ export const steel = {
   soft: "#94a3b8",
   /** Tekst przygaszony na ekranie Aktualizacji */
   mid: "#64748b",
+  /** Panel neutralny */
+  panel: "#1e293b",
+  /** Przycisk drugoplanowy („Zatrzymaj") — jedyny odcień kamienia w aplikacji */
+  stone: "#57534e",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
