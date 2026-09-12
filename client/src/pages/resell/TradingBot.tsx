@@ -3,6 +3,7 @@ import { Activity, FlaskConical, Zap } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { hasKrakenKeys, getKrakenKeys } from "@/lib/apiKeys";
 import { installPinFetch, getBotPin, setBotPin } from "@/lib/botPin";
+import * as palette from "@/design/palette";
 
 installPinFetch(); // every /api/bot call carries the PIN header from here on
 
@@ -147,11 +148,9 @@ const DEF_IND: IndOpts = {
   ichimoku: false,   heikinAshi: false, bbSqueeze: false,
 };
 
-const IND_COLORS = [
-  "#a855f7","#3b82f6","#f97316","#14b8a6",
-  "#06b6d4","#eab308","#f97316","#ef4444",
-  "#84cc16","#6366f1","#8b5cf6","#ec4899",
-];
+// Kolory serii mieszkaja w design/palette.ts (indicatorSeries) — kolejnosc
+// ma znaczenie, wskaznik n-ty bierze n-ty kolor.
+const IND_COLORS = palette.indicatorSeries;
 
 type IndCard = {
   key: keyof IndOpts; num: number; name: string; desc: string;
@@ -798,7 +797,7 @@ export default function TradingBot() {
     return (
       <ResellLayout>
         <div className="p-3 max-w-lg mx-auto pt-16">
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-6 space-y-4 text-center">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-6 space-y-4 text-center">
             <div className="text-4xl">🔐</div>
             <div className="text-white font-semibold">Aplikacja zamknięta kodem</div>
             <div className="text-xs text-gray-500">Podaj PIN, żeby zobaczyć bota i portfel</div>
@@ -807,7 +806,7 @@ export default function TradingBot() {
               onChange={e => setPinInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") unlockWithPin(); }}
               placeholder="PIN"
-              className="w-full bg-[#101d14] border border-[#1e3a28] rounded-lg px-3 py-2.5 text-white text-center text-lg tracking-widest"
+              className="w-full bg-bot-field border border-surface-higher rounded-lg px-3 py-2.5 text-white text-center text-lg tracking-widest"
             />
             <button onClick={unlockWithPin}
               className="w-full py-2.5 rounded-lg bg-green-700 text-white font-semibold hover:bg-green-600">
@@ -825,7 +824,7 @@ export default function TradingBot() {
       <div className="p-3 space-y-3 max-w-lg mx-auto pb-8">
 
         {/* ── Ticker — compact single row ─────────────────────────────────── */}
-        <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl px-3 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-0.5">
+        <div className="bg-surface-raised border border-surface-higher rounded-xl px-3 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-0.5">
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-gray-500">{symbol.replace("USDT", "")}</span>
             <span className="text-base font-bold text-white">${fmtP(price)}</span>
@@ -839,7 +838,7 @@ export default function TradingBot() {
         </div>
 
         {/* ── Tab switcher ─────────────────────────────────────────────────── */}
-        <div className="flex bg-[#0d1b12] border border-[#1e3a28] rounded-xl overflow-hidden">
+        <div className="flex bg-surface-raised border border-surface-higher rounded-xl overflow-hidden">
           <button onClick={() => setTab("main")}
             className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${tab === "main" ? "bg-green-900/40 text-green-400" : "text-gray-500 hover:text-gray-300"}`}>
             Podstawowe
@@ -857,7 +856,7 @@ export default function TradingBot() {
         {tab === "main" && (<>
 
           {/* ── Live Trading ─────────────────────────────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${running ? "bg-red-500 animate-pulse" : "bg-gray-600"}`} />
@@ -900,7 +899,7 @@ export default function TradingBot() {
             )}
 
             {/* Kraken wallet snapshot — check holdings without opening Kraken */}
-            <div className="bg-[#0a140d] border border-[#1e3a28] rounded-lg overflow-hidden">
+            <div className="bg-bot-card border border-surface-higher rounded-lg overflow-hidden">
               <button onClick={() => { setWalletOpen(o => !o); if (!walletOpen && !wallet) fetchWallet(false); }}
                 className="w-full flex items-center justify-between px-3 py-2.5">
                 <span className="text-xs text-gray-300 font-semibold">💼 Portfel Kraken {wallet ? `— ~${wallet.totalCrypto} ${wallet.valuedIn} w krypto` : ""}</span>
@@ -911,17 +910,17 @@ export default function TradingBot() {
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-gray-600">{walletBusy ? "Pobieram z Krakena…" : wallet ? `stan z ${fmtDate(wallet.at)}` : ""}</span>
                     <button onClick={() => fetchWallet(true)} disabled={walletBusy}
-                      className="text-[10px] text-gray-400 hover:text-white border border-[#1e3a28] rounded px-1.5 py-0.5 disabled:opacity-50">🔄 Odśwież</button>
+                      className="text-[10px] text-gray-400 hover:text-white border border-surface-higher rounded px-1.5 py-0.5 disabled:opacity-50">🔄 Odśwież</button>
                   </div>
                   {walletErr && <div className="text-[11px] text-red-400">{walletErr}</div>}
                   {wallet?.fiat?.map((f: any) => (
-                    <div key={f.cur} className="flex justify-between text-xs bg-[#101d14] rounded px-2 py-1.5">
+                    <div key={f.cur} className="flex justify-between text-xs bg-bot-field rounded px-2 py-1.5">
                       <span className="text-gray-300 font-medium">💵 {f.cur} <span className="text-gray-600">(gotówka)</span></span>
                       <span className="text-white font-semibold">{f.amount.toFixed(2)}</span>
                     </div>
                   ))}
                   {wallet?.coins?.map((c: any, i: number) => (
-                    <div key={c.name + i} className="flex justify-between items-center text-xs bg-[#101d14] rounded px-2 py-1.5">
+                    <div key={c.name + i} className="flex justify-between items-center text-xs bg-bot-field rounded px-2 py-1.5">
                       <span className="text-gray-300 font-medium">
                         {c.name}
                         {c.bot && <span className="ml-1 text-[9px] text-green-400 bg-green-900/40 rounded px-1">🤖 bot</span>}
@@ -960,7 +959,7 @@ export default function TradingBot() {
                     <span className="text-xs text-gray-500">Wirtualny kapitał ($)</span>
                     <input type="number" min={1} value={paperCapital}
                       onChange={e => setPaperCapital(Number(e.target.value))}
-                      className="w-24 bg-[#1a2e1f] border border-blue-800/60 rounded-lg px-2 py-1 text-white text-sm" />
+                      className="w-24 bg-surface-high border border-blue-800/60 rounded-lg px-2 py-1 text-white text-sm" />
                     <span className="text-[10px] text-gray-600">← ustaw i włącz suwakiem</span>
                   </div>
                   {/* entry depth — SIMULATOR ONLY for now (real bot stays at 40) */}
@@ -975,7 +974,7 @@ export default function TradingBot() {
                         { v: 25, l: "25 🥋 mistrz" }, { v: 15, l: "15 ekstremalny" },
                       ].map(({ v, l }) => (
                         <button key={v} onClick={() => setBbMax(v)}
-                          className={`flex-1 text-[10px] py-1.5 rounded font-medium ${bbMax === v ? "bg-blue-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                          className={`flex-1 text-[10px] py-1.5 rounded font-medium ${bbMax === v ? "bg-blue-700 text-white" : "bg-surface-high text-gray-400"}`}>
                           {l}
                         </button>
                       ))}
@@ -986,7 +985,7 @@ export default function TradingBot() {
                   </div>
                   {/* virtual shorts — SIM ONLY; real bot stays spot-long */}
                   <button onClick={() => setPaperShorts(s => !s)}
-                    className="w-full flex items-center justify-between bg-[#101d1f] border border-blue-900/50 rounded-lg px-3 py-2">
+                    className="w-full flex items-center justify-between bg-bot-head border border-blue-900/50 rounded-lg px-3 py-2">
                     <span className="text-xs text-gray-300">
                       📉 Shorty w symulacji <span className="text-gray-600">(wirtualny margin 2x + rolowanie)</span>
                     </span>
@@ -1221,7 +1220,7 @@ export default function TradingBot() {
             )}
 
             {/* symbol watch-list — collapsible, sorted by price (most expensive first) */}
-            <div className="bg-[#0a140d] border border-[#1e3a28] rounded-lg overflow-hidden">
+            <div className="bg-bot-card border border-surface-higher rounded-lg overflow-hidden">
               {/* header — always visible, tap to expand/collapse */}
               <button onClick={() => setMonitorOpen(o => !o)}
                 className="w-full flex items-center justify-between px-3 py-2.5">
@@ -1244,7 +1243,7 @@ export default function TradingBot() {
                       ✓ Zaznacz wszystkie ({availSymbols.length})
                     </button>
                     <button onClick={() => setExtraSymbols([])}
-                      className="flex-1 text-[11px] py-1.5 rounded-lg bg-[#1a2e1f] border border-[#2a4a30] text-gray-400">
+                      className="flex-1 text-[11px] py-1.5 rounded-lg bg-surface-high border border-surface-edge text-gray-400">
                       ✕ Wyczyść zaznaczenie
                     </button>
                   </div>
@@ -1268,7 +1267,7 @@ export default function TradingBot() {
                           className={`text-[10px] px-2 py-1 rounded-full font-medium border transition-colors ${
                             isPrimary ? "bg-green-700 border-green-500 text-white"
                             : isExtra ? "bg-blue-800/80 border-blue-600 text-white"
-                            : "bg-[#141f18] border-[#243528] text-gray-500"}`}>
+                            : "bg-bot-option-alt border-bot-option-edge text-gray-500"}`}>
                           {name}
                         </button>
                       );
@@ -1284,14 +1283,14 @@ export default function TradingBot() {
                 <label className="text-xs text-gray-400">Kapitał (USDT)</label>
                 <input type="number" min={1} value={capital}
                   onChange={e => setCapital(Number(e.target.value))}
-                  className="w-full bg-[#1a2e1f] border border-[#2a4a30] rounded-lg px-3 py-1.5 text-white text-sm mt-0.5" />
+                  className="w-full bg-surface-high border border-surface-edge rounded-lg px-3 py-1.5 text-white text-sm mt-0.5" />
               </div>
               <div>
                 <label className="text-xs text-gray-400">Dźwignia</label>
                 <div className="flex gap-1 mt-0.5">
                   {LEVERAGES.map(lv => (
                     <button key={lv} onClick={() => setLeverage(lv)}
-                      className={`px-2 py-1.5 text-xs rounded font-medium ${leverage === lv ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                      className={`px-2 py-1.5 text-xs rounded font-medium ${leverage === lv ? "bg-green-700 text-white" : "bg-surface-high text-gray-400"}`}>
                       {lv}×
                     </button>
                   ))}
@@ -1354,7 +1353,7 @@ export default function TradingBot() {
                 {learnBusy ? "Analizuję…" : "📓 Dziennik Uczenia — co działa, co nie"}
               </button>
               {learning && (
-                <div className="mt-2 space-y-2 bg-[#0a0d1a] border border-purple-800/40 rounded-lg p-2.5">
+                <div className="mt-2 space-y-2 bg-bot-list border border-purple-800/40 rounded-lg p-2.5">
                   {learning.total < 10 ? (
                     <div className="text-[11px] text-orange-400">
                       ⏳ Zebrano {learning.total} transakcji. Wzorce nabiorą sensu od ~20-30.
@@ -1425,7 +1424,7 @@ export default function TradingBot() {
             )}
 
             {/* PIN lock — set/change the app code */}
-            <div className="bg-[#0a140d] border border-[#1e3a28] rounded-lg p-3 space-y-2">
+            <div className="bg-bot-card border border-surface-higher rounded-lg p-3 space-y-2">
               <div className="text-xs font-semibold text-gray-300">
                 🔐 Kod aplikacji {pinIsSet
                   ? <span className="text-green-400 text-[10px] ml-1">✓ włączony</span>
@@ -1435,11 +1434,11 @@ export default function TradingBot() {
                 {pinIsSet && (
                   <input type="password" inputMode="numeric" value={pinOldInput}
                     onChange={e => setPinOldInput(e.target.value)} placeholder="obecny PIN"
-                    className="flex-1 bg-[#101d14] border border-[#1e3a28] rounded px-2 py-1.5 text-white text-xs" />
+                    className="flex-1 bg-bot-field border border-surface-higher rounded px-2 py-1.5 text-white text-xs" />
                 )}
                 <input type="password" inputMode="numeric" value={pinNewInput}
                   onChange={e => setPinNewInput(e.target.value)} placeholder={pinIsSet ? "nowy PIN" : "PIN (min 4 znaki)"}
-                  className="flex-1 bg-[#101d14] border border-[#1e3a28] rounded px-2 py-1.5 text-white text-xs" />
+                  className="flex-1 bg-bot-field border border-surface-higher rounded px-2 py-1.5 text-white text-xs" />
                 <button onClick={savePin} disabled={pinNewInput.trim().length < 4}
                   className="text-xs px-3 rounded bg-green-800/60 border border-green-700 text-green-200 disabled:opacity-40">
                   {pinIsSet ? "Zmień" : "Ustaw"}
@@ -1465,7 +1464,7 @@ export default function TradingBot() {
                   { v: 30, l: "30m" }, { v: 60, l: "1h" }, { v: 240, l: "4h" }, { v: 720, l: "12h" },
                 ].map(({ v, l }) => (
                   <button key={v} onClick={() => setMaxHoldMin(v)}
-                    className={`text-xs px-2.5 py-1 rounded font-medium ${maxHoldMin === v ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${maxHoldMin === v ? "bg-green-700 text-white" : "bg-surface-high text-gray-400"}`}>
                     {l}
                   </button>
                 ))}
@@ -1489,7 +1488,7 @@ export default function TradingBot() {
                   { v: 5, l: "5%" }, { v: 8, l: "8%" }, { v: 10, l: "10%" },
                 ].map(({ v, l }) => (
                   <button key={v} onClick={() => setCustomTP(v)}
-                    className={`text-xs px-2.5 py-1 rounded font-medium ${customTP === v ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${customTP === v ? "bg-green-700 text-white" : "bg-surface-high text-gray-400"}`}>
                     {l}
                   </button>
                 ))}
@@ -1510,7 +1509,7 @@ export default function TradingBot() {
                   { v: 3, l: "3%" }, { v: 5, l: "5%" },
                 ].map(({ v, l }) => (
                   <button key={v} onClick={() => setCustomSL(v)}
-                    className={`text-xs px-2.5 py-1 rounded font-medium ${customSL === v ? "bg-red-800 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${customSL === v ? "bg-red-800 text-white" : "bg-surface-high text-gray-400"}`}>
                     {l}
                   </button>
                 ))}
@@ -1534,7 +1533,7 @@ export default function TradingBot() {
                   { v: 1_000_000, l: "$1M" }, { v: 5_000_000, l: "$5M" },
                 ].map(({ v, l }) => (
                   <button key={v} onClick={() => setMinVolume(v)}
-                    className={`text-xs px-2.5 py-1 rounded font-medium ${minVolume === v ? "bg-blue-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    className={`text-xs px-2.5 py-1 rounded font-medium ${minVolume === v ? "bg-blue-700 text-white" : "bg-surface-high text-gray-400"}`}>
                     {l}
                   </button>
                 ))}
@@ -1553,7 +1552,7 @@ export default function TradingBot() {
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} onClick={() => setMaxPositions(n)}
-                    className={`flex-1 text-xs py-1.5 rounded font-medium ${maxPositions === n ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    className={`flex-1 text-xs py-1.5 rounded font-medium ${maxPositions === n ? "bg-green-700 text-white" : "bg-surface-high text-gray-400"}`}>
                     {n}
                   </button>
                 ))}
@@ -1577,25 +1576,25 @@ export default function TradingBot() {
               else if (wr >= 45) verdict = { text: "Obiecująco — trzymaj kurs, zbieraj dane", color: "text-green-400", emoji: "📈" };
               else               verdict = { text: "Przewaga niepotwierdzona — nie dokładaj kapitału", color: "text-orange-400", emoji: "⚠️" };
               return (
-                <div className="border border-[#2a4a30] rounded-lg p-2.5 space-y-2 bg-[#0d1a0f]">
+                <div className="border border-surface-edge rounded-lg p-2.5 space-y-2 bg-bot-nest">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">🥋 Tablica Ucznia</span>
                     <span className={`text-xs font-bold ${botStatus!.sessionPnl >= 0 ? "text-green-400" : "text-red-400"}`}>{botStatus!.sessionPnl >= 0 ? "+" : ""}${safe(botStatus!.sessionPnl, 2)} sesja</span>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 text-center">
-                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                    <div className="bg-surface-high rounded p-1.5">
                       <div className="text-[9px] text-gray-500">WIN RATE</div>
                       <div className={`text-sm font-bold ${wr >= 50 ? "text-green-400" : "text-orange-400"}`}>{safe(wr, 0)}%</div>
                     </div>
-                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                    <div className="bg-surface-high rounded p-1.5">
                       <div className="text-[9px] text-gray-500">W / L</div>
                       <div className="text-sm font-bold text-white">{sess.wins ?? 0}/{sess.losses ?? 0}</div>
                     </div>
-                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                    <div className="bg-surface-high rounded p-1.5">
                       <div className="text-[9px] text-gray-500">ŚR. ZYSK</div>
                       <div className="text-sm font-bold text-green-400">+{safe(sess.avgWin, 1)}%</div>
                     </div>
-                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                    <div className="bg-surface-high rounded p-1.5">
                       <div className="text-[9px] text-gray-500">ŚR. STRATA</div>
                       <div className="text-sm font-bold text-red-400">{safe(sess.avgLoss, 1)}%</div>
                     </div>
@@ -1607,7 +1606,7 @@ export default function TradingBot() {
                     const E = (wr / 100) * (sess.avgWin ?? 0) + (lossRate / 100) * (sess.avgLoss ?? 0);
                     const Enet = E - 0.52; // po opłatach (0.52% round-trip)
                     return (
-                      <div className="bg-[#0a140d] border border-[#1e3a28] rounded p-2">
+                      <div className="bg-bot-card border border-surface-higher rounded p-2">
                         <div className="text-[9px] text-gray-500 mb-0.5">🥋 WZÓR MISTRZA — oczekiwana wartość na transakcję</div>
                         <div className="text-[10px] text-gray-400 font-mono">
                           E = {safe(wr,0)}%×{safe(sess.avgWin,1)} {(sess.avgLoss ?? 0) < 0 ? "−" : "+"} {safe(100-wr,0)}%×{safe(Math.abs(sess.avgLoss ?? 0),1)}
@@ -1652,7 +1651,7 @@ export default function TradingBot() {
                 : "text-emerald-300";
               const fgBar = !fg ? 0 : Math.round(fg.value);
               return (
-                <div className="border border-[#2a4a30] rounded-lg p-2.5 space-y-2 bg-[#0d1a0f]">
+                <div className="border border-surface-edge rounded-lg p-2.5 space-y-2 bg-bot-nest">
                   <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Obraz rynku</div>
                   {/* Fear & Greed */}
                   {fg && (
@@ -1661,12 +1660,12 @@ export default function TradingBot() {
                         <span className="text-xs text-gray-400">Fear &amp; Greed</span>
                         <span className={`text-xs font-bold ${fgColor}`}>{fg.value} — {fg.label}</span>
                       </div>
-                      <div className="w-full h-1.5 rounded bg-[#1a2e1f] overflow-hidden">
+                      <div className="w-full h-1.5 rounded bg-surface-high overflow-hidden">
                         <div
                           className="h-full rounded transition-all"
                           style={{
                             width: `${fgBar}%`,
-                            background: fgBar <= 24 ? "#ef4444" : fgBar <= 44 ? "#f97316" : fgBar <= 55 ? "#eab308" : fgBar <= 74 ? "#22c55e" : "#10b981",
+                            background: fgBar <= 24 ? palette.loss.strong : fgBar <= 44 ? palette.sectionAccent.orange.base : fgBar <= 55 ? palette.brand.yellow : fgBar <= 74 ? palette.profit.strong : palette.profit.mintStrong,
                           }}
                         />
                       </div>
@@ -1690,7 +1689,7 @@ export default function TradingBot() {
                         </div>
                         <div className="grid grid-cols-6 gap-1 text-center">
                           {order.map(({ k, label }) => (
-                            <div key={k} className="bg-[#111f10] rounded p-1">
+                            <div key={k} className="bg-bot-row rounded p-1">
                               <div className="text-gray-500 text-[9px]">{label}</div>
                               <div className={`font-bold text-sm leading-none ${col(dipStats.trendStack?.[k])}`}>{arrow(dipStats.trendStack?.[k])}</div>
                             </div>
@@ -1702,23 +1701,23 @@ export default function TradingBot() {
                   {/* Live indicators grid */}
                   {ind && ind.rsi > 0 && (
                     <div className="grid grid-cols-3 gap-1 text-xs">
-                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                      <div className="bg-bot-row rounded p-1.5 text-center">
                         <div className="text-gray-500 text-[10px]">RSI</div>
                         <div className={`font-bold ${ind.rsi < 35 ? "text-orange-400" : ind.rsi > 65 ? "text-red-400" : "text-white"}`}>{ind.rsi.toFixed(1)}</div>
                       </div>
-                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                      <div className="bg-bot-row rounded p-1.5 text-center">
                         <div className="text-gray-500 text-[10px]">StochRSI</div>
                         <div className={`font-bold ${ind.stochRsi < 25 ? "text-orange-400" : ind.stochRsi > 75 ? "text-red-400" : "text-white"}`}>{ind.stochRsi.toFixed(0)}</div>
                       </div>
-                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                      <div className="bg-bot-row rounded p-1.5 text-center">
                         <div className="text-gray-500 text-[10px]">BB %B</div>
                         <div className={`font-bold ${ind.bbPercB < 20 ? "text-green-400" : ind.bbPercB > 80 ? "text-red-400" : "text-white"}`}>{ind.bbPercB.toFixed(0)}</div>
                       </div>
-                      <div className="bg-[#111f10] rounded p-1.5 text-center">
+                      <div className="bg-bot-row rounded p-1.5 text-center">
                         <div className="text-gray-500 text-[10px]">ADX</div>
                         <div className={`font-bold ${ind.adx >= 25 ? "text-green-400" : "text-gray-400"}`}>{ind.adx.toFixed(0)}</div>
                       </div>
-                      <div className="bg-[#111f10] rounded p-1.5 text-center col-span-2">
+                      <div className="bg-bot-row rounded p-1.5 text-center col-span-2">
                         <div className="text-gray-500 text-[10px]">VWAP 4h</div>
                         <div className="font-bold text-white">${ind.vwap > 0 ? ind.vwap.toFixed(0) : "—"}</div>
                       </div>
@@ -1750,7 +1749,7 @@ export default function TradingBot() {
                   )}
                   {/* Reversal map — measured flip frequencies, not fortune-telling */}
                   {botStatus?.reversal && (
-                    <div className="bg-[#0a140d] border border-[#1e3a28] rounded p-2 space-y-1">
+                    <div className="bg-bot-card border border-surface-higher rounded p-2 space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-gray-500">🔄 SZANSA ZWROTU spadki→wzrosty (z historii)</span>
                         {botStatus.reversal.nowPct !== null && (
@@ -1809,17 +1808,17 @@ export default function TradingBot() {
 
             {/* keys form */}
             {showKeys && (
-              <div className="border border-yellow-700/40 rounded-lg p-3 space-y-2 bg-[#111f10]">
+              <div className="border border-yellow-700/40 rounded-lg p-3 space-y-2 bg-bot-row">
                 <div className="text-xs text-yellow-400 font-semibold">Klucze Kraken API</div>
                 <input type="text" placeholder="API Key"
                   value={keyIn.apiKey} onChange={e => setKeyIn(k => ({ ...k, apiKey: e.target.value }))}
-                  className="w-full bg-[#0d1b12] border border-[#2a4a30] rounded px-2 py-1.5 text-white text-xs" />
+                  className="w-full bg-surface-raised border border-surface-edge rounded px-2 py-1.5 text-white text-xs" />
                 <input type="password" placeholder="API Secret"
                   value={keyIn.secret} onChange={e => setKeyIn(k => ({ ...k, secret: e.target.value }))}
-                  className="w-full bg-[#0d1b12] border border-[#2a4a30] rounded px-2 py-1.5 text-white text-xs" />
+                  className="w-full bg-surface-raised border border-surface-edge rounded px-2 py-1.5 text-white text-xs" />
                 <div className="flex gap-2">
                   <button onClick={saveKeys} className="flex-1 bg-green-700 hover:bg-green-600 text-white text-xs py-1.5 rounded font-medium">Zapisz</button>
-                  <button onClick={() => setShowKeys(false)} className="px-3 bg-[#1a2e1f] text-gray-400 text-xs py-1.5 rounded">Anuluj</button>
+                  <button onClick={() => setShowKeys(false)} className="px-3 bg-surface-high text-gray-400 text-xs py-1.5 rounded">Anuluj</button>
                 </div>
               </div>
             )}
@@ -1828,12 +1827,12 @@ export default function TradingBot() {
 
             <div className="flex gap-2">
               <button onClick={testKraken} disabled={testBusy}
-                className="flex-1 bg-[#1a2e1f] hover:bg-[#243d28] border border-[#2a4a30] text-yellow-400 text-xs py-2 rounded-lg disabled:opacity-50">
+                className="flex-1 bg-surface-high hover:bg-bot-hover border border-surface-edge text-yellow-400 text-xs py-2 rounded-lg disabled:opacity-50">
                 {testBusy ? "Sprawdzam…" : "🔍 Test połączenia Kraken"}
               </button>
               {keysOk && !showKeys && (
                 <button onClick={() => setShowKeys(true)}
-                  className="px-3 bg-[#1a2e1f] text-gray-500 text-xs py-2 rounded-lg border border-[#2a4a30]">
+                  className="px-3 bg-surface-high text-gray-500 text-xs py-2 rounded-lg border border-surface-edge">
                   Zmień klucze
                 </button>
               )}
@@ -1853,7 +1852,7 @@ export default function TradingBot() {
           </div>
 
           {/* ── Risk presets — collapsible, compact tiles ───────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl overflow-hidden">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl overflow-hidden">
             <button onClick={() => setPresetsOpen(o => !o)}
               className="w-full flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
@@ -1869,7 +1868,7 @@ export default function TradingBot() {
                   {PRESETS.map(pr => (
                     <button key={pr.id} onClick={() => setPreset(pr.id)}
                       className={`px-2.5 py-2 rounded-lg border text-left transition-all ${
-                        preset === pr.id ? "border-green-500 bg-green-900/25" : "border-[#2a4a30] bg-[#111f16] hover:border-green-700/50"
+                        preset === pr.id ? "border-green-500 bg-green-900/25" : "border-surface-edge bg-bot-option hover:border-green-700/50"
                       }`}>
                       <div className="text-xs font-semibold text-white">{pr.icon} {pr.label}</div>
                       <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{pr.desc}</div>
@@ -1895,7 +1894,7 @@ export default function TradingBot() {
           </div>
 
           {/* ── Seasonality / repeatability analysis ─────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">📅 Powtarzalność {symbol.replace("USDT", "")}</span>
               <button onClick={runSeasonality} disabled={seasonBusy}
@@ -1921,7 +1920,7 @@ export default function TradingBot() {
                   </div>
                 </div>
                 {/* trend persistence */}
-                <div className="bg-[#0a140d] border border-[#1e3a28] rounded p-2">
+                <div className="bg-bot-card border border-surface-higher rounded p-2">
                   <div className="text-[10px] text-gray-500 mb-1">JAK DŁUGO TRZYMA SIĘ TREND (dni)</div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
@@ -1944,13 +1943,13 @@ export default function TradingBot() {
                 {/* work vs rest */}
                 {seasonality.workVsRest && (
                   <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                    <div className="bg-surface-high rounded p-1.5">
                       <div className="text-[9px] text-gray-500">💼 DZIEŃ ROBOCZY</div>
                       <div className={`text-sm font-bold ${seasonality.workVsRest.workday >= 0 ? "text-green-400" : "text-red-400"}`}>
                         {seasonality.workVsRest.workday >= 0 ? "+" : ""}{seasonality.workVsRest.workday}%
                       </div>
                     </div>
-                    <div className="bg-[#1a2e1f] rounded p-1.5">
+                    <div className="bg-surface-high rounded p-1.5">
                       <div className="text-[9px] text-gray-500">🏖️ WEEKEND</div>
                       <div className={`text-sm font-bold ${seasonality.workVsRest.weekend >= 0 ? "text-green-400" : "text-red-400"}`}>
                         {seasonality.workVsRest.weekend >= 0 ? "+" : ""}{seasonality.workVsRest.weekend}%
@@ -1967,7 +1966,7 @@ export default function TradingBot() {
                       {Object.values(seasonality.sessions).map((s: any) => (
                         <div key={s.label} className="flex items-center gap-2 text-[10px]">
                           <span className="w-32 text-gray-400">{s.label}</span>
-                          <div className="flex-1 bg-[#0a140d] rounded h-3 overflow-hidden">
+                          <div className="flex-1 bg-bot-card rounded h-3 overflow-hidden">
                             <div className="h-full bg-blue-600/60" style={{ width: `${Math.min(100, s.volRel * 50)}%` }} />
                           </div>
                           <span className="w-8 text-gray-500">{s.volRel}×</span>
@@ -2007,7 +2006,7 @@ export default function TradingBot() {
           </div>
 
           {/* ── Simulation & Optimization ─────────────────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-4 space-y-3">
             {/* simulation window selector */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -2017,7 +2016,7 @@ export default function TradingBot() {
               <div className="flex gap-1">
                 {[3, 7, 14, 30].map(d => (
                   <button key={d} onClick={() => setSimDays(d)}
-                    className={`flex-1 text-xs py-1.5 rounded font-medium ${simDays === d ? "bg-green-700 text-white" : "bg-[#1a2e1f] text-gray-400"}`}>
+                    className={`flex-1 text-xs py-1.5 rounded font-medium ${simDays === d ? "bg-green-700 text-white" : "bg-surface-high text-gray-400"}`}>
                     {d}d
                   </button>
                 ))}
@@ -2033,12 +2032,12 @@ export default function TradingBot() {
             </button>
             <div className="flex gap-2">
               <button onClick={runSim} disabled={simRunning || optRunning || trainAndSim}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a2e1f] hover:bg-[#243d28] border border-green-800/60 text-green-400 py-2 rounded-lg text-xs disabled:opacity-50">
+                className="flex-1 flex items-center justify-center gap-1.5 bg-surface-high hover:bg-bot-hover border border-green-800/60 text-green-400 py-2 rounded-lg text-xs disabled:opacity-50">
                 <FlaskConical className="w-3 h-3" />
                 {simRunning ? "Symulacja…" : "🔬 Symulacja"}
               </button>
               <button onClick={runOpt} disabled={simRunning || optRunning || trainAndSim}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-[#1a2e1f] hover:bg-[#243d28] border border-yellow-800/60 text-yellow-400 py-2 rounded-lg text-xs disabled:opacity-50">
+                className="flex-1 flex items-center justify-center gap-1.5 bg-surface-high hover:bg-bot-hover border border-yellow-800/60 text-yellow-400 py-2 rounded-lg text-xs disabled:opacity-50">
                 <Zap className="w-3 h-3" />
                 {optRunning ? "Optymalizuję…" : "⚡ Optymalizacja"}
               </button>
@@ -2051,7 +2050,7 @@ export default function TradingBot() {
             )}
 
             {simResult && (
-              <div className="bg-[#111f16] border border-[#2a4a30] rounded-lg p-3 space-y-2">
+              <div className="bg-bot-option border border-surface-edge rounded-lg p-3 space-y-2">
                 <div className="text-xs text-gray-400">SYMULACJA — {simResult.symbol} · {simResult.days}d · {simResult.numTrades} transakcji</div>
                 <div className="grid grid-cols-4 gap-1 text-center">
                   {[
@@ -2070,7 +2069,7 @@ export default function TradingBot() {
                 {simResult.trades.length > 0 && (
                   <div className="space-y-0.5 max-h-36 overflow-y-auto">
                     {simResult.trades.slice(-8).reverse().map((t, i) => (
-                      <div key={i} className="flex justify-between text-xs py-0.5 border-b border-[#1a2e1f]">
+                      <div key={i} className="flex justify-between text-xs py-0.5 border-b border-surface-high">
                         <span className={t.dir === "long" ? "text-green-400" : "text-red-400"}>{t.dir.toUpperCase()}</span>
                         <span className="text-gray-500">${fmtP(t.entry)} → ${fmtP(t.exit)}</span>
                         <span className={t.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(t.pnlPct)}</span>
@@ -2082,7 +2081,7 @@ export default function TradingBot() {
             )}
 
             {optResult && (
-              <div className="bg-[#111f16] border border-[#2a4a30] rounded-lg p-3 space-y-2">
+              <div className="bg-bot-option border border-surface-edge rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-yellow-400 text-xs font-semibold">⚡ Wynik treningu</span>
                   <span className="text-xs text-gray-500">{optResult.days ?? "?"}d · {optResult.combosTested ?? 20} kombinacji</span>
@@ -2098,14 +2097,14 @@ export default function TradingBot() {
                       {optResult.confidence}%
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-[#1a2e1f] rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-surface-high rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${optResult.confidence >= 60 ? "bg-green-500" : optResult.confidence >= 40 ? "bg-yellow-500" : "bg-red-500"}`}
                       style={{ width: `${optResult.confidence}%` }} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-[#0d1b12] rounded p-2">
+                  <div className="bg-surface-raised rounded p-2">
                     <div className="text-[9px] text-gray-500 mb-1">TRENING (70%)</div>
                     <div className="text-xs space-y-0.5">
                       <div>Win <span className={(optResult.trainWinRate ?? 0) >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{safe(optResult.trainWinRate, 1)}%</span></div>
@@ -2113,7 +2112,7 @@ export default function TradingBot() {
                       <div className="text-gray-500">{optResult.trainTrades ?? 0} transakcji</div>
                     </div>
                   </div>
-                  <div className="bg-[#0d1b12] rounded p-2">
+                  <div className="bg-surface-raised rounded p-2">
                     <div className="text-[9px] text-gray-500 mb-1">WALIDACJA (30%)</div>
                     <div className="text-xs space-y-0.5">
                       <div>Win <span className={(optResult.validWinRate ?? 0) >= 50 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>{safe(optResult.validWinRate, 1)}%</span></div>
@@ -2134,7 +2133,7 @@ export default function TradingBot() {
                   </div>
                 )}
 
-                <label className="flex items-center justify-between cursor-pointer select-none pt-1 border-t border-[#1e3a28]">
+                <label className="flex items-center justify-between cursor-pointer select-none pt-1 border-t border-surface-higher">
                   <span className="text-xs text-gray-400">🧠 Auto-retrain co 24h (serwer)</span>
                   <div onClick={autoRetrainBusy ? undefined : toggleAutoRetrain}
                     className={`w-8 h-4 rounded-full transition-colors cursor-pointer ${autoRetrain ? "bg-green-500" : "bg-gray-600"} ${autoRetrainBusy ? "opacity-50" : ""}`}>
@@ -2152,10 +2151,10 @@ export default function TradingBot() {
             )}
 
             {showHistory && trainHistory.length > 0 && (
-              <div className="bg-[#111f16] border border-[#2a4a30] rounded-lg p-3 space-y-1.5">
+              <div className="bg-bot-option border border-surface-edge rounded-lg p-3 space-y-1.5">
                 <div className="text-xs font-semibold text-gray-400 mb-2">Historia treningów</div>
                 {trainHistory.map((e, i) => (
-                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-[#1a2e1f]">
+                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-surface-high">
                     <span className="text-gray-500 font-mono">{fmtDate(e.ts)}</span>
                     <span className="text-gray-300">RSI [{e.rsiMin}–{e.rsiMax}]</span>
                     <span className={e.confidence >= 60 ? "text-green-400" : e.confidence >= 40 ? "text-yellow-400" : "text-red-400"}>
@@ -2174,7 +2173,7 @@ export default function TradingBot() {
         {tab === "main" && (<>
 
           {/* ── Activity Log ─────────────────────────────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-green-400" />
@@ -2213,7 +2212,7 @@ export default function TradingBot() {
 
           {/* ── Trade History ─────────────────────────────────────────────── */}
           {tradeHistory.length > 0 && (
-            <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4">
+            <div className="bg-surface-raised border border-surface-higher rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-white">Historia transakcji ({tradeHistory.length})</span>
                 <div className="flex items-center gap-2">
@@ -2234,7 +2233,7 @@ export default function TradingBot() {
               </div>
               <div className="space-y-0.5 max-h-64 overflow-y-auto">
                 {tradeHistory.slice().reverse().map((t, i) => (
-                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-[#1a2e1f] select-text">
+                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-surface-high select-text">
                     <span className="text-gray-500 font-mono">{fmtDate(t.time)}</span>
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${t.dir === "long" ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"}`}>
                       {t.dir.toUpperCase()}
@@ -2256,7 +2255,7 @@ export default function TradingBot() {
         {tab === "advanced" && (<>
 
           {/* ── Auto-select ──────────────────────────────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-4 space-y-3">
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Auto-dobór filtrów</div>
             <div className="text-xs text-gray-500">
               Bot testuje każdy wskaźnik na ~18 dniach historii i wybiera te, które poprawiają wyniki.
@@ -2287,7 +2286,7 @@ export default function TradingBot() {
           </div>
 
           {/* ── 12 Indicator filter cards ────────────────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Filtry wskaźników wejścia</div>
               {hasSnap && <div className="text-[10px] text-gray-600">dane live</div>}
@@ -2298,11 +2297,11 @@ export default function TradingBot() {
                 const blocking = isOn && hasSnap && card.isBlocking(indSnap);
                 const score    = autoResult?.scores[card.key];
                 const isRec    = autoResult?.recommended.includes(card.key) ?? false;
-                const borderCol = blocking ? "#ef4444" : isOn ? IND_COLORS[idx] : "#2a4a30";
+                const borderCol = blocking ? palette.loss.strong : isOn ? IND_COLORS[idx] : palette.surface.edge;
                 return (
                   <div key={card.key}
                     style={{ borderColor: borderCol }}
-                    className={`rounded-xl border p-3 bg-[#0a1a0f] transition-all ${!isOn ? "opacity-60" : ""}`}>
+                    className={`rounded-xl border p-3 bg-bot-card-alt transition-all ${!isOn ? "opacity-60" : ""}`}>
                     <div className="flex justify-between items-start mb-1">
                       <div className="flex items-center gap-1">
                         <span className="text-[10px] font-bold" style={{ color: IND_COLORS[idx] }}>#{card.num}</span>
@@ -2330,17 +2329,17 @@ export default function TradingBot() {
           </div>
 
           {/* ── Risk management info ─────────────────────────────────────── */}
-          <div className="bg-[#0d1b12] border border-[#1e3a28] rounded-xl p-4 space-y-3">
+          <div className="bg-surface-raised border border-surface-higher rounded-xl p-4 space-y-3">
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Zarządzanie ryzykiem</div>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { num: 13, name: "RSI Exit", desc: `RSI>${(PRESETS.find(x => x.id === preset)?.rsiMax ?? 67) + 8} lub <${(PRESETS.find(x => x.id === preset)?.rsiMin ?? 36) - 8}`, on: true, color: "#14b8a6" },
-                { num: 14, name: "Opłaty 0.52%", desc: "Kraken RT fee w symulacji", on: true, color: "#3b82f6" },
-                { num: 15, name: "Stop Dzienny", desc: "Pauza przy -3% dziennej straty", on: true, color: "#eab308" },
-                { num: 16, name: "Break-Even", desc: "SL → entry po 50% TP", on: true, color: "#a855f7" },
+                { num: 13, name: "RSI Exit", desc: `RSI>${(PRESETS.find(x => x.id === preset)?.rsiMax ?? 67) + 8} lub <${(PRESETS.find(x => x.id === preset)?.rsiMin ?? 36) - 8}`, on: true, color: palette.sectionAccent.teal.base },
+                { num: 14, name: "Opłaty 0.52%", desc: "Kraken RT fee w symulacji", on: true, color: palette.info.strong },
+                { num: 15, name: "Stop Dzienny", desc: "Pauza przy -3% dziennej straty", on: true, color: palette.brand.yellow },
+                { num: 16, name: "Break-Even", desc: "SL → entry po 50% TP", on: true, color: palette.sectionAccent.purple.base },
               ].map(card => (
                 <div key={card.num} style={{ borderColor: card.color }}
-                  className="rounded-xl border p-3 bg-[#0a1a0f]">
+                  className="rounded-xl border p-3 bg-bot-card-alt">
                   <div className="flex justify-between items-start mb-1">
                     <span className="text-[10px] font-bold" style={{ color: card.color }}>#{card.num}</span>
                     <span className="text-[9px] text-green-400 font-bold px-1 bg-green-900/30 rounded">ON</span>

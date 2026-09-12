@@ -17,11 +17,10 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: 34 z 36 plików — cały `components/resell/` i dwadzieścia sześć
- *  ekranów. Zostały dwa, oba z powodów, których nie rozwiąże dopisanie wpisów:
- *  TradingBot trzyma 112 ze 135 kolorów w klasach Tailwinda (patrz ostrzeżenie
- *  niżej), a AssistantPage ma 42 własne odcienie na jednym ekranie, nigdzie
- *  indziej nieużywane — to osobny świat barw, nie brakujące stopnie skal.
+ *  Zmigrowane: 35 z 36 plików — cały `components/resell/` i dwadzieścia siedem
+ *  ekranów. Został jeden: AssistantPage, z 42 własnymi odcieniami na jednym
+ *  ekranie, nigdzie indziej nieużywanymi. To osobny świat barw, nie brakujące
+ *  stopnie skal — dopisanie ich tutaj podwoiłoby paletę wpisami używanymi raz.
  *
  *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
  *
@@ -44,13 +43,15 @@
  *  zrobi.
  *
  *  Klasy Tailwinda z kolorem w nawiasach (`bg-[#0a1a0f]`) są gorszym
- *  przypadkiem, bo psują się cicho. Tailwind generuje taką klasę skanując
+ *  przypadkiem, bo psują się cicho: Tailwind generuje taką klasę skanując
  *  źródło, więc po zamianie na `bg-[${palette.x}]` klasa nie powstaje wcale
  *  i kolor znika bez żadnego błędu — ani tsc, ani build tego nie zgłosi.
- *  Wszystkie 112 takich wystąpień siedzi w TradingBot.tsx i dlatego ten ekran
- *  nie jest migrowany. Właściwe rozwiązanie dla niego to nie paleta, a kolory
- *  motywu w `@theme` w index.css (projekt używa Tailwinda 4) — osobna zmiana,
- *  bo dotyka 112 ciągów klas.
+ *
+ *  TradingBot miał 112 takich klas i dlatego jego powierzchnie NIE są tutaj,
+ *  a w `@theme` w index.css jako `--color-surface-*` i `--color-bot-*`
+ *  (projekt używa Tailwinda 4). Cztery wartości `surface.*` są w obu plikach
+ *  naraz — Tailwind nie umie czytać z TypeScriptu — więc zmiana jednej strony
+ *  wymaga zmiany drugiej. Reszta tego ekranu (obiekty `style`) czyta stąd.
  *
  *  UŻYCIE — zawsze przez przestrzeń nazw:
  *
@@ -150,6 +151,7 @@ export const profit = {
   soft: "#86efac",
   mint: "#34d399",
   mintSoft: "#6ee7b7",
+  mintStrong: "#10b981",
   mintDeep: "#059669",
   wash: "#d1fae5",
   washMint: "#a7f3d0",
@@ -243,6 +245,8 @@ export const sectionAccent = {
     ink: "#7c2d12", inkDeep: "#3b1a08", inkDeeper: "#2a1205",
     mute: "#9a6b4f", muteGold: "#c2833f",
   },
+  /** Bot handlowy — karty wskaźników */
+  teal: { base: "#14b8a6" },
   /** Marketing — karta na Dashboardzie i ekran Marketingu */
   pink: { base: "#ec4899", light: "#f472b6", soft: "#f9a8d4" },
   /** Marketing, Agent AI */
@@ -257,6 +261,21 @@ export const sectionAccent = {
     panel: "#1e3a5f", bright: "#38bdf8",
   },
 } as const;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SERIE WSKAŹNIKÓW — bot handlowy
+
+   Kolejność ma znaczenie: wskaźnik n-ty bierze n-ty kolor z tej listy, więc
+   przestawienie ich przemaluje wykres. Ta sama logika co `sectionAccent` —
+   jedyną rolą tych barw jest bycie rozróżnialnymi między sobą, żadna nie koduje
+   „lepiej" ani „gorzej". Dwa odcienie (#f97316) powtarzają się celowo: lista
+   ma dwanaście pozycji, a wskaźników bywa mniej.
+   ───────────────────────────────────────────────────────────────────────── */
+export const indicatorSeries = [
+  "#a855f7", "#3b82f6", "#f97316", "#14b8a6",
+  "#06b6d4", "#eab308", "#f97316", "#ef4444",
+  "#84cc16", "#6366f1", "#8b5cf6", "#ec4899",
+] as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
    PODGLĄD KODU — monospace na ciemnym tle (Agent AI)
