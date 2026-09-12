@@ -72,7 +72,14 @@ export const marketplaceAccent: Record<string, string> = {
    decydowania, tylko do odwzorowania.
    ───────────────────────────────────────────────────────────────────────── */
 export const serviceBrand: Record<string, string> = {
+  /** Cztery barwy Google — narzędzia Gemini, Imagen i Google Ads */
   google: "#4285f4",
+  googleRed: "#ea4335",
+  googleYellow: "#fbbc04",
+  googleGreen: "#34a853",
+  /** Meta Ads — Facebook i Instagram */
+  meta: "#1877f2",
+  metaDeep: "#0a52cc",
   bybit: "#f7931a",
   kraken: "#5741d9",
 };

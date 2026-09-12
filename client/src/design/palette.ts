@@ -17,11 +17,11 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: 31 z 36 plików — cały `components/resell/` i dwadzieścia trzy
- *  ekrany. Zostało pięć: VideoPage, TradingBot, AdsPage, AssistantPage,
- *  MarketingPage. Każdy z nich ma własny świat barw (AdsPage brązy i pomarańcze,
- *  AssistantPage 87 nieznanych odcieni na 118), więc pójdą ekran po ekranie,
- *  a nie regułą.
+ *  Zmigrowane: 32 z 36 plików — cały `components/resell/` i dwadzieścia cztery
+ *  ekrany. Zostały cztery: VideoPage, TradingBot, AdsPage, AssistantPage.
+ *  Każdy ma własny świat barw — AdsPage brązy i pomarańcze, VideoPage fiolety,
+ *  TradingBot dziewięć niemal identycznych ciemnych zieleni — więc nie
+ *  odblokuje ich dopisanie kilku wpisów, tylko decyzja per ekran.
  *
  *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
  *
@@ -29,11 +29,11 @@
  *  ciemniejsza czerwień straty, `#059669` ciemniejsza zieleń zysku; domykają
  *  istniejące skale i nie wnoszą nowego sensu do nauczenia.
  *
- *  Nowa rodzina barw — nie wchodzi bez decyzji, co ma znaczyć. Pozostałe
- *  ekrany czekają na sześć takich: pomarańcz (#f97316), purpura (#a855f7),
- *  róż (#ec4899), indygo (#6366f1), cyjan (#06b6d4) i malina (#f43f5e).
- *  Dopisanie ich „bo są w kodzie" zamieniłoby paletę w katalog odcieni, czyli
- *  w dokładnie ten stan, z którego wychodzimy.
+ *  Nowa rodzina barw — nie wchodzi, dopóki nie wiadomo, co ma znaczyć.
+ *  Sześć takich rodzin przeszło tę próbę i wylądowało w `sectionAccent`: nie
+ *  kodowały stanu, tylko odróżniały sekcje. Dopisanie czegokolwiek „bo jest
+ *  w kodzie" zamieniłoby paletę w katalog odcieni, czyli w dokładnie ten stan,
+ *  z którego wychodzimy.
  *
  *  Barwy firmowe platform (eBay, TikTok…) nie należą tu wcale — mieszkają
  *  w `platforms.ts`, bo nie są rolą w naszym systemie, tylko cudzą własnością.
@@ -73,6 +73,8 @@ export const surface = {
   higher: "#1e3a28",
   /** Krawędź karty, delikatna linia podziału */
   edge: "#2a4a30",
+  /** Przygaszenie tła pod modalem na płótnie zielonym */
+  canvasInk: "#000a03",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -113,6 +115,11 @@ export const brand = {
   amberDeep: "#d97706",
   /** Ciemny tekst na bursztynowym tle (powiadomienie) */
   amberInk: "#1a0a00",
+  /**
+   * Złoto o 10 wyżej w czerwonym i 14 wyżej w niebieskim niż `gold`. Jak
+   * `profit.deepAlt` — różnica niewidoczna, jedno użycie, najpewniej literówka.
+   */
+  goldAlt: "#ffc850",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -130,8 +137,18 @@ export const profit = {
   mintSoft: "#6ee7b7",
   mintDeep: "#059669",
   wash: "#d1fae5",
+  washMint: "#a7f3d0",
   /** Ciemny tekst na zielonym tle (przycisk główny) */
   ink: "#0d1a0d",
+  /** Ciemny tekst na miętowym przycisku */
+  inkMint: "#022c22",
+  /**
+   * Odcień o 6 niższy w kanale czerwonym od `deep` (#16a34a). Dla oka nie do
+   * odróżnienia i prawie na pewno literówka w jednym z ekranów. Zostaje, bo
+   * scalenie zmieniłoby piksele — ale jeśli ktoś to ujednolici, ten wpis
+   * znika razem z dwoma użyciami w MarketingPage.
+   */
+  deepAlt: "#10a34a",
 } as const;
 
 /** Strata, błąd, akcja niszcząca. */
@@ -181,8 +198,14 @@ export const info = {
    Nie scalać.
    ───────────────────────────────────────────────────────────────────────── */
 export const sectionAccent = {
-  /** Dostawcy, Alerty */
-  cyan: { base: "#06b6d4", deep: "#0891b2", soft: "#67e8f9" },
+  /** Dostawcy, Alerty, generatory treści w Marketingu */
+  cyan: {
+    base: "#06b6d4", light: "#22d3ee", deep: "#0891b2", soft: "#67e8f9",
+    /** Ciemny tekst na cyjanowym przycisku */
+    ink: "#042f2e",
+    /** Jasny tekst w cyjanowej ramce */
+    wash: "#e0f2fe",
+  },
   /** Rywale */
   rose: { base: "#f43f5e", deep: "#e11d48", soft: "#fda4af" },
   /** Trendy, Pipeline */
@@ -191,11 +214,11 @@ export const sectionAccent = {
     deep: "#ea580c", deeper: "#c2410c", deepest: "#b45309",
   },
   /** Marketing — karta na Dashboardzie i ekran Marketingu */
-  pink: { base: "#ec4899", soft: "#f9a8d4" },
+  pink: { base: "#ec4899", light: "#f472b6", soft: "#f9a8d4" },
   /** Marketing, Agent AI */
   purple: { base: "#a855f7" },
   /** Marketing — trzeci przystanek gradientu karty */
-  indigo: { base: "#6366f1" },
+  indigo: { base: "#6366f1", soft: "#a5b4fc" },
   /** Aktualizacja — jedyny ekran utrzymany w błękicie */
   blue: {
     base: "#1d4ed8", deep: "#1e40af", soft: "#bfdbfe", wash: "#dbeafe",
