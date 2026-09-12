@@ -5,6 +5,7 @@ import { saveEtsyToken, clearEtsyToken, isEtsyConnected } from "@/lib/etsyAuth";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { installPinFetch } from "@/lib/botPin";
 import { serviceBrand } from "@/design/platforms";
+import * as palette from "@/design/palette";
 
 installPinFetch(); // /api/bot/keys wymaga PIN-u aplikacji, gdy jest ustawiony
 
@@ -21,7 +22,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "anthropic",
     name: "Anthropic AI",
     logo: "🤖",
-    color: "#a78bfa",
+    color: palette.ai.base,
     required: true,
     description: "⭐ JEDYNY WYMAGANY KLUCZ — bez niego nic nie działa. Darmowe konto: console.anthropic.com",
     docsUrl: "https://console.anthropic.com/settings/keys",
@@ -42,7 +43,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "youtube",
     name: "YouTube Data API v3",
     logo: "▶️",
-    color: "#ef4444",
+    color: palette.loss.strong,
     description: "Opcjonalne — pobieranie komentarzy z YouTube do analizy marketingowej. Darmowy limit: 10 000 jednostek/dzień. Klucz w Google Cloud Console.",
     docsUrl: "https://console.cloud.google.com/apis/credentials",
     keyLabel: "API Key",
@@ -52,7 +53,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "ebay",
     name: "eBay",
     logo: "🛒",
-    color: "#f5c842",
+    color: palette.brand.gold,
     description: "Skanowanie cen + wystawianie ogłoszeń przez API (OAuth). Klucze z developer.ebay.com",
     docsUrl: "https://developer.ebay.com/my/keys",
     keyLabel: "App ID",
@@ -66,7 +67,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "etsy",
     name: "Etsy",
     logo: "🧶",
-    color: "#f97316",
+    color: palette.sectionAccent.orange.base,
     description: "Opcjonalne — żywe ceny z Etsy, popularne listingi",
     docsUrl: "https://www.etsy.com/developers/your-apps",
     keyLabel: "API Key",
@@ -76,7 +77,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "amazon",
     name: "Amazon (PA API)",
     logo: "📦",
-    color: "#34d399",
+    color: palette.profit.mint,
     description: "Opcjonalne — ceny Amazon, bestsellery",
     docsUrl: "https://affiliate-program.amazon.com/assoc_credentials/home",
     keyLabel: "Access Key",
@@ -90,7 +91,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "allegro",
     name: "Allegro",
     logo: "🇵🇱",
-    color: "#f87171",
+    color: palette.loss.base,
     description: "Opcjonalne — ceny na Allegro, oferty z Polski",
     docsUrl: "https://apps.developer.allegro.pl/",
     keyLabel: "Client ID",
@@ -103,7 +104,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "aliexpress",
     name: "AliExpress",
     logo: "🇨🇳",
-    color: "#f59e0b",
+    color: palette.brand.amber,
     description: "Opcjonalne — ceny hurtowe z Chin",
     docsUrl: "https://portals.aliexpress.com",
     keyLabel: "App Key",
@@ -144,7 +145,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "rapidapi",
     name: "RapidAPI Hub",
     logo: "⚡",
-    color: "#60a5fa",
+    color: palette.info.base,
     description: "Opcjonalne — dostęp do Jumia, Shopee, Mercado Libre i innych",
     docsUrl: "https://rapidapi.com/developer/dashboard",
     keyLabel: "API Key",
@@ -154,7 +155,7 @@ const PLATFORM_APIS: ApiEntry[] = [
     id: "custom",
     name: "Własne API",
     logo: "🔧",
-    color: "#94a3b8",
+    color: palette.steel.soft,
     description: "Opcjonalne — dodaj dowolne API",
     docsUrl: "",
     keyLabel: "API Key",
@@ -243,25 +244,25 @@ function SyncBox({ keys, setKeys, synced, setSynced }: {
   };
 
   return (
-    <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, padding: "14px 16px", marginTop: 20 }}>
-      <div style={{ color: "#fbbf24", fontWeight: 700, fontSize: 13, marginBottom: 4 }}>🔄 Synchronizacja między urządzeniami</div>
-      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10 }}>Zapisz klucz w przeglądarce → Wyślij na serwer → Pobierz na nowym urządzeniu</div>
+    <div style={{ background: palette.alpha(palette.brand.goldStrong, 0.06), border: `1px solid ${palette.alpha(palette.brand.goldStrong, 0.25)}`, borderRadius: 12, padding: "14px 16px", marginTop: 20 }}>
+      <div style={{ color: palette.brand.goldStrong, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>🔄 Synchronizacja między urządzeniami</div>
+      <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, marginBottom: 10 }}>Zapisz klucz w przeglądarce → Wyślij na serwer → Pobierz na nowym urządzeniu</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
         <button onClick={pull} disabled={status === "loading"}
-          style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(251,191,36,0.4)", background: "rgba(251,191,36,0.1)", color: "#fbbf24", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: `1px solid ${palette.alpha(palette.brand.goldStrong, 0.4)}`, background: palette.alpha(palette.brand.goldStrong, 0.1), color: palette.brand.goldStrong, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
           ⬇ Pobierz klucze z serwera
         </button>
         <button onClick={push} disabled={status === "loading"}
-          style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(99,102,241,0.4)", background: "rgba(99,102,241,0.1)", color: "#818cf8", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: `1px solid ${palette.alpha(palette.sectionAccent.indigo.base, 0.4)}`, background: palette.alpha(palette.sectionAccent.indigo.base, 0.1), color: palette.info.indigo, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
           ⬆ Wyślij klucze na serwer
         </button>
       </div>
       <button onClick={clearServer} disabled={status === "loading"}
-        style={{ width: "100%", marginTop: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: "#f87171", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+        style={{ width: "100%", marginTop: 6, padding: "7px 12px", borderRadius: 8, border: `1px solid ${palette.alpha(palette.loss.strong, 0.3)}`, background: palette.alpha(palette.loss.strong, 0.08), color: palette.loss.base, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
         🗑️ Wyczyść klucze serwera (naprawa błędów)
       </button>
-      {synced && status === "idle" && <div style={{ color: "#4ade80", fontSize: 12, marginTop: 8 }}>✅ Klucze zsynchronizowane</div>}
-      {status !== "idle" && <div style={{ color: status === "ok" || status === "cleared" ? "#4ade80" : status === "error" ? "#f87171" : "#fbbf24", fontSize: 12, marginTop: 8 }}>{statusMsg[status]}</div>}
+      {synced && status === "idle" && <div style={{ color: palette.profit.base, fontSize: 12, marginTop: 8 }}>✅ Klucze zsynchronizowane</div>}
+      {status !== "idle" && <div style={{ color: status === "ok" || status === "cleared" ? palette.profit.base : status === "error" ? palette.loss.base : palette.brand.goldStrong, fontSize: 12, marginTop: 8 }}>{statusMsg[status]}</div>}
     </div>
   );
 }
@@ -462,26 +463,26 @@ export default function Settings() {
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <SettingsIcon size={18} color="#a78bfa" />
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: palette.alpha(palette.ai.strong, 0.2), border: `1px solid ${palette.alpha(palette.ai.strong, 0.3)}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <SettingsIcon size={18} color={palette.ai.base} />
           </div>
           <div>
-            <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>Ustawienia API</h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: 0 }}>Dodaj klucze API sklepów — app użyje prawdziwych danych zamiast AI</p>
+            <h1 style={{ color: palette.ink.white, fontSize: 22, fontWeight: 900, margin: 0 }}>Ustawienia API</h1>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, margin: 0 }}>Dodaj klucze API sklepów — app użyje prawdziwych danych zamiast AI</p>
           </div>
         </div>
 
         {/* Status bar */}
-        <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
-          <AlertCircle size={15} color="#a78bfa" style={{ flexShrink: 0, marginTop: 1 }} />
+        <div style={{ background: palette.alpha(palette.ai.strong, 0.08), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <AlertCircle size={15} color={palette.ai.base} style={{ flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-            <span style={{ color: "#c4b5fd", fontWeight: 700 }}>Potrzebujesz tylko 1 klucza</span>
-            <span style={{ color: "rgba(255,255,255,0.5)" }}> — klucz <strong style={{ color: "#a78bfa" }}>Anthropic AI</strong> wystarczy żeby aplikacja działała w pełni. Reszta jest opcjonalna i dodaje dokładniejsze dane na żywo z poszczególnych platform.</span>
+            <span style={{ color: palette.ai.soft, fontWeight: 700 }}>Potrzebujesz tylko 1 klucza</span>
+            <span style={{ color: palette.alpha(palette.ink.white, 0.5) }}> — klucz <strong style={{ color: palette.ai.base }}>Anthropic AI</strong> wystarczy żeby aplikacja działała w pełni. Reszta jest opcjonalna i dodaje dokładniejsze dane na żywo z poszczególnych platform.</span>
           </div>
         </div>
-        <div style={{ background: hasKeys("anthropic") ? "rgba(74,222,128,0.08)" : "rgba(245,200,66,0.08)", border: `1px solid ${hasKeys("anthropic") ? "rgba(74,222,128,0.2)" : "rgba(245,200,66,0.2)"}`, borderRadius: 12, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
-          {hasKeys("anthropic") ? <CheckCircle size={15} color="#4ade80" /> : <AlertCircle size={15} color="#f5c842" />}
-          <span style={{ color: hasKeys("anthropic") ? "#86efac" : "#fde68a", fontSize: 13 }}>
+        <div style={{ background: hasKeys("anthropic") ? palette.alpha(palette.profit.base, 0.08) : palette.alpha(palette.brand.gold, 0.08), border: `1px solid ${hasKeys("anthropic") ? palette.alpha(palette.profit.base, 0.2) : palette.alpha(palette.brand.gold, 0.2)}`, borderRadius: 12, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
+          {hasKeys("anthropic") ? <CheckCircle size={15} color={palette.profit.base} /> : <AlertCircle size={15} color={palette.brand.gold} />}
+          <span style={{ color: hasKeys("anthropic") ? palette.profit.soft : palette.brand.goldSoft, fontSize: 13 }}>
             {hasKeys("anthropic")
               ? `✓ Klucz Anthropic ustawiony — aplikacja działa. ${activeCount > 1 ? `+ ${activeCount - 1} dodatkowe platformy.` : ""}`
               : "⚠ Brak klucza Anthropic — dodaj go poniżej żeby aplikacja zaczęła działać"}
@@ -495,8 +496,8 @@ export default function Settings() {
             const result = testResult[platform.id];
             return (
               <div key={platform.id} style={{
-                background: hasKey ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
-                border: `1px solid ${hasKey ? `${platform.color}25` : "rgba(255,255,255,0.07)"}`,
+                background: hasKey ? palette.alpha(palette.ink.white, 0.04) : palette.alpha(palette.ink.white, 0.02),
+                border: `1px solid ${hasKey ? `${platform.color}25` : palette.alpha(palette.ink.white, 0.07)}`,
                 borderRadius: 16, overflow: "hidden",
               }}>
                 {/* Card header */}
@@ -507,32 +508,32 @@ export default function Settings() {
                     </div>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{platform.name}</span>
+                        <span style={{ color: palette.ink.white, fontWeight: 700, fontSize: 14 }}>{platform.name}</span>
                         {platform.required && !hasKey && (
-                          <span style={{ background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 99, padding: "1px 8px", color: "#f87171", fontSize: 10, fontWeight: 700 }}>WYMAGANE</span>
+                          <span style={{ background: palette.alpha(palette.loss.base, 0.18), border: `1px solid ${palette.alpha(palette.loss.base, 0.35)}`, borderRadius: 99, padding: "1px 8px", color: palette.loss.base, fontSize: 10, fontWeight: 700 }}>WYMAGANE</span>
                         )}
                         {!platform.required && (
-                          <span style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 99, padding: "1px 8px", color: "rgba(255,255,255,0.3)", fontSize: 10 }}>opcjonalne</span>
+                          <span style={{ background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`, borderRadius: 99, padding: "1px 8px", color: palette.alpha(palette.ink.white, 0.3), fontSize: 10 }}>opcjonalne</span>
                         )}
                         {hasKey && (
                           result === "ok"
-                            ? <span style={{ background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 99, padding: "1px 8px", color: "#4ade80", fontSize: 10, fontWeight: 700 }}>✓ Aktywne</span>
+                            ? <span style={{ background: palette.alpha(palette.profit.base, 0.15), border: `1px solid ${palette.alpha(palette.profit.base, 0.3)}`, borderRadius: 99, padding: "1px 8px", color: palette.profit.base, fontSize: 10, fontWeight: 700 }}>✓ Aktywne</span>
                             : result === "fail"
-                              ? <span style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 99, padding: "1px 8px", color: "#f87171", fontSize: 10, fontWeight: 700 }}>✗ Błąd</span>
+                              ? <span style={{ background: palette.alpha(palette.loss.base, 0.15), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 99, padding: "1px 8px", color: palette.loss.base, fontSize: 10, fontWeight: 700 }}>✗ Błąd</span>
                               : <span style={{ background: `${platform.color}15`, border: `1px solid ${platform.color}30`, borderRadius: 99, padding: "1px 8px", color: platform.color, fontSize: 10, fontWeight: 700 }}>Dodano</span>
                         )}
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>{platform.description}</div>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, marginTop: 2 }}>{platform.description}</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {platform.docsUrl && (
-                      <a href={platform.docsUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", fontSize: 11, textDecoration: "none" }}>
+                      <a href={platform.docsUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, background: palette.alpha(palette.ink.white, 0.06), color: palette.alpha(palette.ink.white, 0.5), fontSize: 11, textDecoration: "none" }}>
                         Docs <ExternalLink size={10} />
                       </a>
                     )}
                     {hasKey && (
-                      <button onClick={() => clearPlatform(platform.id)} style={{ padding: "5px 8px", borderRadius: 7, background: "rgba(248,113,113,0.1)", border: "none", cursor: "pointer", color: "#f87171" }}>
+                      <button onClick={() => clearPlatform(platform.id)} style={{ padding: "5px 8px", borderRadius: 7, background: palette.alpha(palette.loss.base, 0.1), border: "none", cursor: "pointer", color: palette.loss.base }}>
                         <Trash2 size={13} />
                       </button>
                     )}
@@ -543,7 +544,7 @@ export default function Settings() {
                 <div style={{ padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                   {platform.fields.map(field => (
                     <div key={field.key}>
-                      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{field.label}</div>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{field.label}</div>
                       <div style={{ position: "relative" }}>
                         <input
                           type={visible[`${platform.id}_${field.key}`] ? "text" : "password"}
@@ -551,15 +552,15 @@ export default function Settings() {
                           onChange={e => update(platform.id, field.key, e.target.value)}
                           placeholder={field.placeholder}
                           style={{
-                            width: "100%", background: "rgba(0,0,0,0.3)",
-                            border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
-                            padding: "9px 38px 9px 12px", color: "#fff", fontSize: 13,
+                            width: "100%", background: palette.alpha(palette.ink.black, 0.3),
+                            border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`, borderRadius: 8,
+                            padding: "9px 38px 9px 12px", color: palette.ink.white, fontSize: 13,
                             fontFamily: "monospace", boxSizing: "border-box",
                           }}
                         />
                         <button
                           onClick={() => setVisible(v => ({ ...v, [`${platform.id}_${field.key}`]: !v[`${platform.id}_${field.key}`] }))}
-                          style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 0 }}
+                          style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.3), padding: 0 }}
                         >
                           {visible[`${platform.id}_${field.key}`] ? <EyeOff size={14} /> : <Eye size={14} />}
                         </button>
@@ -569,23 +570,23 @@ export default function Settings() {
 
                   {/* eBay OAuth Connect section */}
                   {platform.id === "ebay" && (
-                    <div style={{ background: "rgba(245,200,66,0.05)", border: "1px solid rgba(245,200,66,0.15)", borderRadius: 10, padding: "12px 14px", marginTop: 4 }}>
-                      <div style={{ color: "#f5c842", fontSize: 10, fontWeight: 700, marginBottom: 8 }}>🔑 KROK 2 — AUTORYZUJ KONTO SPRZEDAJĄCEGO (OAuth)</div>
-                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10, lineHeight: 1.6 }}>
-                        W developer.ebay.com → Twoja aplikacja → <strong style={{ color: "rgba(255,255,255,0.6)" }}>User Tokens → Utwórz RuName</strong> → wpisz jako Accept URL:<br />
-                        <span style={{ fontFamily: "monospace", color: "#93c5fd", fontSize: 10, wordBreak: "break-all" }}>{window.location.origin}/api/ebay/callback</span>
+                    <div style={{ background: palette.alpha(palette.brand.gold, 0.05), border: `1px solid ${palette.alpha(palette.brand.gold, 0.15)}`, borderRadius: 10, padding: "12px 14px", marginTop: 4 }}>
+                      <div style={{ color: palette.brand.gold, fontSize: 10, fontWeight: 700, marginBottom: 8 }}>🔑 KROK 2 — AUTORYZUJ KONTO SPRZEDAJĄCEGO (OAuth)</div>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, marginBottom: 10, lineHeight: 1.6 }}>
+                        W developer.ebay.com → Twoja aplikacja → <strong style={{ color: palette.alpha(palette.ink.white, 0.6) }}>User Tokens → Utwórz RuName</strong> → wpisz jako Accept URL:<br />
+                        <span style={{ fontFamily: "monospace", color: palette.info.soft, fontSize: 10, wordBreak: "break-all" }}>{window.location.origin}/api/ebay/callback</span>
                       </div>
                       {ebayError && (
-                        <div style={{ color: "#f87171", fontSize: 11, marginBottom: 8, background: "rgba(248,113,113,0.1)", borderRadius: 6, padding: "6px 10px" }}>{ebayError}</div>
+                        <div style={{ color: palette.loss.base, fontSize: 11, marginBottom: 8, background: palette.alpha(palette.loss.base, 0.1), borderRadius: 6, padding: "6px 10px" }}>{ebayError}</div>
                       )}
                       {ebayConnected ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <CheckCircle size={14} color="#4ade80" />
-                          <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 700, flex: 1 }}>Konto eBay połączone — możesz wystawiać ogłoszenia z Agent AI</span>
-                          <button onClick={() => { clearEbayToken(); setEbayConnected(false); }} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid rgba(248,113,113,0.3)", background: "transparent", color: "#f87171", cursor: "pointer", fontSize: 11 }}>Rozłącz</button>
+                          <CheckCircle size={14} color={palette.profit.base} />
+                          <span style={{ color: palette.profit.base, fontSize: 12, fontWeight: 700, flex: 1 }}>Konto eBay połączone — możesz wystawiać ogłoszenia z Agent AI</span>
+                          <button onClick={() => { clearEbayToken(); setEbayConnected(false); }} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, background: "transparent", color: palette.loss.base, cursor: "pointer", fontSize: 11 }}>Rozłącz</button>
                         </div>
                       ) : (
-                        <button onClick={connectEbay} disabled={ebayConnecting} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: ebayConnecting ? "not-allowed" : "pointer", background: ebayConnecting ? "rgba(245,200,66,0.1)" : "linear-gradient(135deg,#b45309,#d97706,#f5c842)", color: ebayConnecting ? "#f5c842" : "#000", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                        <button onClick={connectEbay} disabled={ebayConnecting} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: ebayConnecting ? "not-allowed" : "pointer", background: ebayConnecting ? palette.alpha(palette.brand.gold, 0.1) : `linear-gradient(135deg,${palette.sectionAccent.orange.deepest},${palette.brand.amberDeep},${palette.brand.gold})`, color: ebayConnecting ? palette.brand.gold : palette.ink.black, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                           <Link2 size={14} /> {ebayConnecting ? "Otwieranie eBay..." : "Połącz konto eBay (OAuth)"}
                         </button>
                       )}
@@ -594,23 +595,23 @@ export default function Settings() {
 
                   {/* Etsy OAuth Connect section */}
                   {platform.id === "etsy" && (
-                    <div style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.15)", borderRadius: 10, padding: "12px 14px", marginTop: 4 }}>
-                      <div style={{ color: "#f97316", fontSize: 10, fontWeight: 700, marginBottom: 8 }}>🔑 AUTORYZUJ KONTO ETSY (OAuth)</div>
-                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10, lineHeight: 1.6 }}>
-                        W developer.etsy.com → Twoja aplikacja → <strong style={{ color: "rgba(255,255,255,0.6)" }}>Redirect URIs</strong> → dodaj:<br />
-                        <span style={{ fontFamily: "monospace", color: "#93c5fd", fontSize: 10, wordBreak: "break-all" }}>{window.location.origin}/api/etsy/callback</span>
+                    <div style={{ background: palette.alpha(palette.sectionAccent.orange.base, 0.05), border: `1px solid ${palette.alpha(palette.sectionAccent.orange.base, 0.15)}`, borderRadius: 10, padding: "12px 14px", marginTop: 4 }}>
+                      <div style={{ color: palette.sectionAccent.orange.base, fontSize: 10, fontWeight: 700, marginBottom: 8 }}>🔑 AUTORYZUJ KONTO ETSY (OAuth)</div>
+                      <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, marginBottom: 10, lineHeight: 1.6 }}>
+                        W developer.etsy.com → Twoja aplikacja → <strong style={{ color: palette.alpha(palette.ink.white, 0.6) }}>Redirect URIs</strong> → dodaj:<br />
+                        <span style={{ fontFamily: "monospace", color: palette.info.soft, fontSize: 10, wordBreak: "break-all" }}>{window.location.origin}/api/etsy/callback</span>
                       </div>
                       {etsyError && (
-                        <div style={{ color: "#f87171", fontSize: 11, marginBottom: 8, background: "rgba(248,113,113,0.1)", borderRadius: 6, padding: "6px 10px" }}>{etsyError}</div>
+                        <div style={{ color: palette.loss.base, fontSize: 11, marginBottom: 8, background: palette.alpha(palette.loss.base, 0.1), borderRadius: 6, padding: "6px 10px" }}>{etsyError}</div>
                       )}
                       {etsyConnected ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <CheckCircle size={14} color="#4ade80" />
-                          <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 700, flex: 1 }}>Konto Etsy połączone — możesz wystawiać ogłoszenia z Agent AI</span>
-                          <button onClick={() => { clearEtsyToken(); setEtsyConnected(false); }} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid rgba(248,113,113,0.3)", background: "transparent", color: "#f87171", cursor: "pointer", fontSize: 11 }}>Rozłącz</button>
+                          <CheckCircle size={14} color={palette.profit.base} />
+                          <span style={{ color: palette.profit.base, fontSize: 12, fontWeight: 700, flex: 1 }}>Konto Etsy połączone — możesz wystawiać ogłoszenia z Agent AI</span>
+                          <button onClick={() => { clearEtsyToken(); setEtsyConnected(false); }} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, background: "transparent", color: palette.loss.base, cursor: "pointer", fontSize: 11 }}>Rozłącz</button>
                         </div>
                       ) : (
-                        <button onClick={connectEtsy} disabled={etsyConnecting} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: etsyConnecting ? "not-allowed" : "pointer", background: etsyConnecting ? "rgba(249,115,22,0.1)" : "linear-gradient(135deg,#c2410c,#ea580c,#f97316)", color: etsyConnecting ? "#f97316" : "#fff", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                        <button onClick={connectEtsy} disabled={etsyConnecting} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", cursor: etsyConnecting ? "not-allowed" : "pointer", background: etsyConnecting ? palette.alpha(palette.sectionAccent.orange.base, 0.1) : `linear-gradient(135deg,${palette.sectionAccent.orange.deeper},${palette.sectionAccent.orange.deep},${palette.sectionAccent.orange.base})`, color: etsyConnecting ? palette.sectionAccent.orange.base : palette.ink.white, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                           <Link2 size={14} /> {etsyConnecting ? "Otwieranie Etsy..." : "Połącz konto Etsy (OAuth)"}
                         </button>
                       )}
@@ -622,8 +623,8 @@ export default function Settings() {
                       onClick={() => saveAndNotify(platform.id)}
                       style={{
                         flex: 1, padding: "9px", borderRadius: 8, border: "none", cursor: "pointer",
-                        background: saved[platform.id] ? "rgba(74,222,128,0.2)" : `${platform.color}20`,
-                        color: saved[platform.id] ? "#4ade80" : platform.color,
+                        background: saved[platform.id] ? palette.alpha(palette.profit.base, 0.2) : `${platform.color}20`,
+                        color: saved[platform.id] ? palette.profit.base : platform.color,
                         fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                       }}
                     >
@@ -635,7 +636,7 @@ export default function Settings() {
                         disabled={testing[platform.id]}
                         style={{
                           padding: "9px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-                          background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)",
+                          background: palette.alpha(palette.ink.white, 0.06), color: palette.alpha(palette.ink.white, 0.6),
                           fontWeight: 700, fontSize: 13,
                         }}
                       >
@@ -653,9 +654,9 @@ export default function Settings() {
         <SyncBox keys={keys} setKeys={setKeys} synced={synced} setSynced={setSynced} />
 
         {/* Info box */}
-        <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
-          <div style={{ color: "#93c5fd", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>🔐 Bezpieczeństwo</div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.6 }}>
+        <div style={{ background: palette.alpha(palette.info.base, 0.08), border: `1px solid ${palette.alpha(palette.info.base, 0.2)}`, borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
+          <div style={{ color: palette.info.soft, fontWeight: 700, fontSize: 12, marginBottom: 6 }}>🔐 Bezpieczeństwo</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 12, lineHeight: 1.6 }}>
             Klucze są szyfrowane (AES-256) na serwerze i synchronizowane między urządzeniami.
             Przy każdym żądaniu API klucz jest przesyłany tylko do Twojego własnego serwera.
           </div>

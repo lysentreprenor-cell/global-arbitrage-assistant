@@ -12,6 +12,7 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
 import { LocationPicker } from "@/components/resell/LocationPicker";
 import { marketplaceBadge } from "@/design/platforms";
+import * as palette from "@/design/palette";
 
 type Opportunity = {
   id: number; name: string; buy: number; sell: number; profit: number;
@@ -101,19 +102,19 @@ function MarketingLauncher({ opportunities, onNavigate }: { opportunities: Oppor
 
   return (
     <div style={{
-      background: "linear-gradient(135deg, rgba(236,72,153,0.08), rgba(168,85,247,0.06), rgba(99,102,241,0.04))",
-      border: "1px solid rgba(168,85,247,0.25)",
+      background: `linear-gradient(135deg, ${palette.alpha(palette.sectionAccent.pink.base, 0.08)}, ${palette.alpha(palette.sectionAccent.purple.base, 0.06)}, ${palette.alpha(palette.sectionAccent.indigo.base, 0.04)})`,
+      border: `1px solid ${palette.alpha(palette.sectionAccent.purple.base, 0.25)}`,
       borderRadius: 16, padding: "18px 20px", marginBottom: 20,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#ec4899,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 14px rgba(168,85,247,0.35)" }}>
-          <Megaphone size={17} color="#fff" />
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg,${palette.sectionAccent.pink.base},${palette.sectionAccent.purple.base})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 4px 14px ${palette.alpha(palette.sectionAccent.purple.base, 0.35)}` }}>
+          <Megaphone size={17} color={palette.ink.white} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>Marketing AI</div>
-          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Kampania dla dowolnego produktu — kraj, kontynent lub cały świat</div>
+          <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 14 }}>Marketing AI</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>Kampania dla dowolnego produktu — kraj, kontynent lub cały świat</div>
         </div>
-        <button onClick={() => onNavigate("/resell/marketing")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.3)", background: "transparent", color: "#c4b5fd", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => onNavigate("/resell/marketing")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: `1px solid ${palette.alpha(palette.sectionAccent.purple.base, 0.3)}`, background: "transparent", color: palette.ai.soft, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
           Pełne narzędzie <ChevronRight size={12} />
         </button>
       </div>
@@ -123,15 +124,15 @@ function MarketingLauncher({ opportunities, onNavigate }: { opportunities: Oppor
           onChange={e => setMkProduct(e.target.value)}
           onKeyDown={e => e.key === "Enter" && mkProduct.trim() && launch()}
           placeholder={topProduct ? `np. ${topProduct.split(" ").slice(0, 3).join(" ")}` : "Nazwa produktu…"}
-          style={{ flex: "1 1 200px", minWidth: 160, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, color: "#fff", fontSize: 13, padding: "9px 12px", outline: "none" }}
+          style={{ flex: "1 1 200px", minWidth: 160, background: palette.alpha(palette.ink.white, 0.07), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, borderRadius: 9, color: palette.ink.white, fontSize: 13, padding: "9px 12px", outline: "none" }}
         />
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
           {QUICK_MARKETS.map(m => (
             <button key={m.value} onClick={() => { setMkMarket(m.value); setMkType(m.type ?? "country"); }} style={{
               padding: "7px 11px", borderRadius: 8, fontSize: 11,
-              border: `1px solid ${mkMarket === m.value ? "rgba(236,72,153,0.5)" : "rgba(255,255,255,0.09)"}`,
-              background: mkMarket === m.value ? "rgba(236,72,153,0.15)" : "rgba(255,255,255,0.03)",
-              color: mkMarket === m.value ? "#f9a8d4" : "rgba(255,255,255,0.45)",
+              border: `1px solid ${mkMarket === m.value ? palette.alpha(palette.sectionAccent.pink.base, 0.5) : palette.alpha(palette.ink.white, 0.09)}`,
+              background: mkMarket === m.value ? palette.alpha(palette.sectionAccent.pink.base, 0.15) : palette.alpha(palette.ink.white, 0.03),
+              color: mkMarket === m.value ? palette.sectionAccent.pink.soft : palette.alpha(palette.ink.white, 0.45),
               cursor: "pointer", fontWeight: mkMarket === m.value ? 700 : 400,
             }}>{m.label}</button>
           ))}
@@ -142,8 +143,8 @@ function MarketingLauncher({ opportunities, onNavigate }: { opportunities: Oppor
           style={{
             display: "flex", alignItems: "center", gap: 6,
             padding: "9px 18px", borderRadius: 9, border: "none",
-            background: mkProduct.trim() ? "linear-gradient(135deg,#ec4899,#a855f7)" : "rgba(168,85,247,0.15)",
-            color: mkProduct.trim() ? "#fff" : "rgba(255,255,255,0.3)",
+            background: mkProduct.trim() ? `linear-gradient(135deg,${palette.sectionAccent.pink.base},${palette.sectionAccent.purple.base})` : palette.alpha(palette.sectionAccent.purple.base, 0.15),
+            color: mkProduct.trim() ? palette.ink.white : palette.alpha(palette.ink.white, 0.3),
             fontWeight: 800, fontSize: 13, cursor: mkProduct.trim() ? "pointer" : "not-allowed",
             whiteSpace: "nowrap",
           }}
@@ -350,33 +351,33 @@ export default function Dashboard() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
+              <h1 style={{ color: palette.ink.white, fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
                 AI Market Scanner
               </h1>
               <div style={{
                 display: "flex", alignItems: "center", gap: 5,
-                background: scanning ? "rgba(245,200,66,0.12)" : "rgba(74,222,128,0.10)",
-                border: `1px solid ${scanning ? "rgba(245,200,66,0.3)" : "rgba(74,222,128,0.25)"}`,
+                background: scanning ? palette.alpha(palette.brand.gold, 0.12) : palette.alpha(palette.profit.base, 0.10),
+                border: `1px solid ${scanning ? palette.alpha(palette.brand.gold, 0.3) : palette.alpha(palette.profit.base, 0.25)}`,
                 borderRadius: 99, padding: "3px 10px",
               }}>
                 <div style={{
                   width: 6, height: 6, borderRadius: "50%",
-                  background: scanning ? "#f5c842" : "#4ade80",
+                  background: scanning ? palette.brand.gold : palette.profit.base,
                   animation: "pulse 1.5s infinite",
                 }} />
-                <span style={{ color: scanning ? "#fde68a" : "#86efac", fontSize: 11, fontWeight: 700 }}>
+                <span style={{ color: scanning ? palette.brand.goldSoft : palette.profit.soft, fontSize: 11, fontWeight: 700 }}>
                   {scanning ? "Skanuje..." : "Live"}
                 </span>
               </div>
             </div>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: 0 }}>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, margin: 0 }}>
               {scanStep
-                ? <span style={{ color: "#f5c842" }}>{scanStep}</span>
+                ? <span style={{ color: palette.brand.gold }}>{scanStep}</span>
                 : scannedAt
-                  ? <>Ostatni skan: <span style={{ color: "#86efac" }}>{scannedAt}</span>
-                      {scanSource === "live" && <span style={{ color: "#4ade80", marginLeft: 6 }}>· 🟢 Dane live</span>}
-                      {scanSource === "ai" && <span style={{ color: "#a78bfa", marginLeft: 6 }}>· 🤖 AI</span>}
-                      {scanSource === "example" && <span style={{ color: "#f87171", marginLeft: 6 }}>· 📋 Przykładowe</span>}
+                  ? <>Ostatni skan: <span style={{ color: palette.profit.soft }}>{scannedAt}</span>
+                      {scanSource === "live" && <span style={{ color: palette.profit.base, marginLeft: 6 }}>· 🟢 Dane live</span>}
+                      {scanSource === "ai" && <span style={{ color: palette.ai.base, marginLeft: 6 }}>· 🤖 AI</span>}
+                      {scanSource === "example" && <span style={{ color: palette.loss.base, marginLeft: 6 }}>· 📋 Przykładowe</span>}
                     </>
                   : "Arbitraż cross-border w czasie rzeczywistym"
               }
@@ -393,9 +394,9 @@ export default function Dashboard() {
               style={{
                 display: "flex", alignItems: "center", gap: 7,
                 padding: "10px 18px", borderRadius: 10, cursor: scanning ? "not-allowed" : "pointer",
-                background: scanning ? "rgba(245,200,66,0.15)" : "linear-gradient(135deg,rgba(139,92,246,0.25),rgba(124,58,237,0.15))",
-                border: `1px solid ${scanning ? "rgba(245,200,66,0.3)" : "rgba(139,92,246,0.4)"}`,
-                color: scanning ? "#fde68a" : "#c4b5fd", fontWeight: 700, fontSize: 13,
+                background: scanning ? palette.alpha(palette.brand.gold, 0.15) : `linear-gradient(135deg,${palette.alpha(palette.ai.strong, 0.25)},${palette.alpha(palette.ai.deep, 0.15)})`,
+                border: `1px solid ${scanning ? palette.alpha(palette.brand.gold, 0.3) : palette.alpha(palette.ai.strong, 0.4)}`,
+                color: scanning ? palette.brand.goldSoft : palette.ai.soft, fontWeight: 700, fontSize: 13,
                 opacity: scanning ? 0.8 : 1,
               }}
             >
@@ -414,26 +415,26 @@ export default function Dashboard() {
           return (
             <div style={{
               display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-              background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.18)",
+              background: palette.alpha(palette.sectionAccent.purple.base, 0.06), border: `1px solid ${palette.alpha(palette.sectionAccent.purple.base, 0.18)}`,
               borderRadius: 10, padding: "8px 14px", marginBottom: 16,
             }}>
-              <span style={{ color: "#a78bfa", fontSize: 11, fontWeight: 700 }}>🤖 Tokeny AI</span>
-              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
-              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{monthLabel}</span>
-              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
-              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
-                <span style={{ color: "#c4b5fd" }}>{s.outputTotal.toLocaleString()}</span> out
+              <span style={{ color: palette.ai.base, fontSize: 11, fontWeight: 700 }}>🤖 Tokeny AI</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11 }}>·</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>{monthLabel}</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11 }}>·</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 11 }}>
+                <span style={{ color: palette.ai.soft }}>{s.outputTotal.toLocaleString()}</span> out
               </span>
-              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
-              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11 }}>·</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 11 }}>
                 {s.inputTotal.toLocaleString()} in
               </span>
-              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
-              <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 700 }}>~${cost.toFixed(3)}</span>
-              <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>·</span>
-              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{s.calls} {s.calls === 1 ? "zapytanie" : "zapytań"}</span>
-              {s.haikuCalls > 0 && <span style={{ color: "#4ade80", fontSize: 10 }}>⚡{s.haikuCalls}×H</span>}
-              {s.sonnetCalls > 0 && <span style={{ color: "#fbbf24", fontSize: 10 }}>✦{s.sonnetCalls}×S</span>}
+              <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11 }}>·</span>
+              <span style={{ color: palette.brand.goldStrong, fontSize: 11, fontWeight: 700 }}>~${cost.toFixed(3)}</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11 }}>·</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>{s.calls} {s.calls === 1 ? "zapytanie" : "zapytań"}</span>
+              {s.haikuCalls > 0 && <span style={{ color: palette.profit.base, fontSize: 10 }}>⚡{s.haikuCalls}×H</span>}
+              {s.sonnetCalls > 0 && <span style={{ color: palette.brand.goldStrong, fontSize: 10 }}>✦{s.sonnetCalls}×S</span>}
             </div>
           );
         })()}
@@ -441,28 +442,28 @@ export default function Dashboard() {
         {/* ── First-run setup prompt (no Anthropic key) ── */}
         {!getAnthropicKey() && (
           <div style={{
-            background: "linear-gradient(135deg, rgba(168,85,247,0.1), rgba(139,92,246,0.06))",
-            border: "1px solid rgba(168,85,247,0.35)", borderRadius: 16,
+            background: `linear-gradient(135deg, ${palette.alpha(palette.sectionAccent.purple.base, 0.1)}, ${palette.alpha(palette.ai.strong, 0.06)})`,
+            border: `1px solid ${palette.alpha(palette.sectionAccent.purple.base, 0.35)}`, borderRadius: 16,
             padding: "20px 22px", marginBottom: 18,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <div style={{ fontSize: 24 }}>🔑</div>
               <div>
-                <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Pierwsze uruchomienie — dodaj klucz API</div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>Jedyny wymagany klucz to Anthropic AI — reszta jest opcjonalna</div>
+                <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 15 }}>Pierwsze uruchomienie — dodaj klucz API</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, marginTop: 2 }}>Jedyny wymagany klucz to Anthropic AI — reszta jest opcjonalna</div>
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {[
-                { step: "1", text: "Wejdź na console.anthropic.com i utwórz darmowe konto", color: "#a78bfa" },
-                { step: "2", text: "Skopiuj klucz API (zaczyna się od sk-ant-...)", color: "#a78bfa" },
-                { step: "3", text: "Wklej go poniżej lub w zakładce ⚙ API w górnym menu", color: "#4ade80" },
+                { step: "1", text: "Wejdź na console.anthropic.com i utwórz darmowe konto", color: palette.ai.base },
+                { step: "2", text: "Skopiuj klucz API (zaczyna się od sk-ant-...)", color: palette.ai.base },
+                { step: "3", text: "Wklej go poniżej lub w zakładce ⚙ API w górnym menu", color: palette.profit.base },
               ].map(s => (
                 <div key={s.step} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 22, height: 22, borderRadius: "50%", background: `${s.color}20`, border: `1px solid ${s.color}40`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <span style={{ color: s.color, fontSize: 11, fontWeight: 800 }}>{s.step}</span>
                   </div>
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{s.text}</span>
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12 }}>{s.text}</span>
                 </div>
               ))}
             </div>
@@ -471,9 +472,9 @@ export default function Dashboard() {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 7,
                 padding: "10px 20px", borderRadius: 10, border: "none", cursor: "pointer",
-                background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
-                color: "#fff", fontWeight: 700, fontSize: 13,
-                boxShadow: "0 4px 14px rgba(139,92,246,0.4)",
+                background: `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`,
+                color: palette.ink.white, fontWeight: 700, fontSize: 13,
+                boxShadow: `0 4px 14px ${palette.alpha(palette.ai.strong, 0.4)}`,
               }}
             >
               ⚙ Otwórz ustawienia API <ChevronRight size={14} />
@@ -483,10 +484,10 @@ export default function Dashboard() {
 
         {/* ── Error banner ── */}
         {scanError && (
-          <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-            <AlertCircle size={14} color="#f87171" style={{ flexShrink: 0 }} />
-            <span style={{ color: "#fca5a5", fontSize: 12, flex: 1 }}>{scanError}</span>
-            <button onClick={() => setScanError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 2 }}>
+          <div style={{ background: palette.alpha(palette.loss.base, 0.08), border: `1px solid ${palette.alpha(palette.loss.base, 0.25)}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+            <AlertCircle size={14} color={palette.loss.base} style={{ flexShrink: 0 }} />
+            <span style={{ color: palette.loss.soft, fontSize: 12, flex: 1 }}>{scanError}</span>
+            <button onClick={() => setScanError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.3), padding: 2 }}>
               <X size={13} />
             </button>
           </div>
@@ -494,9 +495,9 @@ export default function Dashboard() {
 
         {/* ── Stale data banner ── */}
         {(opportunities.length === 0 || !isRealData) && !scanning && (
-          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <Zap size={15} color="#a78bfa" style={{ flexShrink: 0 }} />
-            <span style={{ color: "#c4b5fd", fontSize: 13, flex: 1, minWidth: 180 }}>
+          <div style={{ background: palette.alpha(palette.ai.strong, 0.07), border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <Zap size={15} color={palette.ai.base} style={{ flexShrink: 0 }} />
+            <span style={{ color: palette.ai.soft, fontSize: 13, flex: 1, minWidth: 180 }}>
               {opportunities.length === 0
                 ? <>Brak danych — naciśnij <strong>Skanuj ponownie</strong>.</>
                 : <>Dane przykładowe — naciśnij <strong>Skanuj ponownie</strong> żeby pobrać aktualne okazje.</>}
@@ -511,14 +512,14 @@ export default function Dashboard() {
                     setOpportunities([]);
                     setIsRealData(false);
                   }}
-                  style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 7, padding: "6px 12px", cursor: "pointer", color: "#fca5a5", fontSize: 11, fontWeight: 700 }}
+                  style={{ background: palette.alpha(palette.loss.base, 0.12), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 7, padding: "6px 12px", cursor: "pointer", color: palette.loss.soft, fontSize: 11, fontWeight: 700 }}
                 >
                   Wyczyść cache
                 </button>
               )}
               <button
                 onClick={triggerScan}
-                style={{ background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 7, padding: "6px 14px", cursor: "pointer", color: "#a78bfa", fontSize: 12, fontWeight: 700 }}
+                style={{ background: palette.alpha(palette.ai.strong, 0.18), border: `1px solid ${palette.alpha(palette.ai.strong, 0.35)}`, borderRadius: 7, padding: "6px 14px", cursor: "pointer", color: palette.ai.base, fontSize: 12, fontWeight: 700 }}
               >
                 Skanuj teraz
               </button>
@@ -530,19 +531,19 @@ export default function Dashboard() {
         <div
           onClick={() => setLocation("/resell/agent")}
           style={{
-            background: "linear-gradient(135deg,rgba(34,197,94,0.1),rgba(74,222,128,0.06))",
-            border: "1px solid rgba(34,197,94,0.3)", borderRadius: 14,
+            background: `linear-gradient(135deg,${palette.alpha(palette.profit.strong, 0.1)},${palette.alpha(palette.profit.base, 0.06)})`,
+            border: `1px solid ${palette.alpha(palette.profit.strong, 0.3)}`, borderRadius: 14,
             padding: "14px 18px", marginBottom: 16, cursor: "pointer",
             display: "flex", alignItems: "center", gap: 12,
           }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg,#16a34a,#22c55e)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 14px rgba(34,197,94,0.35)" }}>
-            <Bot size={18} color="#fff" />
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: `linear-gradient(135deg,${palette.profit.deep},${palette.profit.strong})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 4px 14px ${palette.alpha(palette.profit.strong, 0.35)}` }}>
+            <Bot size={18} color={palette.ink.white} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>ARIA — Agent AI</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Analizuje rynek i tworzy plan zarobku — kliknij żeby uruchomić</div>
+            <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 14 }}>ARIA — Agent AI</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>Analizuje rynek i tworzy plan zarobku — kliknij żeby uruchomić</div>
           </div>
-          <ChevronRight size={16} color="rgba(34,197,94,0.6)" />
+          <ChevronRight size={16} color={palette.alpha(palette.profit.strong, 0.6)} />
         </div>
 
         {/* ── Marketing AI launcher ── */}
@@ -563,24 +564,24 @@ export default function Dashboard() {
           const potential = pipe.filter(i => i.status !== "sold" && i.status !== "abandoned")
             .reduce((s, i) => s + (i.netProfit ?? i.profit), 0);
           const STATUS_CFG = [
-            { key: "planned", label: "Planowane",  color: "#60a5fa" },
-            { key: "bought",  label: "Kupione",     color: "#f5c842" },
-            { key: "listed",  label: "Wystawione",  color: "#a78bfa" },
-            { key: "sold",    label: "Sprzedane",   color: "#4ade80" },
+            { key: "planned", label: "Planowane",  color: palette.info.base },
+            { key: "bought",  label: "Kupione",     color: palette.brand.gold },
+            { key: "listed",  label: "Wystawione",  color: palette.ai.base },
+            { key: "sold",    label: "Sprzedane",   color: palette.profit.base },
           ];
           return (
             <div
               onClick={() => setLocation("/resell/pipeline")}
               style={{
-                background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)",
+                background: palette.alpha(palette.ink.white, 0.025), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`,
                 borderRadius: 14, padding: "12px 16px", marginBottom: 14, cursor: "pointer",
                 display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
                 transition: "border-color 0.15s",
               }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)")}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)")}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = palette.alpha(palette.ai.strong, 0.3))}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = palette.alpha(palette.ink.white, 0.07))}
             >
-              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>PIPELINE</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>PIPELINE</span>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
                 {STATUS_CFG.filter(s => pCounts[s.key] > 0).map(s => (
                   <div key={s.key} style={{
@@ -596,18 +597,18 @@ export default function Dashboard() {
               <div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
                 {invested > 0 && (
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9 }}>ZAINWESTOWANE</div>
-                    <div style={{ color: "#f87171", fontSize: 13, fontWeight: 800 }}>${invested.toFixed(0)}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 9 }}>ZAINWESTOWANE</div>
+                    <div style={{ color: palette.loss.base, fontSize: 13, fontWeight: 800 }}>${invested.toFixed(0)}</div>
                   </div>
                 )}
                 {potential > 0 && (
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9 }}>POTENCJAŁ</div>
-                    <div style={{ color: "#4ade80", fontSize: 13, fontWeight: 800 }}>+${potential.toFixed(0)}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 9 }}>POTENCJAŁ</div>
+                    <div style={{ color: palette.profit.base, fontSize: 13, fontWeight: 800 }}>+${potential.toFixed(0)}</div>
                   </div>
                 )}
               </div>
-              <ChevronRight size={14} color="rgba(255,255,255,0.2)" />
+              <ChevronRight size={14} color={palette.alpha(palette.ink.white, 0.2)} />
             </div>
           );
         })()}
@@ -618,32 +619,32 @@ export default function Dashboard() {
             {
               label: "OKAZJI", value: String(opportunities.length),
               sub: filtered.length !== opportunities.length ? `${filtered.length} widocznych` : "wszystkie kategorie",
-              color: "#f5c842", icon: <Zap size={14} color="#f5c842" />,
+              color: palette.brand.gold, icon: <Zap size={14} color={palette.brand.gold} />,
             },
             {
               label: "ŚR. MARŻA", value: `${avgMargin}%`,
               sub: "po opłatach i wysyłce",
-              color: "#4ade80", icon: <TrendingUp size={14} color="#4ade80" />,
+              color: palette.profit.base, icon: <TrendingUp size={14} color={palette.profit.base} />,
             },
             {
               label: "NAJLEPSZY ZYSK", value: topDeal ? `$${topDeal.netProfit ?? topDeal.profit}` : "—",
               sub: topDeal ? topDeal.name.split(" ").slice(0, 3).join(" ") : "brak danych",
-              color: "#a78bfa", icon: <Star size={14} color="#a78bfa" />,
+              color: palette.ai.base, icon: <Star size={14} color={palette.ai.base} />,
             },
             {
               label: "RYZYKO WYSOKIE", value: String(highRiskCount),
               sub: `z ${opportunities.length} okazji`,
-              color: highRiskCount > 0 ? "#f87171" : "#4ade80",
-              icon: highRiskCount > 0 ? <ShieldAlert size={14} color="#f87171" /> : <ShieldCheck size={14} color="#4ade80" />,
+              color: highRiskCount > 0 ? palette.loss.base : palette.profit.base,
+              icon: highRiskCount > 0 ? <ShieldAlert size={14} color={palette.loss.base} /> : <ShieldCheck size={14} color={palette.profit.base} />,
             },
           ].map(s => (
-            <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "14px 16px" }}>
+            <div key={s.label} style={{ background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: "14px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 {s.icon}
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>{s.label}</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>{s.label}</span>
               </div>
               <div style={{ color: s.color, fontSize: 22, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.sub}</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.sub}</div>
             </div>
           ))}
         </div>
@@ -653,15 +654,15 @@ export default function Dashboard() {
           <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
             {/* Search */}
             <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
-              <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+              <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.3), pointerEvents: "none" }} />
               <input
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Szukaj okazji..."
                 style={{
-                  width: "100%", background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(139,92,246,0.2)", borderRadius: 9,
-                  padding: "9px 12px 9px 36px", color: "#fff", fontSize: 13,
+                  width: "100%", background: palette.alpha(palette.ink.white, 0.05),
+                  border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 9,
+                  padding: "9px 12px 9px 36px", color: palette.ink.white, fontSize: 13,
                   outline: "none", boxSizing: "border-box", fontFamily: "inherit",
                 }}
               />
@@ -671,8 +672,8 @@ export default function Dashboard() {
               value={sortKey}
               onChange={e => setSortKey(e.target.value as typeof sortKey)}
               style={{
-                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(139,92,246,0.2)",
-                borderRadius: 9, padding: "9px 12px", color: "rgba(255,255,255,0.7)",
+                background: palette.alpha(palette.ink.white, 0.05), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`,
+                borderRadius: 9, padding: "9px 12px", color: palette.alpha(palette.ink.white, 0.7),
                 fontSize: 12, cursor: "pointer", fontFamily: "inherit", outline: "none",
               }}
             >
@@ -690,9 +691,9 @@ export default function Dashboard() {
                 onClick={() => setActiveCategory(cat)}
                 style={{
                   padding: "6px 13px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                  background: activeCategory === cat ? "linear-gradient(135deg,#8b5cf6,#7c3aed)" : "rgba(255,255,255,0.06)",
-                  color: activeCategory === cat ? "#fff" : "rgba(255,255,255,0.45)",
-                  boxShadow: activeCategory === cat ? "0 2px 10px rgba(139,92,246,0.3)" : "none",
+                  background: activeCategory === cat ? `linear-gradient(135deg,${palette.ai.strong},${palette.ai.deep})` : palette.alpha(palette.ink.white, 0.06),
+                  color: activeCategory === cat ? palette.ink.white : palette.alpha(palette.ink.white, 0.45),
+                  boxShadow: activeCategory === cat ? `0 2px 10px ${palette.alpha(palette.ai.strong, 0.3)}` : "none",
                   transition: "all 0.15s",
                 }}
               >
@@ -707,20 +708,20 @@ export default function Dashboard() {
           <div style={{ padding: "48px 24px", textAlign: "center" }}>
             <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>
               {[0,1,2,3,4].map(i => (
-                <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#8b5cf6", animation: `bounce 1s ${i * 0.15}s infinite` }} />
+                <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: palette.ai.strong, animation: `bounce 1s ${i * 0.15}s infinite` }} />
               ))}
             </div>
-            <div style={{ color: "#f5c842", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{scanStep}</div>
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Trwa analiza rynków…</div>
+            <div style={{ color: palette.brand.gold, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{scanStep}</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 12 }}>Trwa analiza rynków…</div>
           </div>
         )}
 
         {/* ── Enrichment progress bar (cards already visible, prices updating) ── */}
         {scanning && filtered.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 14px", background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 8 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#f5c842", animation: "pulse 1s infinite", flexShrink: 0 }} />
-            <span style={{ color: "#fde68a", fontSize: 12, fontWeight: 700, flex: 1 }}>{scanStep || "Weryfikacja cen na eBay…"}</span>
-            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>Karty aktualizują się automatycznie</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 14px", background: palette.alpha(palette.brand.gold, 0.07), border: `1px solid ${palette.alpha(palette.brand.gold, 0.2)}`, borderRadius: 8 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: palette.brand.gold, animation: "pulse 1s infinite", flexShrink: 0 }} />
+            <span style={{ color: palette.brand.goldSoft, fontSize: 12, fontWeight: 700, flex: 1 }}>{scanStep || "Weryfikacja cen na eBay…"}</span>
+            <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>Karty aktualizują się automatycznie</span>
           </div>
         )}
 
@@ -728,12 +729,12 @@ export default function Dashboard() {
         {!scanning && filtered.length === 0 && (
           <div style={{ padding: "48px 24px", textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, marginBottom: 16 }}>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 14, marginBottom: 16 }}>
               {query || activeCategory !== "All" ? "Brak okazji pasujących do filtrów" : "Brak danych — uruchom skanowanie"}
             </div>
             <button
               onClick={triggerScan}
-              style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)", border: "none", borderRadius: 10, padding: "10px 22px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              style={{ background: `linear-gradient(135deg,${palette.ai.strong},${palette.ai.deep})`, border: "none", borderRadius: 10, padding: "10px 22px", color: palette.ink.white, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
             >
               Skanuj teraz
             </button>
@@ -743,14 +744,14 @@ export default function Dashboard() {
         {/* ── Opportunity cards grid ── */}
         {filtered.length > 0 && (
           <>
-            <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginBottom: 10 }}>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11, marginBottom: 10 }}>
               {filtered.length} okazj{filtered.length === 1 ? "a" : filtered.length < 5 ? "e" : "i"}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(480px,1fr))", gap: 12 }}>
               {filtered.map(o => {
                 const netP = o.netProfit ?? o.profit;
-                const scoreColor = o.score >= 85 ? "#4ade80" : o.score >= 65 ? "#f5c842" : "#f87171";
-                const riskColor = o.risk === "low" ? "#4ade80" : o.risk === "medium" ? "#f5c842" : "#f87171";
+                const scoreColor = o.score >= 85 ? palette.profit.base : o.score >= 65 ? palette.brand.gold : palette.loss.base;
+                const riskColor = o.risk === "low" ? palette.profit.base : o.risk === "medium" ? palette.brand.gold : palette.loss.base;
                 const riskLabel = o.risk === "low" ? "Niskie" : o.risk === "medium" ? "Średnie" : o.risk === "high" ? "Wysokie" : "—";
                 const imgUrl = enrichedData[o.id]?.imageUrl || o.imageUrl;
                 const srcUrl = enrichedData[o.id]?.sourceUrl || o.sourceUrl;
@@ -769,8 +770,8 @@ export default function Dashboard() {
                       setLocation(`/resell/product/${o.id}`);
                     }}
                     style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: palette.alpha(palette.ink.white, 0.03),
+                      border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`,
                       borderRadius: 16,
                       padding: 16,
                       cursor: "pointer",
@@ -781,17 +782,17 @@ export default function Dashboard() {
                       position: "relative",
                     }}
                     onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)";
-                      (e.currentTarget as HTMLElement).style.border = "1px solid rgba(139,92,246,0.3)";
+                      (e.currentTarget as HTMLElement).style.background = palette.alpha(palette.ink.white, 0.055);
+                      (e.currentTarget as HTMLElement).style.border = `1px solid ${palette.alpha(palette.ai.strong, 0.3)}`;
                     }}
                     onMouseLeave={e => {
-                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)";
-                      (e.currentTarget as HTMLElement).style.border = "1px solid rgba(255,255,255,0.08)";
+                      (e.currentTarget as HTMLElement).style.background = palette.alpha(palette.ink.white, 0.03);
+                      (e.currentTarget as HTMLElement).style.border = `1px solid ${palette.alpha(palette.ink.white, 0.08)}`;
                     }}
                   >
                     {/* Enriching pulse — disappears once real eBay data arrives */}
                     {o._enriching && (
-                      <div style={{ position: "absolute", top: 9, right: 9, width: 7, height: 7, borderRadius: "50%", background: "#f5c842", animation: "pulse 1s infinite", zIndex: 2 }} />
+                      <div style={{ position: "absolute", top: 9, right: 9, width: 7, height: 7, borderRadius: "50%", background: palette.brand.gold, animation: "pulse 1s infinite", zIndex: 2 }} />
                     )}
 
                     {/* ── Top row: image + name + score ── */}
@@ -809,14 +810,14 @@ export default function Dashboard() {
                             <img
                               src={imgUrl}
                               alt={o.name}
-                              style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", display: "block" }}
+                              style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, display: "block" }}
                               onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                               onMouseEnter={e => setPreviewImg({ src: imgUrl, name: o.name, rect: e.currentTarget.getBoundingClientRect() })}
                               onMouseLeave={() => setPreviewImg(null)}
                             />
                           </a>
                         ) : (
-                          <div style={{ width: 72, height: 72, borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+                          <div style={{ width: 72, height: 72, borderRadius: 10, background: palette.alpha(palette.ink.white, 0.05), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
                             {catEmoji}
                           </div>
                         )}
@@ -825,7 +826,7 @@ export default function Dashboard() {
                       {/* Name + meta */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                          <div style={{ color: "#fff", fontSize: 14, fontWeight: 700, lineHeight: 1.3, flex: 1 }}>{o.name}</div>
+                          <div style={{ color: palette.ink.white, fontSize: 14, fontWeight: 700, lineHeight: 1.3, flex: 1 }}>{o.name}</div>
                           {/* Score badge */}
                           <div style={{
                             flexShrink: 0, width: 36, height: 36, borderRadius: 10,
@@ -838,18 +839,18 @@ export default function Dashboard() {
                         </div>
                         {/* Meta chips */}
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-                          <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{o.flag} {o.category}</span>
+                          <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11 }}>{o.flag} {o.category}</span>
                           {o.daysToSell && (
-                            <span style={{ display: "flex", alignItems: "center", gap: 3, color: "rgba(255,255,255,0.3)", fontSize: 10 }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 3, color: palette.alpha(palette.ink.white, 0.3), fontSize: 10 }}>
                               <Clock size={9} /> ~{o.daysToSell}d
                             </span>
                           )}
                           {o.dataQuality && (
                             <span style={{
                               fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-                              background: o.dataQuality === "verified" ? "rgba(74,222,128,0.12)" : o.dataQuality === "matched" ? "rgba(96,165,250,0.12)" : "rgba(245,200,66,0.10)",
-                              color: o.dataQuality === "verified" ? "#4ade80" : o.dataQuality === "matched" ? "#60a5fa" : "#f5c842",
-                              border: `1px solid ${o.dataQuality === "verified" ? "rgba(74,222,128,0.25)" : o.dataQuality === "matched" ? "rgba(96,165,250,0.25)" : "rgba(245,200,66,0.2)"}`,
+                              background: o.dataQuality === "verified" ? palette.alpha(palette.profit.base, 0.12) : o.dataQuality === "matched" ? palette.alpha(palette.info.base, 0.12) : palette.alpha(palette.brand.gold, 0.10),
+                              color: o.dataQuality === "verified" ? palette.profit.base : o.dataQuality === "matched" ? palette.info.base : palette.brand.gold,
+                              border: `1px solid ${o.dataQuality === "verified" ? palette.alpha(palette.profit.base, 0.25) : o.dataQuality === "matched" ? palette.alpha(palette.info.base, 0.25) : palette.alpha(palette.brand.gold, 0.2)}`,
                             }}>
                               {o.dataQuality === "verified" ? "✓ weryfikowane" : o.dataQuality === "matched" ? "≈ dopasowane" : "~ szacowane"}
                             </span>
@@ -860,7 +861,7 @@ export default function Dashboard() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={e => e.stopPropagation()}
-                              style={{ color: "rgba(139,92,246,0.5)", fontSize: 10, display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}
+                              style={{ color: palette.alpha(palette.ai.strong, 0.5), fontSize: 10, display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}
                             >
                               <ExternalLink size={9} /> źródło
                             </a>
@@ -872,10 +873,10 @@ export default function Dashboard() {
                             {stockCount != null && (
                               <span style={{
                                 display: "flex", alignItems: "center", gap: 3,
-                                background: stockCount <= 2 ? "rgba(248,113,113,0.12)" : stockCount <= 5 ? "rgba(245,200,66,0.12)" : "rgba(74,222,128,0.10)",
-                                border: `1px solid ${stockCount <= 2 ? "rgba(248,113,113,0.3)" : stockCount <= 5 ? "rgba(245,200,66,0.3)" : "rgba(74,222,128,0.25)"}`,
+                                background: stockCount <= 2 ? palette.alpha(palette.loss.base, 0.12) : stockCount <= 5 ? palette.alpha(palette.brand.gold, 0.12) : palette.alpha(palette.profit.base, 0.10),
+                                border: `1px solid ${stockCount <= 2 ? palette.alpha(palette.loss.base, 0.3) : stockCount <= 5 ? palette.alpha(palette.brand.gold, 0.3) : palette.alpha(palette.profit.base, 0.25)}`,
                                 borderRadius: 5, padding: "2px 7px",
-                                color: stockCount <= 2 ? "#f87171" : stockCount <= 5 ? "#f5c842" : "#4ade80",
+                                color: stockCount <= 2 ? palette.loss.base : stockCount <= 5 ? palette.brand.gold : palette.profit.base,
                                 fontSize: 10, fontWeight: 700,
                               }}>
                                 <Package size={9} />
@@ -885,7 +886,7 @@ export default function Dashboard() {
                             {sellerRating != null && sellerRating > 0 && (
                               <span style={{
                                 fontSize: 10, fontWeight: 700,
-                                color: sellerRating >= 99 ? "#4ade80" : sellerRating >= 95 ? "#f5c842" : "#f87171",
+                                color: sellerRating >= 99 ? palette.profit.base : sellerRating >= 95 ? palette.brand.gold : palette.loss.base,
                               }}>
                                 ⭐ {sellerRating.toFixed(1)}%
                               </span>
@@ -898,34 +899,34 @@ export default function Dashboard() {
                     {/* ── Price flow: BUY → SELL → PROFIT ── */}
                     <div style={{
                       display: "flex", alignItems: "center", gap: 0,
-                      background: "rgba(0,0,0,0.2)", borderRadius: 12, overflow: "hidden",
-                      border: "1px solid rgba(255,255,255,0.07)",
+                      background: palette.alpha(palette.ink.black, 0.2), borderRadius: 12, overflow: "hidden",
+                      border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`,
                     }}>
                       {/* BUY */}
-                      <div style={{ flex: 1, padding: "10px 14px", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
-                        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>KUP ZA</div>
-                        <div style={{ color: "#f87171", fontSize: 20, fontWeight: 900 }}>${o.buy}</div>
-                        {o.buyHint && <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 2 }}>{o.buyHint}</div>}
+                      <div style={{ flex: 1, padding: "10px 14px", borderRight: `1px solid ${palette.alpha(palette.ink.white, 0.07)}` }}>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>KUP ZA</div>
+                        <div style={{ color: palette.loss.base, fontSize: 20, fontWeight: 900 }}>${o.buy}</div>
+                        {o.buyHint && <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, marginTop: 2 }}>{o.buyHint}</div>}
                       </div>
                       {/* Arrow */}
-                      <div style={{ padding: "0 10px", color: "rgba(255,255,255,0.2)" }}>
+                      <div style={{ padding: "0 10px", color: palette.alpha(palette.ink.white, 0.2) }}>
                         <ArrowRight size={16} />
                       </div>
                       {/* SELL */}
-                      <div style={{ flex: 1, padding: "10px 14px", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
-                        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>SPRZEDAJ ZA</div>
-                        <div style={{ color: "#60a5fa", fontSize: 20, fontWeight: 900 }}>${o.sell}</div>
-                        {o.sellHint && <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 2 }}>{o.sellHint}</div>}
+                      <div style={{ flex: 1, padding: "10px 14px", borderRight: `1px solid ${palette.alpha(palette.ink.white, 0.07)}` }}>
+                        <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>SPRZEDAJ ZA</div>
+                        <div style={{ color: palette.info.base, fontSize: 20, fontWeight: 900 }}>${o.sell}</div>
+                        {o.sellHint && <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, marginTop: 2 }}>{o.sellHint}</div>}
                       </div>
                       {/* Arrow */}
-                      <div style={{ padding: "0 10px", color: "rgba(255,255,255,0.2)" }}>
+                      <div style={{ padding: "0 10px", color: palette.alpha(palette.ink.white, 0.2) }}>
                         <ArrowRight size={16} />
                       </div>
                       {/* NET PROFIT */}
-                      <div style={{ flex: 1.2, padding: "10px 14px", background: "rgba(74,222,128,0.07)" }}>
-                        <div style={{ color: "rgba(74,222,128,0.6)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>ZYSK NETTO</div>
-                        <div style={{ color: "#4ade80", fontSize: 22, fontWeight: 900 }}>+${netP}</div>
-                        <div style={{ color: "rgba(74,222,128,0.6)", fontSize: 10, fontWeight: 700 }}>
+                      <div style={{ flex: 1.2, padding: "10px 14px", background: palette.alpha(palette.profit.base, 0.07) }}>
+                        <div style={{ color: palette.alpha(palette.profit.base, 0.6), fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 3 }}>ZYSK NETTO</div>
+                        <div style={{ color: palette.profit.base, fontSize: 22, fontWeight: 900 }}>+${netP}</div>
+                        <div style={{ color: palette.alpha(palette.profit.base, 0.6), fontSize: 10, fontWeight: 700 }}>
                           {o.priceGapPct && o.priceGapPct > 0 ? `+${o.priceGapPct}% gap` : `${o.margin}% marża`}
                         </div>
                       </div>
@@ -934,17 +935,17 @@ export default function Dashboard() {
                     {/* ── Where to sell (data-driven comparison) ── */}
                     {o.sellMarketOptions && o.sellMarketOptions.length > 1 && (
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700 }}>GDZIE SPRZEDAĆ:</span>
+                        <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700 }}>GDZIE SPRZEDAĆ:</span>
                         {o.sellMarketOptions.slice(0, 3).map((opt, i) => (
                           <span
                             key={opt.market}
                             title={`Mediana ${opt.sell}$ · ${opt.sample} ofert porównanych`}
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 4,
-                              background: i === 0 ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.05)",
-                              border: `1px solid ${i === 0 ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.1)"}`,
+                              background: i === 0 ? palette.alpha(palette.profit.base, 0.12) : palette.alpha(palette.ink.white, 0.05),
+                              border: `1px solid ${i === 0 ? palette.alpha(palette.profit.base, 0.3) : palette.alpha(palette.ink.white, 0.1)}`,
                               borderRadius: 7, padding: "2px 8px",
-                              color: i === 0 ? "#4ade80" : "rgba(255,255,255,0.45)",
+                              color: i === 0 ? palette.profit.base : palette.alpha(palette.ink.white, 0.45),
                               fontSize: 10, fontWeight: 700,
                             }}
                           >
@@ -1010,10 +1011,10 @@ export default function Dashboard() {
                           }}
                           style={{
                             display: "flex", alignItems: "center", gap: 4,
-                            background: isSaved ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.06)",
-                            border: `1px solid ${isSaved ? "rgba(74,222,128,0.4)" : "rgba(255,255,255,0.12)"}`,
+                            background: isSaved ? palette.alpha(palette.profit.base, 0.15) : palette.alpha(palette.ink.white, 0.06),
+                            border: `1px solid ${isSaved ? palette.alpha(palette.profit.base, 0.4) : palette.alpha(palette.ink.white, 0.12)}`,
                             borderRadius: 8, padding: "6px 11px", cursor: isSaved ? "default" : "pointer",
-                            color: isSaved ? "#4ade80" : "rgba(255,255,255,0.5)",
+                            color: isSaved ? palette.profit.base : palette.alpha(palette.ink.white, 0.5),
                             fontSize: 11, fontWeight: 700,
                           }}
                         >
@@ -1025,9 +1026,9 @@ export default function Dashboard() {
                           onClick={() => setOfferOpp(o)}
                           style={{
                             display: "flex", alignItems: "center", gap: 4,
-                            background: "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.28)",
+                            background: palette.alpha(palette.info.base, 0.12), border: `1px solid ${palette.alpha(palette.info.base, 0.28)}`,
                             borderRadius: 8, padding: "6px 11px", cursor: "pointer",
-                            color: "#60a5fa", fontSize: 11, fontWeight: 700,
+                            color: palette.info.base, fontSize: 11, fontWeight: 700,
                           }}
                         >
                           <PlusCircle size={12} /> Wystaw
@@ -1040,8 +1041,8 @@ export default function Dashboard() {
                           }}
                           style={{
                             display: "flex", alignItems: "center",
-                            background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
-                            borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: "#a78bfa",
+                            background: palette.alpha(palette.ai.strong, 0.12), border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`,
+                            borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: palette.ai.base,
                           }}
                         >
                           <Boxes size={12} />
@@ -1051,7 +1052,7 @@ export default function Dashboard() {
 
                     {/* ── Tip (if available) ── */}
                     {o.tip && (
-                      <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.15)", borderRadius: 8, padding: "7px 11px", color: "#c4b5fd", fontSize: 11, lineHeight: 1.4 }}>
+                      <div style={{ background: palette.alpha(palette.ai.strong, 0.08), border: `1px solid ${palette.alpha(palette.ai.strong, 0.15)}`, borderRadius: 8, padding: "7px 11px", color: palette.ai.soft, fontSize: 11, lineHeight: 1.4 }}>
                         💡 {o.tip}
                       </div>
                     )}
@@ -1069,9 +1070,9 @@ export default function Dashboard() {
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 28px", borderRadius: 10, border: "none", cursor: "pointer",
-              background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-              color: "#fff", fontWeight: 700, fontSize: 13,
-              boxShadow: "0 4px 18px rgba(139,92,246,0.35)",
+              background: `linear-gradient(135deg,${palette.ai.strong},${palette.ai.deep})`,
+              color: palette.ink.white, fontWeight: 700, fontSize: 13,
+              boxShadow: `0 4px 18px ${palette.alpha(palette.ai.strong, 0.35)}`,
             }}
           >
             <Search size={15} /> AI Search — znajdź nowe okazje
@@ -1087,11 +1088,11 @@ export default function Dashboard() {
             left: Math.min(previewImg.rect.right + 14, window.innerWidth - 250),
             top: Math.max(8, Math.min(previewImg.rect.top - 40, window.innerHeight - 280)),
             zIndex: 9999,
-            background: "#0d0d1f",
-            border: "1px solid rgba(139,92,246,0.45)",
+            background: palette.violetInk.cardAlt,
+            border: `1px solid ${palette.alpha(palette.ai.strong, 0.45)}`,
             borderRadius: 14,
             padding: 12,
-            boxShadow: "0 16px 48px rgba(0,0,0,0.85)",
+            boxShadow: `0 16px 48px ${palette.alpha(palette.ink.black, 0.85)}`,
             pointerEvents: "none",
             width: 230,
           }}
@@ -1099,9 +1100,9 @@ export default function Dashboard() {
           <img
             src={previewImg.src}
             alt={previewImg.name}
-            style={{ width: 206, height: 180, objectFit: "contain", display: "block", borderRadius: 8, background: "rgba(255,255,255,0.04)" }}
+            style={{ width: 206, height: 180, objectFit: "contain", display: "block", borderRadius: 8, background: palette.alpha(palette.ink.white, 0.04) }}
           />
-          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 8, lineHeight: 1.4 }}>{previewImg.name}</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.75), fontSize: 11, marginTop: 8, lineHeight: 1.4 }}>{previewImg.name}</div>
         </div>
       )}
 
@@ -1116,9 +1117,9 @@ export default function Dashboard() {
       {toast && (
         <div style={{
           position: "fixed", bottom: 24, right: 24, zIndex: 9999,
-          background: "rgba(74,222,128,0.95)", borderRadius: 12, padding: "10px 18px",
-          color: "#0d1a0d", fontWeight: 700, fontSize: 13,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+          background: palette.alpha(palette.profit.base, 0.95), borderRadius: 12, padding: "10px 18px",
+          color: palette.profit.ink, fontWeight: 700, fontSize: 13,
+          boxShadow: `0 4px 20px ${palette.alpha(palette.ink.black, 0.4)}`,
           display: "flex", alignItems: "center", gap: 8,
           animation: "slideIn 0.2s ease",
         }}>

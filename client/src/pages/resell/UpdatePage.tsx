@@ -12,6 +12,7 @@
  */
 import { useState } from "react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import * as palette from "@/design/palette";
 
 const REPO = "lysentreprenor-cell/global-arbitrage-assistant";
 const RESELL_APK = `https://github.com/${REPO}/releases/download/resell-latest/ResellAssist.apk`;
@@ -43,29 +44,29 @@ export default function UpdatePage() {
     }
   };
 
-  const box: React.CSSProperties = { border: "3px solid #2563eb", borderRadius: 16, background: "#0b1e3f", padding: 16, marginBottom: 12 };
-  const h: React.CSSProperties = { color: "#93c5fd", fontSize: 18, fontWeight: 900, marginBottom: 8 };
-  const btn = (bg: string): React.CSSProperties => ({ display: "block", width: "100%", boxSizing: "border-box", minHeight: 60, borderRadius: 12, border: "none", background: bg, color: "#fff", fontSize: 17, fontWeight: 800, textAlign: "center", textDecoration: "none", padding: "18px 16px" });
+  const box: React.CSSProperties = { border: `3px solid ${palette.info.deep}`, borderRadius: 16, background: palette.sectionAccent.blue.ink, padding: 16, marginBottom: 12 };
+  const h: React.CSSProperties = { color: palette.info.soft, fontSize: 18, fontWeight: 900, marginBottom: 8 };
+  const btn = (bg: string): React.CSSProperties => ({ display: "block", width: "100%", boxSizing: "border-box", minHeight: 60, borderRadius: 12, border: "none", background: bg, color: palette.ink.white, fontSize: 17, fontWeight: 800, textAlign: "center", textDecoration: "none", padding: "18px 16px" });
 
   return (
     <ResellLayout>
-      <div style={{ background: "#000", minHeight: "calc(100vh - 60px)", padding: 12 }}>
+      <div style={{ background: palette.ink.black, minHeight: "calc(100vh - 60px)", padding: 12 }}>
 
-        <div style={{ color: "#93c5fd", fontSize: 14, lineHeight: 1.5, background: "#0b1e3f", border: "2px solid #1e40af", borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
+        <div style={{ color: palette.info.soft, fontSize: 14, lineHeight: 1.5, background: palette.sectionAccent.blue.ink, border: `2px solid ${palette.sectionAccent.blue.deep}`, borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
           <b>🔄 Aktualizacja.</b> Tu odświeżysz aplikację po zmianach i pobierzesz najnowsze wersje aplikacji na telefon.
         </div>
 
         {/* 1. Odśwież stronę/aplikację */}
         <div style={box}>
           <div style={h}>♻️ Odśwież aplikację</div>
-          <div style={{ color: "#bfdbfe", fontSize: 14, marginBottom: 12 }}>
+          <div style={{ color: palette.sectionAccent.blue.soft, fontSize: 14, marginBottom: 12 }}>
             Po zrobieniu <b>Stop i Run</b> na Replit dotknij tego przycisku, żeby wciągnąć najnowszą wersję strony.
           </div>
-          <button onClick={checkServer} disabled={checking} style={{ ...btn("#1d4ed8"), marginBottom: 8 }}>
+          <button onClick={checkServer} disabled={checking} style={{ ...btn(palette.sectionAccent.blue.base), marginBottom: 8 }}>
             🔎 Sprawdź serwer
           </button>
-          {webInfo && <div style={{ color: "#dbeafe", fontSize: 14, background: "#0a1a33", borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>{webInfo}</div>}
-          <button onClick={refreshNow} style={btn("#16a34a")}>
+          {webInfo && <div style={{ color: palette.sectionAccent.blue.wash, fontSize: 14, background: palette.sectionAccent.blue.inkDeep, borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>{webInfo}</div>}
+          <button onClick={refreshNow} style={btn(palette.profit.deep)}>
             ♻️ ODŚWIEŻ TERAZ
           </button>
         </div>
@@ -73,24 +74,24 @@ export default function UpdatePage() {
         {/* 2. APK ResellAssist */}
         <div style={box}>
           <div style={h}>📱 Aplikacja ResellAssist (najnowsza)</div>
-          <div style={{ color: "#bfdbfe", fontSize: 14, marginBottom: 12 }}>
+          <div style={{ color: palette.sectionAccent.blue.soft, fontSize: 14, marginBottom: 12 }}>
             Cała ta aplikacja jako ikona na telefonie: Filmiki, Reklama, Gadacz, bot. Pobierz i zainstaluj — nowsza wersja
             wgra się „na wierzch" starej (nic nie tracisz). Przy pierwszym uruchomieniu wklejasz adres swojej strony.
           </div>
-          <a href={RESELL_APK} style={btn("#2563eb")}>⬇️ POBIERZ ResellAssist.apk</a>
+          <a href={RESELL_APK} style={btn(palette.info.deep)}>⬇️ POBIERZ ResellAssist.apk</a>
         </div>
 
         {/* 3. APK Gadacz */}
         <div style={box}>
           <div style={h}>🗣️ Aplikacja Gadacz (najnowsza)</div>
-          <div style={{ color: "#bfdbfe", fontSize: 14, marginBottom: 12 }}>
+          <div style={{ color: palette.sectionAccent.blue.soft, fontSize: 14, marginBottom: 12 }}>
             Asystent dla osób niewidomych, działa w tle nad każdą aplikacją (sterowanie ekranem, mowa, aparat-oczy).
             Pobierz i zainstaluj na telefonie osoby, która ma z niego korzystać.
           </div>
-          <a href={GADACZ_APK} style={btn("#7c3aed")}>⬇️ POBIERZ Gadacz.apk</a>
+          <a href={GADACZ_APK} style={btn(palette.ai.deep)}>⬇️ POBIERZ Gadacz.apk</a>
         </div>
 
-        <div style={{ color: "#64748b", fontSize: 13, lineHeight: 1.5, padding: "4px 6px 20px" }}>
+        <div style={{ color: palette.steel.mid, fontSize: 13, lineHeight: 1.5, padding: "4px 6px 20px" }}>
           Jeśli telefon zapyta o „instalowanie z nieznanych źródeł" — zezwól tej przeglądarce/aplikacji.
           Po pobraniu otwórz plik z folderu <b>Pobrane</b>, żeby zainstalować.
         </div>

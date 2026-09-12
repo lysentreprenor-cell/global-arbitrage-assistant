@@ -17,9 +17,11 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: 27 z 36 plików — cały `components/resell/` i dziewiętnaście
- *  ekranów. Zostało dziewięć: Settings, AgentPage, UpdatePage, Dashboard,
- *  VideoPage, AdsPage, TradingBot, AssistantPage, MarketingPage.
+ *  Zmigrowane: 31 z 36 plików — cały `components/resell/` i dwadzieścia trzy
+ *  ekrany. Zostało pięć: VideoPage, TradingBot, AdsPage, AssistantPage,
+ *  MarketingPage. Każdy z nich ma własny świat barw (AdsPage brązy i pomarańcze,
+ *  AssistantPage 87 nieznanych odcieni na 118), więc pójdą ekran po ekranie,
+ *  a nie regułą.
  *
  *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
  *
@@ -86,6 +88,13 @@ export const violetInk = {
   overlay: "#1e0a3c",
   /** Tło karty modala i rozwijanej listy <option> */
   card: "#0d0d1a",
+  /**
+   * Druga karta, o 5 jaśniejsza w kanale niebieskim od `card`. Różnica jest
+   * niewidoczna dla oka i najpewniej powstała przez przypadek. Zostaje, bo
+   * scalenie zmieniłoby piksele — ale jeśli kiedyś ktoś je ujednolici,
+   * to jest ten wpis do usunięcia.
+   */
+  cardAlt: "#0d0d1f",
   /** Tło dymka nad treścią (dropdown, podpowiedź) */
   popover: "#1a1a2e",
 } as const;
@@ -121,6 +130,8 @@ export const profit = {
   mintSoft: "#6ee7b7",
   mintDeep: "#059669",
   wash: "#d1fae5",
+  /** Ciemny tekst na zielonym tle (przycisk główny) */
+  ink: "#0d1a0d",
 } as const;
 
 /** Strata, błąd, akcja niszcząca. */
@@ -159,9 +170,11 @@ export const info = {
    nie znaczy „lepiej" ani „gorzej" niż malina w Rywalach.
 
    Te są nazwane barwą, a nie rolą, i to celowo. Ich jedyną rolą jest bycie
-   różnymi od siebie, a każda obsługuje po dwie sekcje, więc nazwa wzięta od
-   jednej z nich (`suppliers`) kłamałaby w drugiej (Alerty). Grupa niesie rolę,
-   człon ją tylko rozróżnia.
+   różnymi od siebie, a odcienie wędrują między sekcjami w sposób, którego nie
+   da się przewidzieć: cyjan obsługuje Dostawców i Alerty, pomarańcz Trendy
+   i Pipeline, purpura Marketing i Agenta AI. Nazwa wzięta od jednej sekcji
+   (`suppliers`) kłamałaby w drugiej. Grupa niesie rolę, człon ją rozróżnia,
+   a komentarz nad każdym mówi, gdzie dziś pracuje.
 
    ⚠ `orange.base` ma tę samą wartość co barwa Etsy w `platforms.ts`. To zbieg
    okoliczności, nie powielenie — Etsy może zmienić logo, akcent Trendów nie.
@@ -177,12 +190,35 @@ export const sectionAccent = {
     base: "#f97316", light: "#fb923c", soft: "#fed7aa",
     deep: "#ea580c", deeper: "#c2410c", deepest: "#b45309",
   },
+  /** Marketing — karta na Dashboardzie i ekran Marketingu */
+  pink: { base: "#ec4899", soft: "#f9a8d4" },
+  /** Marketing, Agent AI */
+  purple: { base: "#a855f7" },
+  /** Marketing — trzeci przystanek gradientu karty */
+  indigo: { base: "#6366f1" },
+  /** Aktualizacja — jedyny ekran utrzymany w błękicie */
+  blue: {
+    base: "#1d4ed8", deep: "#1e40af", soft: "#bfdbfe", wash: "#dbeafe",
+    ink: "#0b1e3f", inkDeep: "#0a1a33",
+  },
+} as const;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PODGLĄD KODU — monospace na ciemnym tle (Agent AI)
+   ───────────────────────────────────────────────────────────────────────── */
+export const code = {
+  text: "#e2e8f0",
+  accent: "#a3e635",
 } as const;
 
 /** Ekran PIN-u — jedyne miejsce w stali zamiast zieleni. */
 export const steel = {
   ink: "#0f172a",
   line: "#475569",
+  /** Wpis neutralny — „Własne API" na liście usług */
+  soft: "#94a3b8",
+  /** Tekst przygaszony na ekranie Aktualizacji */
+  mid: "#64748b",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
