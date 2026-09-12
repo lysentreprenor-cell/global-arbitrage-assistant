@@ -17,10 +17,10 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: 19 z 36 plików — cały `components/resell/` oraz jedenaście
+ *  Zmigrowane: 22 z 36 plików — cały `components/resell/` oraz czternaście
  *  ekranów: Search, PhotoListingPage, PlatformCompare, AutopilotPage, Products,
  *  AddProduct, OfferPage, MarketScan, QuickListPage, PLDashboard,
- *  CompliancePage.
+ *  CompliancePage, DropshipManager, ProfitPage, ProductDetail.
  *
  *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
  *
@@ -85,6 +85,10 @@ export const violetInk = {
   high: "#1e1b4b",
   /** Przygaszenie tła pod modalem */
   overlay: "#1e0a3c",
+  /** Tło karty modala i rozwijanej listy <option> */
+  card: "#0d0d1a",
+  /** Tło dymka nad treścią (dropdown, podpowiedź) */
+  popover: "#1a1a2e",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -157,6 +161,8 @@ export const steel = {
 export const ink = {
   white: "#fff",
   black: "#000",
+  /** Szarość awaryjna — wartość dla stanu, którego nie ma w mapie */
+  grey: "#888",
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────

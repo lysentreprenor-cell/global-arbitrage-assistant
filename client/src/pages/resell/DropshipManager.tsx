@@ -8,6 +8,7 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { FulfillmentModal } from "@/components/resell/FulfillmentModal";
 import { loadEarnings, getMonthProfit, getWeekProfit, getBestDay } from "@/lib/earningsTracker";
+import * as palette from "@/design/palette";
 
 const PLATFORMS = ["eBay USA", "Etsy USA", "Amazon UK", "eBay DE", "Vinted EU", "Amazon DE", "StockX USA", "Depop"];
 const CATEGORIES = ["Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches", "General"];
@@ -33,8 +34,8 @@ const PLATFORM_LINKS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "#f5c842", active: "#4ade80", sold: "#a78bfa",
-  pending: "#f59e0b", processed: "#4ade80",
+  draft: palette.brand.gold, active: palette.profit.base, sold: palette.ai.base,
+  pending: palette.brand.amber, processed: palette.profit.base,
 };
 const STATUS_LABELS: Record<string, string> = {
   draft: "Draft", active: "Active", sold: "Sold",
@@ -65,11 +66,11 @@ type Stats = {
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: "#0d0d1a", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 18, padding: 24, width: "100%", maxWidth: wide ? 660 : 520, maxHeight: "92vh", overflowY: "auto" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: palette.alpha(palette.ink.black, 0.75), display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: palette.violetInk.card, border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 18, padding: 24, width: "100%", maxWidth: wide ? 660 : 520, maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <span style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>{title}</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: 4 }}><X size={18} /></button>
+          <span style={{ color: palette.ink.white, fontWeight: 800, fontSize: 16 }}>{title}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.4), padding: 4 }}><X size={18} /></button>
         </div>
         {children}
       </div>
@@ -80,15 +81,15 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{label}</div>
+      <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{label}</div>
       {children}
     </div>
   );
 }
 
 const inp: React.CSSProperties = {
-  width: "100%", background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 13,
+  width: "100%", background: palette.alpha(palette.ink.black, 0.35), border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`,
+  borderRadius: 8, padding: "9px 12px", color: palette.ink.white, fontSize: 13,
   fontFamily: "inherit", boxSizing: "border-box",
 };
 
@@ -96,7 +97,7 @@ function CopyBtn({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return (
     <button onClick={() => { navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 2000); }}
-      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: done ? "#4ade80" : "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 6, border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`, background: "transparent", color: done ? palette.profit.base : palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
       {done ? <><Check size={10} /> Copied</> : <><Copy size={10} /> Copy</>}
     </button>
   );
@@ -333,24 +334,24 @@ export default function DropshipManager() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
           <div>
-            <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 900, margin: "0 0 4px" }}>Dropship Manager</h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>Create listings · AI writes descriptions · Order for customer · Earn margin</p>
+            <h1 style={{ color: palette.ink.white, fontSize: 24, fontWeight: 900, margin: "0 0 4px" }}>Dropship Manager</h1>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, margin: 0 }}>Create listings · AI writes descriptions · Order for customer · Earn margin</p>
           </div>
           <button onClick={() => setShowNewListing(true)}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 700, fontSize: 13, boxShadow: "0 4px 14px rgba(139,92,246,0.3)" }}>
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`, color: palette.ink.white, fontWeight: 700, fontSize: 13, boxShadow: `0 4px 14px ${palette.alpha(palette.ai.strong, 0.3)}` }}>
             <Plus size={15} /> New Listing
           </button>
         </div>
 
         {/* Stale orders alert */}
         {orders.filter(o => o.status === "pending" && (Date.now() - new Date(o.createdAt).getTime()) > 6 * 3600 * 1000).length > 0 && (
-          <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ background: palette.alpha(palette.loss.base, 0.1), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 16 }}>⚠️</span>
             <div>
-              <span style={{ color: "#f87171", fontWeight: 700, fontSize: 13 }}>
+              <span style={{ color: palette.loss.base, fontWeight: 700, fontSize: 13 }}>
                 {orders.filter(o => o.status === "pending" && (Date.now() - new Date(o.createdAt).getTime()) > 6 * 3600 * 1000).length} zamówienie(a) czeka ponad 6h na realizację!
               </span>
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}> Kup produkt i wyślij do kupującego — im szybciej tym lepsze opinie.</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12 }}> Kup produkt i wyślij do kupującego — im szybciej tym lepsze opinie.</span>
             </div>
           </div>
         )}
@@ -359,13 +360,13 @@ export default function DropshipManager() {
         {stats && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 12 }}>
             {[
-              { label: "LISTINGS",   val: stats.totalListings,             color: "#f5c842" },
-              { label: "AKTYWNE",    val: stats.activeListings,            color: "#4ade80" },
-              { label: "ZAMÓWIENIA", val: stats.totalOrders,               color: "#60a5fa" },
-              { label: "OCZEKUJĄCE", val: stats.pendingOrders,             color: stats.pendingOrders > 0 ? "#f59e0b" : "rgba(255,255,255,0.3)" },
+              { label: "LISTINGS",   val: stats.totalListings,             color: palette.brand.gold },
+              { label: "AKTYWNE",    val: stats.activeListings,            color: palette.profit.base },
+              { label: "ZAMÓWIENIA", val: stats.totalOrders,               color: palette.info.base },
+              { label: "OCZEKUJĄCE", val: stats.pendingOrders,             color: stats.pendingOrders > 0 ? palette.brand.amber : palette.alpha(palette.ink.white, 0.3) },
             ].map(s => (
-              <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "12px 14px" }}>
-                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{s.label}</div>
+              <div key={s.label} style={{ background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5 }}>{s.label}</div>
                 <div style={{ color: s.color, fontSize: 20, fontWeight: 900 }}>{s.val}</div>
               </div>
             ))}
@@ -375,26 +376,26 @@ export default function DropshipManager() {
         {/* Persistent earnings panel */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
           {[
-            { label: "ZAROBKI ALL-TIME", val: `$${earnings.totalProfit.toFixed(0)}`, color: "#4ade80", sub: `${earnings.totalOrders} transakcji` },
-            { label: "TEN MIESIĄC",      val: `$${getMonthProfit().toFixed(0)}`,     color: "#4ade80", sub: "od 1. dnia mies." },
-            { label: "OSTATNIE 7 DNI",   val: `$${getWeekProfit().toFixed(0)}`,      color: "#a78bfa", sub: "rolling 7 days" },
-            { label: "NAJLEPSZY DZIEŃ",   val: getBestDay() ? `$${getBestDay()!.profit}` : "—", color: "#f5c842", sub: getBestDay()?.date?.slice(0,10) ?? "brak danych" },
+            { label: "ZAROBKI ALL-TIME", val: `$${earnings.totalProfit.toFixed(0)}`, color: palette.profit.base, sub: `${earnings.totalOrders} transakcji` },
+            { label: "TEN MIESIĄC",      val: `$${getMonthProfit().toFixed(0)}`,     color: palette.profit.base, sub: "od 1. dnia mies." },
+            { label: "OSTATNIE 7 DNI",   val: `$${getWeekProfit().toFixed(0)}`,      color: palette.ai.base, sub: "rolling 7 days" },
+            { label: "NAJLEPSZY DZIEŃ",   val: getBestDay() ? `$${getBestDay()!.profit}` : "—", color: palette.brand.gold, sub: getBestDay()?.date?.slice(0,10) ?? "brak danych" },
           ].map(s => (
-            <div key={s.label} style={{ background: earnings.totalProfit > 0 ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.03)", border: `1px solid ${earnings.totalProfit > 0 ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.07)"}`, borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>{s.label}</div>
+            <div key={s.label} style={{ background: earnings.totalProfit > 0 ? palette.alpha(palette.profit.base, 0.06) : palette.alpha(palette.ink.white, 0.03), border: `1px solid ${earnings.totalProfit > 0 ? palette.alpha(palette.profit.base, 0.15) : palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 8, fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>{s.label}</div>
               <div style={{ color: s.color, fontSize: 19, fontWeight: 900 }}>{s.val}</div>
-              <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, marginTop: 2 }}>{s.sub}</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 9, marginTop: 2 }}>{s.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid ${palette.alpha(palette.ink.white, 0.06)}` }}>
           {(["listings", "orders"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: "10px 20px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700,
-              color: tab === t ? "#a78bfa" : "rgba(255,255,255,0.4)",
-              borderBottom: tab === t ? "2px solid #a78bfa" : "2px solid transparent",
+              color: tab === t ? palette.ai.base : palette.alpha(palette.ink.white, 0.4),
+              borderBottom: tab === t ? `2px solid ${palette.ai.base}` : "2px solid transparent",
               marginBottom: -1,
             }}>
               {t === "listings" ? `📋 Listings (${listings.length})` : `📦 Orders (${orders.length})`}
@@ -410,20 +411,20 @@ export default function DropshipManager() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
                 <button
                   onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()); }}
-                  style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bulkMode ? "rgba(245,158,11,0.4)" : "rgba(255,255,255,0.12)"}`, background: bulkMode ? "rgba(245,158,11,0.1)" : "transparent", color: bulkMode ? "#f59e0b" : "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bulkMode ? palette.alpha(palette.brand.amber, 0.4) : palette.alpha(palette.ink.white, 0.12)}`, background: bulkMode ? palette.alpha(palette.brand.amber, 0.1) : "transparent", color: bulkMode ? palette.brand.amber : palette.alpha(palette.ink.white, 0.4), fontSize: 12, fontWeight: 700, cursor: "pointer" }}
                 >
                   {bulkMode ? `✓ Zaznaczono: ${selectedIds.size}` : "Zaznacz do edycji"}
                 </button>
                 {bulkMode && selectedIds.size > 0 && (
                   <>
-                    <select value={bulkAction} onChange={e => setBulkAction(e.target.value as "pct" | "set")} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 12, outline: "none" }}>
+                    <select value={bulkAction} onChange={e => setBulkAction(e.target.value as "pct" | "set")} style={{ background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, borderRadius: 8, padding: "7px 10px", color: palette.ink.white, fontSize: 12, outline: "none" }}>
                       <option value="pct">Obniż o %</option>
                       <option value="set">Ustaw cenę $</option>
                     </select>
                     <input
                       type="number" min="0" value={bulkValue} onChange={e => setBulkValue(e.target.value)}
                       placeholder={bulkAction === "pct" ? "np. 10" : "np. 49.99"}
-                      style={{ width: 100, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 12, outline: "none" }}
+                      style={{ width: 100, background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, borderRadius: 8, padding: "7px 10px", color: palette.ink.white, fontSize: 12, outline: "none" }}
                     />
                     <button
                       onClick={async () => {
@@ -451,70 +452,70 @@ export default function DropshipManager() {
                         fetch("/api/dropship/listings").then(r => r.json()).then(d => setListings(d.listings ?? []));
                       }}
                       disabled={bulkApplying}
-                      style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000", fontWeight: 800, fontSize: 12, cursor: bulkApplying ? "not-allowed" : "pointer" }}
+                      style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: `linear-gradient(135deg,${palette.brand.amber},${palette.brand.amberDeep})`, color: palette.ink.black, fontWeight: 800, fontSize: 12, cursor: bulkApplying ? "not-allowed" : "pointer" }}
                     >
                       {bulkApplying ? "…" : `Zastosuj (${selectedIds.size})`}
                     </button>
-                    <button onClick={() => setSelectedIds(new Set(listings.map(l => l.id)))} style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: 11, cursor: "pointer" }}>Zaznacz wszystkie</button>
+                    <button onClick={() => setSelectedIds(new Set(listings.map(l => l.id)))} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, cursor: "pointer" }}>Zaznacz wszystkie</button>
                   </>
                 )}
               </div>
             )}
 
             {listings.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
+              <div style={{ textAlign: "center", padding: "60px 0", color: palette.alpha(palette.ink.white, 0.25), fontSize: 14 }}>
                 <Package size={36} style={{ margin: "0 auto 12px", opacity: 0.2, display: "block" }} />
                 No listings — click "New Listing" or import from Dashboard
               </div>
             ) : listings.map(l => {
-              const sc = STATUS_COLORS[l.status] || "#888";
+              const sc = STATUS_COLORS[l.status] || palette.ink.grey;
               const isChecked = selectedIds.has(l.id);
               return (
-                <div key={l.id} style={{ background: isChecked ? "rgba(245,158,11,0.06)" : "rgba(255,255,255,0.03)", border: `1px solid ${isChecked ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.07)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8 }}>
+                <div key={l.id} style={{ background: isChecked ? palette.alpha(palette.brand.amber, 0.06) : palette.alpha(palette.ink.white, 0.03), border: `1px solid ${isChecked ? palette.alpha(palette.brand.amber, 0.3) : palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                     {bulkMode && (
                       <div
                         onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n; })}
-                        style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${isChecked ? "#f59e0b" : "rgba(255,255,255,0.2)"}`, background: isChecked ? "#f59e0b" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, marginTop: 2 }}
+                        style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${isChecked ? palette.brand.amber : palette.alpha(palette.ink.white, 0.2)}`, background: isChecked ? palette.brand.amber : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, marginTop: 2 }}
                       >
-                        {isChecked && <Check size={11} color="#000" strokeWidth={3} />}
+                        {isChecked && <Check size={11} color={palette.ink.black} strokeWidth={3} />}
                       </div>
                     )}
                     <div style={{ flex: 1, cursor: "pointer" }} onClick={() => !bulkMode && setShowDetail(l)}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{l.productName}</span>
+                        <span style={{ color: palette.ink.white, fontWeight: 700, fontSize: 14 }}>{l.productName}</span>
                         <span style={{ background: `${sc}18`, border: `1px solid ${sc}35`, borderRadius: 99, padding: "2px 9px", color: sc, fontSize: 10, fontWeight: 700 }}>
                           {STATUS_LABELS[l.status] ?? l.status}
                         </span>
-                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{l.platform}</span>
-                        {l.category && <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>{l.category}</span>}
+                        <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>{l.platform}</span>
+                        {l.category && <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10 }}>{l.category}</span>}
                       </div>
                       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                        <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Buy: <strong style={{ color: "#fff" }}>${l.sourcePriceUSD}</strong>
+                        <span style={{ color: palette.alpha(palette.ink.white, 0.45), fontSize: 12 }}>
+                          Buy: <strong style={{ color: palette.ink.white }}>${l.sourcePriceUSD}</strong>
                         </span>
-                        <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Sell: <strong style={{ color: "#4ade80" }}>${l.sellPrice}</strong>
+                        <span style={{ color: palette.alpha(palette.ink.white, 0.45), fontSize: 12 }}>
+                          Sell: <strong style={{ color: palette.profit.base }}>${l.sellPrice}</strong>
                         </span>
-                        <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Fee: <strong style={{ color: "#f87171" }}>{l.feePercent ?? "?"}%</strong>
+                        <span style={{ color: palette.alpha(palette.ink.white, 0.45), fontSize: 12 }}>
+                          Fee: <strong style={{ color: palette.loss.base }}>{l.feePercent ?? "?"}%</strong>
                         </span>
-                        <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
-                          Net profit: <strong style={{ color: "#4ade80" }}>+${l.profit}</strong>
-                          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginLeft: 4 }}>({l.margin}%)</span>
+                        <span style={{ color: palette.alpha(palette.ink.white, 0.45), fontSize: 12 }}>
+                          Net profit: <strong style={{ color: palette.profit.base }}>+${l.profit}</strong>
+                          <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, marginLeft: 4 }}>({l.margin}%)</span>
                         </span>
                       </div>
                       {l.buyHint && (
-                        <div style={{ color: "rgba(139,92,246,0.6)", fontSize: 11, marginTop: 3 }}>💡 {l.buyHint}</div>
+                        <div style={{ color: palette.alpha(palette.ai.strong, 0.6), fontSize: 11, marginTop: 3 }}>💡 {l.buyHint}</div>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                       <button onClick={() => setShowNewOrder(l)}
-                        style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: "rgba(74,222,128,0.15)", color: "#4ade80", fontWeight: 700, fontSize: 11 }}>
+                        style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: palette.alpha(palette.profit.base, 0.15), color: palette.profit.base, fontWeight: 700, fontSize: 11 }}>
                         + Order
                       </button>
                       <button onClick={() => deleteListing(l.id)}
-                        style={{ padding: "6px 8px", borderRadius: 8, border: "none", cursor: "pointer", background: "rgba(248,113,113,0.1)", color: "#f87171" }}>
+                        style={{ padding: "6px 8px", borderRadius: 8, border: "none", cursor: "pointer", background: palette.alpha(palette.loss.base, 0.1), color: palette.loss.base }}>
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -529,36 +530,36 @@ export default function DropshipManager() {
         {tab === "orders" && (
           <div>
             {orders.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 14 }}>
+              <div style={{ textAlign: "center", padding: "60px 0", color: palette.alpha(palette.ink.white, 0.25), fontSize: 14 }}>
                 <ShoppingCart size={36} style={{ margin: "0 auto 12px", opacity: 0.2, display: "block" }} />
                 No orders — add manually or wait for customers
               </div>
             ) : orders.map(o => (
-              <div key={o.id} style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${o.status === "pending" ? "rgba(245,200,66,0.2)" : "rgba(74,222,128,0.15)"}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}
+              <div key={o.id} style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${o.status === "pending" ? palette.alpha(palette.brand.gold, 0.2) : palette.alpha(palette.profit.base, 0.15)}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}
                 onClick={() => { if (o.status === "pending") { setFulfillOrder(o); } else { setShowOrderDetail(o); setTrackingInput(o.trackingNumber || ""); setOrderNotes(o.notes || ""); } }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                      {o.status === "pending" ? <Clock size={14} color="#f5c842" /> : <CheckCircle size={14} color="#4ade80" />}
-                      <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{o.productName}</span>
-                      <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>— {o.buyerName}</span>
+                      {o.status === "pending" ? <Clock size={14} color={palette.brand.gold} /> : <CheckCircle size={14} color={palette.profit.base} />}
+                      <span style={{ color: palette.ink.white, fontWeight: 700, fontSize: 14 }}>{o.productName}</span>
+                      <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12 }}>— {o.buyerName}</span>
                     </div>
                     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12 }}>
-                      <span style={{ color: "rgba(255,255,255,0.45)" }}>Profit: <strong style={{ color: "#4ade80" }}>+${o.profit}</strong></span>
-                      <span style={{ color: "rgba(255,255,255,0.45)" }}>{o.platform}</span>
-                      <span style={{ color: "rgba(255,255,255,0.3)" }}>{new Date(o.createdAt).toLocaleDateString()}</span>
-                      {o.trackingNumber && <span style={{ color: "#60a5fa" }}>📦 {o.trackingNumber}</span>}
+                      <span style={{ color: palette.alpha(palette.ink.white, 0.45) }}>Profit: <strong style={{ color: palette.profit.base }}>+${o.profit}</strong></span>
+                      <span style={{ color: palette.alpha(palette.ink.white, 0.45) }}>{o.platform}</span>
+                      <span style={{ color: palette.alpha(palette.ink.white, 0.3) }}>{new Date(o.createdAt).toLocaleDateString()}</span>
+                      {o.trackingNumber && <span style={{ color: palette.info.base }}>📦 {o.trackingNumber}</span>}
                     </div>
                     {o.buyerAddress && (
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, background: "rgba(0,0,0,0.2)", borderRadius: 7, padding: "5px 9px", marginTop: 6, maxWidth: 400 }}>
-                        <MapPin size={11} color="#60a5fa" style={{ flexShrink: 0, marginTop: 2 }} />
-                        <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{o.buyerAddress}</span>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, background: palette.alpha(palette.ink.black, 0.2), borderRadius: 7, padding: "5px 9px", marginTop: 6, maxWidth: 400 }}>
+                        <MapPin size={11} color={palette.info.base} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 11 }}>{o.buyerAddress}</span>
                       </div>
                     )}
                   </div>
                   {o.status === "pending" && (
                     <button onClick={e => { e.stopPropagation(); setFulfillOrder(o); }}
-                      style={{ padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #f5c842, #d97706)", color: "#000", fontWeight: 800, fontSize: 12, flexShrink: 0 }}>
+                      style={{ padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${palette.brand.gold}, ${palette.brand.amberDeep})`, color: palette.ink.black, fontWeight: 800, fontSize: 12, flexShrink: 0 }}>
                       ⚡ Fulfill
                     </button>
                   )}
@@ -581,29 +582,29 @@ export default function DropshipManager() {
             onChange={e => { const f = e.target.files?.[0]; if (f) analyzeScreenshot(f); e.target.value = ""; }}
           />
           <div
-            style={{ marginBottom: 18, border: "1.5px dashed rgba(139,92,246,0.35)", borderRadius: 12, padding: "14px 16px", cursor: screenshotAnalyzing ? "default" : "pointer", background: screenshotAnalyzing ? "rgba(139,92,246,0.05)" : "rgba(139,92,246,0.04)", transition: "background 0.15s" }}
+            style={{ marginBottom: 18, border: `1.5px dashed ${palette.alpha(palette.ai.strong, 0.35)}`, borderRadius: 12, padding: "14px 16px", cursor: screenshotAnalyzing ? "default" : "pointer", background: screenshotAnalyzing ? palette.alpha(palette.ai.strong, 0.05) : palette.alpha(palette.ai.strong, 0.04), transition: "background 0.15s" }}
             onClick={() => !screenshotAnalyzing && screenshotInputRef.current?.click()}
             onDragOver={e => e.preventDefault()}
             onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f && f.type.startsWith("image/")) analyzeScreenshot(f); }}
           >
             {screenshotAnalyzing ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "#a78bfa", fontSize: 13, fontWeight: 700 }}>
-                <div style={{ width: 16, height: 16, border: "2px solid #a78bfa", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: palette.ai.base, fontSize: 13, fontWeight: 700 }}>
+                <div style={{ width: 16, height: 16, border: `2px solid ${palette.ai.base}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                 Analysing screenshot with AI…
               </div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(139,92,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Camera size={17} color="#a78bfa" />
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: palette.alpha(palette.ai.strong, 0.15), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Camera size={17} color={palette.ai.base} />
                 </div>
                 <div>
-                  <div style={{ color: "#a78bfa", fontWeight: 700, fontSize: 13 }}>📸 Create from Screenshot</div>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 }}>Click or drag & drop a screenshot of any marketplace listing — AI fills the form automatically</div>
+                  <div style={{ color: palette.ai.base, fontWeight: 700, fontSize: 13 }}>📸 Create from Screenshot</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11, marginTop: 2 }}>Click or drag & drop a screenshot of any marketplace listing — AI fills the form automatically</div>
                 </div>
               </div>
             )}
             {screenshotError && (
-              <div style={{ marginTop: 8, color: "#f87171", fontSize: 11, fontWeight: 600 }}>⚠ {screenshotError}</div>
+              <div style={{ marginTop: 8, color: palette.loss.base, fontSize: 11, fontWeight: 600 }}>⚠ {screenshotError}</div>
             )}
           </div>
 
@@ -619,7 +620,7 @@ export default function DropshipManager() {
                   style={{ ...inp, appearance: "none", paddingRight: 30, cursor: "pointer" }}>
                   {PLATFORMS.map(p => <option key={p} value={p}>{p} ({PLATFORM_FEES[p]}% fee)</option>)}
                 </select>
-                <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+                <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.3), pointerEvents: "none" }} />
               </div>
             </Field>
             <Field label="CATEGORY">
@@ -628,7 +629,7 @@ export default function DropshipManager() {
                   style={{ ...inp, appearance: "none", paddingRight: 30, cursor: "pointer" }}>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+                <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.3), pointerEvents: "none" }} />
               </div>
             </Field>
           </div>
@@ -652,8 +653,8 @@ export default function DropshipManager() {
               </div>
               {form.sourceCurrency !== "USD" && form.sourcePriceUSD && (
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10 }}>
-                  <span style={{ color: "#60a5fa", fontWeight: 700 }}>≈ ${form.sourcePriceUSD} USD</span>
-                  <span style={{ color: "rgba(255,255,255,0.2)" }}>
+                  <span style={{ color: palette.info.base, fontWeight: 700 }}>≈ ${form.sourcePriceUSD} USD</span>
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.2) }}>
                     1 USD = {(fxRates[form.sourceCurrency] ?? 1).toFixed(2)} {form.sourceCurrency} · {fxSource.includes("fallback") ? "fallback" : "ECB live"}
                   </span>
                 </div>
@@ -666,13 +667,13 @@ export default function DropshipManager() {
 
           {/* Live profit preview */}
           {sell > 0 && (
-            <div style={{ background: formProfit > 0 ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)", border: `1px solid ${formProfit > 0 ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+            <div style={{ background: formProfit > 0 ? palette.alpha(palette.profit.base, 0.08) : palette.alpha(palette.loss.base, 0.08), border: `1px solid ${formProfit > 0 ? palette.alpha(palette.profit.base, 0.2) : palette.alpha(palette.loss.base, 0.2)}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
               <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 12 }}>
-                <span style={{ color: "rgba(255,255,255,0.5)" }}>Buy: <strong style={{ color: "#60a5fa" }}>${buy.toFixed(2)}</strong>{form.sourceCurrency !== "USD" && buyLocalRaw && <span style={{ color: "rgba(255,255,255,0.2)", fontWeight: 400 }}> ({buyLocalRaw} {form.sourceCurrency})</span>}</span>
-                <span style={{ color: "rgba(255,255,255,0.5)" }}>Net profit: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>${formProfit.toFixed(2)}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.5)" }}>Margin: <strong style={{ color: formProfit > 0 ? "#4ade80" : "#f87171" }}>{formMargin}%</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.35)" }}>Fee: {fee}% (${feeAmt.toFixed(2)})</span>
-                <span style={{ color: "rgba(255,255,255,0.35)" }}>Ship est: ${ship}</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.5) }}>Buy: <strong style={{ color: palette.info.base }}>${buy.toFixed(2)}</strong>{form.sourceCurrency !== "USD" && buyLocalRaw && <span style={{ color: palette.alpha(palette.ink.white, 0.2), fontWeight: 400 }}> ({buyLocalRaw} {form.sourceCurrency})</span>}</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.5) }}>Net profit: <strong style={{ color: formProfit > 0 ? palette.profit.base : palette.loss.base }}>${formProfit.toFixed(2)}</strong></span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.5) }}>Margin: <strong style={{ color: formProfit > 0 ? palette.profit.base : palette.loss.base }}>{formMargin}%</strong></span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.35) }}>Fee: {fee}% (${feeAmt.toFixed(2)})</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.35) }}>Ship est: ${ship}</span>
               </div>
             </div>
           )}
@@ -695,7 +696,7 @@ export default function DropshipManager() {
           </Field>
 
           <button onClick={createListing} disabled={creating || !form.productName || !form.sellPrice}
-            style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: creating || !form.productName || !form.sellPrice ? "not-allowed" : "pointer", background: creating ? "rgba(139,92,246,0.3)" : "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 800, fontSize: 14, opacity: !form.productName || !form.sellPrice ? 0.5 : 1 }}>
+            style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: creating || !form.productName || !form.sellPrice ? "not-allowed" : "pointer", background: creating ? palette.alpha(palette.ai.strong, 0.3) : `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`, color: palette.ink.white, fontWeight: 800, fontSize: 14, opacity: !form.productName || !form.sellPrice ? 0.5 : 1 }}>
             {creating ? "🤖 AI generating listing…" : "✚ Create Listing"}
           </button>
         </Modal>
@@ -706,18 +707,18 @@ export default function DropshipManager() {
         <Modal title="Listing Details" onClose={() => setShowDetail(null)} wide>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div>
-              <div style={{ color: "#fff", fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{showDetail.productName}</div>
+              <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{showDetail.productName}</div>
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12 }}>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Buy: <strong style={{ color: "#fff" }}>${showDetail.sourcePriceUSD}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Sell: <strong style={{ color: "#4ade80" }}>${showDetail.sellPrice}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Net profit: <strong style={{ color: "#4ade80" }}>+${showDetail.profit}</strong></span>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Margin: <strong style={{ color: "#4ade80" }}>{showDetail.margin}%</strong></span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.45) }}>Buy: <strong style={{ color: palette.ink.white }}>${showDetail.sourcePriceUSD}</strong></span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.45) }}>Sell: <strong style={{ color: palette.profit.base }}>${showDetail.sellPrice}</strong></span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.45) }}>Net profit: <strong style={{ color: palette.profit.base }}>+${showDetail.profit}</strong></span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.45) }}>Margin: <strong style={{ color: palette.profit.base }}>{showDetail.margin}%</strong></span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {["draft","active","sold"].map(st => (
                 <button key={st} onClick={() => changeStatus(showDetail.id, st)}
-                  style={{ padding: "4px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, background: showDetail.status === st ? `${STATUS_COLORS[st]}25` : "rgba(255,255,255,0.06)", color: showDetail.status === st ? STATUS_COLORS[st] : "rgba(255,255,255,0.35)" }}>
+                  style={{ padding: "4px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, background: showDetail.status === st ? `${STATUS_COLORS[st]}25` : palette.alpha(palette.ink.white, 0.06), color: showDetail.status === st ? STATUS_COLORS[st] : palette.alpha(palette.ink.white, 0.35) }}>
                   {STATUS_LABELS[st]}
                 </button>
               ))}
@@ -727,71 +728,71 @@ export default function DropshipManager() {
           {showDetail.aiContent ? (
             <>
               {/* Title */}
-              <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10, padding: 14, marginBottom: 10 }}>
+              <div style={{ background: palette.alpha(palette.ai.strong, 0.08), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700 }}>TITLE (AI)</span>
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700 }}>TITLE (AI)</span>
                   <CopyBtn text={showDetail.aiContent.title} />
                 </div>
-                <div style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>{showDetail.aiContent.title}</div>
+                <div style={{ color: palette.ink.white, fontSize: 14, fontWeight: 700 }}>{showDetail.aiContent.title}</div>
               </div>
 
               {/* Highlights */}
               {showDetail.aiContent.highlights?.length && (
-                <div style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                <div style={{ background: palette.alpha(palette.profit.base, 0.06), border: `1px solid ${palette.alpha(palette.profit.base, 0.15)}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
                   {showDetail.aiContent.highlights.map((h, i) => (
-                    <div key={i} style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, padding: "2px 0", display: "flex", gap: 6 }}>
-                      <span style={{ color: "#4ade80" }}>✓</span> {h}
+                    <div key={i} style={{ color: palette.alpha(palette.ink.white, 0.65), fontSize: 12, padding: "2px 0", display: "flex", gap: 6 }}>
+                      <span style={{ color: palette.profit.base }}>✓</span> {h}
                     </div>
                   ))}
                 </div>
               )}
 
               {/* Description */}
-              <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 10, padding: 14, marginBottom: 10 }}>
+              <div style={{ background: palette.alpha(palette.ai.strong, 0.08), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700 }}>DESCRIPTION (AI)</span>
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700 }}>DESCRIPTION (AI)</span>
                   <CopyBtn text={showDetail.aiContent.description} />
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, lineHeight: 1.6 }}>{showDetail.aiContent.description}</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.75), fontSize: 12, lineHeight: 1.6 }}>{showDetail.aiContent.description}</div>
               </div>
 
               {/* Shipping note */}
               {showDetail.aiContent.shippingNote && (
-                <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
-                  <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700 }}>📦 SHIPPING</span>
-                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 4 }}>{showDetail.aiContent.shippingNote}</div>
+                <div style={{ background: palette.alpha(palette.info.base, 0.06), border: `1px solid ${palette.alpha(palette.info.base, 0.15)}`, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700 }}>📦 SHIPPING</span>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 12, marginTop: 4 }}>{showDetail.aiContent.shippingNote}</div>
                 </div>
               )}
 
               {/* Tags */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 14 }}>
                 {showDetail.aiContent.tags.map((t, i) => (
-                  <span key={i} style={{ background: "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 99, padding: "2px 9px", color: "#93c5fd", fontSize: 10 }}>#{t}</span>
+                  <span key={i} style={{ background: palette.alpha(palette.info.base, 0.12), border: `1px solid ${palette.alpha(palette.info.base, 0.2)}`, borderRadius: 99, padding: "2px 9px", color: palette.info.soft, fontSize: 10 }}>#{t}</span>
                 ))}
               </div>
             </>
           ) : (
-            <div style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 10, padding: 12, marginBottom: 14, color: "#fde68a", fontSize: 12 }}>
+            <div style={{ background: palette.alpha(palette.brand.gold, 0.08), border: `1px solid ${palette.alpha(palette.brand.gold, 0.2)}`, borderRadius: 10, padding: 12, marginBottom: 14, color: palette.brand.goldSoft, fontSize: 12 }}>
               Add Anthropic API key in Settings to let AI generate descriptions
             </div>
           )}
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <a href={PLATFORM_LINKS[showDetail.platform]} target="_blank" rel="noopener noreferrer"
-              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 10, padding: "10px 14px", textDecoration: "none" }}>
-              <span style={{ color: "#4ade80", fontWeight: 700, fontSize: 13 }}>🚀 List on {showDetail.platform}</span>
-              <ExternalLink size={13} color="#4ade80" />
+              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", background: palette.alpha(palette.profit.base, 0.12), border: `1px solid ${palette.alpha(palette.profit.base, 0.3)}`, borderRadius: 10, padding: "10px 14px", textDecoration: "none" }}>
+              <span style={{ color: palette.profit.base, fontWeight: 700, fontSize: 13 }}>🚀 List on {showDetail.platform}</span>
+              <ExternalLink size={13} color={palette.profit.base} />
             </a>
             {showDetail.sourceUrl && (
               <a href={showDetail.sourceUrl} target="_blank" rel="noopener noreferrer"
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 10, padding: "10px 14px", textDecoration: "none" }}>
-                <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>🛒 Buy source</span>
-                <ExternalLink size={13} color="#fde68a" />
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", background: palette.alpha(palette.brand.gold, 0.08), border: `1px solid ${palette.alpha(palette.brand.gold, 0.2)}`, borderRadius: 10, padding: "10px 14px", textDecoration: "none" }}>
+                <span style={{ color: palette.brand.goldSoft, fontWeight: 700, fontSize: 13 }}>🛒 Buy source</span>
+                <ExternalLink size={13} color={palette.brand.goldSoft} />
               </a>
             )}
           </div>
           <button onClick={() => deleteListing(showDetail.id)}
-            style={{ marginTop: 10, width: "100%", padding: "8px", borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#f87171", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+            style={{ marginTop: 10, width: "100%", padding: "8px", borderRadius: 8, border: `1px solid ${palette.alpha(palette.loss.base, 0.2)}`, background: palette.alpha(palette.loss.base, 0.06), color: palette.loss.base, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
             <Trash2 size={13} style={{ marginRight: 6 }} />Delete listing
           </button>
         </Modal>
@@ -800,10 +801,10 @@ export default function DropshipManager() {
       {/* ── MODAL: New Order ── */}
       {showNewOrder && (
         <Modal title={`New Order — ${showNewOrder.productName}`} onClose={() => setShowNewOrder(null)}>
-          <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.18)", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-            Customer pays <strong style={{ color: "#4ade80" }}>${showNewOrder.sellPrice}</strong>
-            {" · "}You order for <strong style={{ color: "#fff" }}>${showNewOrder.sourcePriceUSD}</strong>
-            {" · "}Net profit: <strong style={{ color: "#4ade80" }}>+${showNewOrder.profit}</strong>
+          <div style={{ background: palette.alpha(palette.profit.base, 0.07), border: `1px solid ${palette.alpha(palette.profit.base, 0.18)}`, borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 12, color: palette.alpha(palette.ink.white, 0.65) }}>
+            Customer pays <strong style={{ color: palette.profit.base }}>${showNewOrder.sellPrice}</strong>
+            {" · "}You order for <strong style={{ color: palette.ink.white }}>${showNewOrder.sourcePriceUSD}</strong>
+            {" · "}Net profit: <strong style={{ color: palette.profit.base }}>+${showNewOrder.profit}</strong>
           </div>
           <Field label="BUYER NAME *">
             <input style={inp} value={orderForm.buyerName} onChange={e => setOrderForm(f => ({ ...f, buyerName: e.target.value }))} placeholder="John Smith" />
@@ -823,7 +824,7 @@ export default function DropshipManager() {
             <input style={inp} value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. prefers express shipping, color green..." />
           </Field>
           <button onClick={createOrder} disabled={!orderForm.buyerName || !orderForm.buyerAddress}
-            style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #f5c842, #d97706)", color: "#000", fontWeight: 800, fontSize: 14, opacity: !orderForm.buyerName || !orderForm.buyerAddress ? 0.5 : 1 }}>
+            style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${palette.brand.gold}, ${palette.brand.amberDeep})`, color: palette.ink.black, fontWeight: 800, fontSize: 14, opacity: !orderForm.buyerName || !orderForm.buyerAddress ? 0.5 : 1 }}>
             ✚ Add Order
           </button>
         </Modal>
@@ -832,33 +833,33 @@ export default function DropshipManager() {
       {/* ── MODAL: Order Detail / Process ── */}
       {showOrderDetail && (
         <Modal title="Process Order" onClose={() => setShowOrderDetail(null)}>
-          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{showOrderDetail.productName}</div>
+          <div style={{ background: palette.alpha(palette.ink.black, 0.3), borderRadius: 12, padding: 14, marginBottom: 16 }}>
+            <div style={{ color: palette.ink.white, fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{showOrderDetail.productName}</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
               <CopyBtn text={showOrderDetail.buyerName} />
-              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>👤 {showOrderDetail.buyerName}</span>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 13 }}>👤 {showOrderDetail.buyerName}</span>
             </div>
-            <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 8, padding: "8px 10px", marginBottom: 6 }}>
+            <div style={{ background: palette.alpha(palette.info.base, 0.08), border: `1px solid ${palette.alpha(palette.info.base, 0.15)}`, borderRadius: 8, padding: "8px 10px", marginBottom: 6 }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
-                <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>📍 {showOrderDetail.buyerAddress}</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.65), fontSize: 12 }}>📍 {showOrderDetail.buyerAddress}</span>
                 <CopyBtn text={showOrderDetail.buyerAddress} />
               </div>
             </div>
             {showOrderDetail.buyerEmail && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}>✉ {showOrderDetail.buyerEmail}</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.55), fontSize: 12 }}>✉ {showOrderDetail.buyerEmail}</span>
                 <CopyBtn text={showOrderDetail.buyerEmail} />
               </div>
             )}
             {showOrderDetail.notes && (
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 6, fontStyle: "italic" }}>💬 {showOrderDetail.notes}</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, marginTop: 6, fontStyle: "italic" }}>💬 {showOrderDetail.notes}</div>
             )}
           </div>
 
           {showOrderDetail.status === "pending" ? (
             <>
-              <div style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 10, padding: 14, marginBottom: 14 }}>
-                <div style={{ color: "#fde68a", fontWeight: 700, fontSize: 12, marginBottom: 8 }}>⚡ STEPS TO COMPLETE:</div>
+              <div style={{ background: palette.alpha(palette.brand.gold, 0.08), border: `1px solid ${palette.alpha(palette.brand.gold, 0.2)}`, borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                <div style={{ color: palette.brand.goldSoft, fontWeight: 700, fontSize: 12, marginBottom: 8 }}>⚡ STEPS TO COMPLETE:</div>
                 {[
                   "Open the buy source link below",
                   `Add to cart and enter customer's delivery address`,
@@ -866,40 +867,40 @@ export default function DropshipManager() {
                   "Enter the shipment tracking number",
                   `Click "Mark as Processed"`,
                 ].map((step, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4, color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
-                    <span style={{ color: "#f5c842", fontWeight: 700, width: 14, flexShrink: 0 }}>{i + 1}.</span>
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4, color: palette.alpha(palette.ink.white, 0.65), fontSize: 12 }}>
+                    <span style={{ color: palette.brand.gold, fontWeight: 700, width: 14, flexShrink: 0 }}>{i + 1}.</span>
                     {step}
                   </div>
                 ))}
               </div>
               {showOrderDetail.sourceUrl && (
                 <a href={showOrderDetail.sourceUrl} target="_blank" rel="noopener noreferrer"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(245,200,66,0.1)", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 10, padding: "10px 14px", textDecoration: "none", marginBottom: 10 }}>
-                  <span style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>🛒 Open source and order</span>
-                  <ExternalLink size={13} color="#fde68a" />
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: palette.alpha(palette.brand.gold, 0.1), border: `1px solid ${palette.alpha(palette.brand.gold, 0.25)}`, borderRadius: 10, padding: "10px 14px", textDecoration: "none", marginBottom: 10 }}>
+                  <span style={{ color: palette.brand.goldSoft, fontWeight: 700, fontSize: 13 }}>🛒 Open source and order</span>
+                  <ExternalLink size={13} color={palette.brand.goldSoft} />
                 </a>
               )}
               <div style={{ marginBottom: 10 }}>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>TRACKING NUMBER (optional)</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.45), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>TRACKING NUMBER (optional)</div>
                 <input style={inp} value={trackingInput} onChange={e => setTrackingInput(e.target.value)} placeholder="DHL 1234567890 / FedEx 123..." />
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NOTE</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.45), fontSize: 10, fontWeight: 700, marginBottom: 5 }}>NOTE</div>
                 <input style={inp} value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="e.g. shipped 26.05, DHL Express..." />
               </div>
               <button onClick={() => processOrder(showOrderDetail)}
-                style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: "linear-gradient(135deg, #16a34a, #15803d)", color: "#fff", fontWeight: 800, fontSize: 14 }}>
+                style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${palette.profit.deep}, ${palette.profit.deeper})`, color: palette.ink.white, fontWeight: 800, fontSize: 14 }}>
                 ✓ Mark as Processed
               </button>
             </>
           ) : (
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#4ade80", fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, color: palette.profit.base, fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
                 <CheckCircle size={18} /> Processed · {showOrderDetail.processedAt && new Date(showOrderDetail.processedAt).toLocaleString()}
               </div>
               {showOrderDetail.trackingNumber && (
-                <div style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ color: "#93c5fd", fontSize: 13 }}>📦 {showOrderDetail.trackingNumber}</span>
+                <div style={{ background: palette.alpha(palette.info.base, 0.08), border: `1px solid ${palette.alpha(palette.info.base, 0.2)}`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ color: palette.info.soft, fontSize: 13 }}>📦 {showOrderDetail.trackingNumber}</span>
                   <CopyBtn text={showOrderDetail.trackingNumber} />
                 </div>
               )}

@@ -16,13 +16,17 @@
  *
  *  Ta sama marka ma dziś różne barwy na różnych ekranach:
  *
- *      marka     Dashboard          OfferPage
- *      ───────────────────────────────────────────────
- *      Etsy      czerwień #f87171   pomarańcz #f97316
- *      Amazon    błękit   #60a5fa   mięta     #34d399
- *      Vinted    mięta    #34d399   purpura   #c084fc
- *      StockX    zieleń   #4ade80   fiolet    #a78bfa
- *      eBay      złoto    #f5c842   złoto / błękit (zależnie od regionu)
+ *      marka       Dashboard          OfferPage / ProductDetail   ProfitPage
+ *      ─────────────────────────────────────────────────────────────────────
+ *      Etsy        czerwień #f87171   pomarańcz #f97316           pomarańcz
+ *      Amazon      błękit   #60a5fa   mięta     #34d399           DE: #86efac
+ *      Vinted      mięta    #34d399   purpura   #c084fc           purpura
+ *      StockX      zieleń   #4ade80   fiolet    #a78bfa           fiolet
+ *      eBay        złoto    #f5c842   złoto / błękit wg regionu   jak obok
+ *
+ *  Te same barwy były wpisane w PIĘCIU miejscach: Dashboard, OfferPage,
+ *  ProfitPage, ProductDetail i MarketingPage. Stąd rozjazdy — każda kopia
+ *  żyła własnym życiem. Teraz źródłem jest ten plik.
  *
  *  Wyciągnięcie tego do jednego pliku niczego nie naprawia — tylko pokazuje.
  *  Ujednolicenie zmieniłoby wygląd kilku ekranów, więc jest decyzją do
@@ -58,6 +62,19 @@ export const marketplaceAccent: Record<string, string> = {
   "eBay USA": "#f5c842", "Etsy USA": "#f97316", "Amazon UK": "#34d399",
   "Amazon DE": "#34d399", "eBay DE": "#60a5fa", "StockX USA": "#a78bfa",
   "Vinted EU": "#c084fc", "Depop": "#f87171",
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PRESET KALKULATORA — ProfitPage
+
+   Trzeci zestaw barw marek. Pokrywa się z `marketplaceAccent` we wszystkim
+   poza Amazonem DE: tutaj jest jasna zieleń #86efac, tam mięta #34d399.
+   Różnica zostaje, bo jej usunięcie zmieniłoby wygląd jednego z ekranów.
+   ───────────────────────────────────────────────────────────────────────── */
+export const marketplacePreset: Record<string, string> = {
+  "eBay USA": "#f5c842", "Etsy USA": "#f97316", "Amazon UK": "#34d399",
+  "eBay DE": "#60a5fa", "StockX": "#a78bfa", "Vinted": "#c084fc",
+  "Amazon DE": "#86efac", "Depop": "#f87171",
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
