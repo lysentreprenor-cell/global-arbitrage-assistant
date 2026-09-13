@@ -17,10 +17,16 @@
  *  celowo tu nie trafił — każdy z nich to decyzja do podjęcia przy migracji
  *  konkretnego ekranu, a nie coś, co warto utrwalać.
  *
- *  Zmigrowane: 35 z 36 plików — cały `components/resell/` i dwadzieścia siedem
- *  ekranów. Został jeden: AssistantPage, z 42 własnymi odcieniami na jednym
- *  ekranie, nigdzie indziej nieużywanymi. To osobny świat barw, nie brakujące
- *  stopnie skal — dopisanie ich tutaj podwoiłoby paletę wpisami używanymi raz.
+ *  Zmigrowane: 36 z 36 plików w `pages/resell` i `components/resell`. Żaden
+ *  nie trzyma już koloru wpisanego na sztywno. Kolory żyją w czterech
+ *  miejscach, każde z własnym powodem:
+ *
+ *      palette.ts     — znaczenia wspólne dla całej aplikacji (ten plik)
+ *      platforms.ts   — cudze barwy firmowe: eBay, TikTok, Google, Kraken
+ *      assistant.ts   — 42 barwy ekranu Gadacza, nieużywane nigdzie indziej
+ *      index.css      — @theme dla TradingBota, bo tam kolory są w klasach
+ *                       Tailwinda, a te nie przyjmują wartości z JS
+ *
  *
  *  GRANICA, KTÓRA DECYDUJE, CO TU WCHODZI
  *

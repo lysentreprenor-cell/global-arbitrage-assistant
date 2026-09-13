@@ -16,6 +16,8 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey } from "@/lib/apiKeys";
 import { installPinFetch } from "@/lib/botPin";
 import { PinUnlock } from "@/components/resell/PinUnlock";
+import * as palette from "@/design/palette";
+import * as assistant from "@/design/assistant";
 
 installPinFetch(); // Gadacz endpoints require the app PIN — attach it to every call
 
@@ -509,16 +511,16 @@ export default function AssistantPage() {
 
   return (
     <ResellLayout>
-      <div style={{ background: "#000", minHeight: "calc(100vh - 60px)", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ background: palette.ink.black, minHeight: "calc(100vh - 60px)", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
 
         {/* giant tap-to-talk button */}
         <button
           onClick={startListening}
           aria-label="Dotknij i wydaj polecenie głosem"
           style={{
-            minHeight: "38vh", borderRadius: 24, border: "4px solid #facc15",
-            background: status === "listening" ? "#713f12" : status === "thinking" ? "#1e3a5f" : status === "speaking" ? "#14532d" : "#111",
-            color: "#facc15", fontSize: 30, fontWeight: 900, letterSpacing: 1,
+            minHeight: "38vh", borderRadius: 24, border: `4px solid ${assistant.amber.edge}`,
+            background: status === "listening" ? assistant.amber.panelDeep : status === "thinking" ? palette.sectionAccent.blue.panel : status === "speaking" ? assistant.green.panelDeep : assistant.zinc.inkDeep,
+            color: assistant.amber.edge, fontSize: 30, fontWeight: 900, letterSpacing: 1,
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
           }}
         >
@@ -529,18 +531,18 @@ export default function AssistantPage() {
         {/* continuous hands-free toggle — on/off like the bot; TRUE background only in APP */}
         <button onClick={toggleContinuous} aria-label="Tryb ciągły — słuchaj bez dotykania"
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 64, borderRadius: 16,
-            border: `3px solid ${continuous ? "#4ade80" : "#52525b"}`, background: continuous ? "#052e16" : "#18181b",
-            color: continuous ? "#bbf7d0" : "#a1a1aa", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+            border: `3px solid ${continuous ? palette.profit.base : assistant.zinc.edge}`, background: continuous ? assistant.green.panel : assistant.zinc.panel,
+            color: continuous ? assistant.green.textSoft : assistant.zinc.soft, fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8, textAlign: "left" }}>
             {continuous ? "🟢 TRYB CIĄGŁY: WŁĄCZONY" : "⚪ TRYB CIĄGŁY: wyłączony"}
           </span>
-          <span style={{ width: 52, height: 28, borderRadius: 14, background: continuous ? "#22c55e" : "#3f3f46", position: "relative", flexShrink: 0 }}>
-            <span style={{ position: "absolute", top: 3, left: continuous ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: "#fff", transition: "left .15s" }} />
+          <span style={{ width: 52, height: 28, borderRadius: 14, background: continuous ? palette.profit.strong : assistant.zinc.panelHigh, position: "relative", flexShrink: 0 }}>
+            <span style={{ position: "absolute", top: 3, left: continuous ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: palette.ink.white, transition: "left .15s" }} />
           </span>
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#1e1b4b", border: "2px solid #4338ca", borderRadius: 12, padding: "10px 14px", marginTop: -4 }}>
-          <span style={{ background: "#4338ca", color: "#fff", fontSize: 12, fontWeight: 900, borderRadius: 8, padding: "3px 8px", flexShrink: 0 }}>📱 APP</span>
-          <span style={{ color: "#c7d2fe", fontSize: 13 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: palette.violetInk.high, border: `2px solid ${assistant.indigo.edge}`, borderRadius: 12, padding: "10px 14px", marginTop: -4 }}>
+          <span style={{ background: assistant.indigo.edge, color: palette.ink.white, fontSize: 12, fontWeight: 900, borderRadius: 8, padding: "3px 8px", flexShrink: 0 }}>📱 APP</span>
+          <span style={{ color: palette.info.indigoSoft, fontSize: 13 }}>
             Tu (w przeglądarce) tryb ciągły działa <b>tylko gdy ta karta jest otwarta</b>.
             Działanie <b>w tle nad każdą aplikacją</b> — jak bot — ma tylko aplikacja Gadacz z pliku APK.
           </span>
@@ -548,16 +550,16 @@ export default function AssistantPage() {
 
         {/* 🎭 TWARZE GADACZA — ZWINIĘTE pod nagłówek (koniec siatki kafelków) */}
         {personas.length > 0 && (
-          <div style={{ border: "3px solid #d97706", borderRadius: 16, background: "#292013", overflow: "hidden" }}>
+          <div style={{ border: `3px solid ${palette.brand.amberDeep}`, borderRadius: 16, background: assistant.amber.panelInk, overflow: "hidden" }}>
             <button onClick={() => setPersonaOpen(o => !o)}
               style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
-                background: "transparent", border: "none", color: "#fde68a", fontSize: 17, fontWeight: 800, padding: "0 16px", cursor: "pointer" }}>
+                background: "transparent", border: "none", color: palette.brand.goldSoft, fontSize: 17, fontWeight: 800, padding: "0 16px", cursor: "pointer" }}>
               <span>🎭 TWARZ: {personas.find(p => p.key === persona)?.icon} {personas.find(p => p.key === persona)?.name}</span>
               <span style={{ fontSize: 20 }}>{personaOpen ? "▲" : "▼"}</span>
             </button>
             {personaOpen && (
               <div style={{ padding: "0 12px 12px" }}>
-                <div style={{ color: "#d6b98c", fontSize: 13, marginBottom: 10 }}>
+                <div style={{ color: assistant.amber.tan, fontSize: 13, marginBottom: 10 }}>
                   Ogólny i Dla niewidomych działają też bez internetu (lokalny mózg). Pozostałe twarze wymagają internetu.
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -566,11 +568,11 @@ export default function AssistantPage() {
                     return (
                       <button key={p.key} onClick={() => { pickPersona(p.key); setPersonaOpen(false); }}
                         style={{ textAlign: "left", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
-                          border: persona === p.key ? "2px solid #fbbf24" : "2px solid #57534e",
-                          background: persona === p.key ? "#78350f" : "#1c1917" }}>
-                        <div style={{ color: "#fef3c7", fontSize: 15, fontWeight: 800 }}>{p.icon} {p.name}{persona === p.key ? " ✓" : ""}</div>
-                        <div style={{ color: offline ? "#86efac" : "#fca5a5", fontSize: 11, marginTop: 2 }}>{offline ? "🆓 działa też offline" : "🌐 wymaga internetu"}</div>
-                        <div style={{ color: "#a8a29e", fontSize: 12, marginTop: 2 }}>{p.desc}</div>
+                          border: persona === p.key ? `2px solid ${palette.brand.goldStrong}` : `2px solid ${palette.steel.stone}`,
+                          background: persona === p.key ? assistant.amber.panel : assistant.stone.panel }}>
+                        <div style={{ color: assistant.amber.text, fontSize: 15, fontWeight: 800 }}>{p.icon} {p.name}{persona === p.key ? " ✓" : ""}</div>
+                        <div style={{ color: offline ? palette.profit.soft : palette.loss.soft, fontSize: 11, marginTop: 2 }}>{offline ? "🆓 działa też offline" : "🌐 wymaga internetu"}</div>
+                        <div style={{ color: assistant.stone.soft, fontSize: 12, marginTop: 2 }}>{p.desc}</div>
                       </button>
                     );
                   })}
@@ -581,16 +583,16 @@ export default function AssistantPage() {
         )}
 
         {/* 🏢 PIĘTRA GADACZA — 20 zdolności z włącznikiem */}
-        <div style={{ border: "3px solid #7c3aed", borderRadius: 16, background: "#1e1633", overflow: "hidden" }}>
+        <div style={{ border: `3px solid ${palette.ai.deep}`, borderRadius: 16, background: assistant.indigo.panel, overflow: "hidden" }}>
           <button onClick={() => setFloorsOpen(o => !o)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
-              background: "transparent", border: "none", color: "#ddd6fe", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+              background: "transparent", border: "none", color: assistant.indigo.text, fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
             <span>🏢 PIĘTRA GADACZA ({FLOOR_LIST.filter(f => floors[f.key] !== false).length}/{FLOOR_LIST.length} włączone)</span>
             <span style={{ fontSize: 22 }}>{floorsOpen ? "▲" : "▼"}</span>
           </button>
           {floorsOpen && (
             <div style={{ padding: "4px 12px 12px" }}>
-              <div style={{ color: "#a78bfa", fontSize: 13, padding: "0 4px 10px" }}>
+              <div style={{ color: palette.ai.base, fontSize: 13, padding: "0 4px 10px" }}>
                 Każda zdolność Gadacza z osobnym włącznikiem. Wyłączona = Gadacz jej nie użyje. Zmiana działa też w aplikacji na telefonie.
               </div>
               {FLOOR_LIST.map(f => {
@@ -599,14 +601,14 @@ export default function AssistantPage() {
                   <button key={f.key} onClick={() => toggleFloor(f.key)}
                     style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
                       minHeight: 62, borderRadius: 12, marginBottom: 8, padding: "8px 14px", textAlign: "left",
-                      border: `2px solid ${on ? "#7c3aed" : "#3f3f46"}`, background: on ? "#2e1065" : "#18181b",
-                      color: on ? "#ede9fe" : "#71717a" }}>
+                      border: `2px solid ${on ? palette.ai.deep : assistant.zinc.panelHigh}`, background: on ? palette.violetInk.panel : assistant.zinc.panel,
+                      color: on ? palette.ai.wash : assistant.zinc.mid }}>
                     <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <span style={{ fontSize: 16, fontWeight: 800 }}>{f.name}</span>
-                      <span style={{ fontSize: 12, color: on ? "#c4b5fd" : "#52525b" }}>{f.desc}</span>
+                      <span style={{ fontSize: 12, color: on ? palette.ai.soft : assistant.zinc.edge }}>{f.desc}</span>
                     </span>
-                    <span style={{ width: 52, height: 28, borderRadius: 14, background: on ? "#8b5cf6" : "#3f3f46", position: "relative", flexShrink: 0 }}>
-                      <span style={{ position: "absolute", top: 3, left: on ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: "#fff", transition: "left .15s" }} />
+                    <span style={{ width: 52, height: 28, borderRadius: 14, background: on ? palette.ai.strong : assistant.zinc.panelHigh, position: "relative", flexShrink: 0 }}>
+                      <span style={{ position: "absolute", top: 3, left: on ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: palette.ink.white, transition: "left .15s" }} />
                     </span>
                   </button>
                 );
@@ -616,10 +618,10 @@ export default function AssistantPage() {
         </div>
 
         {/* 📱➕ APLIKACJE KTÓRE GADACZ UMIE OBSŁUGIWAĆ — dodawaj własne */}
-        <div style={{ border: "3px solid #0891b2", borderRadius: 16, background: "#08313a", overflow: "hidden" }}>
+        <div style={{ border: `3px solid ${palette.sectionAccent.cyan.deep}`, borderRadius: 16, background: assistant.teal.panelDeep, overflow: "hidden" }}>
           <button onClick={() => setAgOpen(o => !o)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
-              background: "transparent", border: "none", color: "#a5f3fc", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+              background: "transparent", border: "none", color: assistant.teal.textSoft, fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
             <span>🎓 APLIKACJE — TRYB EKSPERT ({builtinTiles.length + appGuides.length})</span>
             <span style={{ fontSize: 22 }}>{agOpen ? "▲" : "▼"}</span>
           </button>
@@ -629,37 +631,37 @@ export default function AssistantPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))", gap: 8, marginBottom: 12 }}>
                 {appGuides.map(g => (
                   <div key={"c" + g.match} title={g.guide || "tryb ekspert"}
-                    style={{ position: "relative", border: "2px solid #22d3ee", borderRadius: 12, background: "#0b3d47", padding: "10px 6px 8px", textAlign: "center" }}>
+                    style={{ position: "relative", border: `2px solid ${palette.sectionAccent.cyan.light}`, borderRadius: 12, background: assistant.teal.panel, padding: "10px 6px 8px", textAlign: "center" }}>
                     <button onClick={() => delAppGuide(g.match)} aria-label={`Usuń ${g.name}`}
-                      style={{ position: "absolute", top: 0, right: 4, background: "transparent", border: "none", color: "#67e8f9", fontSize: 16, fontWeight: 800, padding: 4 }}>×</button>
+                      style={{ position: "absolute", top: 0, right: 4, background: "transparent", border: "none", color: palette.sectionAccent.cyan.soft, fontSize: 16, fontWeight: 800, padding: 4 }}>×</button>
                     <div style={{ fontSize: 30, lineHeight: 1.2 }}>{iconFor(g)}</div>
-                    <div style={{ color: "#e0f7fa", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
-                    <div style={{ color: "#4ade80", fontSize: 11, fontWeight: 800, marginTop: 2 }}>🎓 nauczone</div>
+                    <div style={{ color: assistant.teal.text, fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                    <div style={{ color: palette.profit.base, fontSize: 11, fontWeight: 800, marginTop: 2 }}>🎓 nauczone</div>
                   </div>
                 ))}
                 {builtinTiles.map(b => (
                   <div key={"b" + b.match}
-                    style={{ border: "2px solid #155e63", borderRadius: 12, background: "#0b3d47", padding: "10px 6px 8px", textAlign: "center" }}>
+                    style={{ border: `2px solid ${assistant.teal.edge}`, borderRadius: 12, background: assistant.teal.panel, padding: "10px 6px 8px", textAlign: "center" }}>
                     <div style={{ fontSize: 30, lineHeight: 1.2 }}>{b.icon}</div>
-                    <div style={{ color: "#e0f7fa", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</div>
-                    <div style={{ color: "#4ade80", fontSize: 11, fontWeight: 800, marginTop: 2 }}>🎓 nauczone</div>
+                    <div style={{ color: assistant.teal.text, fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</div>
+                    <div style={{ color: palette.profit.base, fontSize: 11, fontWeight: 800, marginTop: 2 }}>🎓 nauczone</div>
                   </div>
                 ))}
               </div>
-              <div style={{ color: "#67e8f9", fontSize: 13, padding: "0 4px 10px" }}>
+              <div style={{ color: palette.sectionAccent.cyan.soft, fontSize: 13, padding: "0 4px 10px" }}>
                 Kafelki powyżej to aplikacje, które Gadacz obsługuje <b>jak ekspert</b> (Twoje mają ×, żeby usunąć). Resztę obsługuje normalnie.
                 Nową dodasz poniżej — albo z telefonu: otwórz apkę i powiedz <b>„poznaj tę aplikację"</b> (Gadacz sam obejrzy jej ekran),
                 <b> „poznaj całą aplikację"</b> (przejdzie po zakładkach) lub <b>„naucz się tej aplikacji: …"</b> (własna instrukcja).
               </div>
               <input value={agName} onChange={e => setAgName(e.target.value)} placeholder="Nazwa aplikacji (np. OLX)"
-                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: `2px solid ${assistant.teal.edge}`, background: assistant.teal.panel, color: assistant.teal.text, fontSize: 16 }} />
               <input value={agMatch} onChange={e => setAgMatch(e.target.value)} placeholder="Fragment nazwy pakietu lub apki (np. olx, com.olx)"
-                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 16 }} />
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: `2px solid ${assistant.teal.edge}`, background: assistant.teal.panel, color: assistant.teal.text, fontSize: 16 }} />
               <textarea value={agGuide} onChange={e => setAgGuide(e.target.value)} rows={3}
                 placeholder="(OPCJONALNIE) Jak obsługiwać: np. „Lista ogłoszeń przewija się w dół. Szukanie: lupa na górze. Wiadomość: przycisk Napisz, pole na dole i Wyślij.” — puste = i tak tryb ekspert."
-                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: "2px solid #155e63", background: "#0b3d47", color: "#e0f7fa", fontSize: 15 }} />
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, padding: "12px 14px", borderRadius: 10, border: `2px solid ${assistant.teal.edge}`, background: assistant.teal.panel, color: assistant.teal.text, fontSize: 15 }} />
               <button onClick={addAppGuide}
-                style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: "#0891b2", color: "#fff", fontSize: 17, fontWeight: 800 }}>
+                style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", background: palette.sectionAccent.cyan.deep, color: palette.ink.white, fontSize: 17, fontWeight: 800 }}>
                 🎓 Oznacz jako ekspercką
               </button>
             </div>
@@ -667,27 +669,27 @@ export default function AssistantPage() {
         </div>
 
         {/* ✍️ WARSZTAT PISARSKI — wiersze, piosenki, opowiadania, pisma, listy */}
-        <div style={{ border: "3px solid #db2777", borderRadius: 16, background: "#31081f", overflow: "hidden" }}>
+        <div style={{ border: `3px solid ${assistant.pink.edge}`, borderRadius: 16, background: assistant.pink.panelInkDeep, overflow: "hidden" }}>
           <button onClick={() => setWsOpen(o => !o)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 58,
-              background: "transparent", border: "none", color: "#fbcfe8", fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
+              background: "transparent", border: "none", color: assistant.pink.textSoft, fontSize: 18, fontWeight: 800, padding: "0 18px" }}>
             <span>✍️ WARSZTAT PISARSKI</span>
             <span style={{ fontSize: 22 }}>{wsOpen ? "▲" : "▼"}</span>
           </button>
           {wsOpen && (
             <div style={{ padding: "4px 12px 14px" }}>
-              <div style={{ color: "#f9a8d4", fontSize: 13, padding: "0 4px 10px" }}>
+              <div style={{ color: palette.sectionAccent.pink.soft, fontSize: 13, padding: "0 4px 10px" }}>
                 Gadacz pisze za Ciebie w wybranym stylu: wpisz temat, dotknij styl — <b>przeczyta całość na głos i skopiuje do schowka</b>.
                 Głosem działa wszędzie: „napisz wiersz o mamie", „napisz pismo do urzędu o umorzenie opłaty", „napisz romantyczną wiadomość na dobranoc".
               </div>
               <input value={wsTopic} onChange={e => setWsTopic(e.target.value)}
                 placeholder="O czym napisać? (np. o mamie na urodziny)"
-                style={{ width: "100%", boxSizing: "border-box", marginBottom: 10, padding: "12px 14px", borderRadius: 10, border: "2px solid #831843", background: "#3f0d29", color: "#fce7f3", fontSize: 16 }} />
+                style={{ width: "100%", boxSizing: "border-box", marginBottom: 10, padding: "12px 14px", borderRadius: 10, border: `2px solid ${assistant.pink.panel}`, background: assistant.pink.panelInk, color: assistant.pink.text, fontSize: 16 }} />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {WS_STYLES.map(s => (
                   <button key={s.name} onClick={() => writeStyled(s.prompt)}
-                    style={{ minHeight: 64, borderRadius: 12, border: "2px solid #be185d", background: "#4a1033",
-                      color: "#fce7f3", fontSize: 16, fontWeight: 800, display: "flex", flexDirection: "column",
+                    style={{ minHeight: 64, borderRadius: 12, border: `2px solid ${assistant.pink.edgeDeep}`, background: assistant.pink.panelDeep,
+                      color: assistant.pink.text, fontSize: 16, fontWeight: 800, display: "flex", flexDirection: "column",
                       alignItems: "center", justifyContent: "center", gap: 4 }}>
                     <span style={{ fontSize: 24 }}>{s.icon}</span>
                     {s.name}
@@ -708,12 +710,12 @@ export default function AssistantPage() {
             onChange={e => setTyped(e.target.value)}
             placeholder={`Napisz do twarzy: ${personas.find(p => p.key === persona)?.name ?? "Gadacz"}…`}
             aria-label="Napisz wiadomość do Gadacza"
-            style={{ flex: 1, minHeight: 60, borderRadius: 14, border: "2px solid #57534e",
-              background: "#1c1917", color: "#e7e5e4", fontSize: 18, padding: "0 14px" }}
+            style={{ flex: 1, minHeight: 60, borderRadius: 14, border: `2px solid ${palette.steel.stone}`,
+              background: assistant.stone.panel, color: assistant.stone.text, fontSize: 18, padding: "0 14px" }}
           />
           <button type="submit" aria-label="Wyślij wiadomość"
-            style={{ minWidth: 96, borderRadius: 14, border: "2px solid rgba(251,191,36,0.5)",
-              background: "rgba(120,53,15,0.35)", color: "#fef3c7", fontSize: 18, fontWeight: 800 }}>
+            style={{ minWidth: 96, borderRadius: 14, border: `2px solid ${palette.alpha(palette.brand.goldStrong, 0.5)}`,
+              background: palette.alpha(assistant.amber.panel, 0.35), color: assistant.amber.text, fontSize: 18, fontWeight: 800 }}>
             ✉️ Wyślij
           </button>
         </form>
@@ -721,15 +723,15 @@ export default function AssistantPage() {
         {/* action row — big, high-contrast */}
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={() => fileRef.current?.click()} aria-label="Zrób zdjęcie i opisz"
-            style={{ flex: 1, minHeight: 84, borderRadius: 16, border: "3px solid #38bdf8", background: "#082f49", color: "#e0f2fe", fontSize: 20, fontWeight: 800 }}>
+            style={{ flex: 1, minHeight: 84, borderRadius: 16, border: `3px solid ${palette.sectionAccent.blue.bright}`, background: assistant.blue.panel, color: palette.sectionAccent.cyan.wash, fontSize: 20, fontWeight: 800 }}>
             📷 OPISZ<br />ZDJĘCIE
           </button>
           <button onClick={() => lastAnswer ? speak(lastAnswer) : speak("Nie mam jeszcze żadnej odpowiedzi.")} aria-label="Powtórz ostatnią odpowiedź"
-            style={{ flex: 1, minHeight: 84, borderRadius: 16, border: "3px solid #4ade80", background: "#052e16", color: "#dcfce7", fontSize: 20, fontWeight: 800 }}>
+            style={{ flex: 1, minHeight: 84, borderRadius: 16, border: `3px solid ${palette.profit.base}`, background: assistant.green.panel, color: assistant.green.text, fontSize: 20, fontWeight: 800 }}>
             🔁 POWTÓRZ
           </button>
           <button onClick={stopSpeaking} aria-label="Przestań mówić"
-            style={{ flex: 1, minHeight: 84, borderRadius: 16, border: "3px solid #f87171", background: "#450a0a", color: "#fee2e2", fontSize: 20, fontWeight: 800 }}>
+            style={{ flex: 1, minHeight: 84, borderRadius: 16, border: `3px solid ${palette.loss.base}`, background: palette.loss.ink, color: assistant.red.wash, fontSize: 20, fontWeight: 800 }}>
             ⏹ CISZA
           </button>
         </div>
@@ -737,7 +739,7 @@ export default function AssistantPage() {
           onChange={e => { onPhoto(e.target.files?.[0] ?? null); e.target.value = ""; }} />
 
         {error && (
-          <div role="alert" style={{ background: "#450a0a", border: "2px solid #f87171", color: "#fecaca", borderRadius: 12, padding: 12, fontSize: 18, fontWeight: 700 }}>
+          <div role="alert" style={{ background: palette.loss.ink, border: `2px solid ${palette.loss.base}`, color: palette.loss.wash, borderRadius: 12, padding: 12, fontSize: 18, fontWeight: 700 }}>
             ⚠️ {error}
           </div>
         )}
@@ -747,17 +749,17 @@ export default function AssistantPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {messages.slice().reverse().map((m, i) => (
             <div key={i} style={{
-              background: m.role === "assistant" ? "#052e16" : "#1c1917",
-              border: m.role === "assistant" ? "2px solid #166534" : "2px solid #44403c",
-              color: m.role === "assistant" ? "#dcfce7" : "#e7e5e4",
+              background: m.role === "assistant" ? assistant.green.panel : assistant.stone.panel,
+              border: m.role === "assistant" ? `2px solid ${assistant.green.edge}` : `2px solid ${assistant.stone.edge}`,
+              color: m.role === "assistant" ? assistant.green.text : assistant.stone.text,
               borderRadius: 14, padding: "10px 14px", fontSize: 19, lineHeight: 1.45,
             }}>
               <span style={{ fontWeight: 800 }}>{m.role === "assistant" ? "🗣️ " : "👤 "}</span>{m.content}
             </div>
           ))}
           {!messages.length && (
-            <div style={{ color: "#a8a29e", fontSize: 18, lineHeight: 1.6, padding: 8 }}>
-              <b style={{ color: "#facc15" }}>Gadacz steruje aplikacją i telefonem głosem.</b> Dotknij żółtego przycisku i powiedz na przykład:<br /><br />
+            <div style={{ color: assistant.stone.soft, fontSize: 18, lineHeight: 1.6, padding: 8 }}>
+              <b style={{ color: assistant.amber.edge }}>Gadacz steruje aplikacją i telefonem głosem.</b> Dotknij żółtego przycisku i powiedz na przykład:<br /><br />
               🧭 „Otwórz trading bota" · „pokaż zyski" · „wróć do pulpitu"<br />
               🤖 „Ile bot zarobił?" · „co w portfelu?" · „jak rynek?" · „jak filtry?"<br />
               🎛️ „Wyłącz bota" · „wymieć kurz"<br />
@@ -772,32 +774,32 @@ export default function AssistantPage() {
               ✍️ „Napisz email do szefa, że jestem chory" · „napisz wiersz o wiośnie" · „napisz piosenkę disco polo o Kasi" · „napisz pismo do urzędu" (redaguję, czytam i kopiuję do schowka)<br />
               📖 „Przeczytaj mi to" (po zdjęciu) — czytam cały tekst<br />
               📷 albo zrób zdjęcie — opiszę je i przeczytam tekst<br /><br />
-              <span style={{ color: "#818cf8" }}>📱 Tylko w aplikacji APK: sterowanie ekranem innych aplikacji, „co jest na ekranie", oraz działanie w tle nad wszystkim. W przeglądarce Gadacz robi to, co powyżej.</span><br /><br />
+              <span style={{ color: palette.info.indigo }}>📱 Tylko w aplikacji APK: sterowanie ekranem innych aplikacji, „co jest na ekranie", oraz działanie w tle nad wszystkim. W przeglądarce Gadacz robi to, co powyżej.</span><br /><br />
               {contactCount > 0 ? `Zapisane kontakty: ${contactCount}.` : "Książka kontaktów jest pusta — zacznij od: „zapisz kontakt...”"}
             </div>
           )}
         </div>
 
         {/* 🧠 Gadacz's memory — what it has learned about you (lives in the app) */}
-        <div style={{ background: "#0a0a0a", border: "2px solid #3f3f46", borderRadius: 14, padding: 12, marginTop: 8 }}>
+        <div style={{ background: assistant.zinc.ink, border: `2px solid ${assistant.zinc.panelHigh}`, borderRadius: 14, padding: 12, marginTop: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ color: "#facc15", fontSize: 16, fontWeight: 800 }}>🧠 Pamięć Gadacza ({memory.length})</span>
+            <span style={{ color: assistant.amber.edge, fontSize: 16, fontWeight: 800 }}>🧠 Pamięć Gadacza ({memory.length})</span>
             {memory.length > 0 && (
               <button onClick={() => { if (confirm("Wyczyścić całą pamięć Gadacza?")) fetch("/api/assistant/memory/clear", { method: "POST" }).then(() => refreshMemory()); }}
-                style={{ fontSize: 13, color: "#f87171", background: "transparent", border: "1px solid #7f1d1d", borderRadius: 8, padding: "4px 10px" }}>
+                style={{ fontSize: 13, color: palette.loss.base, background: "transparent", border: `1px solid ${palette.loss.deepest}`, borderRadius: 8, padding: "4px 10px" }}>
                 Wyczyść
               </button>
             )}
           </div>
           {memory.length === 0
-            ? <div style={{ color: "#71717a", fontSize: 15 }}>Powiedz „zapamiętaj, że..." — Gadacz zapisze to tutaj na trwałe.</div>
+            ? <div style={{ color: assistant.zinc.mid, fontSize: 15 }}>Powiedz „zapamiętaj, że..." — Gadacz zapisze to tutaj na trwałe.</div>
             : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {memory.map((m, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "#18181b", borderRadius: 10, padding: "8px 12px" }}>
-                    <span style={{ color: "#e4e4e7", fontSize: 15 }}>{m}</span>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: assistant.zinc.panel, borderRadius: 10, padding: "8px 12px" }}>
+                    <span style={{ color: assistant.zinc.text, fontSize: 15 }}>{m}</span>
                     <button aria-label="Zapomnij to"
                       onClick={() => fetch("/api/assistant/memory/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: i }) }).then(() => refreshMemory())}
-                      style={{ color: "#a1a1aa", background: "transparent", border: "none", fontSize: 18, fontWeight: 800, flexShrink: 0 }}>×</button>
+                      style={{ color: assistant.zinc.soft, background: "transparent", border: "none", fontSize: 18, fontWeight: 800, flexShrink: 0 }}>×</button>
                   </div>
                 ))}
               </div>
