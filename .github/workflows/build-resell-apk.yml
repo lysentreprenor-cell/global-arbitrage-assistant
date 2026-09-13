@@ -29,19 +29,24 @@ jobs:
       - name: Nadaj prawa gradlew
         run: chmod +x android/gradlew || true
 
-      - name: Zbuduj debug APK (moduł resell)
+      # Wariant release, nie debug. Build debug ma android:debuggable=true, czyli
+      # każdy z dostępem do telefonu przez ADB może podejrzeć dane aplikacji
+      # i wstrzyknąć do niej kod. To nie jest coś, co powinno chodzić na co dzień.
+      # Moduł ma typ release z tym samym podpisem, więc „instalacja na wierzch"
+      # wcześniejszej wersji działa tak samo.
+      - name: Zbuduj release APK (moduł resell)
         working-directory: android
-        run: ./gradlew :resell:assembleDebug --no-daemon
+        run: ./gradlew :resell:assembleRelease --no-daemon
 
       - name: Wyślij APK jako artefakt
         uses: actions/upload-artifact@v4
         with:
           name: ResellAssist-APK
-          path: android/resell/build/outputs/apk/debug/resell-debug.apk
+          path: android/resell/build/outputs/apk/release/resell-release.apk
           if-no-files-found: error
 
       - name: Zmień nazwę na ResellAssist.apk
-        run: cp android/resell/build/outputs/apk/debug/resell-debug.apk ResellAssist.apk
+        run: cp android/resell/build/outputs/apk/release/resell-release.apk ResellAssist.apk
 
       - name: Opublikuj APK jako Release (łatwe pobranie z telefonu)
         uses: softprops/action-gh-release@v2
