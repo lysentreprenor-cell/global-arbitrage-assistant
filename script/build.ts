@@ -1,6 +1,17 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import { execSync } from "child_process";
+
+// Bake the git version into the bundle at BUILD time — a runtime `git log` would
+// show the pulled HEAD even when dist/ is stale, which is exactly the trap this
+// stamp exists to expose.
+function gitStamp(): string {
+  try {
+    return execSync('git log -1 --format="%h z %cd" --date=format-local:"%d.%m %H:%M"')
+      .toString().trim().replace(/"/g, "");
+  } catch { return "nieznana"; }
+}
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -54,6 +65,7 @@ async function buildAll() {
     outfile: "dist/index.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
+      "process.env.BUILD_STAMP": JSON.stringify(gitStamp()),
     },
     minify: true,
     external: externals,

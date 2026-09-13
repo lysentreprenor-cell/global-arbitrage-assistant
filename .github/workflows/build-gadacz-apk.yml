@@ -1,0 +1,92 @@
+name: Zbuduj Gadacz APK
+
+# Buduje aplikację Android Gadacz i wypuszcza gotowy plik APK do pobrania.
+# Uruchom ręcznie z zakładki Actions → "Zbuduj Gadacz APK" → Run workflow.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths: [ "android/**", ".github/workflows/build-gadacz-apk.yml" ]
+
+permissions:
+  contents: write   # pozwól opublikować APK jako Release do bezpośredniego pobrania
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 2
+
+      - name: Ustaw JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Ustaw Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Nadaj prawa gradlew
+        run: chmod +x android/gradlew || true
+
+      # 👄 SILNIK UST (sherpa-onnx): nie ma go na Maven Central — oficjalna droga to
+      # pobranie bibliotek natywnych i API Kotlin z wydania GitHub k2-fsa (Apache 2.0).
+      # Wersja PRZYPIĘTA (v1.13.2), żeby build był powtarzalny.
+      - name: Pobierz silnik ust (sherpa-onnx v1.13.2)
+        run: |
+          curl -fL --retry 3 -o sherpa.tar.bz2 \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-v1.13.2-android.tar.bz2"
+          mkdir -p sherpa-libs && tar -xjf sherpa.tar.bz2 -C sherpa-libs
+          echo "Zawartosc paczki:" && find sherpa-libs -name "*.so" | head -20
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          find sherpa-libs -path "*arm64-v8a*" -name "*.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \;
+          ls -la android/app/src/main/jniLibs/arm64-v8a/
+          # API Kotlin (klasy OfflineTts itd.) — z tego samego, przypietego taga.
+          mkdir -p android/app/src/main/java/com/k2fsa/sherpa/onnx
+          curl -fL --retry 3 -o android/app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt \
+            "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.2/sherpa-onnx/kotlin-api/Tts.kt"
+          head -30 android/app/src/main/java/com/k2fsa/sherpa/onnx/Tts.kt
+
+      - name: Zbuduj debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Wyślij APK jako artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gadacz-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Zmień nazwę na Gadacz.apk + zapisz wersję
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Gadacz.apk
+          # version.txt pozwala aplikacji wykryć nowszą wersję (auto-aktualizacja)
+          grep -m1 'versionName' android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/' > version.txt
+          echo "Opublikowana wersja: $(cat version.txt)"
+
+      - name: Opublikuj APK jako Release (łatwe pobranie z telefonu)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-latest
+          name: "Gadacz — najnowsza wersja"
+          body: "Aplikacja Gadacz na Androida. Pobierz plik Gadacz.apk poniżej i zainstaluj na telefonie. Kolejne aktualizacje zrobisz jednym dotknięciem w samej aplikacji."
+          files: |
+            Gadacz.apk
+            version.txt
+          make_latest: true
+
+      # 🔁 SAMONAPRAWA: budowa APK padla (np. zly kod Kotlin od agenta) → cofnij
+      # ostatni commit i przywroc zdrowa galaz. Guard [auto-rollback] chroni przed petla.
+      - name: Cofnij zmiane gdy budowa padla
+        if: failure() && !contains(github.event.head_commit.message, '[auto-rollback]')
+        run: |
+          git config user.name "Gadacz Rollback"
+          git config user.email "noreply@anthropic.com"
+          git stash -u || true
+          git revert --no-commit HEAD
+          git commit -m "Auto-rollback: ta zmiana psula budowe aplikacji [auto-rollback]"
+          git push origin HEAD:${{ github.ref_name }}

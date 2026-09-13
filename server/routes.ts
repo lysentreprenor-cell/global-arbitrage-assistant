@@ -106,7 +106,7 @@ export async function registerRoutes(
         email: user.email,
         handle: user.handle ?? null,
         phone: user.phone ?? null,
-        avatar: user.avatar ?? null,
+        avatar: (user as { avatar?: string | null }).avatar ?? null,
         balance: user.balance ?? 0,
         pushNotifications: user.pushNotifications ?? true,
         emailDigest: user.emailDigest ?? false,
@@ -936,8 +936,9 @@ export async function registerRoutes(
         try {
           const adminDb = getAdminDb();
           if (adminDb) {
-            await adminDb.ref(`messaging/inbox/${recipient.id}`).set({ at: Date.now(), convId: transferConvId, from: sender.id });
-            await adminDb.ref(`transfers/inbox/${recipient.id}`).set({ at: Date.now(), amount, currency, from: sender.id });
+            // Firestore (getAdminDb) nie ma .ref() — te sygnały nigdy się nie zapisywały.
+            await adminDb.doc(`messaging_inbox/${recipient.id}`).set({ at: Date.now(), convId: transferConvId, from: sender.id });
+            await adminDb.doc(`transfers_inbox/${recipient.id}`).set({ at: Date.now(), amount, currency, from: sender.id });
           }
         } catch (_fbErr) { /* non-fatal */ }
       }
@@ -1001,7 +1002,7 @@ export async function registerRoutes(
       try {
         const adminDb = getAdminDb();
         if (adminDb) {
-          await adminDb.ref(`transfers/requests/${recipient.id}`).set({ at: Date.now(), amount, currency, from: requester.id, fromHandle: normalizedHandle.slice(1), note: note || "" });
+          await adminDb.doc(`transfers_requests/${recipient.id}`).set({ at: Date.now(), amount, currency, from: requester.id, fromHandle: normalizedHandle.slice(1), note: note || "" });
         }
       } catch (_fbErr) { /* non-fatal */ }
 
@@ -1528,7 +1529,14 @@ export async function registerRoutes(
     try {
       const user = await resolveRequestUser(req);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
-      await createNotification(user.id, "system", "Zamówienie karty przyjęte", `Karta fizyczna zostanie wysłana na adres powiązany z kontem ${user.name} w ciągu 3–5 dni roboczych.`, {});
+      // createNotification przyjmuje JEDEN obiekt — stare pozycyjne wywołanie nigdy nie tworzyło powiadomienia.
+      await createNotification({
+        userId: user.id,
+        type: "info",
+        category: "system",
+        title: "Zamówienie karty przyjęte",
+        message: `Karta fizyczna zostanie wysłana na adres powiązany z kontem ${user.name} w ciągu 3–5 dni roboczych.`,
+      });
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -1710,7 +1718,7 @@ export async function registerRoutes(
       try {
         const db = getAdminDb();
         if (db) {
-          await db.ref(`walletTransactions/${user.id}/${txId}`).set(txRecord);
+          await db.doc(`walletTransactions/${user.id}/txs/${txId}`).set(txRecord);
         }
       } catch (fbErr) {
         console.warn("[wallet/exchange] Firebase write failed:", (fbErr as Error).message);
@@ -1784,18 +1792,19 @@ export async function registerRoutes(
       const eventId = `ev_${Date.now()}`;
       const { id }  = agreement;
 
-      // Single multi-location update — atomic: either all paths are written or none are.
-      await db.ref("/").update({
-        [`agreements/${id}`]:                                    agreement,
-        [`userAgreements/${agreement.creatorUid}/${id}`]:        { createdAt: now, role: "creator" },
-        [`userAgreements/${agreement.workerUid}/${id}`]:         { createdAt: now, role: "worker" },
-        [`agreementEvents/${id}/${eventId}`]: {
-          type:      "created",
-          actorUid:  agreement.creatorUid,
-          actorName: agreement.creatorName,
-          timestamp: now,
-        },
+      // Jeden zbiorczy zapis (Firestore batch) — atomowo: wszystkie ścieżki albo żadna.
+      // (getAdminDb() to Firestore; dawne db.ref("/").update to API Realtime Database i zawsze rzucało.)
+      const batch = db.batch();
+      batch.set(db.doc(`agreements/${id}`), agreement);
+      batch.set(db.doc(`userAgreements/${agreement.creatorUid}/list/${id}`), { createdAt: now, role: "creator" });
+      batch.set(db.doc(`userAgreements/${agreement.workerUid}/list/${id}`), { createdAt: now, role: "worker" });
+      batch.set(db.doc(`agreementEvents/${id}/events/${eventId}`), {
+        type:      "created",
+        actorUid:  agreement.creatorUid,
+        actorName: agreement.creatorName,
+        timestamp: now,
       });
+      await batch.commit();
 
       // Notify the worker that a contract was proposed to them
       createNotification({

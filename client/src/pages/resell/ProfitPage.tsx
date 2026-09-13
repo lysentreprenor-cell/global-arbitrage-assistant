@@ -2,16 +2,19 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
 import { ArrowLeft, Calculator, Target, TrendingUp, AlertTriangle, Save, RotateCcw } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
+import { marketplacePreset } from "@/design/platforms";
+import * as palette from "@/design/palette";
 
+// Barwy marek mieszkaja w design/platforms.ts — patrz naglowek tamtego pliku.
 const PLATFORM_PRESETS: { label: string; fee: number; color: string; ship: number }[] = [
-  { label: "eBay USA",   fee: 13.25, ship: 15, color: "#f5c842" },
-  { label: "Etsy USA",   fee: 9.5,  ship: 18, color: "#f97316" },
-  { label: "Amazon UK",  fee: 15,   ship: 22, color: "#34d399" },
-  { label: "eBay DE",    fee: 12,   ship: 14, color: "#60a5fa" },
-  { label: "StockX",     fee: 9.5,  ship: 25, color: "#a78bfa" },
-  { label: "Vinted",     fee: 0,    ship: 8,  color: "#c084fc" },
-  { label: "Amazon DE",  fee: 15,   ship: 20, color: "#86efac" },
-  { label: "Depop",      fee: 10,   ship: 12, color: "#f87171" },
+  { label: "eBay USA",   fee: 13.25, ship: 15, color: marketplacePreset["eBay USA"] },
+  { label: "Etsy USA",   fee: 9.5,  ship: 18, color: marketplacePreset["Etsy USA"] },
+  { label: "Amazon UK",  fee: 15,   ship: 22, color: marketplacePreset["Amazon UK"] },
+  { label: "eBay DE",    fee: 12,   ship: 14, color: marketplacePreset["eBay DE"] },
+  { label: "StockX",     fee: 9.5,  ship: 25, color: marketplacePreset["StockX"] },
+  { label: "Vinted",     fee: 0,    ship: 8,  color: marketplacePreset["Vinted"] },
+  { label: "Amazon DE",  fee: 15,   ship: 20, color: marketplacePreset["Amazon DE"] },
+  { label: "Depop",      fee: 10,   ship: 12, color: marketplacePreset["Depop"] },
 ];
 
 const CURRENCIES = [
@@ -104,20 +107,20 @@ export default function ProfitPage() {
   const tgt = parseFloat(targetProfit) || 0;
   const targetSell = (feePct + vatRate) < 100 ? (tgt + buy + ship + dutyAmt) / (1 - (feePct + vatRate) / 100) : 0;
 
-  const profitColor = profit > 0 ? "#4ade80" : profit < 0 ? "#f87171" : "#f5c842";
+  const profitColor = profit > 0 ? palette.profit.base : profit < 0 ? palette.loss.base : palette.brand.gold;
 
   // Currency-converted display
   const fmt = (val: number) => `${curr.symbol}${(val * curr.rate).toFixed(2)}`;
   const fmtInt = (val: number) => `${curr.symbol}${Math.round(val * curr.rate)}`;
 
   const inputStyle: React.CSSProperties = {
-    width: "100%", background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(139,92,246,0.25)", borderRadius: 10,
-    padding: "10px 14px", color: "#fff", fontSize: 14,
+    width: "100%", background: palette.alpha(palette.ink.white, 0.05),
+    border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, borderRadius: 10,
+    padding: "10px 14px", color: palette.ink.white, fontSize: 14,
     outline: "none", boxSizing: "border-box", fontFamily: "inherit",
   };
   const labelStyle: React.CSSProperties = {
-    color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700,
+    color: palette.alpha(palette.ink.white, 0.45), fontSize: 10, fontWeight: 700,
     letterSpacing: 0.5, marginBottom: 5, display: "block",
   };
 
@@ -151,33 +154,33 @@ export default function ProfitPage() {
     <ResellLayout>
       <div style={{ padding: "28px 28px 60px", maxWidth: 700 }}>
         <button onClick={() => setLocation(`/resell/product/${params?.id ?? "1"}`)}
-          style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.45)", background: "none", border: "none", cursor: "pointer", fontSize: 13, marginBottom: 24 }}>
+          style={{ display: "flex", alignItems: "center", gap: 6, color: palette.alpha(palette.ink.white, 0.45), background: "none", border: "none", cursor: "pointer", fontSize: 13, marginBottom: 24 }}>
           <ArrowLeft size={15} /> Back
         </button>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, #34d399, #059669)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Calculator size={20} color="#fff" />
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${palette.profit.mint}, ${palette.profit.mintDeep})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Calculator size={20} color={palette.ink.white} />
             </div>
             <div>
-              <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>Profit Calculator</h1>
-              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>Net profit after all fees, duty, VAT &amp; shipping</p>
+              <h1 style={{ color: palette.ink.white, fontSize: 22, fontWeight: 900, margin: 0 }}>Profit Calculator</h1>
+              <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, margin: 0 }}>Net profit after all fees, duty, VAT &amp; shipping</p>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={handleSaveScenario}
               title="Save this scenario"
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 9, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", color: "#4ade80", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 9, background: palette.alpha(palette.profit.base, 0.1), border: `1px solid ${palette.alpha(palette.profit.base, 0.25)}`, color: palette.profit.base, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
               <Save size={13} /> Save
             </button>
             {scenarios.length > 0 && (
               <button
                 onClick={() => setShowScenarios(s => !s)}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 9, background: showScenarios ? "rgba(139,92,246,0.2)" : "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 9, background: showScenarios ? palette.alpha(palette.ai.strong, 0.2) : palette.alpha(palette.ai.strong, 0.1), border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, color: palette.ai.base, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
               >
                 <RotateCcw size={13} /> History ({scenarios.length})
               </button>
@@ -187,22 +190,22 @@ export default function ProfitPage() {
 
         {/* Scenario history panel */}
         {showScenarios && scenarios.length > 0 && (
-          <div style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.18)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>SAVED SCENARIOS — click to recall</div>
+          <div style={{ background: palette.alpha(palette.ai.strong, 0.06), border: `1px solid ${palette.alpha(palette.ai.strong, 0.18)}`, borderRadius: 14, padding: 16, marginBottom: 20 }}>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 12 }}>SAVED SCENARIOS — click to recall</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {scenarios.map(s => (
                 <button
                   key={s.id}
                   onClick={() => handleRecallScenario(s)}
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px", cursor: "pointer", textAlign: "left", width: "100%" }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: palette.alpha(palette.ink.black, 0.2), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 10, padding: "10px 14px", cursor: "pointer", textAlign: "left", width: "100%" }}
                 >
                   <div>
-                    <div style={{ color: "#c4b5fd", fontWeight: 700, fontSize: 13 }}>{s.label}</div>
-                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 }}>Buy ${s.buyPrice} · Sell ${s.sellPrice} · {s.platform} · {s.savedAt}</div>
+                    <div style={{ color: palette.ai.soft, fontWeight: 700, fontSize: 13 }}>{s.label}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11, marginTop: 2 }}>Buy ${s.buyPrice} · Sell ${s.sellPrice} · {s.platform} · {s.savedAt}</div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
-                    <div style={{ color: s.profit > 0 ? "#4ade80" : "#f87171", fontWeight: 800, fontSize: 15 }}>{s.profit > 0 ? "+" : ""}${s.profit}</div>
-                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>{s.margin}% margin</div>
+                    <div style={{ color: s.profit > 0 ? palette.profit.base : palette.loss.base, fontWeight: 800, fontSize: 15 }}>{s.profit > 0 ? "+" : ""}${s.profit}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10 }}>{s.margin}% margin</div>
                   </div>
                 </button>
               ))}
@@ -219,8 +222,8 @@ export default function ProfitPage() {
             <button key={m.key} onClick={() => setMode(m.key)}
               style={{
                 flex: 1, padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 12,
-                background: mode === m.key ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "rgba(255,255,255,0.06)",
-                color: mode === m.key ? "#fff" : "rgba(255,255,255,0.4)",
+                background: mode === m.key ? `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})` : palette.alpha(palette.ink.white, 0.06),
+                color: mode === m.key ? palette.ink.white : palette.alpha(palette.ink.white, 0.4),
               }}>
               {m.label}
             </button>
@@ -229,22 +232,22 @@ export default function ProfitPage() {
 
         {/* Currency selector */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>DISPLAY CURRENCY</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>DISPLAY CURRENCY</div>
           <div style={{ display: "flex", gap: 6 }}>
             {CURRENCIES.map(c => (
               <button key={c.key}
                 onClick={() => setCurrency(c.key)}
                 style={{
                   padding: "5px 14px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
-                  background: currency === c.key ? "rgba(245,200,66,0.2)" : "rgba(255,255,255,0.06)",
-                  color: currency === c.key ? "#f5c842" : "rgba(255,255,255,0.4)",
-                  outline: currency === c.key ? "1px solid rgba(245,200,66,0.4)" : "none",
+                  background: currency === c.key ? palette.alpha(palette.brand.gold, 0.2) : palette.alpha(palette.ink.white, 0.06),
+                  color: currency === c.key ? palette.brand.gold : palette.alpha(palette.ink.white, 0.4),
+                  outline: currency === c.key ? `1px solid ${palette.alpha(palette.brand.gold, 0.4)}` : "none",
                 }}>
                 {c.symbol} {c.key}
               </button>
             ))}
             {currency !== "USD" && (
-              <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11, alignSelf: "center", marginLeft: 4 }}>
+              <span style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 11, alignSelf: "center", marginLeft: 4 }}>
                 1 USD = {curr.rate} {currency}
               </span>
             )}
@@ -253,15 +256,15 @@ export default function ProfitPage() {
 
         {/* Platform presets */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>PLATFORM PRESETS</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>PLATFORM PRESETS</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {PLATFORM_PRESETS.map(pr => (
               <button key={pr.label}
                 onClick={() => { setPlatformFee(String(pr.fee)); setShipping(String(pr.ship)); setActivePreset(pr.label); }}
                 style={{
                   padding: "5px 12px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700,
-                  background: activePreset === pr.label ? `${pr.color}25` : "rgba(255,255,255,0.06)",
-                  color: activePreset === pr.label ? pr.color : "rgba(255,255,255,0.4)",
+                  background: activePreset === pr.label ? `${pr.color}25` : palette.alpha(palette.ink.white, 0.06),
+                  color: activePreset === pr.label ? pr.color : palette.alpha(palette.ink.white, 0.4),
                   outline: activePreset === pr.label ? `1px solid ${pr.color}40` : "none",
                 }}>
                 {pr.label} <span style={{ opacity: 0.65, fontSize: 10 }}>{pr.fee}%</span>
@@ -270,8 +273,38 @@ export default function ProfitPage() {
           </div>
         </div>
 
+        {/* Import route / duty presets */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 8 }}>TRASA IMPORTU — cło + VAT (kliknij żeby wypełnić)</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[
+              { label: "CN→PL Ubrania",    duty: 12,  vat: 23, note: "tkaniny 12% + VAT 23%" },
+              { label: "CN→PL Elektronika",duty: 0,   vat: 23, note: "IT/AV 0% + VAT 23%" },
+              { label: "JP→PL Zegarki",    duty: 4.5, vat: 23, note: "zegarki 4.5% + VAT 23%" },
+              { label: "JP→DE Zegarki",    duty: 4.5, vat: 19, note: "zegarki 4.5% + VAT 19%" },
+              { label: "US→PL Sneakers",   duty: 17,  vat: 23, note: "obuwie 17% + VAT 23%" },
+              { label: "CN→PL Biżuteria",  duty: 3,   vat: 23, note: "biżuteria 3% + VAT 23%" },
+              { label: "US→DE Elektronika",duty: 0,   vat: 19, note: "IT 0% + MwSt 19%" },
+            ].map(r => (
+              <button
+                key={r.label}
+                title={r.note}
+                onClick={() => { setDuty(String(r.duty)); setVatEnabled(true); setVatPct(String(r.vat)); }}
+                style={{
+                  padding: "5px 11px", borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none",
+                  background: duty === String(r.duty) && vatPct === String(r.vat) ? palette.alpha(palette.brand.gold, 0.2) : palette.alpha(palette.ink.white, 0.06),
+                  color: duty === String(r.duty) && vatPct === String(r.vat) ? palette.brand.gold : palette.alpha(palette.ink.white, 0.45),
+                  outline: duty === String(r.duty) && vatPct === String(r.vat) ? `1px solid ${palette.alpha(palette.brand.gold, 0.35)}` : "none",
+                }}
+              >
+                {r.label} <span style={{ opacity: 0.6 }}>{r.duty}%+{r.vat}%</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Inputs */}
-        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: 22, marginBottom: 16 }}>
+        <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.08)}`, borderRadius: 18, padding: 22, marginBottom: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div>
               <label style={labelStyle}>BUY PRICE ($)</label>
@@ -309,13 +342,13 @@ export default function ProfitPage() {
               onClick={() => setVatEnabled(v => !v)}
               style={{
                 display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", borderRadius: 9, cursor: "pointer",
-                background: vatEnabled ? "rgba(248,113,113,0.15)" : "rgba(255,255,255,0.05)",
-                border: `1px solid ${vatEnabled ? "rgba(248,113,113,0.35)" : "rgba(255,255,255,0.1)"}`,
-                color: vatEnabled ? "#f87171" : "rgba(255,255,255,0.35)", fontSize: 12, fontWeight: 700,
+                background: vatEnabled ? palette.alpha(palette.loss.base, 0.15) : palette.alpha(palette.ink.white, 0.05),
+                border: `1px solid ${vatEnabled ? palette.alpha(palette.loss.base, 0.35) : palette.alpha(palette.ink.white, 0.1)}`,
+                color: vatEnabled ? palette.loss.base : palette.alpha(palette.ink.white, 0.35), fontSize: 12, fontWeight: 700,
               }}
             >
-              <div style={{ width: 14, height: 14, borderRadius: 3, background: vatEnabled ? "#f87171" : "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {vatEnabled && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
+              <div style={{ width: 14, height: 14, borderRadius: 3, background: vatEnabled ? palette.loss.base : palette.alpha(palette.ink.white, 0.1), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {vatEnabled && <span style={{ color: palette.ink.white, fontSize: 10, fontWeight: 900 }}>✓</span>}
               </div>
               VAT / Sales Tax
             </button>
@@ -324,11 +357,11 @@ export default function ProfitPage() {
                 <input
                   type="number" min="0" max="100" value={vatPct}
                   onChange={e => setVatPct(e.target.value)}
-                  style={{ width: 70, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 8, padding: "7px 10px", color: "#fca5a5", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                  style={{ width: 70, background: palette.alpha(palette.loss.base, 0.08), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 8, padding: "7px 10px", color: palette.loss.soft, fontSize: 13, outline: "none", fontFamily: "inherit" }}
                 />
-                <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>% on sell price</span>
-                <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, padding: "4px 10px" }}>
-                  <span style={{ color: "#f87171", fontWeight: 700, fontSize: 13 }}>-{fmt(vatAmt)}</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 12 }}>% on sell price</span>
+                <div style={{ background: palette.alpha(palette.loss.base, 0.1), border: `1px solid ${palette.alpha(palette.loss.base, 0.2)}`, borderRadius: 8, padding: "4px 10px" }}>
+                  <span style={{ color: palette.loss.base, fontWeight: 700, fontSize: 13 }}>-{fmt(vatAmt)}</span>
                 </div>
               </div>
             )}
@@ -339,41 +372,41 @@ export default function ProfitPage() {
         {mode === "calc" && (
           <>
             {profit < 0 && (
-              <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 10, padding: "9px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <AlertTriangle size={14} color="#f87171" />
-                <span style={{ color: "#fca5a5", fontSize: 12, fontWeight: 700 }}>Loss deal — sell price is below total cost</span>
+              <div style={{ background: palette.alpha(palette.loss.base, 0.1), border: `1px solid ${palette.alpha(palette.loss.base, 0.25)}`, borderRadius: 10, padding: "9px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <AlertTriangle size={14} color={palette.loss.base} />
+                <span style={{ color: palette.loss.soft, fontSize: 12, fontWeight: 700 }}>Loss deal — sell price is below total cost</span>
               </div>
             )}
-            <div style={{ background: `rgba(${profit > 0 ? "74,222,128" : "248,113,113"},0.07)`, border: `1px solid rgba(${profit > 0 ? "74,222,128" : "248,113,113"},0.2)`, borderRadius: 16, padding: 22 }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>BREAKDOWN {currency !== "USD" ? `(in ${currency}, 1 USD = ${curr.rate} ${currency})` : ""}</div>
+            <div style={{ background: palette.alpha(profit > 0 ? palette.profit.base : palette.loss.base, 0.07), border: `1px solid ${palette.alpha(profit > 0 ? palette.profit.base : palette.loss.base, 0.2)}`, borderRadius: 16, padding: 22 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>BREAKDOWN {currency !== "USD" ? `(in ${currency}, 1 USD = ${curr.rate} ${currency})` : ""}</div>
               {[
-                { label: "Revenue",       val: fmt(sell),     c: "#86efac" },
-                { label: "Buy cost",      val: `-${fmt(buy)}`,     c: "#f87171" },
-                { label: "Shipping out",  val: `-${fmt(ship)}`,    c: "#f87171" },
-                { label: `Duty (${dutyPct}% of buy+ship)`, val: `-${fmt(dutyAmt)}`, c: dutyAmt > 0 ? "#f87171" : "rgba(255,255,255,0.25)" },
-                { label: `Platform fee (${feePct}%)`, val: `-${fmt(feeAmt)}`,  c: "#f87171" },
-                ...(vatEnabled ? [{ label: `VAT / Tax (${vatPct}%)`, val: `-${fmt(vatAmt)}`, c: "#f87171" }] : []),
+                { label: "Revenue",       val: fmt(sell),     c: palette.profit.soft },
+                { label: "Buy cost",      val: `-${fmt(buy)}`,     c: palette.loss.base },
+                { label: "Shipping out",  val: `-${fmt(ship)}`,    c: palette.loss.base },
+                { label: `Duty (${dutyPct}% of buy+ship)`, val: `-${fmt(dutyAmt)}`, c: dutyAmt > 0 ? palette.loss.base : palette.alpha(palette.ink.white, 0.25) },
+                { label: `Platform fee (${feePct}%)`, val: `-${fmt(feeAmt)}`,  c: palette.loss.base },
+                ...(vatEnabled ? [{ label: `VAT / Tax (${vatPct}%)`, val: `-${fmt(vatAmt)}`, c: palette.loss.base }] : []),
               ].map(row => (
-                <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{row.label}</span>
+                <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${palette.alpha(palette.ink.white, 0.05)}` }}>
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 13 }}>{row.label}</span>
                   <span style={{ color: row.c, fontWeight: 600, fontSize: 13 }}>{row.val}</span>
                 </div>
               ))}
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-                <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>NET PROFIT</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, paddingTop: 10, borderTop: `1px solid ${palette.alpha(palette.ink.white, 0.1)}` }}>
+                <span style={{ color: palette.ink.white, fontWeight: 700, fontSize: 15 }}>NET PROFIT</span>
                 <span style={{ color: profitColor, fontWeight: 900, fontSize: 26 }}>{profit > 0 ? "+" : ""}{fmt(profit)}</span>
               </div>
 
               {/* KPI row */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 16 }}>
                 {[
-                  { label: "Margin",    val: `${margin.toFixed(1)}%`,  color: margin > 25 ? "#4ade80" : margin > 10 ? "#f5c842" : "#f87171" },
-                  { label: "ROI",       val: `${roi.toFixed(1)}%`,     color: roi > 50 ? "#4ade80" : roi > 20 ? "#f5c842" : "#f87171" },
-                  { label: "Breakeven", val: fmtInt(breakeven), color: "rgba(255,255,255,0.55)" },
+                  { label: "Margin",    val: `${margin.toFixed(1)}%`,  color: margin > 25 ? palette.profit.base : margin > 10 ? palette.brand.gold : palette.loss.base },
+                  { label: "ROI",       val: `${roi.toFixed(1)}%`,     color: roi > 50 ? palette.profit.base : roi > 20 ? palette.brand.gold : palette.loss.base },
+                  { label: "Breakeven", val: fmtInt(breakeven), color: palette.alpha(palette.ink.white, 0.55) },
                 ].map(k => (
-                  <div key={k.label} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <div key={k.label} style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
                     <div style={{ color: k.color, fontWeight: 900, fontSize: 18 }}>{k.val}</div>
-                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, marginTop: 2 }}>{k.label}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, marginTop: 2 }}>{k.label}</div>
                   </div>
                 ))}
               </div>
@@ -382,41 +415,41 @@ export default function ProfitPage() {
         )}
 
         {mode === "reverse" && (
-          <div style={{ background: "rgba(139,92,246,0.07)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 16, padding: 22 }}>
+          <div style={{ background: palette.alpha(palette.ai.strong, 0.07), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 16, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <Target size={16} color="#a78bfa" />
-              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>TO ACHIEVE ${tgt} NET PROFIT</span>
+              <Target size={16} color={palette.ai.base} />
+              <span style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>TO ACHIEVE ${tgt} NET PROFIT</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 12, padding: "16px 18px" }}>
-                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, marginBottom: 6 }}>LIST AT MINIMUM</div>
-                <div style={{ color: "#4ade80", fontWeight: 900, fontSize: 32 }}>{fmtInt(targetSell)}</div>
-                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 4 }}>on {activePreset} ({feePct}% fee{vatEnabled ? ` +${vatPct}% VAT` : ""})</div>
+              <div style={{ background: palette.alpha(palette.ink.black, 0.25), borderRadius: 12, padding: "16px 18px" }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, marginBottom: 6 }}>LIST AT MINIMUM</div>
+                <div style={{ color: palette.profit.base, fontWeight: 900, fontSize: 32 }}>{fmtInt(targetSell)}</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11, marginTop: 4 }}>on {activePreset} ({feePct}% fee{vatEnabled ? ` +${vatPct}% VAT` : ""})</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10 }}>Total costs</div>
-                  <div style={{ color: "#f87171", fontWeight: 700, fontSize: 16 }}>-{fmt(buy + ship + dutyAmt + (targetSell * feePct / 100) + (targetSell * vatRate / 100))}</div>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10 }}>Total costs</div>
+                  <div style={{ color: palette.loss.base, fontWeight: 700, fontSize: 16 }}>-{fmt(buy + ship + dutyAmt + (targetSell * feePct / 100) + (targetSell * vatRate / 100))}</div>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10 }}>Breakeven price</div>
-                  <div style={{ color: "#f5c842", fontWeight: 700, fontSize: 16 }}>{fmtInt(breakeven)}</div>
+                <div style={{ background: palette.alpha(palette.ink.black, 0.2), borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10 }}>Breakeven price</div>
+                  <div style={{ color: palette.brand.gold, fontWeight: 700, fontSize: 16 }}>{fmtInt(breakeven)}</div>
                 </div>
               </div>
             </div>
-            <div style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.15)", borderRadius: 10, padding: "10px 14px", marginTop: 14 }}>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
-                Margin at target: <strong style={{ color: "#4ade80" }}>{(tgt / targetSell * 100).toFixed(1)}%</strong>
-                &nbsp;·&nbsp; ROI: <strong style={{ color: "#4ade80" }}>{buy > 0 ? (tgt / buy * 100).toFixed(1) : "∞"}%</strong>
+            <div style={{ background: palette.alpha(palette.profit.base, 0.07), border: `1px solid ${palette.alpha(palette.profit.base, 0.15)}`, borderRadius: 10, padding: "10px 14px", marginTop: 14 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12 }}>
+                Margin at target: <strong style={{ color: palette.profit.base }}>{(tgt / targetSell * 100).toFixed(1)}%</strong>
+                &nbsp;·&nbsp; ROI: <strong style={{ color: palette.profit.base }}>{buy > 0 ? (tgt / buy * 100).toFixed(1) : "∞"}%</strong>
               </div>
             </div>
           </div>
         )}
 
         {/* Tips */}
-        <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 12, padding: "12px 16px", marginTop: 16 }}>
-          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>💡 TIPS</div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, lineHeight: 1.6 }}>
+        <div style={{ background: palette.alpha(palette.info.base, 0.06), border: `1px solid ${palette.alpha(palette.info.base, 0.15)}`, borderRadius: 12, padding: "12px 16px", marginTop: 16 }}>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 6 }}>💡 TIPS</div>
+          <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 11, lineHeight: 1.6 }}>
             Duty is calculated on buy + shipping (CIF basis). eBay USA charges 13.25% on total transaction including shipping.
             Etsy charges 6.5% listing fee + 3% payment processing = 9.5% effective. Vinted charges 0% to sellers.
             EU VAT (20% UK, 19% DE, 23% PL) applies when selling to EU/UK buyers as a business.

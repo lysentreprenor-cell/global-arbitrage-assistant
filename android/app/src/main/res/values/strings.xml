@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gadacz</string>
+    <string name="accessibility_description">Gadacz czyta ekran i wykonuje dotknięcia na polecenie głosowe — asystent dla osób niewidomych. Włącz, aby Gadacz mógł sterować telefonem.</string>
+</resources>

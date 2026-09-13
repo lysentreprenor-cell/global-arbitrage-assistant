@@ -1,0 +1,59 @@
+name: "Silnik pisania - krok 1: zbuduj llama.cpp na Androida (arm64)"
+
+# 🧱 KROK 1 wymiany silnika mozgu na stabilny (llama.cpp). Najtrudniejsza,
+# najbardziej ryzykowna czesc: skompilowanie natywnej biblioteki llama.cpp pod
+# procesor telefonu (arm64-v8a) w naszym robocie. Robimy to W IZOLACJI - NIE
+# dotykamy apki - zeby sprawdzic feasibility bez ryzyka zepsucia dzialajacej wersji.
+# Jak .so sie zbuduja, w nastepnym kroku wepniemy je do apki + JNI + pobieranie GGUF.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths: [ ".github/workflows/build-llama-native.yml" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Pokaz dostepny NDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK_LATEST_HOME=$ANDROID_NDK_LATEST_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          ls "$ANDROID_HOME/ndk" 2>/dev/null || true
+
+      - name: Sklonuj llama.cpp
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp
+          echo "Ostatni commit llama.cpp:"; (cd llama.cpp && git log --oneline -1)
+
+      - name: Zbuduj llama.cpp dla arm64-v8a (NDK)
+        run: |
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          echo "Uzywam NDK: $NDK"
+          cd llama.cpp
+          cmake -B build-android \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-26 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_OPENMP=OFF \
+            -DLLAMA_CURL=OFF \
+            -DLLAMA_BUILD_TESTS=OFF \
+            -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_SERVER=OFF \
+            -DLLAMA_BUILD_TOOLS=OFF \
+            -DBUILD_SHARED_LIBS=ON
+          # Budujemy TYLKO target 'llama' (ciagnie ggml). Pomijamy 'app' (nowy CLI,
+          # wymaga generowanego build-info.h) i inne dodatki, ktorych apka nie potrzebuje.
+          cmake --build build-android --target llama --config Release -j "$(nproc)"
+
+      - name: Sprawdz wyniki (.so)
+        run: |
+          echo "=== biblioteki .so pod arm64 ==="
+          FOUND=$(find llama.cpp/build-android -name "*.so")
+          echo "$FOUND"
+          if [ -z "$FOUND" ]; then echo "BRAK .so - kompilacja nie wyprodukowala bibliotek"; exit 1; fi
+          for f in $FOUND; do echo "--- $f ---"; ls -la "$f"; file "$f" || true; done
+          echo "OK: llama.cpp zbudowany dla arm64-v8a."

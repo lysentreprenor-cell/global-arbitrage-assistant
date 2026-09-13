@@ -1,9 +1,8 @@
 node_modules/
 .expo/
-dist/*.cjs
-dist/*.js
 dist/*.map
 !dist/public/
+!dist/index.cjs
 web-build/
 *.jks
 *.p8
@@ -17,3 +16,13 @@ yarn-error.*
 .env
 .env.local
 .claude/
+client/dist/
+# Zrzuty tabeli uzytkownikow (email, telefon, password_hash) powstaja przy kazdym
+# uruchomieniu. Repo jest publiczne, wiec nie moga do niego trafiac. Pliki zostaja
+# na dysku — kopie zapasowe dzialaja dalej, przestaja tylko byc wersjonowane.
+backups/
+bot_state.json
+api_keys.enc
+all_keys.enc
+.bot_key
+.bybit_proxy

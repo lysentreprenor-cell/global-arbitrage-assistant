@@ -1,0 +1,89 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'pl.gadacz.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "pl.gadacz.app"
+        minSdk 26
+        targetSdk 34
+        versionCode 114
+        versionName "11.4"
+
+        // 📦 MNIEJSZA APKA: silnik AI (MediaPipe) ma natywne biblioteki na 4 typy
+        // procesorów. Nowoczesne telefony używają WYŁĄCZNIE arm64-v8a — budujemy tylko
+        // pod niego. Tnie rozmiar paczki o ponad połowę → aktualizacja pobiera się
+        // szybko, koniec z „timeout". (Gdyby ktoś miał stary telefon 32-bit, dodamy
+        // armeabi-v7a — ale to dziś rzadkość.)
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+
+        // ✍️ SILNIK PISANIA (llama.cpp) — budowany ze źródeł przez CMake i pakowany
+        // do apki jako biblioteka natywna. Budujemy TYLKO nasz target 'gadaczllama'
+        // (ciągnie llama + ggml), pomijając problematyczne dodatki llama.cpp.
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
+                targets "gadaczllama"
+            }
+        }
+    }
+
+    // Fixed signing key so EVERY build has the SAME signature — required for
+    // install-over-update and for the in-app auto-updater to work.
+    signingConfigs {
+        gadacz {
+            storeFile file("../gadacz-release.keystore")
+            storePassword "gadacz123"
+            keyAlias "gadacz"
+            keyPassword "gadacz123"
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.gadacz
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.gadacz
+        }
+    }
+    // ✍️ Ścieżka do CMake silnika pisania (llama.cpp wpięty do apki).
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // 🤏 Piętro 6: lokalny mały mózg (MediaPipe LLM) — model wgrywany osobno przez użytkownika
+    implementation 'com.google.mediapipe:tasks-genai:0.10.24'
+    // 👂 Ucho Gadacza: własny CIĄGŁY nasłuch mowy (Vosk, offline, Apache 2.0)
+    implementation 'com.alphacephei:vosk-android:0.3.47'
+    implementation 'net.java.dev.jna:jna:5.13.0@aar'
+    // 👁️ Oczy do tekstu: czytanie kartek/ulotek BEZ chmury (ML Kit OCR, wbudowane)
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
+    // 👄 Usta Gadacza: piękny polski głos offline (Piper/Gosia przez sherpa-onnx).
+    // Biblioteki natywne + API Kotlin pobiera CI z oficjalnego wydania k2-fsa
+    // (nie ma ich na Maven Central) — patrz .github/workflows/build-gadacz-apk.yml.
+}

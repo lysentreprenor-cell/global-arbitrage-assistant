@@ -23,9 +23,17 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    etag: false,
+    setHeaders(res, filePath) {
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      }
+    },
+  }));
 
   app.use("/{*path}", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

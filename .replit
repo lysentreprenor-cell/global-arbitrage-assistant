@@ -1,4 +1,6 @@
-run = "npm run dev"
+# Run buduje paczkę ZE ŚWIEŻYCH plików przy każdym starcie — koniec z serwowaniem
+# starego dist (paczka z 21 czerwca udawała „cofnięty" projekt). Naprawa 10.07.
+run = "bash -c 'npm run build && node dist/index.cjs'"
 entrypoint = "server/index.ts"
 modules = ["nodejs-22"]
 
@@ -39,5 +41,5 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
+args = "bash -c 'npm run build && node dist/index.cjs'"
 waitForPort = 3000

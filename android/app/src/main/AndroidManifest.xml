@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 👁️ Piętro 11: oczy na świat — aparat opisuje otoczenie osobie niewidomej -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- open_app: list installed apps to find one by spoken name -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- floating mic button over every app → works in the background -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- 🎬 nagrywanie ekranu do MP4 (za zgodą systemową za każdym razem) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- SOS: attach location to the emergency message -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- auto-update: download the newest APK from GitHub and install it -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- ciągła praca: nie usypiaj Gadacza w tle (świadomość ekranu, słowo-budzik) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Bluetooth: sprawdzanie i łączenie z urządzeniami (Android 12+ i starsze) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+
+    <application
+        android:label="Gadacz"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/Theme.Gadacz"
+        android:allowBackup="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ⌨️ Czat: pisanie z twarzami jak w komunikatorze -->
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 🎬 Nagrywanie ekranu (MediaProjection) do galerii -->
+        <service
+            android:name=".ScreenRecordService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!-- 👁️ Aparat-oczy: przezroczysta aktywność, robi zdjęcie i opisuje na głos -->
+        <activity
+            android:name=".CameraCaptureActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true" />
+
+        <!-- FileProvider so the downloaded APK can be handed to the installer -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="pl.gadacz.app.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Floating mic button + always-on brain: keeps Gadacz reachable from
+             inside ANY app, even when its own screen is closed. -->
+        <service
+            android:name=".GadaczOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- Reads incoming notifications aloud (messages, calls) — the user grants it
+             in Settings → Notification access. Life-changing for blind users. -->
+        <service
+            android:name=".GadaczNotificationService"
+            android:exported="false"
+            android:label="Gadacz — czytanie powiadomień"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- ⌨️ Klawiatura Gadacza — pisze w KAŻDEJ aplikacji (klawiaturze żadne pole
+             nie odmówi). Usługa dostępności przełącza się na nią automatycznie, gdy
+             zwykłe wpisywanie zawiedzie, wpisuje tekst i wraca do Twojej klawiatury. -->
+        <service
+            android:name=".GadaczIME"
+            android:exported="true"
+            android:label="Gadacz Klawiatura"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <!-- The one door Android opens for screen control — the user enables it
+             manually in Settings → Accessibility → Gadacz -->
+        <service
+            android:name=".GadaczAccessibilityService"
+            android:exported="false"
+            android:label="Gadacz — sterowanie głosem"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+    </application>
+</manifest>

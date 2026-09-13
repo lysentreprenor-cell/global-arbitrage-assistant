@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Gadacz — asystent głosowy",
+  "version": "1.3",
+  "description": "Mówisz, a Gadacz czyta i obsługuje strony internetowe. Ten sam mózg i pamięć co telefon.",
+  "permissions": ["activeTab", "scripting", "storage", "tabs", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
+  "action": { "default_title": "Gadacz — otwórz panel" },
+  "side_panel": { "default_path": "panel.html" },
+  "background": { "service_worker": "background.js" }
+}

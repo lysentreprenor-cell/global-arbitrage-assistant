@@ -23,7 +23,8 @@ function getStripeClient(): Stripe {
       `APP_PAYMENT_MODE=${mode} but STRIPE_SECRET_KEY does not start with ${expectedPrefix}`
     );
   }
-  return new Stripe(key, { apiVersion: "2025-03-31.basil" });
+  // Wersja API przypięta celowo (zachowanie webhooków); typy biblioteki znają tylko najnowszą.
+  return new Stripe(key, { apiVersion: "2025-03-31.basil" } as any);
 }
 
 // ── Firebase: persist payment record ────────────────────────────────────────
@@ -50,7 +51,8 @@ async function savePaymentToFirebase(
     ...extra,
   };
 
-  await db.ref(`payments/${session.id}`).set(record);
+  // Firestore (getAdminDb) nie ma .ref() — zapis płatności nigdy nie dochodził do skutku.
+  await db.doc(`payments/${session.id}`).set(record);
   console.log(`[stripe/webhook] Payment saved to Firebase: payments/${session.id}`);
 }
 

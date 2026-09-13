@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:isDefault="false">
+    <subtype
+        android:label="Polski (Gadacz)"
+        android:imeSubtypeLocale="pl_PL"
+        android:imeSubtypeMode="keyboard" />
+</input-method>

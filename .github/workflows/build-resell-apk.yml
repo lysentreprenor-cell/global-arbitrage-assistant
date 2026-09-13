@@ -1,0 +1,53 @@
+name: Zbuduj ResellAssist APK
+
+# Buduje aplikację Android ResellAssist (opakowanie strony) i publikuje gotowy APK.
+# Uruchom ręcznie z zakładki Actions → "Zbuduj ResellAssist APK" → Run workflow.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths: [ "android/resell/**", ".github/workflows/build-resell-apk.yml" ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ustaw JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Ustaw Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Nadaj prawa gradlew
+        run: chmod +x android/gradlew || true
+
+      - name: Zbuduj debug APK (moduł resell)
+        working-directory: android
+        run: ./gradlew :resell:assembleDebug --no-daemon
+
+      - name: Wyślij APK jako artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResellAssist-APK
+          path: android/resell/build/outputs/apk/debug/resell-debug.apk
+          if-no-files-found: error
+
+      - name: Zmień nazwę na ResellAssist.apk
+        run: cp android/resell/build/outputs/apk/debug/resell-debug.apk ResellAssist.apk
+
+      - name: Opublikuj APK jako Release (łatwe pobranie z telefonu)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: resell-latest
+          name: "ResellAssist — najnowsza wersja"
+          body: "Aplikacja ResellAssist na Androida. Pobierz plik ResellAssist.apk poniżej i zainstaluj na telefonie. Przy pierwszym uruchomieniu wklej adres swojej strony z Replit."
+          files: ResellAssist.apk
+          make_latest: false

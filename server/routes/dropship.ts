@@ -200,7 +200,7 @@ router.post("/photo-to-listings", async (req: Request, res: Response) => {
   const key = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
   if (!key) return res.status(400).json({ error: "Anthropic API key required" });
 
-  const prompt = `You are a professional resell market analyst. Analyze this product image and generate a complete market opportunity report.
+  const prompt = `You are a professional resell market analyst specializing in Polish and European markets. Analyze this product image and generate a complete market opportunity report.
 
 Return ONLY a valid JSON object (no markdown) with this exact structure:
 {
@@ -212,40 +212,54 @@ Return ONLY a valid JSON object (no markdown) with this exact structure:
     "sourcePriceMax": number (highest realistic USD wholesale price),
     "sourcePriceNote": "e.g. AliExpress/Alibaba wholesale, typical drop-ship source"
   },
+  "recommendation": {
+    "topPlatform": "platform name from the list below",
+    "reason": "1-2 zdania PO POLSKU dlaczego ta platforma jest najlepsza dla tego produktu",
+    "expectedSaleTime": "e.g. 1-3 dni / 1-2 tygodnie / 2-4 tygodnie",
+    "rankingTop3": ["platform1", "platform2", "platform3"],
+    "avoidPlatforms": ["platform"] (optional — platforms where this item would sell poorly),
+    "avoidReason": "dlaczego unikać tych platform (po polsku, opcjonalne)"
+  },
   "markets": [
     {
-      "platform": "eBay USA",
-      "country": "US",
-      "currency": "USD",
-      "recommendedPrice": number (competitive selling price),
-      "sourcePriceUSD": number (mid-range source price),
-      "estimatedProfit": number (profit after fees and source cost, in USD),
-      "margin": number (profit margin as integer percent),
+      "platform": "Allegro PL",
+      "country": "PL",
+      "currency": "PLN",
+      "recommendedPrice": number,
+      "sourcePriceUSD": number,
+      "estimatedProfit": number,
+      "margin": number,
       "confidence": "high" or "medium" or "low"
     }
   ],
   "listings": {
-    "eBay USA": {
-      "title": "keyword-dense eBay title max 80 chars",
-      "description": "2-3 sentence product description",
+    "Allegro PL": {
+      "title": "title in Polish max 75 chars",
+      "description": "2-3 sentences in Polish",
       "tags": ["tag1","tag2","tag3","tag4","tag5"]
     }
   },
-  "sellingTip": "one sentence about best selling opportunity"
+  "sellingTip": "one sentence in Polish about best selling opportunity"
 }
 
-Include ALL these platforms in markets[] and listings{}:
-- "eBay USA" (USD, 13.25% fee)
-- "Etsy USA" (USD, 9.5% fee) — only if handmade/vintage/art applicable
-- "Amazon USA" (USD, 15% fee)
+Include these platforms in markets[] and listings{} (include ALL that make sense for the product):
+- "Allegro PL" (PLN, 7% fee) — Poland's biggest marketplace, ideal for most products
+- "OLX PL" (PLN, 0% fee) — Polish classifieds, best for used/local items
+- "Vinted PL" (PLN, 0% seller fee) — only if clothing/shoes/accessories
+- "eBay DE" (EUR, 12% fee) — Germany/Europe
 - "eBay UK" (GBP, 12.8% fee)
-- "Amazon UK" (GBP, 15% fee)
-- "eBay DE" (EUR, 12% fee)
+- "eBay USA" (USD, 13.25% fee)
+- "Etsy USA" (USD, 9.5% fee) — only if handmade/vintage/art/jewelry
+- "Amazon DE" (EUR, 15% fee) — only if new/sealed product
+- "StockX USA" (USD, 9.5% fee) — only if sneakers/streetwear/watches
 - "Depop" (GBP, 10% fee) — only if fashion/clothing/shoes
 - "Vinted EU" (EUR, 0% fee) — only if clothing/shoes
 
-For each platform's estimatedProfit: price - (price * feePercent/100) - sourcePriceUSD - 12 (shipping estimate).
-Set confidence: high = you know this product sells well on this platform; medium = likely but uncertain; low = possible but niche.`;
+PLN conversion: 1 USD ≈ 4.0 PLN. Use realistic Polish market prices.
+For estimatedProfit: price - (price * feePercent/100) - sourcePriceUSD*4 (if PLN) or sourcePriceUSD - 12 (shipping).
+confidence: high = strong demand on this platform for this product type; medium = likely; low = niche/uncertain.
+
+IMPORTANT for recommendation.topPlatform: Pick the single BEST platform considering: demand, profit margin, ease of sale, target audience. For most everyday products in Poland, Allegro PL is the top choice. For luxury/branded items, consider StockX or eBay. For clothing, Vinted PL. Be specific and honest.`;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -274,9 +288,164 @@ Set confidence: high = you know this product sells well on this platform; medium
   }
 });
 
+// POST /api/dropship/listing-copy
+router.post("/listing-copy", async (req: Request, res: Response) => {
+  const { imageData, mimeType = "image/jpeg", anthropicKey } = req.body;
+  if (!imageData) return res.status(400).json({ error: "imageData required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const prompt = `You are a professional marketplace arbitrage analyst specializing in Polish and European markets. This screenshot shows an existing product listing from a marketplace.
+
+Extract the listing information and generate optimized relisting content for multiple platforms to maximize resell profit.
+
+Return ONLY a valid JSON object (no markdown) with this exact structure:
+{
+  "product": {
+    "name": "exact product name/title from the listing",
+    "sourcePrice": number (the price shown in the listing),
+    "sourceCurrency": "ISO 4217 currency code — PLN/EUR/GBP/USD/CZK/SEK/JPY/etc",
+    "sourcePriceUSD": number (converted to USD: PLN÷4.0, EUR÷1.09, GBP÷1.27, CZK÷23, SEK÷10.5, JPY÷150),
+    "condition": "New" or "Used" or "Refurbished",
+    "category": one of ["Clothing","Jewelry","Electronics","Collectibles","Sneakers","Spirits","Antiques","Watches","General"],
+    "description": "key product details and condition notes extracted from listing",
+    "sourcePlatform": "Allegro or eBay or OLX or Vinted or Kleinanzeigen or Leboncoin or Other",
+    "arbitrageNote": "1 sentence in Polish: why this is a profitable resell opportunity"
+  },
+  "platforms": [
+    {
+      "platform": "platform name",
+      "currency": "ISO currency code",
+      "recommendedPrice": number (in platform currency),
+      "estimatedProfitUSD": number,
+      "margin": number (percent),
+      "confidence": "high" or "medium" or "low",
+      "listing": {
+        "title": "platform-optimized title (max 80 chars)",
+        "description": "2-3 sentences persuasive description in the platform language",
+        "tags": ["tag1","tag2","tag3","tag4","tag5"],
+        "shippingNote": "recommended shipping method and estimated cost"
+      }
+    }
+  ]
+}
+
+Include ALL relevant platforms (skip those that make no sense for this product type):
+- "Allegro PL" (PLN, 7% fee) — title + description in POLISH — best for most products in Poland
+- "OLX PL" (PLN, 0% fee) — ONLY if used/local item, POLISH
+- "Vinted PL" (PLN, 0% fee) — ONLY if clothing/shoes/accessories, POLISH
+- "eBay DE" (EUR, 12% fee, Germany)
+- "eBay UK" (GBP, 12.8% fee)
+- "eBay USA" (USD, 13.25% fee)
+- "Etsy USA" (USD, 9.5% fee) — ONLY if handmade/vintage/art/jewelry
+- "Amazon DE" (EUR, 15% fee) — ONLY if new/sealed product
+- "StockX USA" (USD, 9.5% fee) — ONLY if sneakers/streetwear/watches
+- "Depop" (GBP, 10% fee) — ONLY if fashion/clothing/shoes
+- "Vinted EU" (EUR, 0% fee) — ONLY if clothing/shoes
+
+Profit formula: estimatedProfitUSD = (recommendedPrice_in_USD) - sourcePriceUSD - (recommendedPrice_in_USD * feePercent/100) - 12
+Currency to USD: PLN÷4.0, EUR÷1.09, GBP÷1.27
+confidence: high = strong demand + margin>15%; medium = likely demand; low = uncertain/niche
+Sort platforms by estimatedProfitUSD descending.`;
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4000,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: mimeType, data: imageData } },
+          { type: "text", text: prompt },
+        ]}],
+      }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(502).json({ error: "No JSON in response", raw: text.slice(0, 300) });
+    return res.json(JSON.parse(jsonMatch[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
+// POST /api/dropship/translate
+router.post("/translate", async (req: Request, res: Response) => {
+  const { title, description, tags, targetLang = "en", platform = "", anthropicKey } = req.body;
+  if (!title) return res.status(400).json({ error: "title required" });
+  const key: string = anthropicKey || process.env.ANTHROPIC_API_KEY || "";
+  if (!key) return res.status(400).json({ error: "Anthropic API key required" });
+
+  const langNames: Record<string, string> = {
+    en: "English", de: "German (Deutschland)", pl: "Polish", fr: "French", it: "Italian", es: "Spanish",
+  };
+  const langName = langNames[targetLang] ?? targetLang;
+  const platformNote = platform ? `Platform: ${platform}. ` : "";
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 800,
+        messages: [{
+          role: "user",
+          content: `${platformNote}Translate this marketplace listing to ${langName}. Preserve SEO keywords and persuasive tone. Keep title under 80 chars.
+
+Title: ${title}
+Description: ${description || ""}
+Tags: ${(tags || []).join(", ")}
+
+Return ONLY valid JSON:
+{
+  "title": "translated title",
+  "description": "translated description",
+  "tags": ["tag1","tag2","tag3","tag4","tag5"]
+}`,
+        }],
+      }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({})) as any;
+      return res.status(502).json({ error: err.error?.message || `Claude API error ${r.status}` });
+    }
+    const data = await r.json() as any;
+    const text: string = data.content?.[0]?.text ?? "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(502).json({ error: "No JSON in response" });
+    return res.json(JSON.parse(match[0]));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
+
 // GET /api/dropship/listings
 router.get("/listings", (_req: Request, res: Response) => {
   res.json({ listings: [...listings].reverse() });
+});
+
+// PATCH /api/dropship/listings/:id/price
+router.patch("/listings/:id/price", (req: Request, res: Response) => {
+  const listing = listings.find(l => l.id === parseInt(String(req.params.id)));
+  if (!listing) return res.status(404).json({ error: "Not found" });
+  const newPrice = parseFloat(String(req.body.sellPrice));
+  if (!newPrice || newPrice <= 0) return res.status(400).json({ error: "Invalid price" });
+  const fee = PLATFORM_FEES[listing.platform] ?? 0.13;
+  const ship = AVG_SHIPPING[listing.category ?? "General"] ?? 15;
+  listing.sellPrice = newPrice;
+  listing.feePercent = Math.round(fee * 1000) / 10;
+  listing.profit = Math.round((newPrice - newPrice * fee - listing.sourcePriceUSD - ship) * 100) / 100;
+  listing.margin = Math.round((listing.profit / newPrice) * 100);
+  return res.json({ listing });
 });
 
 // PATCH /api/dropship/listings/:id/status
