@@ -63,7 +63,8 @@ async function saveToFirebase(data: RatesData): Promise<void> {
   try {
     const db = getAdminDb();
     if (!db) return;
-    await db.ref("exchangeRates/USD").set(data);
+    // getAdminDb() zwraca Firestore — .ref() to API Realtime Database i zawsze rzucało.
+    await db.doc("exchangeRates/USD").set(data);
   } catch (e) {
     console.warn("[exchangeRates] Firebase write failed:", (e as Error).message);
   }
@@ -73,9 +74,9 @@ async function loadFromFirebase(): Promise<RatesData | null> {
   try {
     const db = getAdminDb();
     if (!db) return null;
-    const snap = await db.ref("exchangeRates/USD").get();
-    if (!snap.exists()) return null;
-    const val = snap.val() as RatesData;
+    const snap = await db.doc("exchangeRates/USD").get();
+    if (!snap.exists) return null;
+    const val = snap.data() as RatesData;
     if (!val?.rates?.USD) return null;
     return val;
   } catch {

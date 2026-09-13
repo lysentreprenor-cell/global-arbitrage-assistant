@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Boxes, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
+import * as palette from "@/design/palette";
 
 const PLATFORM_FEES: Record<string, number> = {
   "eBay USA": 0.1325,
@@ -131,12 +132,12 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
 
   const inputStyle: React.CSSProperties = {
     width: "100%", boxSizing: "border-box",
-    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 9, color: "#fff", fontSize: 14, padding: "9px 12px",
+    background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+    borderRadius: 9, color: palette.ink.white, fontSize: 14, padding: "9px 12px",
     outline: "none",
   };
   const labelStyle: React.CSSProperties = {
-    color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+    color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
     marginBottom: 5, display: "block",
   };
   const selectStyle: React.CSSProperties = { ...inputStyle, appearance: "none" as any };
@@ -144,7 +145,7 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
   return (
     <div
       style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)",
+        position: "fixed", inset: 0, background: palette.alpha(palette.ink.black, 0.72),
         display: "flex", alignItems: "center", justifyContent: "center",
         zIndex: 9999, padding: 16,
       }}
@@ -153,23 +154,23 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
       <div
         style={{
           width: "100%", maxWidth: 480,
-          background: "linear-gradient(135deg, #1a1030 0%, #130d22 100%)",
-          border: "1px solid rgba(139,92,246,0.25)", borderRadius: 18,
+          background: `linear-gradient(135deg, ${palette.violetInk.mid} 0%, ${palette.violetInk.deep} 100%)`,
+          border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, borderRadius: 18,
           padding: 28, position: "relative",
         }}
       >
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "linear-gradient(135deg, #60a5fa, #3b82f6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Boxes size={16} color="#fff" />
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg, ${palette.info.base}, ${palette.info.strong})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Boxes size={16} color={palette.ink.white} />
             </div>
             <div>
-              <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Create Listing</div>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>Publish to your dropship store</div>
+              <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 15 }}>Create Listing</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>Publish to your dropship store</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "rgba(255,255,255,0.5)", cursor: "pointer", padding: 7 }}>
+          <button onClick={onClose} style={{ background: palette.alpha(palette.ink.white, 0.07), border: "none", borderRadius: 8, color: palette.alpha(palette.ink.white, 0.5), cursor: "pointer", padding: 7 }}>
             <X size={15} />
           </button>
         </div>
@@ -177,21 +178,21 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
         {/* Success state */}
         {status === "success" && (
           <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <CheckCircle size={48} color="#4ade80" style={{ margin: "0 auto 14px", display: "block" }} />
-            <div style={{ color: "#4ade80", fontWeight: 800, fontSize: 17, marginBottom: 6 }}>Listing Created!</div>
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 22 }}>
+            <CheckCircle size={48} color={palette.profit.base} style={{ margin: "0 auto 14px", display: "block" }} />
+            <div style={{ color: palette.profit.base, fontWeight: 800, fontSize: 17, marginBottom: 6 }}>Listing Created!</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, marginBottom: 22 }}>
               {name} is live with {stock} unit{parseInt(stock) !== 1 ? "s" : ""}. Auto-removes when stock hits 0.
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button
                 onClick={() => setLocation("/resell/dropship")}
-                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #60a5fa, #3b82f6)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: `linear-gradient(135deg, ${palette.info.base}, ${palette.info.strong})`, color: palette.ink.white, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
               >
                 Open Dropship Manager
               </button>
               <button
                 onClick={onClose}
-                style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.6)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                style={{ padding: "10px 20px", borderRadius: 10, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.6), fontWeight: 700, fontSize: 13, cursor: "pointer" }}
               >
                 Close
               </button>
@@ -258,7 +259,7 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
                 value={stock} onChange={e => setStock(e.target.value)}
                 placeholder="1"
               />
-              <div style={{ color: "rgba(96,165,250,0.7)", fontSize: 11, marginTop: 5 }}>
+              <div style={{ color: palette.alpha(palette.info.base, 0.7), fontSize: 11, marginTop: 5 }}>
                 ✓ Listing auto-removes when stock reaches 0 — no refunds needed
               </div>
             </div>
@@ -266,18 +267,18 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
             {/* Profit preview */}
             {sell > 0 && (
               <div style={{
-                background: profit > 0 ? "rgba(74,222,128,0.07)" : "rgba(248,113,113,0.07)",
-                border: `1px solid ${profit > 0 ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)"}`,
+                background: profit > 0 ? palette.alpha(palette.profit.base, 0.07) : palette.alpha(palette.loss.base, 0.07),
+                border: `1px solid ${profit > 0 ? palette.alpha(palette.profit.base, 0.2) : palette.alpha(palette.loss.base, 0.2)}`,
                 borderRadius: 10, padding: "12px 16px", marginBottom: 18,
                 display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8,
               }}>
                 {[
-                  { label: "FEE", val: `-$${Math.round(feeAmt * 100) / 100}`, color: "#f87171" },
-                  { label: "NET PROFIT", val: `${profit >= 0 ? "+" : ""}$${profit}`, color: profit > 0 ? "#4ade80" : "#f87171" },
-                  { label: "MARGIN", val: `${margin}%`, color: profit > 0 ? "#f5c842" : "#f87171" },
+                  { label: "FEE", val: `-$${Math.round(feeAmt * 100) / 100}`, color: palette.loss.base },
+                  { label: "NET PROFIT", val: `${profit >= 0 ? "+" : ""}$${profit}`, color: profit > 0 ? palette.profit.base : palette.loss.base },
+                  { label: "MARGIN", val: `${margin}%`, color: profit > 0 ? palette.brand.gold : palette.loss.base },
                 ].map(s => (
                   <div key={s.label} style={{ textAlign: "center" }}>
-                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>{s.label}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>{s.label}</div>
                     <div style={{ color: s.color, fontWeight: 900, fontSize: 14 }}>{s.val}</div>
                   </div>
                 ))}
@@ -286,9 +287,9 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
 
             {/* Error */}
             {(status === "error" || errorMsg) && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 9, padding: "10px 14px", marginBottom: 14 }}>
-                <AlertCircle size={14} color="#f87171" />
-                <span style={{ color: "#f87171", fontSize: 12 }}>{errorMsg}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: palette.alpha(palette.loss.base, 0.08), border: `1px solid ${palette.alpha(palette.loss.base, 0.2)}`, borderRadius: 9, padding: "10px 14px", marginBottom: 14 }}>
+                <AlertCircle size={14} color={palette.loss.base} />
+                <span style={{ color: palette.loss.base, fontSize: 12 }}>{errorMsg}</span>
               </div>
             )}
 
@@ -298,8 +299,8 @@ export function QuickCreateOfferModal({ opportunity, onClose, onCreated }: Props
               disabled={status === "loading"}
               style={{
                 width: "100%", padding: "12px 0", borderRadius: 11, border: "none",
-                background: status === "loading" ? "rgba(96,165,250,0.4)" : "linear-gradient(135deg, #60a5fa, #3b82f6)",
-                color: "#fff", fontWeight: 800, fontSize: 14, cursor: status === "loading" ? "default" : "pointer",
+                background: status === "loading" ? palette.alpha(palette.info.base, 0.4) : `linear-gradient(135deg, ${palette.info.base}, ${palette.info.strong})`,
+                color: palette.ink.white, fontWeight: 800, fontSize: 14, cursor: status === "loading" ? "default" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}
             >

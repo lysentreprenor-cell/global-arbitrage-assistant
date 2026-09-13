@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Zap, Play, Square, RefreshCw, Clock, CheckCircle, AlertCircle, List, Settings2, BarChart2, ChevronRight } from "lucide-react";
 import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey, getUserLocation } from "@/lib/apiKeys";
+import * as palette from "@/design/palette";
 
 const CATEGORIES = ["Clothing", "Jewelry", "Electronics", "Collectibles", "Sneakers", "Spirits", "Antiques", "Watches"];
 const PLATFORMS = ["eBay USA", "Etsy USA", "StockX USA", "Amazon UK", "Amazon DE", "eBay DE", "Vinted EU", "Depop"];
@@ -144,18 +145,18 @@ export default function AutopilotPage() {
   };
 
   const logTypeColor = (type: string) => {
-    if (type === "listing_created") return "#4ade80";
-    if (type === "error") return "#f87171";
-    if (type === "scan") return "#a78bfa";
-    return "rgba(255,255,255,0.4)";
+    if (type === "listing_created") return palette.profit.base;
+    if (type === "error") return palette.loss.base;
+    if (type === "scan") return palette.ai.base;
+    return palette.alpha(palette.ink.white, 0.4);
   };
 
   const inputStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 9, color: "#fff", fontSize: 13, padding: "8px 12px", outline: "none",
+    background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`,
+    borderRadius: 9, color: palette.ink.white, fontSize: 13, padding: "8px 12px", outline: "none",
     width: "100%", boxSizing: "border-box",
   };
-  const labelStyle: React.CSSProperties = { color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 5, display: "block" };
+  const labelStyle: React.CSSProperties = { color: palette.alpha(palette.ink.white, 0.4), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 5, display: "block" };
 
   const isRunning = status?.enabled ?? false;
   const isScanning = status?.isScanning ?? false;
@@ -167,24 +168,24 @@ export default function AutopilotPage() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: isRunning ? "linear-gradient(135deg, #4ade80, #22c55e)" : "linear-gradient(135deg, #7c3aed, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Zap size={18} color="#fff" style={{ animation: isRunning ? "pulse 1.5s infinite" : "none" }} />
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: isRunning ? `linear-gradient(135deg, ${palette.profit.base}, ${palette.profit.strong})` : `linear-gradient(135deg, ${palette.ai.deep}, ${palette.ai.strong})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Zap size={18} color={palette.ink.white} style={{ animation: isRunning ? "pulse 1.5s infinite" : "none" }} />
               </div>
               <div>
-                <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>Autopilot</h1>
-                <div style={{ color: isRunning ? "#4ade80" : "rgba(255,255,255,0.35)", fontSize: 12, fontWeight: 700 }}>
+                <h1 style={{ color: palette.ink.white, fontSize: 22, fontWeight: 900, margin: 0 }}>Autopilot</h1>
+                <div style={{ color: isRunning ? palette.profit.base : palette.alpha(palette.ink.white, 0.35), fontSize: 12, fontWeight: 700 }}>
                   {isScanning ? "⚡ Scanning..." : isRunning ? `● Running — every ${intervalMinutes}min` : "○ Stopped"}
                 </div>
               </div>
             </div>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>
+            <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, margin: 0 }}>
               Auto-finds arbitrage opportunities, creates listings, and notifies you when orders arrive.
             </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {isRunning && (
               <button onClick={handleScanNow} disabled={isScanning || scanNowLoading}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "1px solid rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.12)", color: "#a78bfa", fontWeight: 700, fontSize: 12, cursor: isScanning ? "not-allowed" : "pointer" }}>
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: `1px solid ${palette.alpha(palette.ai.strong, 0.3)}`, background: palette.alpha(palette.ai.strong, 0.12), color: palette.ai.base, fontWeight: 700, fontSize: 12, cursor: isScanning ? "not-allowed" : "pointer" }}>
                 <RefreshCw size={13} style={{ animation: (isScanning || scanNowLoading) ? "spin 1s linear infinite" : "none" }} />
                 Scan Now
               </button>
@@ -194,8 +195,8 @@ export default function AutopilotPage() {
               disabled={loading || isScanning}
               style={{
                 display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer",
-                background: isRunning ? "rgba(248,113,113,0.15)" : "linear-gradient(135deg, #4ade80, #22c55e)",
-                color: isRunning ? "#f87171" : "#000",
+                background: isRunning ? palette.alpha(palette.loss.base, 0.15) : `linear-gradient(135deg, ${palette.profit.base}, ${palette.profit.strong})`,
+                color: isRunning ? palette.loss.base : palette.ink.black,
               }}
             >
               {isRunning ? <><Square size={13} /> Stop</> : <><Play size={13} /> Start Autopilot</>}
@@ -207,17 +208,17 @@ export default function AutopilotPage() {
         {status && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
             {[
-              { label: "LISTINGS CREATED", val: String(status.stats.totalCreated), color: "#a78bfa" },
-              { label: "ESTIMATED PROFIT", val: `+$${status.stats.totalProfit}`, color: "#4ade80" },
-              { label: "LAST SCAN", val: status.lastScanAt ? new Date(status.lastScanAt).toLocaleTimeString() : "Never", color: "#f5c842" },
+              { label: "LISTINGS CREATED", val: String(status.stats.totalCreated), color: palette.ai.base },
+              { label: "ESTIMATED PROFIT", val: `+$${status.stats.totalProfit}`, color: palette.profit.base },
+              { label: "LAST SCAN", val: status.lastScanAt ? new Date(status.lastScanAt).toLocaleTimeString() : "Never", color: palette.brand.gold },
               {
                 label: "NEXT SCAN IN",
                 val: isScanning ? "scanning…" : (countdown != null ? fmtCountdown(countdown) : (isRunning ? "—" : "stopped")),
-                color: isScanning ? "#4ade80" : (countdown != null && countdown < 60) ? "#f87171" : "#60a5fa",
+                color: isScanning ? palette.profit.base : (countdown != null && countdown < 60) ? palette.loss.base : palette.info.base,
               },
             ].map(s => (
-              <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "12px 16px" }}>
-                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>{s.label}</div>
+              <div key={s.label} style={{ background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: "12px 16px" }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9, fontWeight: 700, letterSpacing: 0.8, marginBottom: 4 }}>{s.label}</div>
                 <div style={{ color: s.color, fontSize: 18, fontWeight: 900 }}>{s.val}</div>
               </div>
             ))}
@@ -225,12 +226,12 @@ export default function AutopilotPage() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 4 }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 20, background: palette.alpha(palette.ink.white, 0.04), borderRadius: 10, padding: 4 }}>
           {(["overview", "config", "log"] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700,
-                background: activeTab === tab ? "rgba(139,92,246,0.25)" : "transparent",
-                color: activeTab === tab ? "#c4b5fd" : "rgba(255,255,255,0.4)" }}>
+                background: activeTab === tab ? palette.alpha(palette.ai.strong, 0.25) : "transparent",
+                color: activeTab === tab ? palette.ai.soft : palette.alpha(palette.ink.white, 0.4) }}>
               {tab === "overview" ? "Overview" : tab === "config" ? "⚙ Settings" : "📋 Log"}
             </button>
           ))}
@@ -239,8 +240,8 @@ export default function AutopilotPage() {
         {/* Overview tab */}
         {activeTab === "overview" && (
           <div>
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 12 }}>HOW IT WORKS</div>
+            <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 14, padding: 20, marginBottom: 16 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 12 }}>HOW IT WORKS</div>
               {[
                 { icon: "🔍", title: "Auto-Scan", desc: `Every ${intervalMinutes} minutes, scans ${selCategories.length ? selCategories.join(", ") : "all categories"} for price gaps` },
                 { icon: "📋", title: "Auto-List", desc: autoCreate ? `Automatically creates dropship listings for items with ≥$${minProfit} profit` : "Notifies you of opportunities without creating listings" },
@@ -250,22 +251,22 @@ export default function AutopilotPage() {
                 <div key={step.title} style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "flex-start" }}>
                   <div style={{ fontSize: 20, flexShrink: 0 }}>{step.icon}</div>
                   <div>
-                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{step.title}</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>{step.desc}</div>
+                    <div style={{ color: palette.ink.white, fontWeight: 700, fontSize: 13 }}>{step.title}</div>
+                    <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12 }}>{step.desc}</div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div style={{ background: "rgba(245,200,66,0.06)", border: "1px solid rgba(245,200,66,0.2)", borderRadius: 12, padding: 16 }}>
-              <div style={{ color: "#f5c842", fontWeight: 700, fontSize: 12, marginBottom: 6 }}>⚡ Quick config</div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
-                Min profit: <strong style={{ color: "#fff" }}>${minProfit}</strong> ·
-                Buy range: <strong style={{ color: "#fff" }}>${minBuyPrice}–${maxBuyPrice}</strong> ·
-                Scan: <strong style={{ color: "#fff" }}>every {intervalMinutes}min</strong> ·
+            <div style={{ background: palette.alpha(palette.brand.gold, 0.06), border: `1px solid ${palette.alpha(palette.brand.gold, 0.2)}`, borderRadius: 12, padding: 16 }}>
+              <div style={{ color: palette.brand.gold, fontWeight: 700, fontSize: 12, marginBottom: 6 }}>⚡ Quick config</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 12 }}>
+                Min profit: <strong style={{ color: palette.ink.white }}>${minProfit}</strong> ·
+                Buy range: <strong style={{ color: palette.ink.white }}>${minBuyPrice}–${maxBuyPrice}</strong> ·
+                Scan: <strong style={{ color: palette.ink.white }}>every {intervalMinutes}min</strong> ·
                 {autoCreate ? " auto-creates listings" : " notify only"}
               </div>
-              <button onClick={() => setActiveTab("config")} style={{ marginTop: 8, background: "none", border: "none", color: "#f5c842", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}>
+              <button onClick={() => setActiveTab("config")} style={{ marginTop: 8, background: "none", border: "none", color: palette.brand.gold, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}>
                 Edit Settings <ChevronRight size={12} />
               </button>
             </div>
@@ -276,8 +277,8 @@ export default function AutopilotPage() {
         {activeTab === "config" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Scan interval */}
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 16 }}>
-              <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>SCAN SETTINGS</div>
+            <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: 16 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12, fontWeight: 700, marginBottom: 12 }}>SCAN SETTINGS</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={labelStyle}>INTERVAL (MIN)</label>
@@ -295,8 +296,8 @@ export default function AutopilotPage() {
             </div>
 
             {/* Price range */}
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 16 }}>
-              <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>PRICE RANGE (BUY PRICE)</div>
+            <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: 16 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12, fontWeight: 700, marginBottom: 12 }}>PRICE RANGE (BUY PRICE)</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={labelStyle}>MIN BUY ($)</label>
@@ -310,14 +311,14 @@ export default function AutopilotPage() {
             </div>
 
             {/* Categories */}
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 16 }}>
-              <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 700, marginBottom: 10 }}>CATEGORIES (empty = all)</div>
+            <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: 16 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12, fontWeight: 700, marginBottom: 10 }}>CATEGORIES (empty = all)</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                 {CATEGORIES.map(cat => (
                   <button key={cat} onClick={() => toggleCategory(cat)}
                     style={{ padding: "5px 12px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                      background: selCategories.includes(cat) ? "rgba(139,92,246,0.25)" : "rgba(255,255,255,0.06)",
-                      color: selCategories.includes(cat) ? "#c4b5fd" : "rgba(255,255,255,0.4)" }}>
+                      background: selCategories.includes(cat) ? palette.alpha(palette.ai.strong, 0.25) : palette.alpha(palette.ink.white, 0.06),
+                      color: selCategories.includes(cat) ? palette.ai.soft : palette.alpha(palette.ink.white, 0.4) }}>
                     {cat}
                   </button>
                 ))}
@@ -326,27 +327,27 @@ export default function AutopilotPage() {
 
             {/* Risk + Platform */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 16 }}>
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 700, marginBottom: 10 }}>RISK LEVEL</div>
+              <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12, fontWeight: 700, marginBottom: 10 }}>RISK LEVEL</div>
                 {["low", "medium", "high"].map(r => (
                   <button key={r} onClick={() => toggleRisk(r)}
                     style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 10px", marginBottom: 4, borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                      background: riskLevels.includes(r) ? (r === "low" ? "rgba(74,222,128,0.15)" : r === "medium" ? "rgba(245,200,66,0.1)" : "rgba(248,113,113,0.1)") : "rgba(255,255,255,0.04)",
-                      color: riskLevels.includes(r) ? (r === "low" ? "#4ade80" : r === "medium" ? "#f5c842" : "#f87171") : "rgba(255,255,255,0.35)" }}>
+                      background: riskLevels.includes(r) ? (r === "low" ? palette.alpha(palette.profit.base, 0.15) : r === "medium" ? palette.alpha(palette.brand.gold, 0.1) : palette.alpha(palette.loss.base, 0.1)) : palette.alpha(palette.ink.white, 0.04),
+                      color: riskLevels.includes(r) ? (r === "low" ? palette.profit.base : r === "medium" ? palette.brand.gold : palette.loss.base) : palette.alpha(palette.ink.white, 0.35) }}>
                     {r === "low" ? "✓ Low" : r === "medium" ? "◆ Medium" : "⚠ High"}
                   </button>
                 ))}
               </div>
-              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 16 }}>
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 700, marginBottom: 10 }}>SELL PLATFORM</div>
+              <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12, fontWeight: 700, marginBottom: 10 }}>SELL PLATFORM</div>
                 <select value={sellPlatform} onChange={e => setSellPlatform(e.target.value)}
                   style={{ ...inputStyle, appearance: "none" as any, marginBottom: 12 }}>
                   {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                   <input type="checkbox" checked={autoCreate} onChange={e => setAutoCreate(e.target.checked)}
-                    style={{ width: 16, height: 16, accentColor: "#8b5cf6" }} />
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Auto-create listings</span>
+                    style={{ width: 16, height: 16, accentColor: palette.ai.strong }} />
+                  <span style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12 }}>Auto-create listings</span>
                 </label>
               </div>
             </div>
@@ -354,12 +355,12 @@ export default function AutopilotPage() {
             {/* Save / start buttons */}
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => { saveConfig(); alert("Settings saved!"); }}
-                style={{ flex: 1, padding: "12px", borderRadius: 11, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.6)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                style={{ flex: 1, padding: "12px", borderRadius: 11, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.6), fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 💾 Save Settings
               </button>
               {isRunning && (
                 <button onClick={handleStart}
-                  style={{ flex: 2, padding: "12px", borderRadius: 11, border: "none", background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  style={{ flex: 2, padding: "12px", borderRadius: 11, border: "none", background: `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`, color: palette.ink.white, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
                   ⚡ Apply & Restart
                 </button>
               )}
@@ -369,12 +370,12 @@ export default function AutopilotPage() {
 
         {/* Log tab */}
         {activeTab === "log" && (
-          <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 16, fontFamily: "monospace" }}>
+          <div style={{ background: palette.alpha(palette.ink.black, 0.3), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 12, padding: 16, fontFamily: "monospace" }}>
             {!status?.log?.length ? (
-              <div style={{ color: "rgba(255,255,255,0.2)", textAlign: "center", padding: "32px 0", fontSize: 13 }}>No activity yet — start autopilot to begin</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.2), textAlign: "center", padding: "32px 0", fontSize: 13 }}>No activity yet — start autopilot to begin</div>
             ) : status.log.map((entry, i) => (
               <div key={i} style={{ display: "flex", gap: 12, marginBottom: 8, alignItems: "flex-start" }}>
-                <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, flexShrink: 0, paddingTop: 1 }}>{new Date(entry.ts).toLocaleTimeString()}</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.2), fontSize: 10, flexShrink: 0, paddingTop: 1 }}>{new Date(entry.ts).toLocaleTimeString()}</span>
                 <span style={{ color: logTypeColor(entry.type), fontSize: 11, flexShrink: 0 }}>
                   {entry.type === "listing_created" ? "✓" : entry.type === "error" ? "✗" : entry.type === "scan" ? "↻" : "·"}
                 </span>

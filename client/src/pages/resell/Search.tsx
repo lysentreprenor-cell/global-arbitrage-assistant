@@ -9,6 +9,7 @@ import { ResellLayout } from "@/components/resell/ResellLayout";
 import { getAnthropicKey, getEbayKeys, getEtsyKey, getUserLocation } from "@/lib/apiKeys";
 import { QuickCreateOfferModal } from "@/components/resell/QuickCreateOfferModal";
 import { LocationPicker } from "@/components/resell/LocationPicker";
+import * as palette from "@/design/palette";
 
 type SearchResult = {
   id: number; name: string;
@@ -203,36 +204,36 @@ export default function SearchPage() {
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 6 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Zap size={18} color="#fff" />
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Zap size={18} color={palette.ink.white} />
               </div>
-              <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 900, margin: 0 }}>AI Opportunity Search</h1>
+              <h1 style={{ color: palette.ink.white, fontSize: 22, fontWeight: 900, margin: 0 }}>AI Opportunity Search</h1>
             </div>
             <LocationPicker onChange={loc => setUserLoc(loc)} />
           </div>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>
-            Enter a product, category, or keyword — AI finds where to buy cheap in <span style={{ color: "#93c5fd" }}>{userLoc.flag} {userLoc.label}</span> and where to sell for profit.
+          <p style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, margin: 0 }}>
+            Enter a product, category, or keyword — AI finds where to buy cheap in <span style={{ color: palette.info.soft }}>{userLoc.flag} {userLoc.label}</span> and where to sell for profit.
           </p>
         </div>
 
         {/* ── Search box ── */}
         <div style={{ position: "relative", marginBottom: 10 }}>
-          <Search size={18} style={{ position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.35)", pointerEvents: "none" }} />
+          <Search size={18} style={{ position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)", color: palette.alpha(palette.ink.white, 0.35), pointerEvents: "none" }} />
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSearch()}
             placeholder="e.g. vintage jeans, amber jewelry, Soviet cameras, Omega watch..."
             style={{
-              width: "100%", background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(139,92,246,0.35)", borderRadius: 14,
-              padding: "16px 180px 16px 50px", color: "#fff", fontSize: 15,
+              width: "100%", background: palette.alpha(palette.ink.white, 0.05),
+              border: `1px solid ${palette.alpha(palette.ai.strong, 0.35)}`, borderRadius: 14,
+              padding: "16px 180px 16px 50px", color: palette.ink.white, fontSize: 15,
               outline: "none", boxSizing: "border-box", fontFamily: "inherit",
             }}
           />
           {query && (
             <button onClick={() => { setQuery(""); setResults(null); setError(null); }}
-              style={{ position: "absolute", right: 156, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", padding: 4 }}>
+              style={{ position: "absolute", right: 156, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.3), padding: 4 }}>
               <X size={15} />
             </button>
           )}
@@ -240,9 +241,9 @@ export default function SearchPage() {
             onClick={() => setShowFilters(f => !f)}
             style={{
               position: "absolute", right: 110, top: "50%", transform: "translateY(-50%)",
-              padding: "8px 10px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.1)",
-              background: showFilters ? "rgba(139,92,246,0.2)" : "rgba(255,255,255,0.05)",
-              color: showFilters ? "#a78bfa" : "rgba(255,255,255,0.4)", cursor: "pointer",
+              padding: "8px 10px", borderRadius: 9, border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`,
+              background: showFilters ? palette.alpha(palette.ai.strong, 0.2) : palette.alpha(palette.ink.white, 0.05),
+              color: showFilters ? palette.ai.base : palette.alpha(palette.ink.white, 0.4), cursor: "pointer",
               display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600,
             }}
           >
@@ -255,8 +256,8 @@ export default function SearchPage() {
               position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
               padding: "9px 22px", borderRadius: 10, border: "none",
               cursor: query.trim() && !loading ? "pointer" : "not-allowed",
-              background: query.trim() && !loading ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "rgba(255,255,255,0.08)",
-              color: query.trim() && !loading ? "#fff" : "rgba(255,255,255,0.3)",
+              background: query.trim() && !loading ? `linear-gradient(135deg, ${palette.ai.strong}, ${palette.ai.deep})` : palette.alpha(palette.ink.white, 0.08),
+              color: query.trim() && !loading ? palette.ink.white : palette.alpha(palette.ink.white, 0.3),
               fontWeight: 700, fontSize: 13,
             }}
           >
@@ -266,61 +267,61 @@ export default function SearchPage() {
 
         {/* ── Filters panel ── */}
         {showFilters && (
-          <div style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.18)", borderRadius: 12, padding: "14px 18px", marginBottom: 14, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end" }}>
+          <div style={{ background: palette.alpha(palette.ai.strong, 0.06), border: `1px solid ${palette.alpha(palette.ai.strong, 0.18)}`, borderRadius: 12, padding: "14px 18px", marginBottom: 14, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end" }}>
             <div>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>BUY PRICE RANGE ($)</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>BUY PRICE RANGE ($)</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <input
                   value={minBudget}
                   onChange={e => setMinBudget(e.target.value)}
                   placeholder="min"
                   type="number"
-                  style={{ width: 72, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                  style={{ width: 72, background: palette.alpha(palette.ink.white, 0.05), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, borderRadius: 8, padding: "7px 10px", color: palette.ink.white, fontSize: 13, outline: "none", fontFamily: "inherit" }}
                 />
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>–</span>
+                <span style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>–</span>
                 <input
                   value={maxBudget}
                   onChange={e => setMaxBudget(e.target.value)}
                   placeholder="max"
                   type="number"
-                  style={{ width: 72, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                  style={{ width: 72, background: palette.alpha(palette.ink.white, 0.05), border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, borderRadius: 8, padding: "7px 10px", color: palette.ink.white, fontSize: 13, outline: "none", fontFamily: "inherit" }}
                 />
               </div>
             </div>
             <div>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>CATEGORY</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>CATEGORY</div>
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                 {CATEGORIES.map(c => (
                   <button key={c} onClick={() => setCatFilter(c)}
                     style={{ padding: "5px 11px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                      background: catFilter === c ? "rgba(139,92,246,0.3)" : "rgba(255,255,255,0.06)",
-                      color: catFilter === c ? "#c4b5fd" : "rgba(255,255,255,0.4)" }}>
+                      background: catFilter === c ? palette.alpha(palette.ai.strong, 0.3) : palette.alpha(palette.ink.white, 0.06),
+                      color: catFilter === c ? palette.ai.soft : palette.alpha(palette.ink.white, 0.4) }}>
                     {c}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>RISK</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>RISK</div>
               <div style={{ display: "flex", gap: 5 }}>
                 {RISK_OPTS.map(r => (
                   <button key={r} onClick={() => setRiskFilter(r)}
                     style={{ padding: "5px 11px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                      background: riskFilter === r ? "rgba(74,222,128,0.2)" : "rgba(255,255,255,0.06)",
-                      color: riskFilter === r ? "#4ade80" : "rgba(255,255,255,0.4)" }}>
+                      background: riskFilter === r ? palette.alpha(palette.profit.base, 0.2) : palette.alpha(palette.ink.white, 0.06),
+                      color: riskFilter === r ? palette.profit.base : palette.alpha(palette.ink.white, 0.4) }}>
                     {r}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>SORT BY</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>SORT BY</div>
               <div style={{ display: "flex", gap: 5 }}>
                 {SORT_OPTS.map(s => (
                   <button key={s.key} onClick={() => setSortKey(s.key)}
                     style={{ padding: "5px 11px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                      background: sortKey === s.key ? "rgba(245,200,66,0.2)" : "rgba(255,255,255,0.06)",
-                      color: sortKey === s.key ? "#f5c842" : "rgba(255,255,255,0.4)" }}>
+                      background: sortKey === s.key ? palette.alpha(palette.brand.gold, 0.2) : palette.alpha(palette.ink.white, 0.06),
+                      color: sortKey === s.key ? palette.brand.gold : palette.alpha(palette.ink.white, 0.4) }}>
                     {s.label}
                   </button>
                 ))}
@@ -334,12 +335,12 @@ export default function SearchPage() {
           <div style={{ marginBottom: 20, marginTop: 10 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Clock size={12} color="rgba(255,255,255,0.3)" />
-                <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>RECENT SEARCHES</span>
+                <Clock size={12} color={palette.alpha(palette.ink.white, 0.3)} />
+                <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10, fontWeight: 700, letterSpacing: 0.6 }}>RECENT SEARCHES</span>
               </div>
               <button
                 onClick={() => { clearHistory(); setSearchHistory([]); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.2)", fontSize: 11, padding: 0 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: palette.alpha(palette.ink.white, 0.2), fontSize: 11, padding: 0 }}
               >
                 <Trash2 size={11} /> Clear
               </button>
@@ -347,9 +348,9 @@ export default function SearchPage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {searchHistory.map(h => (
                 <button key={h} onClick={() => handleSearch(h)}
-                  style={{ padding: "5px 13px", borderRadius: 99, border: "1px solid rgba(139,92,246,0.25)", background: "rgba(139,92,246,0.08)", color: "rgba(167,139,250,0.8)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(139,92,246,0.5)"; (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(139,92,246,0.25)"; (e.currentTarget as HTMLElement).style.color = "rgba(167,139,250,0.8)"; }}
+                  style={{ padding: "5px 13px", borderRadius: 99, border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, background: palette.alpha(palette.ai.strong, 0.08), color: palette.alpha(palette.ai.base, 0.8), fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = palette.alpha(palette.ai.strong, 0.5); (e.currentTarget as HTMLElement).style.color = palette.ai.soft; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = palette.alpha(palette.ai.strong, 0.25); (e.currentTarget as HTMLElement).style.color = palette.alpha(palette.ai.base, 0.8); }}
                 >
                   <Clock size={10} /> {h}
                 </button>
@@ -361,13 +362,13 @@ export default function SearchPage() {
         {/* ── Suggestions ── */}
         {!results && !loading && !error && (
           <div style={{ marginBottom: 32, marginTop: showHistoryPanel ? 0 : 10 }}>
-            <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}>POPULAR SEARCHES</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}>POPULAR SEARCHES</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
               {SUGGESTIONS.map(s => (
                 <button key={s} onClick={() => handleSearch(s)}
-                  style={{ padding: "6px 14px", borderRadius: 99, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer", transition: "all 0.12s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(139,92,246,0.4)"; (e.currentTarget as HTMLElement).style.color = "#a78bfa"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.1)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)"; }}
+                  style={{ padding: "6px 14px", borderRadius: 99, border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`, background: palette.alpha(palette.ink.white, 0.04), color: palette.alpha(palette.ink.white, 0.5), fontSize: 12, cursor: "pointer", transition: "all 0.12s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = palette.alpha(palette.ai.strong, 0.4); (e.currentTarget as HTMLElement).style.color = palette.ai.base; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = palette.alpha(palette.ink.white, 0.1); (e.currentTarget as HTMLElement).style.color = palette.alpha(palette.ink.white, 0.5); }}
                 >
                   {s}
                 </button>
@@ -378,20 +379,20 @@ export default function SearchPage() {
 
         {/* ── Loading ── */}
         {loading && (
-          <div style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 16, padding: "28px 24px", marginTop: 12 }}>
-            <div style={{ color: "#a78bfa", fontWeight: 700, fontSize: 14, marginBottom: 20 }}>
-              Analyzing: <span style={{ color: "#fff" }}>"{query}"</span>
+          <div style={{ background: palette.alpha(palette.ai.strong, 0.06), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 16, padding: "28px 24px", marginTop: 12 }}>
+            <div style={{ color: palette.ai.base, fontWeight: 700, fontSize: 14, marginBottom: 20 }}>
+              Analyzing: <span style={{ color: palette.ink.white }}>"{query}"</span>
             </div>
             {STAGES.map((s, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, opacity: i <= stage ? 1 : 0.25, transition: "opacity 0.4s" }}>
                 <div style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
-                  background: i < stage ? "rgba(74,222,128,0.2)" : i === stage ? "rgba(139,92,246,0.2)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${i < stage ? "rgba(74,222,128,0.4)" : i === stage ? "rgba(139,92,246,0.4)" : "rgba(255,255,255,0.1)"}`,
+                  background: i < stage ? palette.alpha(palette.profit.base, 0.2) : i === stage ? palette.alpha(palette.ai.strong, 0.2) : palette.alpha(palette.ink.white, 0.05),
+                  border: `1px solid ${i < stage ? palette.alpha(palette.profit.base, 0.4) : i === stage ? palette.alpha(palette.ai.strong, 0.4) : palette.alpha(palette.ink.white, 0.1)}`,
                   display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {i < stage && <span style={{ color: "#4ade80", fontSize: 10 }}>✓</span>}
-                  {i === stage && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#8b5cf6", animation: "pulse 1s infinite" }} />}
+                  {i < stage && <span style={{ color: palette.profit.base, fontSize: 10 }}>✓</span>}
+                  {i === stage && <div style={{ width: 6, height: 6, borderRadius: "50%", background: palette.ai.strong, animation: "pulse 1s infinite" }} />}
                 </div>
-                <span style={{ color: i < stage ? "rgba(255,255,255,0.7)" : i === stage ? "#c4b5fd" : "rgba(255,255,255,0.3)", fontSize: 13 }}>{s}</span>
+                <span style={{ color: i < stage ? palette.alpha(palette.ink.white, 0.7) : i === stage ? palette.ai.soft : palette.alpha(palette.ink.white, 0.3), fontSize: 13 }}>{s}</span>
               </div>
             ))}
           </div>
@@ -399,13 +400,13 @@ export default function SearchPage() {
 
         {/* ── Error ── */}
         {error && !loading && (
-          <div style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 12, padding: "16px 18px", display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12 }}>
-            <AlertCircle size={16} color="#f5c842" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ background: palette.alpha(palette.brand.gold, 0.08), border: `1px solid ${palette.alpha(palette.brand.gold, 0.25)}`, borderRadius: 12, padding: "16px 18px", display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12 }}>
+            <AlertCircle size={16} color={palette.brand.gold} style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
-              <div style={{ color: "#fde68a", fontWeight: 700, fontSize: 13 }}>{error}</div>
+              <div style={{ color: palette.brand.goldSoft, fontWeight: 700, fontSize: 13 }}>{error}</div>
               {error.includes("API key") && (
                 <button onClick={() => setLocation("/resell/settings")}
-                  style={{ marginTop: 8, padding: "6px 14px", borderRadius: 8, background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.3)", color: "#a78bfa", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  style={{ marginTop: 8, padding: "6px 14px", borderRadius: 8, background: palette.alpha(palette.ai.strong, 0.2), border: `1px solid ${palette.alpha(palette.ai.strong, 0.3)}`, color: palette.ai.base, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                   Go to Settings →
                 </button>
               )}
@@ -419,51 +420,51 @@ export default function SearchPage() {
             {/* Stats bar */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
               <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
-                  <span style={{ color: "#4ade80", fontWeight: 700 }}>{filtered.length}</span> opportunities
-                  {filtered.length !== results.length && <span style={{ color: "rgba(255,255,255,0.3)" }}> (filtered from {results.length})</span>}
+                <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 12 }}>
+                  <span style={{ color: palette.profit.base, fontWeight: 700 }}>{filtered.length}</span> opportunities
+                  {filtered.length !== results.length && <span style={{ color: palette.alpha(palette.ink.white, 0.3) }}> (filtered from {results.length})</span>}
                 </div>
-                {source === "live" && <span style={{ color: "#4ade80", fontSize: 11 }}>🟢 Live market data</span>}
-                {source === "ai" && <span style={{ color: "#a78bfa", fontSize: 11 }}>🤖 AI analysis</span>}
+                {source === "live" && <span style={{ color: palette.profit.base, fontSize: 11 }}>🟢 Live market data</span>}
+                {source === "ai" && <span style={{ color: palette.ai.base, fontSize: 11 }}>🤖 AI analysis</span>}
                 {bestDeal && (
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
-                    Best: <span style={{ color: "#4ade80", fontWeight: 700 }}>+${bestDeal.netProfit ?? bestDeal.profit}</span> net on {bestDeal.name.split(" ").slice(0, 3).join(" ")}
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>
+                    Best: <span style={{ color: palette.profit.base, fontWeight: 700 }}>+${bestDeal.netProfit ?? bestDeal.profit}</span> net on {bestDeal.name.split(" ").slice(0, 3).join(" ")}
                   </div>
                 )}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 {saved.length > 0 && (
                   <button onClick={() => setLocation("/resell/saved")}
-                    style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)", color: "#c4b5fd", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                    style={{ padding: "6px 14px", borderRadius: 8, background: palette.alpha(palette.ai.strong, 0.1), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, color: palette.ai.soft, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
                     <BookmarkCheck size={12} /> Saved ({saved.length})
                   </button>
                 )}
                 <button onClick={() => handleSearch()}
-                  style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  style={{ padding: "6px 14px", borderRadius: 8, background: palette.alpha(palette.ai.strong, 0.15), border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, color: palette.ai.base, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                   Rescan
                 </button>
               </div>
             </div>
 
             {filtered.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+              <div style={{ textAlign: "center", padding: "40px 0", color: palette.alpha(palette.ink.white, 0.3), fontSize: 13 }}>
                 No results match current filters. Try relaxing the filters.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {filtered.map((r) => {
-                  const scoreColor = r.score >= 85 ? "#4ade80" : r.score >= 65 ? "#f5c842" : "#f87171";
-                  const riskColor = r.risk === "low" ? "#4ade80" : r.risk === "medium" ? "#f5c842" : "#f87171";
-                  const riskBg = r.risk === "low" ? "rgba(74,222,128,0.1)" : r.risk === "medium" ? "rgba(245,200,66,0.1)" : "rgba(248,113,113,0.1)";
-                  const demandColor = r.demandLevel === "high" ? "#4ade80" : r.demandLevel === "medium" ? "#60a5fa" : "rgba(255,255,255,0.3)";
+                  const scoreColor = r.score >= 85 ? palette.profit.base : r.score >= 65 ? palette.brand.gold : palette.loss.base;
+                  const riskColor = r.risk === "low" ? palette.profit.base : r.risk === "medium" ? palette.brand.gold : palette.loss.base;
+                  const riskBg = r.risk === "low" ? palette.alpha(palette.profit.base, 0.1) : r.risk === "medium" ? palette.alpha(palette.brand.gold, 0.1) : palette.alpha(palette.loss.base, 0.1);
+                  const demandColor = r.demandLevel === "high" ? palette.profit.base : r.demandLevel === "medium" ? palette.info.base : palette.alpha(palette.ink.white, 0.3);
                   const netP = r.netProfit ?? r.profit;
                   const isSaved = saved.some(x => x.id === r.id);
 
                   return (
                     <div key={r.id}
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden", transition: "all 0.15s" }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(139,92,246,0.2)"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.07)"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
+                      style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 14, overflow: "hidden", transition: "all 0.15s" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = palette.alpha(palette.ai.strong, 0.2); (e.currentTarget as HTMLElement).style.background = palette.alpha(palette.ink.white, 0.05); }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = palette.alpha(palette.ink.white, 0.07); (e.currentTarget as HTMLElement).style.background = palette.alpha(palette.ink.white, 0.03); }}
                     >
                       {/* Top row — main info + profit */}
                       <div
@@ -478,13 +479,13 @@ export default function SearchPage() {
                         {/* Score */}
                         <div style={{ width: 48, height: 48, borderRadius: 12, background: `${scoreColor}12`, border: `1px solid ${scoreColor}25`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           <div style={{ color: scoreColor, fontSize: 16, fontWeight: 900, lineHeight: 1 }}>{r.score}</div>
-                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9 }}>score</div>
+                          <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 9 }}>score</div>
                         </div>
 
                         {/* Name + meta */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
-                            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{r.name}</span>
+                            <span style={{ color: palette.ink.white, fontWeight: 700, fontSize: 14 }}>{r.name}</span>
                             {r.risk && (
                               <span style={{ background: riskBg, border: `1px solid ${riskColor}30`, borderRadius: 99, padding: "1px 8px", color: riskColor, fontSize: 10, fontWeight: 800 }}>
                                 {r.risk.toUpperCase()}
@@ -495,56 +496,56 @@ export default function SearchPage() {
                                 {r.demandLevel === "high" ? "▲" : r.demandLevel === "medium" ? "◆" : "▼"} {r.demandLevel.toUpperCase()} DEMAND
                               </span>
                             )}
-                            {r.category && <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>{r.category}</span>}
+                            {r.category && <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10 }}>{r.category}</span>}
                           </div>
 
                           {/* BUY → SELL flow */}
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: r.buyHint ? 6 : 0, flexWrap: "wrap" }}>
-                            <div style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 8, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
-                              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>BUY</span>
-                              <span style={{ color: "#4ade80", fontWeight: 800, fontSize: 13 }}>${r.buy}</span>
-                              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{r.buyMarket}</span>
+                            <div style={{ background: palette.alpha(palette.profit.base, 0.08), border: `1px solid ${palette.alpha(palette.profit.base, 0.2)}`, borderRadius: 8, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
+                              <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10 }}>BUY</span>
+                              <span style={{ color: palette.profit.base, fontWeight: 800, fontSize: 13 }}>${r.buy}</span>
+                              <span style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>{r.buyMarket}</span>
                             </div>
-                            <ArrowRight size={12} color="rgba(255,255,255,0.25)" />
-                            <div style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 8, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
-                              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>SELL</span>
-                              <span style={{ color: "#a78bfa", fontWeight: 800, fontSize: 13 }}>${r.sell}</span>
-                              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{r.sellMarket}</span>
+                            <ArrowRight size={12} color={palette.alpha(palette.ink.white, 0.25)} />
+                            <div style={{ background: palette.alpha(palette.ai.strong, 0.08), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, borderRadius: 8, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}>
+                              <span style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 10 }}>SELL</span>
+                              <span style={{ color: palette.ai.base, fontWeight: 800, fontSize: 13 }}>${r.sell}</span>
+                              <span style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>{r.sellMarket}</span>
                             </div>
-                            <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>{r.flag}</span>
+                            <span style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11 }}>{r.flag}</span>
                           </div>
 
                           {r.buyHint && (
-                            <div style={{ color: "rgba(139,92,246,0.7)", fontSize: 11, fontStyle: "italic", marginBottom: r.tip ? 2 : 0 }}>
+                            <div style={{ color: palette.alpha(palette.ai.strong, 0.7), fontSize: 11, fontStyle: "italic", marginBottom: r.tip ? 2 : 0 }}>
                               💡 {r.buyHint}
                             </div>
                           )}
                           {r.tip && (
-                            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{r.tip}</div>
+                            <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11 }}>{r.tip}</div>
                           )}
                         </div>
 
                         {/* Profit + gap display */}
                         <div style={{ textAlign: "right", flexShrink: 0, minWidth: 80 }}>
-                          <div style={{ color: "#4ade80", fontWeight: 900, fontSize: 22, lineHeight: 1 }}>+${netP}</div>
-                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 4 }}>net profit</div>
+                          <div style={{ color: palette.profit.base, fontWeight: 900, fontSize: 22, lineHeight: 1 }}>+${netP}</div>
+                          <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 10, marginBottom: 4 }}>net profit</div>
                           <div style={{ background: `${scoreColor}15`, borderRadius: 99, padding: "1px 8px", color: scoreColor, fontSize: 11, fontWeight: 700, textAlign: "center", marginBottom: 4 }}>{r.margin}% margin</div>
                           {r.priceGapPct && r.priceGapPct > 0 ? (
                             <div style={{
-                              background: r.priceGapPct > 200 ? "rgba(74,222,128,0.15)" : r.priceGapPct > 80 ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.06)",
-                              border: `1px solid ${r.priceGapPct > 200 ? "rgba(74,222,128,0.3)" : r.priceGapPct > 80 ? "rgba(245,200,66,0.25)" : "rgba(255,255,255,0.1)"}`,
+                              background: r.priceGapPct > 200 ? palette.alpha(palette.profit.base, 0.15) : r.priceGapPct > 80 ? palette.alpha(palette.brand.gold, 0.12) : palette.alpha(palette.ink.white, 0.06),
+                              border: `1px solid ${r.priceGapPct > 200 ? palette.alpha(palette.profit.base, 0.3) : r.priceGapPct > 80 ? palette.alpha(palette.brand.gold, 0.25) : palette.alpha(palette.ink.white, 0.1)}`,
                               borderRadius: 99, padding: "2px 8px", textAlign: "center", marginBottom: 3,
-                              color: r.priceGapPct > 200 ? "#4ade80" : r.priceGapPct > 80 ? "#f5c842" : "rgba(255,255,255,0.4)",
+                              color: r.priceGapPct > 200 ? palette.profit.base : r.priceGapPct > 80 ? palette.brand.gold : palette.alpha(palette.ink.white, 0.4),
                               fontSize: 10, fontWeight: 800,
                             }}>+{r.priceGapPct}% gap</div>
                           ) : null}
                           {r.daysToSell && (
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.2, color: "rgba(255,255,255,0.3)", textAlign: "right" }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.2, color: palette.alpha(palette.ink.white, 0.3), textAlign: "right" }}>
                               ~{r.daysToSell}d sell
                             </div>
                           )}
                           {r.confidence && (
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: r.confidence === "live" ? "#4ade80" : "rgba(255,255,255,0.2)", textAlign: "right" }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: r.confidence === "live" ? palette.profit.base : palette.alpha(palette.ink.white, 0.2), textAlign: "right" }}>
                               {r.confidence === "live" ? "🟢 LIVE" : "~ ESTIM"}
                             </div>
                           )}
@@ -552,16 +553,16 @@ export default function SearchPage() {
                       </div>
 
                       {/* Action bar */}
-                      <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "8px 14px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <div style={{ borderTop: `1px solid ${palette.alpha(palette.ink.white, 0.05)}`, padding: "8px 14px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         {r.sourceUrl && (
                           <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer"
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", color: "#4ade80", fontSize: 11, fontWeight: 600, textDecoration: "none" }}>
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: palette.alpha(palette.profit.base, 0.08), border: `1px solid ${palette.alpha(palette.profit.base, 0.2)}`, color: palette.profit.base, fontSize: 11, fontWeight: 600, textDecoration: "none" }}>
                             <ExternalLink size={11} /> Search source
                           </a>
                         )}
                         {r.sellUrl && (
                           <a href={r.sellUrl} target="_blank" rel="noopener noreferrer"
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", color: "#a78bfa", fontSize: 11, fontWeight: 600, textDecoration: "none" }}>
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: palette.alpha(palette.ai.strong, 0.08), border: `1px solid ${palette.alpha(palette.ai.strong, 0.2)}`, color: palette.ai.base, fontSize: 11, fontWeight: 600, textDecoration: "none" }}>
                             <ExternalLink size={11} /> Sell on {r.sellMarket}
                           </a>
                         )}
@@ -571,12 +572,12 @@ export default function SearchPage() {
                             sessionStorage.setItem("resell_opportunity", JSON.stringify(opp));
                             setLocation("/resell/offer");
                           }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(245,200,66,0.1)", border: "1px solid rgba(245,200,66,0.25)", color: "#f5c842", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: palette.alpha(palette.brand.gold, 0.1), border: `1px solid ${palette.alpha(palette.brand.gold, 0.25)}`, color: palette.brand.gold, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           <FileText size={11} /> Make Offer
                         </button>
                         <button
                           onClick={() => setOfferResult(r)}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)", color: "#60a5fa", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: palette.alpha(palette.info.base, 0.1), border: `1px solid ${palette.alpha(palette.info.base, 0.25)}`, color: palette.info.base, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                           <PlusCircle size={11} /> Create Offer
                         </button>
                         <button
@@ -585,12 +586,12 @@ export default function SearchPage() {
                             sessionStorage.setItem("dropship_import", JSON.stringify(imp));
                             setLocation("/resell/dropship");
                           }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.25)", color: "#a78bfa", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: palette.alpha(palette.ai.strong, 0.1), border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, color: palette.ai.base, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           <Boxes size={11} /> Dropship
                         </button>
                         <button
                           onClick={() => setSaved(toggleSave(r))}
-                          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: isSaved ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${isSaved ? "rgba(139,92,246,0.3)" : "rgba(255,255,255,0.08)"}`, color: isSaved ? "#c4b5fd" : "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 7, background: isSaved ? palette.alpha(palette.ai.strong, 0.15) : palette.alpha(palette.ink.white, 0.04), border: `1px solid ${isSaved ? palette.alpha(palette.ai.strong, 0.3) : palette.alpha(palette.ink.white, 0.08)}`, color: isSaved ? palette.ai.soft : palette.alpha(palette.ink.white, 0.35), fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           {isSaved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
                           {isSaved ? "Saved" : "Save"}
                         </button>

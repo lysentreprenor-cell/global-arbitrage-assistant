@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Copy, Check, ExternalLink, Package, Truck, CheckCircle, DollarSign, AlertTriangle } from "lucide-react";
 import { recordEarning } from "@/lib/earningsTracker";
+import * as palette from "@/design/palette";
 
 interface FulfillmentOrder {
   orderId?: number;
@@ -504,32 +505,32 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
 
   const inputStyle: React.CSSProperties = {
     width: "100%", boxSizing: "border-box",
-    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
-    borderRadius: 9, color: "#fff", fontSize: 14, padding: "10px 14px", outline: "none",
+    background: palette.alpha(palette.ink.white, 0.06), border: `1px solid ${palette.alpha(palette.ink.white, 0.15)}`,
+    borderRadius: 9, color: palette.ink.white, fontSize: 14, padding: "10px 14px", outline: "none",
     fontFamily: "inherit",
   };
 
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
+      style={{ position: "fixed", inset: 0, background: palette.alpha(palette.ink.black, 0.75), display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ width: "100%", maxWidth: 480, background: "linear-gradient(135deg, #1a1030, #130d22)", border: "1px solid rgba(139,92,246,0.25)", borderRadius: 18, padding: 28, position: "relative" }}>
+      <div style={{ width: "100%", maxWidth: 480, background: `linear-gradient(135deg, ${palette.violetInk.mid}, ${palette.violetInk.deep})`, border: `1px solid ${palette.alpha(palette.ai.strong, 0.25)}`, borderRadius: 18, padding: 28, position: "relative" }}>
 
         {/* Close */}
-        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, color: "rgba(255,255,255,0.4)", cursor: "pointer", padding: 7 }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: palette.alpha(palette.ink.white, 0.06), border: "none", borderRadius: 8, color: palette.alpha(palette.ink.white, 0.4), cursor: "pointer", padding: 7 }}>
           <X size={15} />
         </button>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: "linear-gradient(135deg, #f5c842, #f59e0b)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Package size={16} color="#000" />
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg, ${palette.brand.gold}, ${palette.brand.amber})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Package size={16} color={palette.ink.black} />
           </div>
           <div>
-            <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Fulfillment Assistant</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{order.productName?.slice(0, 50)}</div>
+            <div style={{ color: palette.ink.white, fontWeight: 800, fontSize: 15 }}>Fulfillment Assistant</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11 }}>{order.productName?.slice(0, 50)}</div>
           </div>
         </div>
 
@@ -546,14 +547,14 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
               <React.Fragment key={s.key}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0,
-                    background: isDone ? "#4ade80" : isActive ? "#8b5cf6" : "rgba(255,255,255,0.08)",
-                    color: isDone || isActive ? "#fff" : "rgba(255,255,255,0.3)",
+                    background: isDone ? palette.profit.base : isActive ? palette.ai.strong : palette.alpha(palette.ink.white, 0.08),
+                    color: isDone || isActive ? palette.ink.white : palette.alpha(palette.ink.white, 0.3),
                   }}>
                     {isDone ? "✓" : i + 1}
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? "#fff" : "rgba(255,255,255,0.35)" }}>{s.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? palette.ink.white : palette.alpha(palette.ink.white, 0.35) }}>{s.label}</span>
                 </div>
-                {i < arr.length - 1 && <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)", margin: "0 8px" }} />}
+                {i < arr.length - 1 && <div style={{ flex: 1, height: 1, background: palette.alpha(palette.ink.white, 0.08), margin: "0 8px" }} />}
               </React.Fragment>
             );
           })}
@@ -565,41 +566,41 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
             {/* Profit summary */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 7, marginBottom: 20 }}>
               {[
-                { label: "BUY", val: `$${order.buyPrice ?? "?"}`, color: "#60a5fa" },
-                { label: "SELL", val: `$${order.sellPrice ?? "?"}`, color: "#a78bfa" },
-                { label: "NET PROFIT", val: `+$${order.profit ?? "?"}`, color: "#4ade80" },
-                { label: "SHIP EST", val: `~$${shipping.cost}`, color: "#f5c842", sub: shipping.days + "d" },
+                { label: "BUY", val: `$${order.buyPrice ?? "?"}`, color: palette.info.base },
+                { label: "SELL", val: `$${order.sellPrice ?? "?"}`, color: palette.ai.base },
+                { label: "NET PROFIT", val: `+$${order.profit ?? "?"}`, color: palette.profit.base },
+                { label: "SHIP EST", val: `~$${shipping.cost}`, color: palette.brand.gold, sub: shipping.days + "d" },
               ].map(s => (
-                <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, padding: "7px 6px", textAlign: "center" }}>
-                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 7, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>{s.label}</div>
+                <div key={s.label} style={{ background: palette.alpha(palette.ink.white, 0.04), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 9, padding: "7px 6px", textAlign: "center" }}>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 7, fontWeight: 700, letterSpacing: 0.5, marginBottom: 2 }}>{s.label}</div>
                   <div style={{ color: s.color, fontWeight: 900, fontSize: 13 }}>{s.val}</div>
-                  {"sub" in s && s.sub && <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, marginTop: 1 }}>{s.sub}</div>}
+                  {"sub" in s && s.sub && <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 8, marginTop: 1 }}>{s.sub}</div>}
                 </div>
               ))}
             </div>
 
             {/* Shipping address — BIG and easy to copy */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 8 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 8 }}>
                 📦 SHIP DIRECTLY TO THIS ADDRESS
               </div>
-              <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 11, padding: 14, position: "relative" }}>
-                <pre style={{ color: "#fff", fontSize: 13, fontWeight: 600, margin: 0, fontFamily: "inherit", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+              <div style={{ background: palette.alpha(palette.brand.gold, 0.07), border: `1px solid ${palette.alpha(palette.brand.gold, 0.25)}`, borderRadius: 11, padding: 14, position: "relative" }}>
+                <pre style={{ color: palette.ink.white, fontSize: 13, fontWeight: 600, margin: 0, fontFamily: "inherit", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
                   {formattedAddress || "No address provided"}
                 </pre>
                 {order.buyerEmail && (
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 6 }}>{order.buyerEmail}</div>
+                  <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 11, marginTop: 6 }}>{order.buyerEmail}</div>
                 )}
                 <button
                   onClick={copyAddress}
                   style={{ position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700,
-                    background: copiedAddress ? "rgba(74,222,128,0.2)" : "rgba(245,200,66,0.15)",
-                    color: copiedAddress ? "#4ade80" : "#f5c842",
+                    background: copiedAddress ? palette.alpha(palette.profit.base, 0.2) : palette.alpha(palette.brand.gold, 0.15),
+                    color: copiedAddress ? palette.profit.base : palette.brand.gold,
                   }}>
                   {copiedAddress ? <><Check size={11} /> Copied!</> : <><Copy size={11} /> Copy</>}
                 </button>
               </div>
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 6 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 11, marginTop: 6 }}>
                 ↑ Paste this as the delivery address when ordering from the source
               </div>
             </div>
@@ -607,16 +608,16 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
             {/* Shipping feasibility warning */}
             {warning && (
               <div style={{
-                background: warning.level === "warn" ? "rgba(248,113,113,0.1)" : warning.level === "ok" ? "rgba(74,222,128,0.08)" : "rgba(245,200,66,0.08)",
-                border: `1px solid ${warning.level === "warn" ? "rgba(248,113,113,0.3)" : warning.level === "ok" ? "rgba(74,222,128,0.25)" : "rgba(245,200,66,0.25)"}`,
+                background: warning.level === "warn" ? palette.alpha(palette.loss.base, 0.1) : warning.level === "ok" ? palette.alpha(palette.profit.base, 0.08) : palette.alpha(palette.brand.gold, 0.08),
+                border: `1px solid ${warning.level === "warn" ? palette.alpha(palette.loss.base, 0.3) : warning.level === "ok" ? palette.alpha(palette.profit.base, 0.25) : palette.alpha(palette.brand.gold, 0.25)}`,
                 borderRadius: 10, padding: "10px 14px", marginBottom: 16,
                 display: "flex", alignItems: "flex-start", gap: 8,
               }}>
-                <AlertTriangle size={13} color={warning.level === "warn" ? "#f87171" : warning.level === "ok" ? "#4ade80" : "#f5c842"} style={{ marginTop: 1, flexShrink: 0 }} />
-                <div style={{ color: warning.level === "warn" ? "#f87171" : warning.level === "ok" ? "#86efac" : "#fde68a", fontSize: 11, lineHeight: 1.55 }}>
+                <AlertTriangle size={13} color={warning.level === "warn" ? palette.loss.base : warning.level === "ok" ? palette.profit.base : palette.brand.gold} style={{ marginTop: 1, flexShrink: 0 }} />
+                <div style={{ color: warning.level === "warn" ? palette.loss.base : warning.level === "ok" ? palette.profit.soft : palette.brand.goldSoft, fontSize: 11, lineHeight: 1.55 }}>
                   {warning.text}
                   {(sourceCountry || buyerCountry) && (
-                    <span style={{ display: "inline-block", marginTop: 4, color: "rgba(255,255,255,0.3)", fontSize: 10 }}>
+                    <span style={{ display: "inline-block", marginTop: 4, color: palette.alpha(palette.ink.white, 0.3), fontSize: 10 }}>
                       {" "}({sourceCountry ?? "?"} → {buyerCountry ?? "?"}, ~{shipping.days} days)
                     </span>
                   )}
@@ -625,12 +626,12 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
             )}
 
             {/* Instructions */}
-            <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.18)", borderRadius: 10, padding: 14, marginBottom: 20 }}>
-              <div style={{ color: "#93c5fd", fontSize: 11, fontWeight: 700, marginBottom: 8 }}>HOW TO COMPLETE THIS ORDER:</div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, lineHeight: 1.8 }}>
-                1. Click <strong style={{ color: "#fff" }}>"Open Source & Buy"</strong> below<br />
+            <div style={{ background: palette.alpha(palette.info.base, 0.06), border: `1px solid ${palette.alpha(palette.info.base, 0.18)}`, borderRadius: 10, padding: 14, marginBottom: 20 }}>
+              <div style={{ color: palette.info.soft, fontSize: 11, fontWeight: 700, marginBottom: 8 }}>HOW TO COMPLETE THIS ORDER:</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.5), fontSize: 12, lineHeight: 1.8 }}>
+                1. Click <strong style={{ color: palette.ink.white }}>"Open Source & Buy"</strong> below<br />
                 2. Find the item and add to cart<br />
-                3. <strong style={{ color: "#f5c842" }}>Paste the buyer's address</strong> as the delivery address<br />
+                3. <strong style={{ color: palette.brand.gold }}>Paste the buyer's address</strong> as the delivery address<br />
                 4. Complete the purchase — the seller ships directly to your buyer<br />
                 5. Come back here and enter the tracking number
               </div>
@@ -640,12 +641,12 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
             <div style={{ display: "flex", gap: 10 }}>
               {order.sourceUrl ? (
                 <button onClick={openSource}
-                  style={{ flex: 1, padding: "13px", borderRadius: 11, border: "none", background: "linear-gradient(135deg, #f5c842, #f59e0b)", color: "#000", fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  style={{ flex: 1, padding: "13px", borderRadius: 11, border: "none", background: `linear-gradient(135deg, ${palette.brand.gold}, ${palette.brand.amber})`, color: palette.ink.black, fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <ExternalLink size={15} /> Open Source & Buy
                 </button>
               ) : (
                 <button onClick={() => setStep("tracking")}
-                  style={{ flex: 1, padding: "13px", borderRadius: 11, border: "none", background: "rgba(139,92,246,0.2)", color: "#a78bfa", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  style={{ flex: 1, padding: "13px", borderRadius: 11, border: "none", background: palette.alpha(palette.ai.strong, 0.2), color: palette.ai.base, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                   I've already bought it →
                 </button>
               )}
@@ -653,7 +654,7 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
 
             {order.sourceUrl && (
               <button onClick={() => setStep("tracking")}
-                style={{ width: "100%", marginTop: 8, padding: "9px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.4)", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                style={{ width: "100%", marginTop: 8, padding: "9px", borderRadius: 9, border: `1px solid ${palette.alpha(palette.ink.white, 0.1)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.4), fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
                 I've already placed the order →
               </button>
             )}
@@ -663,16 +664,16 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
         {/* ── Step 2: Tracking ── */}
         {step === "tracking" && (
           <div>
-            <div style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 11, padding: 14, marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-              <CheckCircle size={18} color="#4ade80" />
+            <div style={{ background: palette.alpha(palette.profit.base, 0.08), border: `1px solid ${palette.alpha(palette.profit.base, 0.2)}`, borderRadius: 11, padding: 14, marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+              <CheckCircle size={18} color={palette.profit.base} />
               <div>
-                <div style={{ color: "#4ade80", fontWeight: 700, fontSize: 13 }}>Purchase confirmed!</div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>The seller will ship directly to your buyer's address</div>
+                <div style={{ color: palette.profit.base, fontWeight: 700, fontSize: 13 }}>Purchase confirmed!</div>
+                <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 12 }}>The seller will ship directly to your buyer's address</div>
               </div>
             </div>
 
             <div style={{ marginBottom: 20 }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 8 }}>TRACKING NUMBER <span style={{ fontWeight: 400 }}>(optional)</span></div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.35), fontSize: 10, fontWeight: 700, letterSpacing: 0.6, marginBottom: 8 }}>TRACKING NUMBER <span style={{ fontWeight: 400 }}>(optional)</span></div>
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   value={trackingNumber}
@@ -683,29 +684,29 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
                 />
                 {trackingNumber && (
                   <button onClick={() => { navigator.clipboard.writeText(trackingNumber); setCopiedTracking(true); setTimeout(() => setCopiedTracking(false), 1500); }}
-                    style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: copiedTracking ? "#4ade80" : "rgba(255,255,255,0.4)", cursor: "pointer" }}>
+                    style={{ padding: "10px 12px", borderRadius: 9, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, background: "transparent", color: copiedTracking ? palette.profit.base : palette.alpha(palette.ink.white, 0.4), cursor: "pointer" }}>
                     {copiedTracking ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 )}
               </div>
-              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginTop: 6 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 11, marginTop: 6 }}>
                 Enter the tracking number you received from the source seller
               </div>
             </div>
 
             {/* Buyer address reminder */}
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, padding: 12, marginBottom: 20 }}>
-              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>SHIPPED TO</div>
-              <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, lineHeight: 1.5 }}>{formattedAddress}</div>
+            <div style={{ background: palette.alpha(palette.ink.white, 0.03), border: `1px solid ${palette.alpha(palette.ink.white, 0.07)}`, borderRadius: 9, padding: 12, marginBottom: 20 }}>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.25), fontSize: 10, fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>SHIPPED TO</div>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.6), fontSize: 12, lineHeight: 1.5 }}>{formattedAddress}</div>
             </div>
 
             {submitError && (
-              <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 9, padding: "10px 14px", marginBottom: 12, color: "#f87171", fontSize: 12, fontWeight: 600 }}>
+              <div style={{ background: palette.alpha(palette.loss.base, 0.1), border: `1px solid ${palette.alpha(palette.loss.base, 0.3)}`, borderRadius: 9, padding: "10px 14px", marginBottom: 12, color: palette.loss.base, fontSize: 12, fontWeight: 600 }}>
                 ⚠ {submitError}
               </div>
             )}
             <button onClick={submitTracking} disabled={submitting}
-              style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: "linear-gradient(135deg, #4ade80, #22c55e)", color: "#000", fontWeight: 800, fontSize: 14, cursor: submitting ? "default" : "pointer" }}>
+              style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: `linear-gradient(135deg, ${palette.profit.base}, ${palette.profit.strong})`, color: palette.ink.black, fontWeight: 800, fontSize: 14, cursor: submitting ? "default" : "pointer" }}>
               {submitting ? "Saving…" : trackingNumber ? "Save Tracking & Mark Done ✓" : "Mark as Fulfilled ✓"}
             </button>
           </div>
@@ -714,25 +715,25 @@ export function FulfillmentModal({ order, onClose, onProcessed }: Props) {
         {/* ── Step 3: Done ── */}
         {step === "done" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ width: 60, height: 60, borderRadius: "50%", background: "rgba(74,222,128,0.15)", border: "2px solid rgba(74,222,128,0.4)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-              <Truck size={26} color="#4ade80" />
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: palette.alpha(palette.profit.base, 0.15), border: `2px solid ${palette.alpha(palette.profit.base, 0.4)}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Truck size={26} color={palette.profit.base} />
             </div>
-            <div style={{ color: "#4ade80", fontWeight: 900, fontSize: 18, marginBottom: 6 }}>Order Fulfilled! 🎉</div>
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 4 }}>
+            <div style={{ color: palette.profit.base, fontWeight: 900, fontSize: 18, marginBottom: 6 }}>Order Fulfilled! 🎉</div>
+            <div style={{ color: palette.alpha(palette.ink.white, 0.4), fontSize: 13, marginBottom: 4 }}>
               The item is on its way to {order.buyerName}
             </div>
             {trackingNumber && (
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, marginBottom: 4 }}>
-                Tracking: <strong style={{ color: "#fff" }}>{trackingNumber}</strong>
+              <div style={{ color: palette.alpha(palette.ink.white, 0.3), fontSize: 12, marginBottom: 4 }}>
+                Tracking: <strong style={{ color: palette.ink.white }}>{trackingNumber}</strong>
               </div>
             )}
-            <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 10, padding: "10px 16px" }}>
-              <DollarSign size={14} color="#4ade80" />
-              <span style={{ color: "#4ade80", fontWeight: 800, fontSize: 14 }}>+${order.profit} profit earned</span>
+            <div style={{ marginTop: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: palette.alpha(palette.profit.base, 0.1), border: `1px solid ${palette.alpha(palette.profit.base, 0.2)}`, borderRadius: 10, padding: "10px 16px" }}>
+              <DollarSign size={14} color={palette.profit.base} />
+              <span style={{ color: palette.profit.base, fontWeight: 800, fontSize: 14 }}>+${order.profit} profit earned</span>
             </div>
             <br />
             <button onClick={onClose}
-              style={{ marginTop: 20, padding: "10px 28px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "rgba(255,255,255,0.5)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              style={{ marginTop: 20, padding: "10px 28px", borderRadius: 10, border: `1px solid ${palette.alpha(palette.ink.white, 0.12)}`, background: "transparent", color: palette.alpha(palette.ink.white, 0.5), fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
               Close
             </button>
           </div>

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ✍️ GADACZ NA WINDOWS — natywna apka .NET (WinForms). Gada z tym samym
+       mózgiem (serwer + chmura) co telefon, a od Fazy 2 STERUJE programami
+       (Windows UI Automation: czyta ekran, klika, wpisuje). Buduje sie w chmurze
+       na robocie Windows GitHuba do jednego pliku Gadacz.exe (bez instalatora). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Platforma z API Windows 10 (WinRT) — potrzebne do CZYTANIA POWIADOMIEN
+         systemowych (UserNotificationListener). WinForms/WPF dzialaja jak dotad. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- WPF wlaczone dla dostepu do System.Windows.Automation (sterowanie ekranem). -->
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Gadacz</AssemblyName>
+    <ApplicationDefaultFont>Segoe UI, 12pt</ApplicationDefaultFont>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Czytanie odpowiedzi NA GŁOS (wazne dla osoby niewidomej). -->
+    <PackageReference Include="System.Speech" Version="8.0.0" />
+    <!-- 📑 Czytanie PDF-ow na glos (wyciaganie tekstu). -->
+    <PackageReference Include="PdfPig" Version="0.1.9" />
+  </ItemGroup>
+
+  <!-- 🖥️ STEROWANIE EKRANEM — Windows UI Automation (System.Windows.Automation)
+       jest już dostarczane przez UseWPF, więc nie dodajemy osobnych referencji
+       (unikamy konfliktu podwójnych bibliotek). -->
+
+</Project>

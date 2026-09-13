@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 🍎 GADACZ NA MACA — natywna apka (Avalonia .NET, wieloplatformowa). Gada z tym
+       samym mózgiem (serwer + chmura) co telefon/Windows i CZYTA odpowiedzi na głos
+       (systemowe polecenie macOS „say"). Buduje sie na robocie Mac do paczki .app. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Gadacz</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.1.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.4" />
+  </ItemGroup>
+
+</Project>

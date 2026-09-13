@@ -44,6 +44,36 @@
   --shadow-premium: 0 20px 40px -15px rgba(0, 0, 0, 0.4);
   --shadow-floating: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
   --shadow-inner-glow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
+
+  /* ───────────────────────────────────────────────────────────────────────
+     Powierzchnie ResellAssist dla klas Tailwinda
+
+     Ekrany budowane na obiektach `style` czytają kolory z design/palette.ts.
+     TradingBot jest jedyny zbudowany na klasach Tailwinda, a te nie przyjmują
+     wartości z JS — `bg-[${palette.x}]` nie wygenerowałoby żadnej klasy
+     i kolor zniknąłby bez błędu. Dlatego jego powierzchnie mieszkają tutaj.
+
+     ⚠ Cztery pierwsze wartości są te same co `surface.*` w design/palette.ts.
+     Tailwind 4 nie umie czytać z TypeScriptu, więc są zdublowane świadomie —
+     zmiana jednej strony wymaga zmiany drugiej.
+     ─────────────────────────────────────────────────────────────────────── */
+  --color-surface-raised: #0d1b12;
+  --color-surface-high:   #1a2e1f;
+  --color-surface-higher: #1e3a28;
+  --color-surface-edge:   #2a4a30;
+
+  /* Panele bota handlowego, od najciemniejszego */
+  --color-bot-list:        #0a0d1a;
+  --color-bot-card:        #0a140d;
+  --color-bot-card-alt:    #0a1a0f;
+  --color-bot-nest:        #0d1a0f;
+  --color-bot-field:       #101d14;
+  --color-bot-head:        #101d1f;
+  --color-bot-row:         #111f10;
+  --color-bot-option:      #111f16;
+  --color-bot-option-alt:  #141f18;
+  --color-bot-option-edge: #243528;
+  --color-bot-hover:       #243d28;
 }
 
 :root {

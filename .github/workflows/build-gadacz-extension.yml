@@ -1,0 +1,36 @@
+name: "Spakuj wtyczke Gadacza (Chrome/Edge)"
+
+# 🧩 GADACZ — WTYCZKA. Rozszerzenie to zwykle pliki (nic nie trzeba kompilowac),
+# wiec robot je tylko pakuje do gadacz-wtyczka.zip i publikuje na wydaniu
+# 'gadacz-wtyczka'. Uzytkownik pobiera zip, rozpakowuje i wczytuje w Chrome/Edge
+# (Rozszerzenia -> Tryb programisty -> Zaladuj rozpakowane -> wskaz folder).
+on:
+  workflow_dispatch:
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths:
+      - "extension/**"
+      - ".github/workflows/build-gadacz-extension.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Spakuj wtyczke
+        run: |
+          cd extension
+          zip -qr ../gadacz-wtyczka.zip .
+          cd ..
+          echo "Zawartosc zip:"; unzip -l gadacz-wtyczka.zip
+      - name: Opublikuj wtyczke
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-wtyczka
+          name: "Gadacz — wtyczka do przegladarki"
+          body: "Rozszerzenie Gadacza do Chrome/Edge. Pobierz gadacz-wtyczka.zip, rozpakuj, potem: chrome://extensions -> Tryb programisty -> Zaladuj rozpakowane -> wskaz rozpakowany folder."
+          files: gadacz-wtyczka.zip
+          make_latest: false

@@ -18,9 +18,38 @@ export function getEtsyKey(): string {
   return getApiKeys().etsy?.apiKey ?? "";
 }
 
+export function getGeminiKey(): string {
+  return getApiKeys().gemini?.apiKey ?? "";
+}
+
+export function getYouTubeKey(): string {
+  return getApiKeys().youtube?.apiKey ?? "";
+}
+
 export function getAllegroKeys(): { clientId: string; clientSecret: string } {
   const k = getApiKeys().allegro ?? {};
   return { clientId: k.clientId ?? "", clientSecret: k.clientSecret ?? "" };
+}
+
+export function getBybitKeys(): { apiKey: string; secret: string; testnet: boolean; platform: "global" | "eu" } {
+  const k = getApiKeys().bybit ?? {};
+  return { apiKey: k.apiKey ?? "", secret: k.secret ?? "", testnet: k.testnet === "true",
+    platform: (k.platform ?? "").trim().toLowerCase() === "eu" ? "eu" : "global" };
+}
+
+export function hasBybitKeys(): boolean {
+  const { apiKey, secret } = getBybitKeys();
+  return apiKey.length > 10 && secret.length > 10;
+}
+
+export function getKrakenKeys(): { apiKey: string; secret: string } {
+  const k = getApiKeys().kraken ?? {};
+  return { apiKey: k.apiKey ?? "", secret: k.secret ?? "" };
+}
+
+export function hasKrakenKeys(): boolean {
+  const { apiKey, secret } = getKrakenKeys();
+  return apiKey.length > 5 && secret.length > 10;
 }
 
 export function hasAnyKey(): boolean {

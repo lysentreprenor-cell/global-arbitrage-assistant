@@ -1,0 +1,50 @@
+name: "Zbuduj Gadacza na Maca (.app)"
+
+# 🍎 GADACZ NA MACA — buduje natywna apke (Avalonia .NET) na robocie Mac GitHuba
+# do paczki Gadacz.app (Apple Silicon), pakuje do gadacz-mac.zip i publikuje na
+# wydaniu 'gadacz-mac'. Uzytkownik pobiera, rozpakowuje, przy 1. razie: prawy klik -> Otworz.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ claude/teraz-YKMDA ]
+    paths:
+      - "mac/**"
+      - ".github/workflows/build-gadacz-mac.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zainstaluj .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Zbuduj (osx-arm64, samodzielny)
+        run: dotnet publish mac/Gadacz.csproj -c Release -r osx-arm64 --self-contained true -o out
+
+      - name: Zbuduj paczke Gadacz.app
+        run: |
+          APP="Gadacz.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp -R out/* "$APP/Contents/MacOS/"
+          cp mac/Info.plist "$APP/Contents/Info.plist"
+          chmod +x "$APP/Contents/MacOS/Gadacz"
+          echo "=== zawartosc ==="; ls -la "$APP/Contents/MacOS" | head
+          ditto -c -k --keepParent "$APP" gadacz-mac.zip
+          echo "OK: gadacz-mac.zip gotowy"
+
+      - name: Opublikuj Gadacza na Maca
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gadacz-mac
+          name: "Gadacz na Maca"
+          body: "Natywna apka Gadacza na Maca (Apple Silicon). Pobierz gadacz-mac.zip, rozpakuj, przenies Gadacz.app do Programow. Przy 1. uruchomieniu: prawy klik na Gadacz.app -> Otworz (Gatekeeper). Jesli sie nie otwiera: w Terminalu wpisz: xattr -cr /sciezka/do/Gadacz.app"
+          files: gadacz-mac.zip
+          make_latest: false

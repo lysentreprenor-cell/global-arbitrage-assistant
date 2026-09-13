@@ -1,0 +1,191 @@
+import express from "express";
+import crypto from "crypto";
+import { bybitFetch as proxyFetch } from "../proxyDispatcher";
+
+const router = express.Router();
+
+const VALID_SYMBOLS = new Set(["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT"]);
+
+async function bybitFetch(
+  method: "GET" | "POST",
+  path: string,
+  apiKey: string,
+  secret: string,
+  testnet: boolean,
+  params?: Record<string, any>,
+  baseOverride?: string,
+) {
+  const base = baseOverride ?? (testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com");
+  apiKey = apiKey.trim();
+  secret = secret.trim();
+  const ts = Date.now().toString();
+  const recvWindow = "5000";
+  let paramStr = "";
+  let url = base + path;
+  let fetchBody: string | undefined;
+
+  if (method === "GET" && params) {
+    paramStr = new URLSearchParams(params as Record<string, string>).toString();
+    url += "?" + paramStr;
+  } else if (method === "POST" && params) {
+    fetchBody = JSON.stringify(params);
+    paramStr = fetchBody;
+  }
+
+  const toSign = ts + apiKey + recvWindow + paramStr;
+  const sig = crypto.createHmac("sha256", secret).update(toSign).digest("hex");
+
+  const r = await proxyFetch(url, {
+    method,
+    headers: {
+      "X-BAPI-API-KEY": apiKey,
+      "X-BAPI-SIGN": sig,
+      "X-BAPI-SIGN-TYPE": "2",
+      "X-BAPI-TIMESTAMP": ts,
+      "X-BAPI-RECV-WINDOW": recvWindow,
+      "Content-Type": "application/json",
+    },
+    body: fetchBody,
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) {
+    let body = "";
+    try { body = await r.text(); } catch { /* ignore */ }
+    throw new Error(`Bybit HTTP ${r.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await r.json() as any;
+  if (data.retCode !== 0) throw new Error(`Bybit error ${data.retCode}: ${data.retMsg || "brak opisu — sprawdź uprawnienia klucza API"}`);
+  return data;
+}
+
+function platformBase(platform?: string): string | undefined {
+  return platform === "eu" ? "https://api.bybit.eu" : undefined;
+}
+
+// POST /api/bybit/balance — tries UNIFIED, CONTRACT, SPOT; returns USDT balance
+router.post("/balance", async (req, res) => {
+  const { apiKey, secret, testnet, platform } = req.body;
+  if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
+  const base = platformBase(platform);
+  // UNIFIED first — most common for global Bybit accounts; SPOT second for EU/legacy
+  const accountTypes = ["UNIFIED", "SPOT", "CONTRACT"];
+  let fallback: any = null;
+  for (const accountType of accountTypes) {
+    try {
+      const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, !!testnet, { accountType }, base);
+      const coins: any[] = data.result?.list?.[0]?.coin ?? [];
+      const usdt = coins.find((c: any) => c.coin === "USDT");
+      if (usdt) {
+        const balance   = parseFloat(usdt.walletBalance ?? "0");
+        const equity    = parseFloat(usdt.equity ?? usdt.walletBalance ?? "0");
+        const available = parseFloat(usdt.availableToWithdraw ?? usdt.availableBalance ?? usdt.walletBalance ?? "0");
+        // If USDT found but balance is 0, keep checking other account types for non-zero
+        if (balance > 0) return res.json({ balance, equity, available, coin: "USDT", accountType });
+        if (!fallback) fallback = { balance, equity, available, coin: "USDT", accountType };
+        continue;
+      }
+      if (coins.length > 0) {
+        const c = coins[0];
+        const balance = parseFloat(c.walletBalance ?? "0");
+        if (balance > 0) return res.json({ balance, equity: parseFloat(c.equity ?? c.walletBalance ?? "0"), coin: c.coin, accountType });
+        if (!fallback) fallback = { balance, equity: parseFloat(c.equity ?? c.walletBalance ?? "0"), coin: c.coin, accountType };
+      }
+      // No coins in this account type — try next
+    } catch { /* try next account type */ }
+  }
+  // No account had non-zero balance — return last known 0 or error
+  if (fallback) return res.json(fallback);
+  res.status(502).json({ error: "Nie można pobrać salda — sprawdź klucze API" });
+});
+
+// POST /api/bybit/order — place market order
+router.post("/order", async (req, res) => {
+  const { apiKey, secret, testnet, symbol, side, qty, platform } = req.body;
+  if (!apiKey || !secret || !symbol || !side || !qty) return res.status(400).json({ error: "Missing params" });
+  if (!VALID_SYMBOLS.has(symbol)) return res.status(400).json({ error: "Invalid symbol" });
+  if (!["long","short"].includes(side)) return res.status(400).json({ error: "Invalid side" });
+  const parsedQty = parseFloat(qty);
+  if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
+  try {
+    const params: Record<string, any> = platform === "eu"
+      ? { category: "spot", symbol, side: side === "long" ? "Buy" : "Sell",
+          orderType: "Market", qty: String(parsedQty), marketUnit: "baseCoin", isLeverage: 1 }
+      : { category: "linear", symbol, side: side === "long" ? "Buy" : "Sell",
+          orderType: "Market", qty: String(parsedQty), positionIdx: 0 };
+    const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, params, platformBase(platform));
+    res.json({ orderId: data.result?.orderId, retCode: data.retCode });
+  } catch (e: any) { res.status(502).json({ error: e.message }); }
+});
+
+// POST /api/bybit/close — close position (reduce only)
+router.post("/close", async (req, res) => {
+  const { apiKey, secret, testnet, symbol, side, qty, platform } = req.body;
+  if (!apiKey || !secret || !symbol || !side || !qty) return res.status(400).json({ error: "Missing params" });
+  if (!VALID_SYMBOLS.has(symbol)) return res.status(400).json({ error: "Invalid symbol" });
+  const parsedQty = parseFloat(qty);
+  if (!Number.isFinite(parsedQty) || parsedQty <= 0) return res.status(400).json({ error: "Invalid qty" });
+  try {
+    const closeSide = side === "long" ? "Sell" : "Buy";
+    const params: Record<string, any> = platform === "eu"
+      ? { category: "spot", symbol, side: closeSide,
+          orderType: "Market", qty: String(parsedQty), marketUnit: "baseCoin", isLeverage: 1 }
+      : { category: "linear", symbol, side: closeSide,
+          orderType: "Market", qty: String(parsedQty), positionIdx: 0, reduceOnly: true };
+    const data = await bybitFetch("POST", "/v5/order/create", apiKey, secret, !!testnet, params, platformBase(platform));
+    res.json({ orderId: data.result?.orderId, retCode: data.retCode });
+  } catch (e: any) { res.status(502).json({ error: e.message }); }
+});
+
+// POST /api/bybit/position
+router.post("/position", async (req, res) => {
+  const { apiKey, secret, testnet, symbol } = req.body;
+  if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
+  try {
+    const data = await bybitFetch("GET", "/v5/position/list", apiKey, secret, !!testnet, {
+      category: "linear",
+      symbol: symbol || "BTCUSDT",
+    });
+    res.json(data.result ?? {});
+  } catch (e: any) { res.status(502).json({ error: e.message }); }
+});
+
+// POST /api/bybit/test — diagnose API key
+router.post("/test", async (req, res) => {
+  const { apiKey, secret, testnet } = req.body;
+  if (!apiKey || !secret) return res.status(400).json({ error: "Missing keys" });
+  const trimmedKey = apiKey.trim();
+  const results: Record<string, any> = {
+    testnet: !!testnet, readOk: false, tradeOk: false,
+    keyPreview: trimmedKey.substring(0, 8) + "..." + trimmedKey.slice(-4),
+    keyLength: trimmedKey.length,
+  };
+
+  for (const endpoint of ["https://api.bybit.com", "https://api.bybit.eu"]) {
+    if (testnet) break;
+    try {
+      // First: validate key exists via query-api (no account permission needed)
+      const info = await bybitFetch("GET", "/v5/user/query-api", apiKey, secret, false, {}, endpoint);
+      results[endpoint] = { keyValid: true, permissions: info.result };
+      // Second: try wallet balance
+      for (const accountType of ["SPOT", "UNIFIED", "CONTRACT"]) {
+        try {
+          const data = await bybitFetch("GET", "/v5/account/wallet-balance", apiKey, secret, false, { accountType }, endpoint);
+          const coins: any[] = data.result?.list?.[0]?.coin ?? [];
+          results[endpoint].balance = { accountType, coins: coins.map((c: any) => ({ coin: c.coin, balance: c.walletBalance })) };
+          results.readOk = true;
+          results.tradeOk = true;
+          results.workingEndpoint = endpoint;
+          break;
+        } catch (e: any) {
+          results[endpoint][`balance_${accountType}`] = e.message;
+        }
+      }
+    } catch (e: any) {
+      results[endpoint] = { keyValid: false, error: e.message };
+    }
+  }
+
+  res.json(results);
+});
+
+export default router;
