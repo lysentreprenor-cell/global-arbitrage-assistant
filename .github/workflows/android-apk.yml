@@ -11,6 +11,9 @@ on:
         description: "URL of the deployed server (e.g. https://my-app.replit.app)"
         required: false
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -46,3 +49,15 @@ jobs:
         with:
           name: itemprise-apk
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK to apk-build branch
+        working-directory: mobile/android/app/build/outputs/apk/debug
+        run: |
+          mkdir -p /tmp/apk && cp app-debug.apk /tmp/apk/ItemPrise-debug.apk
+          cd /tmp/apk
+          git init -q -b apk-build
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ItemPrise-debug.apk
+          git commit -qm "APK build from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" apk-build
