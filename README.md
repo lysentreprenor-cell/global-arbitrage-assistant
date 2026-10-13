@@ -35,3 +35,11 @@ npm run dev
 ```
 
 App runs on port 3000.
+
+## Android APK
+
+The `mobile/` directory holds a Capacitor wrapper that opens the deployed server in a native Android app.
+
+- GitHub Actions (`.github/workflows/android-apk.yml`) builds a debug APK on every push touching `mobile/`; download it from the run's **itemprise-apk** artifact.
+- Set the server address via the repository variable `APP_SERVER_URL` (Settings → Secrets and variables → Actions → Variables), or the `server_url` input when running the workflow manually.
+- Local build (requires Android SDK + JDK 21): `cd mobile && npm ci && APP_SERVER_URL=https://… npx cap sync android && cd android && ./gradlew assembleDebug`.

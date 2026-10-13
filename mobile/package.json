@@ -1,0 +1,16 @@
+{
+  "name": "itemprise-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android (Capacitor) wrapper for Global Arbitrage Assistant",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}
