@@ -1,10 +1,9 @@
-import type { CapacitorConfig } from "@capacitor/cli";
-
 // URL of the deployed Express server (serves both the web client and /api).
 // Set APP_SERVER_URL at build time, e.g. APP_SERVER_URL=https://my-app.replit.app
 const serverUrl = process.env.APP_SERVER_URL;
 
-const config: CapacitorConfig = {
+/** @type {import('@capacitor/cli').CapacitorConfig} */
+const config = {
   appId: "com.itemprise.app",
   appName: "ItemPrise",
   webDir: "www",
@@ -17,4 +16,4 @@ const config: CapacitorConfig = {
   },
 };
 
-export default config;
+module.exports = config;
