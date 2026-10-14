@@ -15,6 +15,7 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@local-api": path.resolve(import.meta.dirname, "client", "src", "localApi", "noop.ts"),
     },
   },
   css: {

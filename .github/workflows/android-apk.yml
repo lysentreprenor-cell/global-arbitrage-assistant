@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - "mobile/**"
+      - "client/**"
+      - "server/routes/**"
+      - "vite.mobile.config.ts"
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
     inputs:
@@ -29,12 +32,20 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
+      - name: Build app web bundle
+        working-directory: .
+        run: |
+          npm ci --ignore-scripts
+          npx vite build --config vite.mobile.config.ts
 
       - run: npm ci
       - run: npx cap sync android

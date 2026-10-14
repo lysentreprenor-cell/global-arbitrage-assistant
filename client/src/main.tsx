@@ -1,3 +1,5 @@
+// Mobile build aliases this to ./localApi/install (in-app API); web build gets a no-op.
+import "@local-api";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";

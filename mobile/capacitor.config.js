@@ -1,7 +1,7 @@
-// URL of the deployed Express server (serves both the web client and /api).
-// Override with APP_SERVER_URL at build time.
-const serverUrl =
-  process.env.APP_SERVER_URL || "https://global-arbitrage-assistantxgyiguddh.replit.app";
+// The app is self-contained: the web client (built with vite.mobile.config.ts
+// into www/) runs the ResellAssist API routes on the device.
+// Set APP_SERVER_URL at build time to load a deployed server instead.
+const serverUrl = process.env.APP_SERVER_URL;
 
 /** @type {import('@capacitor/cli').CapacitorConfig} */
 const config = {
@@ -14,6 +14,10 @@ const config = {
     : undefined,
   android: {
     allowMixedContent: false,
+  },
+  plugins: {
+    // Native HTTP for fetch(): lets the app call Anthropic/eBay APIs without CORS limits.
+    CapacitorHttp: { enabled: true },
   },
 };
 
